@@ -1,0 +1,4 @@
+{"cwd":"/repo","sessionId":"session-fixture","gitBranch":"main"}
+{"type":"user","message":{"content":"<command-name>init</command-name>\nFix the login bug"}}
+{"type":"user","message":{"content":"<command-name>compact</command-name>"}}
+{"type":"user"}

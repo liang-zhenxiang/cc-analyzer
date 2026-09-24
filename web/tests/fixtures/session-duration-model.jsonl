@@ -1,0 +1,13 @@
+{"type":"user","timestamp":"1970-01-01T00:00:00.000Z","message":{"content":"start"}}
+{"type":"assistant","timestamp":"1970-01-01T00:00:00.000Z","message":{"content":[{"type":"tool_use","id":"direct-1","name":"Bash","input":{}}]}}
+{"type":"assistant","timestamp":"1970-01-01T00:00:00.900Z","message":{"content":[{"type":"tool_use","id":"delegated-1","name":"Agent","input":{}}]},"childSessionPath":"/tmp/child.jsonl"}
+{"type":"user","timestamp":"1970-01-01T00:00:01.000Z","message":{"content":[{"type":"tool_result","tool_use_id":"direct-1","content":"ok"}]},"toolUseResult":{"stdout":"ok"}}
+{"type":"assistant","timestamp":"1970-01-01T00:00:01.800Z","message":{"content":[{"type":"tool_use","id":"workflow-1","name":"Workflow","input":{}}]}}
+{"type":"assistant","timestamp":"1970-01-01T00:00:02.700Z","message":{"content":[{"type":"tool_use","id":"direct-2","name":"Read","input":{}}]}}
+{"type":"user","timestamp":"1970-01-01T00:00:02.500Z","message":{"content":[{"type":"tool_result","tool_use_id":"delegated-1","content":"done"}]},"childSessionPath":"/tmp/child.jsonl","toolUseResult":{"agentId":"agent-1"}}
+{"type":"user","timestamp":"1970-01-01T00:00:03.000Z","message":{"content":[{"type":"tool_result","tool_use_id":"workflow-1","content":"done"}]},"toolUseResult":{"runId":"run-1","workflowName":"release","status":"completed"}}
+{"type":"user","timestamp":"1970-01-01T00:00:03.500Z","message":{"content":[{"type":"tool_result","tool_use_id":"direct-2","content":"code"}]},"toolUseResult":{"file":{"filePath":"/repo/app.ts"}}}
+{"type":"user","timestamp":"1970-01-01T00:00:04.000Z","message":{"content":"next turn"}}
+{"type":"assistant","timestamp":"1970-01-01T00:00:04.200Z","message":{"content":[{"type":"tool_use","id":"ask-1","name":"AskUserQuestion","input":{}}]}}
+{"type":"user","timestamp":"1970-01-01T00:00:05.000Z","message":{"content":[{"type":"tool_result","tool_use_id":"ask-1","content":"answer"}]},"toolUseResult":{"answer":"answer"}}
+{"type":"assistant","timestamp":"1970-01-01T00:00:06.000Z","message":{"content":[{"type":"text","text":"done"}]}}

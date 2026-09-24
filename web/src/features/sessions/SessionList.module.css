@@ -1,0 +1,193 @@
+.sidebar {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-3);
+  /* Pinned and capped to the viewport: the list scrolls inside instead of
+     stretching the whole page (52px topbar + page padding). */
+  position: sticky;
+  top: var(--sp-3);
+  align-self: start;
+  max-height: calc(100vh - 76px);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+  overflow: hidden;
+}
+
+.toolbar {
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.toolbar input {
+  flex: 1;
+  min-width: 0;
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+}
+
+.toolbar button {
+  white-space: nowrap;
+}
+
+.sidebar [role="tablist"] {
+  display: flex;
+  gap: var(--sp-1);
+  padding: 0 var(--sp-3);
+}
+
+.sidebar [role="tab"] {
+  min-height: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.sidebar [role="tab"][aria-selected="true"] {
+  border-color: var(--border);
+  background: var(--bg-elevated);
+  color: var(--accent);
+}
+
+.groups {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--sp-2);
+}
+
+/* Row heights are mirrored by GROUP_ROW_HEIGHT / SESSION_ROW_HEIGHT. */
+.groupRow {
+  height: 38px;
+  padding-top: 6px;
+  padding-bottom: 4px;
+}
+
+.sessionRow {
+  height: 62px;
+  overflow: hidden;
+}
+
+.sessionRowWithStatus {
+  height: 80px;
+  overflow: hidden;
+}
+
+.groupToggle {
+  display: flex;
+  width: 100%;
+  gap: var(--sp-1);
+  align-items: center;
+  padding: 4px var(--sp-1);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-tertiary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.groupToggle:hover {
+  background: var(--bg-hover);
+}
+
+.groupToggle strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.groupCount {
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.progress {
+  display: grid;
+  gap: 4px;
+  padding: 0 var(--sp-3);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.progress progress {
+  width: 100%;
+  height: 4px;
+}
+
+.groups button {
+  display: grid;
+  width: 100%;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.groups button:hover {
+  background: var(--bg-hover);
+}
+
+.groups button[aria-current="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.groups span {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.groups small {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.error {
+  margin: 0 var(--sp-3);
+  padding: 8px;
+  border-radius: var(--r-sm);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.empty {
+  margin: var(--sp-3);
+}
+
+/* Rows are fixed height, so every line stays on one line and ends with an
+   ellipsis instead of wrapping into the clipped area. */
+.sessionRow button strong,
+.sessionRowWithStatus button strong,
+.sessionRow button span,
+.sessionRowWithStatus button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

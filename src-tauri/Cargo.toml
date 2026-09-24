@@ -1,0 +1,22 @@
+[package]
+name = "cc-analyzer"
+version = "0.1.4"
+description = "CC Analyzer"
+edition = "2021"
+rust-version = "1.77"
+license = "MIT"
+authors = ["liangzhenxiang <116311683@qq.com>"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+tauri = { version = "2.11.5", features = [] }
+tauri-plugin-dialog = "2.7.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["process", "io-util", "time", "macros", "rt"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

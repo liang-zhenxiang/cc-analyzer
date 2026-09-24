@@ -1,0 +1,54 @@
+.container {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+}
+
+.track {
+  position: relative;
+  height: 54px;
+  min-height: 54px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background:
+    linear-gradient(to right, var(--bg-hover) 1px, transparent 1px) 0 0 / 64px 100%,
+    var(--bg-elevated);
+  cursor: crosshair;
+}
+
+.track > button {
+  position: absolute;
+  top: 6px;
+  width: 8px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  transform: translateX(-50%);
+  cursor: pointer;
+}
+
+.track > .user { background: var(--cat-user); }
+.track > .direct { background: var(--cat-direct); }
+.track > .delegated { background: var(--cat-delegated); }
+.track > .workflow { background: var(--cat-workflow); }
+.track > .wait { background: var(--cat-wait); }
+.track > .compute { background: var(--cat-compute); }
+
+.selection {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  border: 1px solid var(--accent);
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+  pointer-events: none;
+}
+
+.container footer {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}

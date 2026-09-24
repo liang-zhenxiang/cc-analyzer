@@ -1,0 +1,2 @@
+{"type":"user","sessionId":"graph-grandchild","timestamp":"1970-01-01T00:00:00.000Z","uuid":"grandchild-user","message":{"role":"user","content":"grandchild root"}}
+{"type":"assistant","sessionId":"graph-grandchild","timestamp":"1970-01-01T00:00:01.000Z","uuid":"grandchild-done","message":{"id":"grandchild-message","model":"claude","content":[{"type":"text","text":"grandchild finished"}]}}

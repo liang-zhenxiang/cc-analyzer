@@ -1,0 +1,78 @@
+.panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+  overflow: auto;
+}
+
+.panel header {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.panel h3,
+.panel h4 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-md);
+}
+
+.panel h4 {
+  font-size: var(--fs-sm);
+}
+
+.panel code {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  word-break: break-all;
+}
+
+.panel dl {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 4px 8px;
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
+.panel dt {
+  color: var(--text-tertiary);
+}
+
+.panel dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel pre {
+  max-height: 300px;
+  margin: 0;
+  padding: 8px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  white-space: pre-wrap;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.actions button {
+  min-height: 28px;
+}
+
+.error {
+  color: var(--danger);
+}

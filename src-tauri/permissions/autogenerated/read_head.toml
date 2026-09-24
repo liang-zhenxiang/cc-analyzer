@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-read-head"
+description = "Enables the read_head command without any pre-configured scope."
+commands.allow = ["read_head"]
+
+[[permission]]
+identifier = "deny-read-head"
+description = "Denies the read_head command without any pre-configured scope."
+commands.deny = ["read_head"]

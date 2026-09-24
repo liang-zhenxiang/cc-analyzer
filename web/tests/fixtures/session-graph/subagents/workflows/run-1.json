@@ -1,0 +1,13 @@
+{
+  "workflowName": "Release",
+  "summary": "execute release graph",
+  "status": "completed",
+  "startTime": 3000,
+  "durationMs": 1000,
+  "agentCount": 1,
+  "totalTokens": 64,
+  "totalToolCalls": 2,
+  "phases": [{"title": "Plan"}, {"title": "Execute"}],
+  "logs": ["workflow started", "workflow finished"],
+  "result": {"status": "completed"}
+}

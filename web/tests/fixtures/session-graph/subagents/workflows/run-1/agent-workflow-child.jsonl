@@ -1,0 +1,2 @@
+{"type":"user","sessionId":"graph-workflow-child","timestamp":"1970-01-01T00:00:00.000Z","uuid":"workflow-child-user","message":{"role":"user","content":"workflow child root"}}
+{"type":"assistant","sessionId":"graph-workflow-child","timestamp":"1970-01-01T00:00:01.000Z","uuid":"workflow-child-done","message":{"id":"workflow-child-message","model":"claude","content":[{"type":"text","text":"workflow child finished"}]}}

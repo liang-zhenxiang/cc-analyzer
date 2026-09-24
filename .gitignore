@@ -1,0 +1,16 @@
+.DS_Store
+.worktrees/
+node_modules/
+web/dist/
+web/tsconfig.tsbuildinfo
+target/
+dist-intel/
+dist-arm64/
+dist-windows/
+src-tauri/target/
+src-tauri/gen/
+*.dmg
+*.log
+
+# Local working notes
+docs/superpowers/

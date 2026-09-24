@@ -1,0 +1,94 @@
+.page {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: var(--sp-3);
+  min-height: 100%;
+  padding: var(--sp-3);
+  align-items: stretch;
+}
+
+.page.withDetail {
+  grid-template-columns: 300px minmax(0, 1fr) 360px;
+}
+
+.workspace {
+  display: grid;
+  min-width: 0;
+  gap: var(--sp-3);
+  /* Rows follow whatever the page renders instead of a hard-coded template. */
+  grid-auto-rows: auto;
+}
+
+.pane,
+.reportPane {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.pane {
+  min-height: 180px;
+}
+
+.reportPane {
+  min-height: 160px;
+}
+
+.empty {
+  display: grid;
+  min-height: 320px;
+  place-content: center;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-md);
+  color: var(--text-tertiary);
+}
+
+.viewBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.viewTabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+}
+
+.viewTabs button {
+  min-height: 26px;
+  padding: 3px 12px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.viewTabs button[aria-selected="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.graphStatus {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
+
+@media (max-width: 1100px) {
+  .page,
+  .page.withDetail {
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+
+  .page.withDetail > aside:last-child {
+    grid-column: 2;
+  }
+}

@@ -1,0 +1,17 @@
+{"type":"system","subtype":"init","timestamp":"2026-01-02T06:00:00.000Z","session_id":"parser-session","cwd":"/repo/parser"}
+{"type":"system","subtype":"turn_duration","timestamp":"2026-01-02T06:00:01.000Z","durationMs":1500}
+{"type":"progress","timestamp":"2026-01-02T06:00:01.100Z"}
+{"type":"user","isMeta":true,"timestamp":"2026-01-02T06:00:01.200Z","message":{"content":"meta"}}
+{"type":"user","timestamp":"2026-01-02T06:00:01.300Z","message":{"content":"<task-notification>done</task-notification>"}}
+{"type":"user","timestamp":"2026-01-02T06:00:02.000Z","message":{"content":"分析解析器"}}
+{"type":"assistant","timestamp":"2026-01-02T06:00:03.000Z","uuid":"assistant-chunk-1","message":{"id":"assistant-message","model":"claude","content":[{"type":"text","text":"开始"}],"usage":{"input_tokens":10,"output_tokens":4}}}
+{"type":"assistant","timestamp":"2026-01-02T06:00:03.500Z","uuid":"assistant-chunk-2","isSidechain":true,"message":{"id":"sidechain-message","model":"claude","content":[{"type":"text","text":"sidechain"}]}}
+{"type":"assistant","timestamp":"2026-01-02T06:00:04.000Z","uuid":"assistant-chunk-3","message":{"id":"assistant-message","model":"claude","content":[{"type":"tool_use","id":"tool-bash","name":"Bash","input":{"command":"ls"}}]}}
+{"type":"user","timestamp":"2026-01-02T06:00:05.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tool-bash","content":"file one\nfile two"}]},"toolUseResult":{"stdout":"file one\nfile two","stderr":"","interrupted":false}}
+{"type":"assistant","timestamp":"2026-01-02T06:00:06.000Z","uuid":"assistant-read","message":{"id":"read-message","model":"claude","content":[{"type":"tool_use","id":"tool-read","name":"Read","input":{"filePath":"/repo/app.ts"}}]}}
+{"type":"user","timestamp":"2026-01-02T06:00:07.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tool-read","content":"code"}]},"toolUseResult":{"file":{"filePath":"/repo/app.ts"}}}
+{"type":"assistant","timestamp":"2026-01-02T06:00:08.000Z","uuid":"assistant-unmatched","message":{"id":"unmatched-message","model":"claude","content":[{"type":"tool_use","id":"tool-unmatched","name":"Bash","input":{"command":"sleep"}}]}}
+{"type":"assistant","timestamp":"2026-01-02T06:00:09.000Z","uuid":"assistant-tie-a","message":{"id":"tie-message","model":"claude","content":[{"type":"text","text":"tie a"}]}}
+{"type":"assistant","timestamp":"2026-01-02T06:00:09.000Z","uuid":"assistant-tie-b","message":{"id":"tie-message-2","model":"claude","content":[{"type":"text","text":"tie b"}]}}
+{"type":"user","message":{"content":"missing timestamp"}}
+{invalid-json}

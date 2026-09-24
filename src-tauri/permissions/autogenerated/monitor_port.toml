@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-monitor-port"
+description = "Enables the monitor_port command without any pre-configured scope."
+commands.allow = ["monitor_port"]
+
+[[permission]]
+identifier = "deny-monitor-port"
+description = "Denies the monitor_port command without any pre-configured scope."
+commands.deny = ["monitor_port"]

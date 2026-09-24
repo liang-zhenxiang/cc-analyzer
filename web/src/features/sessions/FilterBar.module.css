@@ -1,0 +1,78 @@
+.bar {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+}
+
+.bar > input {
+  flex: 1 1 180px;
+  min-width: 140px;
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+}
+
+.bar fieldset {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  padding: 4px 8px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+
+.bar legend {
+  padding: 0 4px;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.bar label {
+  display: grid;
+  gap: 3px;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+}
+
+.bar input,
+.bar select {
+  min-height: 28px;
+  min-width: 78px;
+  padding: 3px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+
+.bar fieldset label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text);
+  font-size: inherit;
+}
+
+.bar button {
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}

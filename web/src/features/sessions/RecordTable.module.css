@@ -1,0 +1,77 @@
+.container {
+  min-width: 0;
+  /* Bounded so the virtualised rows scroll inside the card instead of
+     stretching the detail panel. */
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+}
+
+.container table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.container th,
+.container td {
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  text-align: left;
+  vertical-align: top;
+}
+
+.container th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-elevated);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.container tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.container tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+.container button {
+  min-height: 24px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+
+.selected {
+  background: var(--accent-soft) !important;
+}
+
+.expanded td {
+  background: var(--bg-subtle);
+}
+
+.expanded pre {
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  white-space: pre-wrap;
+}
+
+.error {
+  color: var(--danger);
+}
+
+.empty {
+  padding: var(--sp-4);
+  color: var(--text-tertiary);
+  text-align: center;
+}

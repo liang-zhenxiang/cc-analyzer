@@ -1,0 +1,28 @@
+.container {
+  position: fixed;
+  right: var(--sp-4);
+  bottom: var(--sp-4);
+  z-index: 30;
+  display: grid;
+  gap: var(--sp-2);
+  width: min(340px, calc(100vw - 32px));
+}
+
+.toast {
+  padding: 9px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+
+.success {
+  border-color: var(--accent);
+}
+
+.error {
+  border-color: var(--danger);
+  color: var(--danger);
+}

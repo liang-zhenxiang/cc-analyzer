@@ -1,0 +1,8 @@
+CC Analyzer
+Copyright (c) 2026 liangzhenxiang
+
+Licensed under the MIT License. See LICENSE for the full text.
+
+The bundled application links third-party Rust crates and npm packages, each
+of which keeps its own license. Their notices are listed in the dependency
+manifests and lockfiles under `src-tauri/` and `web/`.

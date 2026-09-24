@@ -1,0 +1,19 @@
+.container {
+  display: grid;
+  place-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-5);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.container strong {
+  color: var(--text);
+}
+
+.container p {
+  margin: 0;
+}

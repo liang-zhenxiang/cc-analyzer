@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-spawn-detached"
+description = "Enables the spawn_detached command without any pre-configured scope."
+commands.allow = ["spawn_detached"]
+
+[[permission]]
+identifier = "deny-spawn-detached"
+description = "Denies the spawn_detached command without any pre-configured scope."
+commands.deny = ["spawn_detached"]
