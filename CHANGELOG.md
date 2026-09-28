@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+
+## [0.2.0] - 2026-09-29
+
+本轮主题：开源规范基建——CI 门禁、治理文件、自动化工作流、发布流水线与文档体系全部落地，并包含此前积累的全部功能改动。
+
 ### Added
 
 - Open-source infrastructure: a four-layer CI (static checks, build & test, commit conventions, workflow security scanning) with a single `CI 总览` summary check, plus automated workflows for PR labeling, first-contributor welcome, stale cleanup, OSSF Scorecard scoring, and tag-triggered releases that build and attach macOS (ARM64/Intel) and Windows artifacts with three-part release notes.
