@@ -22,6 +22,8 @@
 - `./scripts/build-intel-macos.sh`: build the Intel macOS `.app` and `.dmg` outputs.
 - `./scripts/build-arm64-macos.sh`: build the Apple Silicon macOS `.app` and `.dmg` outputs.
 - `powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1`: build the Windows portable ZIP.
+- `./scripts/lint.sh`: run every static check CI runs locally (actionlint, yamllint, shellcheck, `bash -n`, zizmor). Run before pushing.
+- `./scripts/check-commit-msg.sh --message "<title>"`: pre-check a commit or PR title against the Conventional Commits convention enforced in CI.
 
 ## Coding Style & Naming Conventions
 
@@ -36,14 +38,14 @@
 ## Testing Guidelines
 
 - Frontend tests use Vitest, jsdom, and React Testing Library. Place tests beside implementation files as `*.test.ts` or `*.test.tsx`, and shared JSONL fixtures under `web/tests/fixtures/`.
-- Before submitting, run `npm --prefix web test`, `npm --prefix web run build`, and `cargo check --manifest-path src-tauri/Cargo.toml`.
+- Before submitting, run `./scripts/lint.sh`, `npm --prefix web test`, `npm --prefix web run build`, `cargo fmt --manifest-path src-tauri/Cargo.toml --check`, `cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings`, and `cargo check --manifest-path src-tauri/Cargo.toml`.
 - For parser, duration, filter, or report changes, add or update fixture-based tests.
 - For packaging changes, run the Intel macOS build script and confirm that `dist-intel/CC Analyzer.app` and `dist-intel/CC Analyzer_x64.dmg` are produced.
 - If adding Rust tests, place unit tests beside the code in `src-tauri/src/` and name them for the behavior under test.
 
 ## Commit & Pull Request Guidelines
 
-- Use scoped conventional commit titles such as `feat(web): add session export`, `fix(web): normalize log path`, `feat(tauri): harden command scope`, or `docs: update build steps`.
+- Use scoped conventional commit titles such as `feat(web): add session export`, `fix(web): normalize log path`, `feat(tauri): harden command scope`, or `docs: update build steps`. CI validates PR commits and the PR title with `scripts/check-commit-msg.sh`; keep the type table in `CONTRIBUTING.md` in sync with the script.
 - Keep commits focused and explain non-obvious decisions in the body when needed.
 - Pull requests should describe what changed, why the change is needed, how it was tested, and any macOS-specific considerations.
 - Link related issues or tasks, and include screenshots or generated-bundle names for visible or packaging changes.

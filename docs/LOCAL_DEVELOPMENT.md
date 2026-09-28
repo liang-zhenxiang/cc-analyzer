@@ -67,7 +67,7 @@ npm --prefix web run build
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
-详细说明见 [docs/CI.md](docs/CI.md)。
+详细说明见 [CI.md](CI.md)。
 
 执行 release 构建：
 
@@ -115,4 +115,4 @@ cargo tauri dev
 
 ## 相关设计文档
 
-- [`docs/CI.md`](docs/CI.md)：CI 构建顺序和常见问题。
+- [`CI.md`](CI.md)：CI 构建顺序和常见问题。

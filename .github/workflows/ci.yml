@@ -1,25 +1,552 @@
+# 工作流名称
 name: CI
+# 工作流运行时显示名称
+run-name: CI · ${{ github.event_name }} · ${{ github.ref_name }}
 
+# 怎样触发工作流
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+# 只读权限就够了：CI 不写回仓库，这是最小权限原则的体现。
+# 需要写权限的工作流（labeler / stale / release 等）在各自文件里单独声明。
+permissions:
+  contents: read
+
+# 同一分支连推多次时，取消掉旧的运行，省额度也省等待
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 固定版本以保证 CI 结果可复现；scripts/lint.sh 会从这里抽 zizmor 镜像，
+  # 保持「本地过 = CI 过」
+  ACTIONLINT_VERSION: "1.7.12"
 
 jobs:
-  check:
-    runs-on: macos-latest
+  # ---------------------------------------------------------------------------
+  # 工作流静态检查
+  # actionlint 能发现 YAML 层面看不出、但运行时会炸的问题：
+  # 表达式拼写错误、上下文用错、run 块里的 shell 问题等。
+  # ---------------------------------------------------------------------------
+  actionlint:
+    name: 工作流静态检查
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # CI 用不到 git 凭证，不持久化，
+          # 让 checkout 之后的任何脚本都拿不到 GITHUB_TOKEN
+          persist-credentials: false
+
+      - name: 安装 actionlint
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -sSfL "$url" | tar -xz actionlint
+          ./actionlint --version
+
+      - name: 运行 actionlint
+        run: ./actionlint -color
+
+  # ---------------------------------------------------------------------------
+  # YAML 风格检查
+  # ---------------------------------------------------------------------------
+  yamllint:
+    name: YAML 风格检查
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: 安装 yamllint
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          pipx install yamllint
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: 运行 yamllint
+        run: yamllint -c .yamllint .github/
+
+  # ---------------------------------------------------------------------------
+  # Shell 脚本检查（scripts/ 下的 .sh，含打包脚本与 lint 入口自身）
+  # ---------------------------------------------------------------------------
+  shellcheck:
+    name: Shell 脚本检查
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: 运行 shellcheck
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          # ubuntu-latest 自带 shellcheck；逐个文件显式列出，
+          # 目录为空时 glob 展开为字面量反而能让失败可见
+          shellcheck -x scripts/*.sh
+
+  # ---------------------------------------------------------------------------
+  # 前端单元测试（Vitest）
+  # ---------------------------------------------------------------------------
+  web-test:
+    name: 前端单元测试
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - name: Install web dependencies
+
+      - name: 安装依赖
         run: npm --prefix web ci
-      - name: Run web tests
+
+      - name: 运行测试
         run: npm --prefix web test
-      - name: Build web frontend
+
+  # ---------------------------------------------------------------------------
+  # 前端构建（tsc 类型检查 + Vite 产物）
+  # 产物上传为 artifact：Rust 侧的 cargo check / clippy 在编译期会通过
+  # tauri::generate_context! 读取 tauri.conf.json 指向的 web/dist，
+  # 没有它 CI 会报「frontendDist ... path doesn't exist」（docs/CI.md 有记录）。
+  # ---------------------------------------------------------------------------
+  web-build:
+    name: 前端构建
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: 安装依赖
+        run: npm --prefix web ci
+
+      - name: 构建
         run: npm --prefix web run build
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo check --manifest-path src-tauri/Cargo.toml
+
+      - name: 上传 web/dist 产物
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: web-dist
+          path: web/dist
+          retention-days: 3
+
+  # ---------------------------------------------------------------------------
+  # Rust 格式检查（rustfmt 不参与编译，无需 web/dist）
+  # ---------------------------------------------------------------------------
+  rust-fmt:
+    name: Rust 格式检查
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          components: rustfmt
+
+      - name: 运行 cargo fmt --check
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+
+  # ---------------------------------------------------------------------------
+  # Rust 静态分析（clippy，告警按错误处理）
+  # 基线为 0 告警：确有豁免的告警在代码处写明依据后 #allow，不放任基线增长
+  # ---------------------------------------------------------------------------
+  rust-clippy:
+    name: Rust 静态分析
+    needs: web-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: 下载 web/dist 产物
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: web-dist
+          path: web/dist
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          components: clippy
+
+      # Tauri 在 Linux 上依赖 GTK / webkit2gtk 的系统库，-sys crate 构建期
+      # 需要 pkg-config 找到它们（macOS / Windows 用系统 WebView，无此依赖，
+      # 所以本地是 macOS 时发现不了）。系统库只能从发行版安装，版本随
+      # runner 镜像走——这是 GitHub Actions 生态的公认做法。
+      - name: 安装 Tauri Linux 依赖
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: 缓存 cargo
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            src-tauri/target
+          key: cargo-clippy-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-clippy-${{ runner.os }}-
+
+      - name: 运行 cargo clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+
+  # ---------------------------------------------------------------------------
+  # Rust 编译检查（与 CONTRIBUTING 中的验证命令保持一致）
+  # ---------------------------------------------------------------------------
+  rust-check:
+    name: Rust 编译检查
+    needs: web-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: 下载 web/dist 产物
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: web-dist
+          path: web/dist
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+
+      # 同 rust-clippy：Linux 上编译 Tauri 需要 GTK / webkit2gtk 系统库
+      - name: 安装 Tauri Linux 依赖
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: 缓存 cargo
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            src-tauri/target
+          key: cargo-check-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-check-${{ runner.os }}-
+
+      - name: 运行 cargo check
+        run: cargo check --manifest-path src-tauri/Cargo.toml
+
+  # ---------------------------------------------------------------------------
+  # 提交信息规范
+  # 只在 PR 上跑（push 到 main 的提交已经过 PR 校验）。
+  # squash merge 后 PR 标题会成为提交信息，所以标题也要一并校验。
+  # ---------------------------------------------------------------------------
+  commit-messages:
+    name: 提交信息规范
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          # 需要完整的提交历史才能校验区间内的所有提交
+          fetch-depth: 0
+
+      - name: 校验 PR 中的提交信息
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: ./scripts/check-commit-msg.sh --range "${BASE_SHA}..${HEAD_SHA}"
+
+      - name: 校验 PR 标题
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: ./scripts/check-commit-msg.sh --message "$PR_TITLE"
+
+  # ---------------------------------------------------------------------------
+  # 工作流安全扫描
+  # zizmor 专查 GitHub Actions 的已知反模式：凭证持久化、危险触发器、
+  # 依赖未锁定等。豁免项集中放在 .github/zizmor.yml，每条写明理由。
+  # 容器按版本 pin（工具本身也是供应链的一环），与 scripts/lint.sh 同源。
+  # ---------------------------------------------------------------------------
+  zizmor:
+    name: 工作流安全扫描
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: 运行 zizmor
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          # 挂载只读（:ro）：扫描器没有理由改动被扫描的文件
+          docker run --rm -v "$PWD":/repo:ro \
+            ghcr.io/zizmorcore/zizmor:1.30.1 /repo --no-online-audits
+
+  # ---------------------------------------------------------------------------
+  # lint.sh 自测
+  #
+  # `scripts/lint.sh` 是 CI 里**被调用为零**的脚本——CI 自己跑 actionlint /
+  # yamllint / shellcheck / zizmor 各有独立 job，lint.sh 只是给贡献者在本地用的
+  # 入口。而它的职责恰恰是「**本地过 = CI 过**」，这条保证需要有人守。
+  #
+  # 两条断言的方向**相反**：
+  #   1. 非 git 目录下 actionlint 项不失败 —— 防「本地太严」
+  #   2. 引入真实告警时会红                  —— 防「本地太松」
+  # ---------------------------------------------------------------------------
+  lint-selftest:
+    name: lint.sh 自测
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: 安装 actionlint
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          # 版本取 workflow 级的 ACTIONLINT_VERSION——与 actionlint job 同源，
+          # 不另写一份（写死会漂移）
+          url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -sSfL "$url" | tar -xz actionlint
+          mkdir -p "$HOME/.local/bin"
+          mv actionlint "$HOME/.local/bin/"
+          # 后续步骤靠 PATH 找它。当前步骤看不到这个改动，所以先验证再放行
+          "$HOME/.local/bin/actionlint" --version
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: 非 git 目录下 lint.sh 仍能跑
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          # 不含 .git 的副本 == GitHub 的 source tarball 解压出来的样子。
+          # lint.sh 显式给 actionlint 传工作流文件列表，不靠 .git 定位项目根。
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          tar -cf - --exclude=.git . | (cd "$work" && tar -xf -)
+          [[ ! -d "$work/.git" ]] || { echo "::error::副本里还有 .git，用例无效"; exit 1; }
+
+          set +e
+          out="$(cd "$work" && ./scripts/lint.sh 2>&1)"
+          set -e
+          printf '%s\n' "$out"
+
+          # 只断 actionlint 那一项，不断 lint.sh 的整体退出码：
+          # 本 job 里 yamllint 未装、zizmor 要拉镜像，整体 rc 会随环境波动。
+          if grep -qF 'no project was found' <<<"$out"; then
+            echo "::error::非 git 目录下 actionlint 又去依赖 .git 了（回归）"
+            exit 1
+          fi
+          # 以下一个「▶ 」行为界取 actionlint 那一段：▶ 是 lint.sh 自己的分隔符，
+          # 空行取决于第三方工具的输出格式，不可依赖
+          section="$(sed -n '/▶ actionlint（工作流静态检查）/,/^▶ /p' <<<"$out")"
+          if [[ -z "$section" ]]; then
+            echo "::error::输出里没有 actionlint 那一项，这条断言无从判断"
+            exit 1
+          fi
+          # 正向要求「通过」，不是「没有失败」：这一项被跳过时打的是「⚠ 已跳过」，
+          # 否定式判据会把「actionlint 根本没跑成」也算过
+          if ! grep -qF '✓ 通过' <<<"$section"; then
+            printf '%s\n' "$section"
+            echo "::error::非 git 目录下 actionlint 项没有通过（或该项被跳过没跑成）"
+            exit 1
+          fi
+          echo "✓ 非 git 目录下 actionlint 项通过（不再依赖 .git）"
+
+      - name: 引入真实告警时 lint.sh 会红
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          # 在副本里精确引入一个真实告警，不动工作区。
+          # 把 ci.yml run-name 里的合法上下文属性改成不存在的属性名，
+          # actionlint 一定会报——这是它自己的判断，不依赖其他工具的版本行为。
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          tar -cf - --exclude=.git . | (cd "$work" && tar -xf -)
+
+          target="$work/.github/workflows/ci.yml"
+          # 用 -i.bak 而不是裸 -i：GNU sed 与 BSD sed 对裸 -i 的后续参数理解不同
+          sed -i.bak 's/github\.event_name/github.event_nam/' "$target"
+          if ! grep -qF 'github.event_nam' "$target"; then
+            echo "::error::变异没有生效，这条用例什么也没测"
+            exit 1
+          fi
+
+          set +e
+          out="$(cd "$work" && ./scripts/lint.sh 2>&1)"
+          rc=$?
+          set -e
+          printf '%s\n' "$out"
+
+          if [[ "$rc" -eq 0 ]]; then
+            echo "::error::工作流里有真实告警，lint.sh 却绿了（本地太松）"
+            exit 1
+          fi
+          # 红了还不够——确认红的原因就是 actionlint 那一项，
+          # 否则这条断言可能在「别的项恰好也失败」时通过
+          section="$(sed -n '/▶ actionlint（工作流静态检查）/,/^▶ /p' <<<"$out")"
+          if ! grep -qF '✗ 失败' <<<"$section"; then
+            printf '%s\n' "$section"
+            echo "::error::lint.sh 红了，但失败的不是 actionlint 那一项——断言指向了别的东西"
+            exit 1
+          fi
+          echo "✓ 引入真实告警后 actionlint 项确实失败"
+
+  # ---------------------------------------------------------------------------
+  # CI 总览
+  # 把所有检查汇总成一个结果，分支保护规则只需要盯这一个 check 即可。
+  # 汇总表从 needs 派生并自证完整：新增检查漏改任何一处都会在这里红，
+  # 而不是静默地不进判据。
+  # ---------------------------------------------------------------------------
+  ci-summary:
+    name: CI 总览
+    runs-on: ubuntu-latest
+    needs: [actionlint, yamllint, shellcheck, web-test, web-build, rust-fmt, rust-clippy, rust-check, commit-messages, zizmor, lint-selftest]
+    if: always()
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # 只读 ci.yml 用（needs 自证断言），不持久化凭证
+          persist-credentials: false
+
+      - name: 汇总各检查结果
+        env:
+          R_ACTIONLINT: ${{ needs.actionlint.result }}
+          R_YAMLLINT: ${{ needs.yamllint.result }}
+          R_SHELLCHECK: ${{ needs.shellcheck.result }}
+          R_WEB_TEST: ${{ needs.web-test.result }}
+          R_WEB_BUILD: ${{ needs.web-build.result }}
+          R_RUST_FMT: ${{ needs.rust-fmt.result }}
+          R_RUST_CLIPPY: ${{ needs.rust-clippy.result }}
+          R_RUST_CHECK: ${{ needs.rust-check.result }}
+          R_COMMIT_MESSAGES: ${{ needs.commit-messages.result }}
+          R_ZIZMOR: ${{ needs.zizmor.result }}
+          R_LINT_SELFTEST: ${{ needs.lint-selftest.result }}
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          # jobs 数组是「job id:显示名」的清单——汇总表用它生成。
+          # 下面三条断言保证它不与 ci.yml 脱节：
+          #   1. 数组里的 id 集合 == ci.yml 中本 job 的 needs 集合
+          #      （比集合不比顺序，增删检查时漏改这里会红）
+          #   2. 每个 id 都有对应的 R_* env（进了 needs 但没进判据会红）
+          #   3. env 名由 id 机械派生（tr 'a-z-' 'A-Z_'），不受手误影响
+          declare -a jobs=(
+            "actionlint:工作流静态检查"
+            "yamllint:YAML 风格检查"
+            "shellcheck:Shell 脚本检查"
+            "web-test:前端单元测试"
+            "web-build:前端构建"
+            "rust-fmt:Rust 格式检查"
+            "rust-clippy:Rust 静态分析"
+            "rust-check:Rust 编译检查"
+            "commit-messages:提交信息规范"
+            "zizmor:工作流安全扫描"
+            "lint-selftest:lint.sh 自测"
+          )
+
+          # 断言 1：needs 集合与数组一致。只取本 job 那行数组式 needs
+          # （其他 job 的 needs 是单值形式，不会被这行 grep 匹配到）
+          cfg_ids="$(grep -m1 '^    needs: \[' .github/workflows/ci.yml \
+            | sed 's/.*\[//; s/\].*//' | tr ',' '\n' | tr -d ' ' | grep . | sort)"
+          arr_ids="$(printf '%s\n' "${jobs[@]}" | cut -d: -f1 | sort)"
+          if [[ "$cfg_ids" != "$arr_ids" ]]; then
+            echo "::error::汇总表与 ci.yml 的 needs 不一致："
+            echo "::error::needs 有而汇总表没有：$(comm -13 <(printf '%s\n' "$arr_ids") <(printf '%s\n' "$cfg_ids") | tr '\n' ' ')"
+            echo "::error::汇总表有而 needs 没有：$(comm -13 <(printf '%s\n' "$cfg_ids") <(printf '%s\n' "$arr_ids") | tr '\n' ' ')"
+            exit 1
+          fi
+
+          failed=0
+
+          {
+            echo "## CI 检查结果"
+            echo ""
+            echo "| 检查项 | 结果 |"
+            echo "| --- | :---: |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for spec in "${jobs[@]}"; do
+            id="${spec%%:*}"; name="${spec#*:}"
+            var="R_$(printf '%s' "$id" | tr 'a-z-' 'A-Z_')"
+            result="${!var:-}"
+            # 断言 2：每个 id 都有对应 env，缺了就是「进了 needs 但没进判据」
+            if [[ -z "$result" ]]; then
+              echo "::error::needs 里有 $id 但没有 env $var——这一项的失败不会让 CI 总览变红"
+              failed=1
+              icon="❓"
+            else
+              case "$result" in
+                success) icon="✅" ;;
+                # PR 之外的触发方式会跳过提交信息检查，属于正常
+                skipped) icon="⏭️" ;;
+                *)       icon="❌"; failed=1 ;;
+              esac
+            fi
+            printf '| %s | %s |\n' "$name" "$icon" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$failed" -ne 0 ]]; then
+            echo "❌ 存在未通过的检查，请查看上方各任务的日志。" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::CI 未能全部通过"
+            exit 1
+          fi
+
+          echo "✅ 全部检查通过。" >> "$GITHUB_STEP_SUMMARY"

@@ -2,89 +2,132 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-CC Analyzer is a desktop application for reviewing AI coding
-session activity. It is built with Tauri and a React web UI.
+[![CI](https://github.com/liang-zhenxiang/cc-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/liang-zhenxiang/cc-analyzer/actions/workflows/ci.yml)
+[![Release](https://github.com/liang-zhenxiang/cc-analyzer/actions/workflows/release.yml/badge.svg)](https://github.com/liang-zhenxiang/cc-analyzer/releases)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/liang-zhenxiang/cc-analyzer/badge)](https://scorecard.dev/viewer/?uri=github.com/liang-zhenxiang/cc-analyzer)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## Requirements
+A desktop application for reviewing AI coding session activity — turn your
+Claude Code session logs into timelines, duration trees, and structured
+analysis reports. Built with Tauri 2 and a React web UI.
 
-- macOS 10.13+ (Intel) or macOS 11+ (Apple Silicon)
-- Rust 1.77 or later
-- Xcode Command Line Tools
-- For Windows builds: Windows 10 or later, Visual Studio Build Tools, and the
-  MSVC Rust target
+## Features
 
-## Build
+- **Session explorer** — sessions grouped by timeline (today / this week /
+  this month) and by project, with incrementally scanned titles and relative
+  times.
+- **Log view with one row model** — user / LLM / tool / agent / workflow /
+  wait rows, with duration, share and waterfall columns; filter by row kind,
+  success/failure, duration range, or free text.
+- **Duration tree** — agent and workflow sub-sessions resolved into a graph
+  with graph-backed durations; drill into any node or analyse a selected
+  time block only.
+- **AI analysis reports** — structured prompts sent to your local `claude`
+  CLI, rendered as Markdown with syntax highlighting; cancellable at any
+  time, with per-node and per-time-block scoping.
+- **Realtime monitor** — embeds a local cc-monitor dashboard, with a
+  floating-window mode.
+- **Performance at scale** — windowed, measured-height rendering and chunked
+  parsing keep large sessions (tens of MB of JSONL) responsive.
+- **Local-first & private** — everything is parsed and rendered locally; the
+  app ships no telemetry.
 
-Run the packaging script for the target platform from the repository root:
+## Quick start
+
+### Download
+
+Grab the build for your platform from
+[Releases](https://github.com/liang-zhenxiang/cc-analyzer/releases):
+
+| Platform | Artifact |
+| --- | --- |
+| macOS Apple Silicon | `CC_Analyzer_arm64.dmg` |
+| macOS Intel | `CC_Analyzer_x64.dmg` |
+| Windows x64 | `CC_Analyzer_x64.zip` |
+
+macOS bundles are ad-hoc signed: on first launch, right-click the app and
+choose **Open** to pass Gatekeeper.
+
+### Build from source
+
+Requirements: Node.js 22 & npm, Rust 1.77+, Xcode Command Line Tools
+(macOS) or Visual Studio Build Tools (Windows).
 
 ```bash
-./scripts/build-intel-macos.sh
-```
+# macOS Apple Silicon
+./scripts/build-arm64-macos.sh     # → dist-arm64/CC Analyzer.app, CC_Analyzer_arm64.dmg
 
-For Apple Silicon, run:
+# macOS Intel (cross-compiled)
+./scripts/build-intel-macos.sh     # → dist-intel/CC Analyzer.app, CC_Analyzer_x64.dmg
 
-```bash
-./scripts/build-arm64-macos.sh
-```
-
-For Windows, run from PowerShell:
-
-```powershell
+# Windows (PowerShell)
 powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1
+# → dist-windows/CC_Analyzer_x64.zip
 ```
 
-The scripts produce:
+## Documentation
 
-- `dist-intel/CC Analyzer.app`
-- `dist-intel/CC Analyzer_x64.dmg`
-- `dist-arm64/CC Analyzer.app`
-- `dist-arm64/CC Analyzer_arm64.dmg`
-- `dist-windows/CC_Analyzer_x64.zip`
+| Document | Contents |
+| --- | --- |
+| [docs/USAGE.md](docs/USAGE.md) | Full user guide: install, every feature, data & privacy |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How it works, design decisions and rejected alternatives |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Symptoms → causes → fixes, searchable error texts |
+| [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) | Local desktop development workflow |
+| [docs/CI.md](docs/CI.md) | CI build order and the `frontendDist` pitfall |
+| [docs/MAINTAINER_GUIDE.md](docs/MAINTAINER_GUIDE.md) | Release process, repository configuration checklist |
+| [CHANGELOG.md](CHANGELOG.md) | Notable changes per version |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute ([中文](CONTRIBUTING.zh-CN.md)) |
+| [SECURITY.md](SECURITY.md) | How to report vulnerabilities, the project's threat model |
 
 ## Development
 
-See [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) for the local
-desktop development workflow. See [docs/CI.md](docs/CI.md) for the required
-CI build order and troubleshooting.
-
-Develop the web UI:
-
 ```bash
-cd web
-npm install
-npm run dev
+cd web && npm install && npm run dev   # Vite dev server on 127.0.0.1:5173
+cargo run --manifest-path src-tauri/Cargo.toml
 ```
 
-Run pre-commit checks:
+Pre-push checks (same as CI):
 
 ```bash
-npm --prefix web ci
+./scripts/lint.sh                      # static checks: actionlint, yamllint, shellcheck, zizmor
 npm --prefix web test
 npm --prefix web run build
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
 cargo check --manifest-path src-tauri/Cargo.toml
-```
-
-Run a release build:
-
-```bash
-cargo build --release --manifest-path src-tauri/Cargo.toml
 ```
 
 ## Repository layout
 
-- `web/` - React, TypeScript, and Vite source for the UI; production output goes to `web/dist/`
-- `src-tauri/` - Tauri backend and app configuration
-- `packaging/` - macOS bundle metadata and icon
-- `scripts/` - local packaging helpers
-- `docs/` - development guides and CI notes
+```
+web/           React, TypeScript and Vite source for the UI
+src-tauri/     Tauri 2 backend: Rust command layer, app config, capabilities
+packaging/     macOS bundle metadata and icon
+scripts/       packaging helpers, lint entry point, commit-msg validator
+docs/          usage, architecture, troubleshooting, maintainer guides
+.github/       workflows, issue/PR templates, governance configs
+```
 
-## License
+## Roadmap
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for
-details.
+- [ ] Session comparison across time (weekly/monthly trends)
+- [ ] Report templates and export formats
+- [ ] Additional platform support
+
+Have an idea? [Open a feature request](https://github.com/liang-zhenxiang/cc-analyzer/issues/new/choose).
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) or
-[CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md) for branch, commit, and Pull
-Request guidelines.
+Contributions are welcome — bug reports, documentation improvements and pull
+requests alike. Start with [CONTRIBUTING.md](CONTRIBUTING.md), run the local
+checks, and keep one change per PR.
+
+## Security
+
+Session data is sensitive. The app parses it locally and ships no telemetry;
+see [SECURITY.md](SECURITY.md) for the threat model and how to report
+vulnerabilities privately.
+
+## License
+
+[MIT](LICENSE). Third-party notices: [NOTICE](NOTICE).

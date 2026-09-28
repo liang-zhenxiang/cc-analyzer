@@ -1,0 +1,24 @@
+# CODEOWNERS
+#
+# 语法说明：https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+# 每一行的所有者会在对应文件被改动时自动收到 review 请求。
+
+# 兜底规则：所有文件的默认所有者
+*                       @liang-zhenxiang @nicholyx
+
+# 工作流文件持有发布与打标权限，任何改动都需要维护者亲自过目
+/.github/workflows/     @liang-zhenxiang @nicholyx
+
+# 安全策略与许可证属于治理文件，变更需维护者确认
+/SECURITY.md            @liang-zhenxiang @nicholyx
+/LICENSE                @liang-zhenxiang @nicholyx
+/CODEOWNERS             @liang-zhenxiang @nicholyx
+
+# 打包配置决定产物形态与分发内容
+/packaging/             @liang-zhenxiang @nicholyx
+/scripts/               @liang-zhenxiang @nicholyx
+
+# 供贡献者参考：改动 README 与文档时请同步核对内链
+/README.md              @liang-zhenxiang @nicholyx
+/README.zh-CN.md        @liang-zhenxiang @nicholyx
+/docs/                  @liang-zhenxiang @nicholyx

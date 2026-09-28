@@ -1,0 +1,89 @@
+name: 🐛 Bug 报告
+description: 应用崩溃、功能异常，或行为与文档描述不符
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你花时间反馈问题！
+
+        提交之前，请先确认两件事，这能帮我们省下大量来回沟通的时间：
+        1. 搜索[已有 Issue](https://github.com/liang-zhenxiang/cc-analyzer/issues)，避免重复
+        2. 查阅 [docs/TROUBLESHOOTING.md](https://github.com/liang-zhenxiang/cc-analyzer/blob/main/docs/TROUBLESHOOTING.md)，
+           常见问题（窗口空白、报告生成失败、打包报错）在那里都有现成答案
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已搜索过现有 Issue，确认没有重复
+          required: true
+        - label: 我已查阅排错文档
+          required: true
+        - label: 这不是安全漏洞（安全漏洞请走 SECURITY.md 中的私有渠道，不要提公开 Issue）
+          required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 操作系统与架构
+      description: 出问题的平台
+      options:
+        - macOS Apple Silicon
+        - macOS Intel
+        - Windows x64
+        - 本地开发环境（cargo run / npm run dev）
+        - 不确定
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 应用版本
+      description: 设置面板或「关于」里看到的版本号；本地开发请填 main 分支 + 提交日期
+      placeholder: v0.2.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 从打开应用开始，一步步写下做了什么。能稳定复现最好，偶发也请注明
+      placeholder: |
+        1. 打开应用，左侧选择某个项目
+        2. 双击一个会话进入分析页
+        3. 点击「生成分析报告」
+        4. 报告面板出现错误提示
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望的行为
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际的行为与完整报错
+      description: |
+        请直接粘贴**文本日志**而不是截图。只贴你判断相关的那部分，但请保留完整的错误信息。
+        注意：粘贴前请先检查日志里是否包含敏感路径、代码片段——**不要把会话内容贴进来**。
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 补充信息
+      description: 会话规模（行数 / 文件大小）、Claude Code 版本、任何你觉得有帮助的线索
+    validations:
+      required: false

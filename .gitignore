@@ -12,5 +12,9 @@ src-tauri/gen/
 *.dmg
 *.log
 
-# Local working notes
+# 编辑器与 AI 助手的本地配置（每人自己的工作区设置，不入库）
+.idea/
+.claude/settings.local.json
+
+# 本地工作笔记
 docs/superpowers/

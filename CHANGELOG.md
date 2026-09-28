@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Open-source infrastructure: a four-layer CI (static checks, build & test, commit conventions, workflow security scanning) with a single `CI 总览` summary check, plus automated workflows for PR labeling, first-contributor welcome, stale cleanup, OSSF Scorecard scoring, and tag-triggered releases that build and attach macOS (ARM64/Intel) and Windows artifacts with three-part release notes.
+- Project governance and documentation: YAML-form issue templates, CODEOWNERS, SUPPORT.md, a threat model in SECURITY.md, and the docs set (USAGE, ARCHITECTURE, TROUBLESHOOTING, MAINTAINER_GUIDE) alongside a restructured bilingual README.
+- `./scripts/lint.sh` as the single local entry point for every static check CI runs, and `./scripts/check-commit-msg.sh` for Conventional Commits validation (also enforced in CI for PR commits and titles).
+
 - Rebuilt the frontend as a maintainable React, TypeScript, and Vite project under `web/`.
 - Added Vitest and React Testing Library coverage for JSONL parsing, duration aggregation, filtering, reports, and UI workflows.
 - Added Apple Silicon macOS and Windows portable packaging support.

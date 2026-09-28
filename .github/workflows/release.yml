@@ -1,0 +1,381 @@
+# 工作流名称
+name: Release
+# 工作流运行时显示名称
+run-name: 发布 ${{ github.ref_name }}
+
+# 怎样触发工作流
+on:
+  push:
+    # 形如 v1.2.3 的 tag 触发发布。
+    # 末尾的 * 是必要的：没有它，v1.2.3-rc.1 这类预发布版本根本不会触发本
+    # 工作流，下面那段预发布处理逻辑就成了永远走不到的死代码。
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+# 顶层只给读：写权限由真正需要的 release job 在自己那里声明（最小权限），
+# 也让 zizmor 能确认用缓存的 build job 拿不到写权限
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 三平台构建矩阵
+  #
+  # macOS 的两个架构都在 arm64 runner 上完成：build-macos.sh 通过
+  # rustup target add 拉起交叉编译目标，Intel 产物不需要单独的 Intel 机器。
+  # 两个脚本都做 ad-hoc 签名（--sign -），不依赖任何证书 Secret，
+  # 因此可以在公开 CI 里无人值守运行。
+  # ---------------------------------------------------------------------------
+  build:
+    name: 构建产物（${{ matrix.label }}）
+    strategy:
+      # 一个平台失败不连累其他平台——发布时能看到是哪个平台出了问题
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS Apple Silicon
+            os: macos-latest
+            dist: dist-arm64
+            script: build-arm64-macos.sh
+          - label: macOS Intel
+            os: macos-latest
+            dist: dist-intel
+            script: build-intel-macos.sh
+          - label: Windows x64
+            os: windows-latest
+            dist: dist-windows
+            script: build-windows.ps1
+    runs-on: ${{ matrix.os }}
+    permissions:
+      # 构建只读源码，不写回仓库（继承顶层 contents: read，显式写明以自证）
+      contents: read
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # 打包脚本不需要 git 凭证，不持久化
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          # 刻意不用 npm 缓存（CI 的日常构建才用）：
+          # release 产物要分发给用户，缓存是「投毒的缓存 → 带毒的产物」的
+          # 供应链风险链一环。发布是低频操作，构建慢几分钟换产物
+          # 一定从干净源码与依赖构建，值得。
+          # 显式写 false 而不是省略：setup-node 新版默认启用缓存，
+          # 省略会在将来升级 action 版本时让缓存静默回归。
+          package-manager-cache: false
+          node-version: '22'
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+
+      # 刻意不缓存 cargo（registry / target）：理由同上——
+      # release 产物不经过任何缓存路径，杜绝缓存投毒影响分发产物的可能。
+
+      - name: 构建打包
+        env:
+          # ${{ }} 不直接写进 run:，经 env 中转（表达式注入防线）
+          BUILD_SCRIPT: ${{ matrix.script }}
+        shell: bash
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          # 打包脚本自身会先构建 web 前端（npm ci + build），再交叉/本机编译 Rust
+          if [[ "$BUILD_SCRIPT" == *.ps1 ]]; then
+            powershell -ExecutionPolicy Bypass -File "scripts/$BUILD_SCRIPT"
+          else
+            "./scripts/$BUILD_SCRIPT"
+          fi
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          # artifact 名用 dist 目录名（dist-arm64 / dist-intel / dist-windows），
+          # 汇总 job 按 dist-* 通配下载
+          name: ${{ matrix.dist }}
+          path: |
+            ${{ matrix.dist }}/*.dmg
+            ${{ matrix.dist }}/*.zip
+          if-no-files-found: error
+          retention-days: 3
+
+  # ---------------------------------------------------------------------------
+  # 创建 Release：三段式发布说明
+  #
+  # 人工归纳（CHANGELOG 手写段）+ 机器枚举（GitHub 原生 generate-notes）+ 可选
+  # AI 摘要，三个输入源各自独立降级，任一缺失都不阻断发布。
+  # ---------------------------------------------------------------------------
+  release:
+    name: 创建 GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      # 创建 Release 与上传产物需要写 contents；只给这一个 job
+      contents: write
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          # 需要完整历史：既要定位上一个 tag，也要让 GitHub 生成对比链接
+          fetch-depth: 0
+
+      - name: 下载全部构建产物
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          path: artifacts
+          pattern: dist-*
+          # 三个平台的 artifact 都合并进 artifacts/ 一个目录，方便一次性 upload
+          merge-multiple: true
+
+      # -----------------------------------------------------------------------
+      # ① 从 CHANGELOG 提取本版本的手写说明
+      #
+      # 这是面向使用者的归纳，位于发布说明的主体位置。
+      # -----------------------------------------------------------------------
+      - name: 提取 CHANGELOG 中本版本的说明
+        id: changelog
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          version="${TAG#v}"
+          echo "从 CHANGELOG.md 提取 ${version} 的说明"
+
+          # 取出版本标题之后、下一个版本标题之前的内容
+          awk -v ver="$version" '
+            BEGIN { found = 0 }
+            /^## \[/ {
+              if (found) exit
+              if (index($0, "[" ver "]") > 0) { found = 1; next }
+            }
+            found { print }
+          ' CHANGELOG.md > changelog-section.md
+
+          if [[ -s changelog-section.md ]]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "已提取 $(wc -l < changelog-section.md | tr -d ' ') 行"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::CHANGELOG.md 中没有 ${version} 的条目，发布说明将只包含变更清单"
+          fi
+
+      # -----------------------------------------------------------------------
+      # ② 用 GitHub 原生 API 生成变更清单
+      #
+      # releases/generate-notes 会返回自上一个 tag 以来的 PR 列表、贡献者，
+      # 以及 Full Changelog 对比链接。自己拼这些既麻烦又容易漏。
+      # -----------------------------------------------------------------------
+      - name: 生成变更清单
+        id: prs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          # 找上一个 tag（按版本号排序，排除当前这个）
+          prev="$(git tag --sort=-v:refname | grep -v "^${TAG}$" | head -n 1 || true)"
+
+          if [[ -z "$prev" ]]; then
+            echo "::notice::没有找到上一个 tag，跳过变更清单"
+            : > pr-list.md
+            exit 0
+          fi
+
+          echo "上一个版本：${prev}"
+          echo "prev_tag=${prev}" >> "$GITHUB_OUTPUT"
+
+          if ! gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+              -f tag_name="$TAG" \
+              -f previous_tag_name="$prev" \
+              --jq '.body' > pr-list.md; then
+            echo "::warning::变更清单生成失败，发布说明将不含 PR 列表"
+            : > pr-list.md
+            exit 0
+          fi
+
+          echo "已生成 $(wc -l < pr-list.md | tr -d ' ') 行变更清单"
+
+      # -----------------------------------------------------------------------
+      # ③ AI 摘要（可选）
+      #
+      # 未配置 ANTHROPIC_API_KEY 时静默跳过。
+      # **任何失败都不影响发布**——摘要只是锦上添花，不该成为发布的单点故障。
+      # -----------------------------------------------------------------------
+      - name: 生成发布摘要
+        id: summary
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          : > summary.md
+
+          if [[ -z "$ANTHROPIC_API_KEY" ]]; then
+            echo "未配置 ANTHROPIC_API_KEY，跳过 AI 摘要（发布流程不受影响）"
+            exit 0
+          fi
+
+          # 准备素材：CHANGELOG 段落 + PR 清单
+          {
+            echo "版本：${TAG}"
+            echo ""
+            if [[ -s changelog-section.md ]]; then
+              echo "## CHANGELOG 记录"
+              echo ""
+              cat changelog-section.md
+              echo ""
+            fi
+            if [[ -s pr-list.md ]]; then
+              echo "## 包含的 PR"
+              echo ""
+              cat pr-list.md
+            fi
+          } > ai-input.txt
+
+          # 控制输入规模，避免异常长的 CHANGELOG 让请求过大
+          head -c 12000 ai-input.txt > ai-input-trimmed.txt
+
+          cat > ai-prompt.txt <<'PROMPT'
+          你是开源项目的维护者，正在为一次版本发布撰写摘要。
+
+          请根据下面提供的材料，写一段中文摘要，要求：
+          - 2~3 句话，不超过 150 字
+          - 面向使用者，说明这个版本主要解决了什么问题、带来什么变化
+          - 抓住主线，不要逐条罗列改动
+          - 语气平实，不要营销腔，不要用「重磅」「震撼」这类词
+          - 直接输出摘要正文，不要标题、不要代码块、不要 markdown 标记
+
+          材料如下：
+
+          PROMPT
+          cat ai-input-trimmed.txt >> ai-prompt.txt
+
+          payload="$(jq -n \
+            --arg model "claude-sonnet-5" \
+            --rawfile prompt ai-prompt.txt \
+            '{model: $model, max_tokens: 1024, messages: [{role: "user", content: $prompt}]}')"
+
+          echo "调用 Claude API 生成摘要..."
+          response="$(curl -sS --max-time 90 \
+            -X POST "https://api.anthropic.com/v1/messages" \
+            -H "x-api-key: ${ANTHROPIC_API_KEY}" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d "$payload" 2>/dev/null)" || {
+              echo "::warning::AI 摘要生成失败（网络问题），发布流程继续"
+              exit 0
+            }
+
+          summary="$(printf '%s' "$response" | jq -r '.content[0].text // empty' 2>/dev/null || true)"
+
+          if [[ -z "$summary" ]]; then
+            # 把 API 的返回原样打出来便于排查，但注意其中可能含错误信息
+            echo "::warning::AI 摘要生成失败，发布流程继续"
+            printf '%s\n' "$response" | head -c 500
+            exit 0
+          fi
+
+          printf '%s\n' "$summary" > summary.md
+          echo "✓ 摘要已生成（$(printf '%s' "$summary" | wc -m | tr -d ' ') 字）"
+
+      # -----------------------------------------------------------------------
+      # ④ 组装最终的发布说明
+      # -----------------------------------------------------------------------
+      - name: 组装发布说明
+        env:
+          TAG: ${{ github.ref_name }}
+          HAS_CHANGELOG: ${{ steps.changelog.outputs.found }}
+          PREV_TAG: ${{ steps.prs.outputs.prev_tag }}
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          : > release-notes.md
+
+          # —— 摘要 ——
+          if [[ -s summary.md ]]; then
+            {
+              echo "> $(cat summary.md)"
+              echo ""
+            } >> release-notes.md
+          fi
+
+          # —— 变更内容（CHANGELOG 手写部分）——
+          if [[ "$HAS_CHANGELOG" == "true" ]] && [[ -s changelog-section.md ]]; then
+            cat changelog-section.md >> release-notes.md
+          elif [[ -n "$PREV_TAG" ]]; then
+            # CHANGELOG 没写时不要只留一句占位——直接把对比链接给出来，
+            # 读者仍然能一键看到全部改动
+            {
+              echo "本版本未在 \`CHANGELOG.md\` 中单独登记。"
+              echo ""
+              echo "完整的代码改动可以通过下方的变更清单与对比链接查看；"
+              echo "也欢迎提 Issue 提醒维护者补充版本说明。"
+              echo ""
+            } >> release-notes.md
+          fi
+
+          # —— 变更清单（PR / 贡献者 / 对比链接）——
+          if [[ -s pr-list.md ]]; then
+            printf '\n---\n\n' >> release-notes.md
+            cat pr-list.md >> release-notes.md
+          fi
+
+          echo "=== 最终发布说明 ==="
+          cat release-notes.md
+
+      # -----------------------------------------------------------------------
+      # ⑤ 创建 Release 并上传三平台产物
+      # -----------------------------------------------------------------------
+      - name: 创建 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          echo "构建产物："
+          ls -la artifacts/
+
+          # 预发布版本（如 v1.2.3-rc.1）不标记为 latest
+          prerelease_flag=""
+          if [[ "$TAG" == *-* ]]; then
+            prerelease_flag="--prerelease"
+            echo "检测到预发布版本标记"
+          fi
+
+          # 先查后建：tag 被重复推送（网络抖动时 push 显示失败、远端实际已成功，
+          # 重试就是第二次推）会触发两次本工作流，第二次的 create 会因
+          # Release.tag_name already exists 而失败。这时改走 edit 更新说明即可。
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release ${TAG} 已存在（多半是 tag 被重复推送），改用 edit 更新发布说明并补传产物"
+            gh release edit "$TAG" \
+              --title "$TAG" \
+              --notes-file release-notes.md \
+              ${prerelease_flag}
+            gh release upload "$TAG" artifacts/* --clobber
+            echo "✅ Release ${TAG} 说明已更新、产物已补传"
+            echo "### 🔁 Release [${TAG}](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}) 已存在，说明与产物已更新" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file release-notes.md \
+            --verify-tag \
+            ${prerelease_flag}
+
+          gh release upload "$TAG" artifacts/*
+
+          echo "✅ Release ${TAG} 已创建并附带构建产物"
+          echo "### 🚀 Release [${TAG}](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}) 已发布（含 macOS / Windows 产物）" >> "$GITHUB_STEP_SUMMARY"

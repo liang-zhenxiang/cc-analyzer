@@ -1,0 +1,16 @@
+# Issue 模板选择器的配置
+# 文档：https://docs.github.com/communities/using-templates-to-encourage-useful-issues-and-pull-requests/configuring-issue-templates-for-your-repository
+blank_issues_enabled: false
+
+contact_links:
+  - name: 🔒 报告安全漏洞
+    url: https://github.com/liang-zhenxiang/cc-analyzer/security/advisories/new
+    about: 请勿通过公开 Issue 报告安全漏洞，使用这个私有渠道。
+
+  - name: 📚 排错文档
+    url: https://github.com/liang-zhenxiang/cc-analyzer/blob/main/docs/TROUBLESHOOTING.md
+    about: 应用打不开、报告生成失败、打包报错？常见问题与解决办法都整理在这里了。
+
+  - name: 📖 使用文档
+    url: https://github.com/liang-zhenxiang/cc-analyzer/blob/main/docs/USAGE.md
+    about: 从安装到各个功能的完整使用说明。

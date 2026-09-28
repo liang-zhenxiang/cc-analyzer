@@ -1,13 +1,53 @@
-# Security Policy
+# 安全策略
 
-## Supported versions
+## 支持的版本
 
-| Version | Supported |
+| 版本 | 支持情况 |
 | --- | --- |
-| 0.1.x | Yes |
+| 0.1.x | ✅ |
+| 更早版本 | ❌ 请升级 |
 
-## Reporting a vulnerability
+## 报告漏洞
 
-Please report security issues privately through GitHub Security Advisories.
-Avoid opening a public issue for undisclosed vulnerabilities. Include reproduction
-steps, affected versions, and any relevant logs.
+请通过 [GitHub Security Advisories](https://github.com/liang-zhenxiang/cc-analyzer/security/advisories/new)
+私下报告安全问题，**不要**为未公开的漏洞开公开 Issue。
+
+报告时请包含：复现步骤、受影响版本、相关日志（注意先剔除其中的会话内容与敏感路径）。
+我们会在收到后尽快回应。
+
+## 威胁模型
+
+CC Analyzer 是一个读取本机 Claude Code 会话数据的桌面应用。它**持有和接触什么**，
+决定了它的安全边界：
+
+**它接触的数据非常敏感。** 会话记录（`~/.claude/projects` 下的 JSONL）天然包含
+代码、文件路径、命令输出，甚至密钥等凭证。应用读取这些数据、解析并展示、
+生成分析报告。因此：
+
+- **数据不出本机是默认承诺**。应用的解析、聚合、展示全部在本地完成；「生成分析
+  报告」会把结构化摘要交给**本机的 `claude` CLI**，由使用者自己配置与信任的
+  模型服务处理——应用本身不内置任何遥测或网络上传。使用者应当意识到：生成报告
+  即意味着会话摘要会流向 `claude` CLI 所使用的模型服务。
+- **会话文件按不可信输入对待**。JSONL 可能来自任何项目，解析层做了约束：
+  从会话文件里提取的子会话路径被限定在会话树内（防止构造的 JSONL 让应用读取
+  任意文件）；跨窗口传递的序列化数据经 helper 处理，敌意的 `raw` 字段不能
+  破坏面板渲染；非有限的时长数值不会吞掉整个窗口。
+- **实时监控页只信任本机回环来源**。`enter-float` 等窗口控制消息只接受来自
+  `localhost` 上被探测端口仪表盘的 `postMessage`，外部来源无法操纵窗口。
+- **构建与发布产物**：release 工作流从干净源码构建（不经过任何缓存路径）、
+  所有 Actions 按内容 pin 到 commit SHA、`zizmor` 基线 0 findings。
+  macOS 产物使用 ad-hoc 签名（无开发者证书），安装时的 Gatekeeper 提示是预期行为。
+
+**明确不在威胁模型内**（这些情况不属于本项目的安全承诺，请勿据此报告）：
+
+- 使用者本机已被入侵——本机攻击者可以读取应用能读取的一切
+- `claude` CLI 自身或其背后的模型服务的安全性
+- 外部实时监控服务（`localhost:8090` 的 dashboard 不在本仓库内）的安全
+- 会话数据本身的质量问题（解析失败会报 warning，不会静默出错）
+
+## 已知的安全相关配置
+
+- 应用数据（元数据缓存、阈值设置）存储在 `com.flydiy.cc-analyzer` 的
+  application-support 目录下，不与 Claude Code 的原始数据混写。
+- 分析报告的生成预算（提示词大小、明细行数等）可由使用者在设置面板收紧，
+  减少交给 CLI 的数据量。

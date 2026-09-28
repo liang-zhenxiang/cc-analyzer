@@ -103,7 +103,9 @@ fn read_dir(path: String) -> Result<Vec<DirEntry>, String> {
     let mut result = Vec::new();
     for entry in entries {
         let entry = entry.map_err(|e| io_error("读取目录项失败", e))?;
-        let file_type = entry.file_type().map_err(|e| io_error("读取文件类型失败", e))?;
+        let file_type = entry
+            .file_type()
+            .map_err(|e| io_error("读取文件类型失败", e))?;
         result.push(DirEntry {
             name: entry.file_name().to_string_lossy().into_owned(),
             is_dir: file_type.is_dir(),
@@ -148,6 +150,9 @@ fn write_text(path: String, contents: String) -> Result<(), String> {
     std::fs::write(&path, contents).map_err(|e| io_error("写入文件失败", e))
 }
 
+// Tauri command 的参数即前端 invoke 的调用签名；收拢成参数对象需要同步改动
+// 前端 API，不属于内部可自由重构的范围，故豁免参数数量检查。
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 async fn run_lines(
     app: tauri::AppHandle,
@@ -233,9 +238,7 @@ async fn run_lines(
     let wait_outcome = {
         let wait = async {
             match timeout_ms {
-                Some(ms) => tokio::time::timeout(Duration::from_millis(ms), child.wait())
-                    .await
-                    .map(|result| result),
+                Some(ms) => tokio::time::timeout(Duration::from_millis(ms), child.wait()).await,
                 None => Ok(child.wait().await),
             }
         };
@@ -357,9 +360,7 @@ async fn spawn_detached(exe: String, args: Vec<String>, cwd: Option<String>) -> 
     #[cfg(unix)]
     command.process_group(0);
 
-    let child = command
-        .spawn()
-        .map_err(|e| io_error("启动进程失败", e))?;
+    let child = command.spawn().map_err(|e| io_error("启动进程失败", e))?;
     tokio::spawn(async move {
         let mut child = child;
         let _ = child.wait().await;
@@ -488,7 +489,9 @@ fn import_session_menu(app: &tauri::AppHandle) {
             let app = app.clone();
             move |file| {
                 let Some(file) = file else { return };
-                let Ok(path) = file.simplified().into_path() else { return };
+                let Ok(path) = file.simplified().into_path() else {
+                    return;
+                };
                 let path: PathBuf = path;
                 let _ = app.emit("session:import", path.to_string_lossy().into_owned());
             }
@@ -532,7 +535,7 @@ pub fn run() {
                 _ => {}
             });
 
-            if let Some(parent) = app.path().app_data_dir().ok() {
+            if let Ok(parent) = app.path().app_data_dir() {
                 let _ = std::fs::create_dir_all(parent);
             }
             Ok(())

@@ -1,0 +1,24 @@
+# zizmor 配置 —— GitHub Actions 的静态安全扫描
+#
+# CI 中的 zizmor job 以此文件为准。豁免必须有可验证的理由，
+# 写清楚「为什么不构成威胁」，否则不应该出现在这里。
+#
+# 文档：https://docs.zizmor.sh/configuration/
+
+rules:
+  # welcome.yml 使用 pull_request_target。
+  #
+  # 这个工作流**不 checkout、不执行任何来自 PR 的代码**——它只调用
+  # GitHub 官方 Action（SHA 锁定），对首次贡献者的 Issue / PR 发一条欢迎评论。
+  # pull_request_target 的危险点在于「以可写 token 运行 PR 代码」，
+  # 而这里根本没有运行 PR 代码，风险不存在。
+  #
+  # 同样的豁免不需要给 labeler.yml：它虽然同样使用 pull_request_target，
+  # 但当前版本 zizmor 对它没有告警——不为没有告警的文件预先写豁免，
+  # 豁免清单应当与真实告警一一对应。
+  #
+  # 若未来任何一个工作流要 checkout PR 的 head 分支，必须改用 pull_request
+  # + 显式授权，而不是在这里加豁免。
+  dangerous-triggers:
+    ignore:
+      - welcome.yml

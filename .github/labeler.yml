@@ -1,0 +1,70 @@
+# PR 自动打标签规则
+#
+# 由 .github/workflows/labeler.yml 驱动（actions/labeler）。
+# 规则基于改动到的文件路径，不依赖人工操作。
+#
+# 文档：https://github.com/actions/labeler
+
+# 前端（React / TypeScript / Vite）
+frontend:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'web/**'
+
+# Tauri 后端（Rust）
+tauri:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src-tauri/**'
+
+# 打包与平台构建
+packaging:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'packaging/**'
+          - 'scripts/build-*'
+
+# CI / 工作流基础设施
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/workflows/**'
+          - '.github/dependabot.yml'
+          - '.github/labeler.yml'
+
+# 自动化脚本
+automation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'scripts/**'
+
+# 文档
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.md'
+          - 'docs/**'
+          - 'LICENSE'
+          - 'NOTICE'
+
+# 仓库治理配置
+governance:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/ISSUE_TEMPLATE/**'
+          - '.github/PULL_REQUEST_TEMPLATE.md'
+          - '.github/CODEOWNERS'
+          - 'CODE_OF_CONDUCT.md'
+          - 'SECURITY.md'
+          - 'CONTRIBUTING*.md'
+          - 'SUPPORT.md'
+
+# 依赖更新
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/dependabot.yml'
+          - 'web/package.json'
+          - 'web/package-lock.json'
+          - 'src-tauri/Cargo.toml'
+          - 'src-tauri/Cargo.lock'

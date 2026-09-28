@@ -1,15 +1,17 @@
 # 贡献指南
 
-感谢参与本项目的开发。本文说明本地开发、提交规范和 Pull Request 流程。GitHub 中没有 “MR” 这个术语，等效概念是 **Pull Request（PR）**。
+感谢你考虑为本项目做贡献。
+
+English guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)。
 
 ## 开发环境
 
-- Node.js 22 和 npm
+- Node.js 22 与 npm
 - Rust 1.77 或更高版本
 - macOS 需要 Xcode Command Line Tools
-- Windows 构建需要 Visual Studio Build Tools 和 MSVC Rust target
+- Windows 构建需要 Visual Studio Build Tools 与 MSVC Rust target
 
-安装依赖并检查环境：
+安装并验证：
 
 ```bash
 npm --prefix web install
@@ -18,73 +20,104 @@ npm --prefix web run build
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
-启动开发环境：
+启动开发：
 
 ```bash
-# Web UI dev server：http://127.0.0.1:5173
 npm --prefix web run dev
-
-# 桌面应用
 cargo run --manifest-path src-tauri/Cargo.toml
 ```
 
-更多细节见 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md)。
+详见 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md)。
 
-## 工作流程
+## 本地检查
 
-1. 从最新的 `main` 创建功能分支。
-2. 使用简短、聚焦的分支名，例如 `feat/session-export`、`fix/windows-terminal`、`docs/contributing`。
-3. 一个 PR 只解决一个主题，避免混入无关格式化或依赖升级。
-4. 保持提交小而清晰；非显而易见的决策写在 commit body 中。
-5. 提交前运行测试和构建。
-6. 打开 PR，填写模板，请求维护者 review。
-
-## 提交信息
-
-使用 Conventional Commits 风格，并尽量带 scope：
-
-```text
-feat(web): add session export
-fix(web): normalize log path
-feat(tauri): harden command scope
-docs: update build steps
-test(web): cover parser errors
-chore(deps): bump vite to 5.4.21
-```
-
-提交标题使用祈使句、不加句号。涉及破坏性行为时，在 body 中说明迁移方式。
-
-## Pull Request 要求
-
-PR 描述必须包含：
-
-- 变更内容与动机；
-- 关联 issue 或任务；
-- 测试方式，包括已执行的命令；
-- 对用户可见变化提供截图或录屏；
-- 平台注意事项，例如 macOS Intel/Apple Silicon、Windows、WebView2；
-- 是否修改了权限、打包流程、版本号或文档。
-
-提交前至少检查：
+推送之前跑一次 `./scripts/lint.sh` —— 它一条命令跑完 CI 里本地能跑的
+全部静态检查（actionlint、yamllint、shellcheck、`bash -n`、zizmor）。
+缺失的工具会被跳过并提示安装方式；跳过项不会被算作通过。
 
 ```bash
-npm --prefix web test
-npm --prefix web run build
-cargo check --manifest-path src-tauri/Cargo.toml
+./scripts/lint.sh
 ```
 
-如果修改了 Rust 代码，运行：
+它刻意**不覆盖**两类检查：
 
-```bash
-cargo fmt --manifest-path src-tauri/Cargo.toml
+- **构建与测试**（`vitest`、`tsc`、`cargo fmt` / `clippy` / `check`）——
+  开发过程中按需本地运行：
+
+  ```bash
+  npm --prefix web test
+  npm --prefix web run build
+  cargo fmt --manifest-path src-tauri/Cargo.toml --check
+  cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+  cargo check --manifest-path src-tauri/Cargo.toml
+  ```
+
+- **提交信息** —— CI 校验 PR 里的提交**和 PR 标题**，而标题在 PR 建立之前
+  不存在，本地无从验证。可以先用
+  `./scripts/check-commit-msg.sh --message "feat(web): ..."` 预检标题格式。
+
+## 工作流
+
+1. 从最新的 `main` 切出聚焦的功能分支，例如
+   `feat/session-export` 或 `fix/windows-terminal`。
+2. 一个 Issue 对应一个分支、一个 PR。改动保持聚焦。
+3. 开 PR 之前跑完上面的检查。
+4. PR 标题同样遵循提交规范（squash 合并后标题会成为提交信息，
+   CI 会校验它）。
+
+## 提交信息规范
+
+项目遵循 [Conventional Commits](https://www.conventionalcommits.org/)：
+
+```
+<类型>(<范围>): <描述>
 ```
 
-如果修改了打包流程，请实际运行对应平台脚本并记录产物名称。
+CI 会校验 PR 中的提交信息与 PR 标题（`scripts/check-commit-msg.sh`）。
+允许的类型如下 —— 请保持此表与脚本一致：
 
-## 文档与安全要求
+| 类型 | 用途 |
+| --- | --- |
+| `feat` | 面向用户的新能力 |
+| `fix` | 缺陷修复 |
+| `docs` | 仅文档 |
+| `ci` | 工作流 / CI 配置变更 |
+| `chore` | 不触及源码与测试的维护性改动 |
+| `refactor` | 既不修 bug 也不加功能的代码变更 |
+| `perf` | 性能优化 |
+| `test` | 补充或修正测试 |
+| `style` | 格式 / 空白调整，不改变含义 |
+| `revert` | 回滚此前的提交 |
+| `build` | 构建系统或依赖变更（Cargo / npm） |
 
-- 新功能必须同步 README、`docs/LOCAL_DEVELOPMENT.md` 或 `CHANGELOG.md`。
-- 不要提交 `web/dist/`、`node_modules/`、Rust `target/`、`dist-intel/`、`dist-arm64/` 或 `dist-windows/`。
-- 不要扩大 Tauri 的文件系统、进程或 shell 权限；确有必要时必须在 PR 中说明范围和缓解措施。
-- 会话数据可能包含代码、路径和敏感输出；修改报告生成逻辑时必须在文档中说明数据去向。
-- 安全漏洞不要通过公开 issue 报告，使用 GitHub Security Advisories。
+范围（scope）描述改动区域，例如 `web`、`tauri`、`packaging`、`ci`、`docs`。
+
+```
+feat(web): 会话列表支持导出
+fix(tauri): 读取会话文件前规范化日志路径
+docs: 更新打包步骤说明
+```
+
+## Pull Request
+
+请包含：
+
+- 改了什么，以及**为什么**（diff 已经说明了「改了什么」），
+- 如何验证的 —— 写具体操作，不要只写「测试通过」，
+- 平台相关的注意事项，
+- 关联的 Issue 或任务（用 `Closes #12` 的写法），
+- 界面可见变化请附截图或录屏，
+- 涉及权限、打包、版本号、文档变更时请特别注明。
+
+不要提交生成产物：`web/dist/`、`node_modules/`、Rust `target/`、
+`dist-intel/`、`dist-arm64/`、`dist-windows/`。
+
+改动对使用者可见时，请在 [`CHANGELOG.md`](CHANGELOG.md) 的 `Unreleased`
+段落按固定分类（Added / Changed / Deprecated / Removed / Fixed / Security）
+补一条说明。
+
+## 报告安全问题
+
+请通过
+[GitHub Security Advisories](https://github.com/liang-zhenxiang/cc-analyzer/security/advisories/new)
+私下报告，不要开公开 Issue。项目的威胁模型见 [`SECURITY.md`](SECURITY.md)。

@@ -1,10 +1,94 @@
+# Dependabot 配置
+#
+# 本项目有三类依赖：Rust crates（src-tauri）、npm 包（web）、
+# 工作流里引用的 GitHub Actions。让 Dependabot 盯着它们，
+# 可以及时拿到安全修复与新版本。
+#
+# 文档：https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot-yml-file
+
 version: 2
 updates:
-  - package-ecosystem: cargo
-    directory: /src-tauri
+  # Rust 依赖（Tauri 后端）
+  - package-ecosystem: "cargo"
+    directory: "/src-tauri"
     schedule:
-      interval: weekly
-  - package-ecosystem: github-actions
-    directory: /
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    # 冷却期：新版本发布后等 7 天才提 PR。新版本本身有 bug、
+    # 或上游账号被盗投恶意代码时，冷却期让问题有机会先暴露出来
+    cooldown:
+      default-days: 7
+    labels:
+      - "dependencies"
+      - "rust"
+    commit-message:
+      prefix: "build"
+      include: "scope"
+    # 同一个依赖生态的 minor/patch 合并成一个 PR，避免 PR 数量爆炸
+    groups:
+      cargo-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    reviewers:
+      - "nicholyx"
+
+  # 前端依赖（React / Vite / Vitest 等）
+  - package-ecosystem: "npm"
+    directory: "/web"
     schedule:
-      interval: weekly
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    labels:
+      - "dependencies"
+      - "frontend"
+    commit-message:
+      prefix: "build"
+      include: "scope"
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    reviewers:
+      - "nicholyx"
+
+  # 工作流引用的 GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      # 生成的提交信息本身即符合约定式提交规范，CI 不会拦
+      prefix: "ci"
+      include: "scope"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    reviewers:
+      - "nicholyx"
