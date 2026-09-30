@@ -29,12 +29,17 @@
 # **隔离**：通过把 HOME 指向临时目录，应用只会看到我们放进去的夹具，
 # 不会去读使用者真实的 ~/.claude 会话数据。这是有意的——会话内容属于敏感数据。
 #
+# **前提**：产物必须带 `gui-capture` feature。没有它，应用不会渲染自身 webview，
+# 取图那步必然失败——而发布产物**不带**该 feature（见 src-tauri/Cargo.toml），
+# 所以 `npm run build:macos:*` 产出的常规产物不能直接拿来跑。
+# 脚本会在**启动应用之前**先验证这一点，缺了就直接给指引并退出。
+#
 # 用法：
-#   ./scripts/gui-test.sh                # 用已有产物跑
-#   ./scripts/gui-test.sh --build        # 先构建再跑
+#   ./scripts/gui-test.sh                # 用已有产物跑（产物需带 gui-capture feature）
+#   ./scripts/gui-test.sh --build        # 先构建（自动带 gui-capture）再跑
 #   ./scripts/gui-test.sh --app <path>   # 指定 .app
 #
-# 退出码：0 通过（截图跳过不算失败）／1 有检查项失败
+# 退出码：0 没有失败项／1 有检查项失败（取不到图计失败，不是跳过）
 
 set -euo pipefail
 
@@ -57,7 +62,9 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --build) BUILD=1; shift ;;
     --app) APP_PATH="${2:-}"; shift 2 ;;
-    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
+    # 打到第一个空行为止：头部注释到那里结束。写死行号会在头部增删时静默截断，
+    # 而「用法」段恰好在旧行号之外——`--help` 从来没有印出过用法。
+    -h|--help) sed -n '2,/^$/p' "$0"; exit 0 ;;
     *) printf '%s未知参数：%s%s\n' "$C_RED" "$1" "$C_RESET" >&2; exit 2 ;;
   esac
 done
@@ -131,7 +138,9 @@ fi
 
 if [[ ! -d "$APP_PATH" ]]; then
   printf '  %s✗ 找不到应用产物：%s%s\n' "$C_RED" "$APP_PATH" "$C_RESET"
-  printf '  %s  先运行 npm run build:macos:arm64，或加 --build%s\n' "$C_YELLOW" "$C_RESET"
+  # 这里不推荐 `npm run build:macos:arm64`：它产出的产物**不带** gui-capture
+  # feature，照做会正好掉进下面那道预检拦下的坑里。
+  printf '  %s  先跑 ./scripts/gui-test.sh --build（它会带上取图所需的 gui-capture feature）%s\n' "$C_YELLOW" "$C_RESET"
   exit 1
 fi
 
@@ -140,6 +149,29 @@ if [[ ! -x "$BIN" ]]; then
   printf '  %s✗ 产物里没有可执行文件：%s%s\n' "$C_RED" "$BIN" "$C_RESET"
   exit 1
 fi
+
+# --- 预检：产物里必须编入了 `gui-capture` feature ---------------------------
+# 取图靠应用自己的 `gui_capture` 模块，而该模块受 feature = "gui-capture" 门控
+# （见 src-tauri/src/lib.rs）。发布产物**不带**这个 feature，于是拿一个正常的
+# `npm run build:macos:*` 产物来跑，会一路走到取图那步才报「应用没有产出取图
+# PDF」——使用者什么都没做错，错在这道前提没写在明处。所以在这里先判、先给指引。
+#
+# 判据：`CCA_GUI_CAPTURE` 这个字符串只出现在受门控的 `gui_capture` 模块里
+# （`std::env::var("CCA_GUI_CAPTURE")`）。feature 没开时整个模块不参与编译，
+# 可执行文件里也就不会有这段字节序列。
+#
+# 用 `grep -a` 直接扫可执行文件，**不要**图省事写成 `strings -a "$BIN" | grep -q`：
+# 本脚本开了 `set -o pipefail`，而 `grep -q` 一命中就退出，`strings` 随即收到
+# SIGPIPE（退出码 141），pipefail 于是把整条管道判为失败——一个**带** feature 的
+# 产物会被判成「没带」，恰好是这道预检最不该出的错。实测过，同一个产物：
+# `strings -a "$BIN" | grep -q …` 报 NOT FOUND，`grep -aq …` 报 FOUND。
+if ! grep -aq 'CCA_GUI_CAPTURE' "$BIN"; then
+  printf '  %s✗ 产物不含 gui-capture feature：%s%s\n' "$C_RED" "$APP_PATH" "$C_RESET"
+  printf '  %s  它渲染不了自身 webview，取图那步必然失败，所以在这里先停下。%s\n' "$C_YELLOW" "$C_RESET"
+  printf '  %s  请用 --build 重新构建，或确认产物是用 TAURI_BUILD_FEATURES=gui-capture 构建的。%s\n' "$C_YELLOW" "$C_RESET"
+  exit 1
+fi
+
 printf '  应用：%s\n' "$APP_PATH"
 
 # 夹具：把单测用的 JSONL 放进隔离家目录的 Claude Code 布局里
