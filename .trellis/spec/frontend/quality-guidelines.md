@@ -86,9 +86,24 @@ jsdom implements).
   `./api/tauri` (`App.test.tsx`). Never mock `@tauri-apps/api` in a feature test.
 - CSS invariants are testable by reading the stylesheet —
   `SessionAnalyzerPage.layout.test.ts` reads the `.module.css` with `node:fs` and
-  asserts on `grid-auto-rows` / `min-height`. The hand-written stubs in
-  `web/src/node.d.ts` only declare `readFileSync`, `resolve` and `process.cwd()`
-  because `@types/node` is deliberately not installed.
+  asserts on `grid-auto-rows` / `min-height`. `@types/node` is installed for this
+  (and for the Playwright config), so `node:fs` is typed properly. There used to
+  be a hand-written stub at `web/src/node.d.ts`; it was deleted because it
+  shadowed the real `process` type and nothing imported it. The app itself still
+  calls `window.setTimeout` rather than bare `setTimeout`, which keeps
+  `NodeJS.Timeout` out of the DOM code.
+
+### Layer split
+
+This section covers **frontend-layer mechanics** — how to write a unit test here,
+how to fake `Bridges`, how fixtures are imported. The cross-cutting questions
+(which layer a change needs, what counts as done, the end-to-end and real-app GUI
+suites) are owned by [`../testing/index.md`](../testing/index.md).
+
+The rule "never mock `@tauri-apps/api` in a feature test" is scoped to *this*
+layer. The end-to-end suite does stub at the Tauri boundary, deliberately — see
+[`../testing/e2e-tests.md`](../testing/e2e-tests.md) for why covering
+`api/tauri.ts` is the point there.
 
 ---
 

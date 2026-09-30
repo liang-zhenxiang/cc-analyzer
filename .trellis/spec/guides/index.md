@@ -1,109 +1,63 @@
-# Thinking Guides
+# 跨层规范（入口）
 
-> **Purpose**: Expand your thinking to catch things you might not have considered.
-
----
-
-## Why Thinking Guides?
-
-**Most bugs and tech debt come from "didn't think of that"**, not from lack of skill:
-
-- Didn't think about what happens at layer boundaries → cross-layer bugs
-- Didn't think about code patterns repeating → duplicated code everywhere
-- Didn't think about edge cases → runtime errors
-- Didn't think about future maintainers → unreadable code
-
-These guides help you **ask the right questions before coding**.
+> 这里放**不属于任何单一层**的规则：协作流程、规则该写在哪、以及改动前必须先做的事。
+> 前端、后端、测试各自的约定在 `../frontend/`、`../backend/`、`../testing/`。
 
 ---
 
-## Available Guides
+## 本目录内容
 
-| Guide | Purpose | When to Use |
-|-------|---------|-------------|
-| [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | Identify patterns and reduce duplication | When you notice repeated patterns |
-| [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | Think through data flow across layers | Features spanning multiple layers |
-| [Collaboration Workflow](./collaboration-workflow.md) | How Trellis phases map onto this project's Issue → PR → CI → Release loop | **Before creating a Trellis task**, and whenever you are unsure which document owns a rule |
+| 文件 | 内容 |
+| --- | --- |
+| [collaboration-workflow.md](./collaboration-workflow.md) | **Trellis 与本项目既有流程怎么协同**：粒度对应、何时建任务、以及「同一主题只有一个权威位置」的分工表 |
 
 ---
 
-## Quick Reference: Thinking Triggers
+## 改规则之前：先确认它在哪一层
 
-### When to Think About Cross-Layer Issues
+- [ ] 你要写的是一条**编码约定** → 去 `../frontend/` 或 `../backend/`
+- [ ] 你要写的是一条**测试约定** → 去 `../testing/`
+- [ ] 你要写的是**流程、发布、协作** → 去 `collaboration-workflow.md`，或它分工表里指向的位置
+- [ ] 你要写的东西 `AGENTS.md` 里已经有了 → **别写第二份**，改那一处
 
-- [ ] Feature touches 3+ layers (API, Service, Component, Database)
-- [ ] Data format changes between layers
-- [ ] Multiple consumers need the same data
-- [ ] You're not sure where to put some logic
-- [ ] You are adding an event kind, JSONL record, RPC payload, or config field
-- [ ] UI / command code starts casting raw payload fields directly
-
-→ Read [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md)
-
-### When to Think About Code Reuse
-
-- [ ] You're writing similar code to something that exists
-- [ ] You see the same pattern repeated 3+ times
-- [ ] You're adding a new field to multiple places
-- [ ] **You're modifying any constant or config**
-- [ ] **You're creating a new utility/helper function** ← Search first!
-- [ ] Two files read the same untyped payload field with local casts
-- [ ] Multiple branches update the same derived state from `kind` / `action`
-
-→ Read [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md)
-
-### When Deciding Where a Rule Belongs
-
-- [ ] You are about to write a rule, convention, or checklist into a file
-- [ ] You are unsure whether Trellis's phase flow or this project's loop wins
-- [ ] You are about to duplicate something that already exists in `AGENTS.md`
-
-→ Read [Collaboration Workflow](./collaboration-workflow.md) — it carries the
-**authority table** (one owning document per topic). Rules written in two places
-drift, and a drifted rule is worse than no rule: it makes people act on a wrong
-premise.
-
-### When Verifying AI Cross-Review Results
-
-- [ ] Reviewer claims "user input can be malicious" → Check the actual data source (internal manifest? user config? external API?)
-- [ ] Reviewer flags "missing validation" → Is the data from a trusted internal source?
-- [ ] Reviewer says "behavior change" → Read the code comments — is it intentional design?
-- [ ] Reviewer identifies a "bug" in test → Mentally delete the feature being tested — does the test still pass? If yes → tautological test
-
-**Common AI reviewer false-positive patterns**:
-1. **Trust boundary confusion**: Treating internal data (bundled JSON manifests) as untrusted external input
-2. **Ignoring design comments**: Flagging intentional behavior documented in code comments as bugs
-3. **Variable misreading**: Not tracing a variable to its actual definition (e.g., Map keyed by path vs name)
-
-**Verification rule**: Every CRITICAL/WARNING finding must be verified against the actual code before prioritizing. Budget ~35% false-positive rate for AI reviews.
+同一个主题写在两个地方，两份就会漂移。**漂移的规则比没有规则更危险**——
+它会让人按错误的前提行动。新增规则前先查 `collaboration-workflow.md`
+末尾的分工表，能挂到已有权威位置的就挂过去。
 
 ---
 
-## Pre-Modification Rule (CRITICAL)
-
-> **Before changing ANY value, ALWAYS search first!**
+## 改动任何值之前：先搜索
 
 ```bash
-# Search for the value you're about to change
-grep -r "value_to_change" .
+# 把你要改的值原样丢进去
+grep -rn "value_to_change" --exclude-dir=node_modules --exclude-dir=target .
 ```
 
-This single habit prevents most "forgot to update X" bugs.
+这条习惯挡掉的是本项目最常见的一类缺陷：**改了一处，漏了另外几处**。
+版本号要同步三处（见 `AGENTS.md`）、颜色只能来自 `tokens.css`、
+枚举值散在解析与展示两侧——都属于这类。
 
 ---
 
-## How to Use This Directory
+## 审阅 AI 给出的代码评审意见时
 
-1. **Before coding**: Skim the relevant thinking guide
-2. **During coding**: If something feels repetitive or complex, check the guides
-3. **After bugs**: Add new insights to the relevant guide (learn from mistakes)
+AI 评审有稳定的假阳性模式，直接照单全收会浪费大量时间：
+
+| 它说 | 先确认 |
+| --- | --- |
+| 「用户输入可能恶意」 | 这个数据到底从哪来？内部常量、使用者配置、还是真外部输入 |
+| 「缺少校验」 | 数据源是否可信；代码注释里是否已说明这是有意的设计 |
+| 「行为变更了」 | 读注释——可能是刻意的 |
+| 「测试里有 bug」 | 把被测功能整个删掉，这条测试还过吗？还过就是恒真断言 |
+
+**每条 CRITICAL / WARNING 都要落到具体代码上核实再动手。**
 
 ---
 
-## Contributing
+## 这个目录里**不该**有什么
 
-Found a new "didn't think of that" moment? Add it to the relevant guide.
+Trellis 自带的通用思考指南（cross-layer / code-reuse）已被移除：
+它们的例子讲的是 **Trellis 自身的代码库**（模板注册表、`getAllScripts()`、
+多平台分支），与 CC Analyzer 无关，留着只会让人以为那是本项目的约定。
 
----
-
-**Core Principle**: 30 minutes of thinking saves 3 hours of debugging.
+判断标准很简单：**这条规范举的例子是不是本项目的代码？** 不是，就不属于这里。
