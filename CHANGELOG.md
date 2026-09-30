@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Clicking the first session of a group collapsed the group instead of selecting that session. `SessionList.module.css` carried an unscoped `.groups button` rule that also matched the group collapse toggle; being more specific than `.groupToggle`, it silently overrode the toggle's `display: flex`. The toggle then laid out as a vertical grid, overran its fixed 38px row by 40px, and its count badge came to rest on top of the first session — where it absorbed the click. Found by the new end-to-end suite, which could not click the session for the same reason a user could not. The session-button rules are now scoped to the session rows, so adding another button under `.groups` cannot bring this back.
+
 ## [0.2.2] - 2026-09-30
 
 本轮主题：修正发布产物的文件名——本地产物、文档与用户下载到的三处名字此前互不一致。
