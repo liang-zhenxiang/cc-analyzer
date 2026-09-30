@@ -150,6 +150,24 @@ jobs:
           # 三个平台的 artifact 都合并进 artifacts/ 一个目录，方便一次性 upload
           merge-multiple: true
 
+      - name: 规范化产物文件名
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          # Tauri 用 productName（"CC Analyzer"，含空格）命名产物，而 GitHub
+          # 在上传时会把文件名里的空格替换成点——于是文档里写
+          # `CC Analyzer_x.y.z_aarch64.dmg`、用户下载到的是
+          # `CC.Analyzer_x.y.z_aarch64.dmg`，两边怎么都对不上。
+          # 这里统一把空格换成连字符，跨平台也安全（v0.2.1 首次发布遇到）。
+          shopt -s nullglob
+          renamed=0
+          for f in artifacts/*\ *; do
+            mv "$f" "${f// /-}"
+            renamed=$((renamed + 1))
+          done
+          echo "重命名了 ${renamed} 个含空格的产物"
+          ls -1 artifacts/
+
       # -----------------------------------------------------------------------
       # ① 从 CHANGELOG 提取本版本的手写说明
       #

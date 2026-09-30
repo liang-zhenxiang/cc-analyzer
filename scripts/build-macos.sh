@@ -61,6 +61,15 @@ mkdir -p "$DIST_DIR"
 cp -R "$BUNDLE_DIR/macos/CC Analyzer.app" "$DIST_DIR/"
 cp "$BUNDLE_DIR/dmg/"*.dmg "$DIST_DIR/"
 
+# 产物文件名规范化：Tauri 用 productName（"CC Analyzer"，含空格）命名文件，
+# 而 GitHub 在上传发布产物时会把空格替换成点——于是本地、文档、用户下载到
+# 的三种名字互相对不上。统一改成连字符，本地与发布产物同名。
+# （.app 目录名不改：它是应用本身的名字，不是分发文件。）
+shopt -s nullglob
+for f in "$DIST_DIR"/*\ *.dmg; do
+  mv "$f" "${f// /-}"
+done
+
 echo
 echo "产物："
 ls -1 "$DIST_DIR"

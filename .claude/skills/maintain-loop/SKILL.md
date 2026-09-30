@@ -196,9 +196,9 @@ git status --short && git log --oneline -3
    未配 `ANTHROPIC_API_KEY` 走降级路径，不影响发布）→ 创建 Release 并上传产物。
    三平台统一走 Tauri 官方打包（`tauri build`），bundle 配置集中在
    `src-tauri/tauri.conf.json`，产物名形如 `<productName>_<版本>_<arch>.<ext>`：
-   - macOS Apple Silicon：`CC Analyzer_<版本>_aarch64.dmg`
-   - macOS Intel：`CC Analyzer_<版本>_x64.dmg`
-   - Windows x64：`CC Analyzer_<版本>_x64-setup.exe`（NSIS 安装程序）
+   - macOS Apple Silicon：`CC-Analyzer_<版本>_aarch64.dmg`
+   - macOS Intel：`CC-Analyzer_<版本>_x64.dmg`
+   - Windows x64：`CC-Analyzer_<版本>_x64-setup.exe`（NSIS 安装程序）
    - Windows x64 便携版：`CC_Analyzer_x64_portable.zip`
 7. 验证：`gh release view vX.Y.Z` 确认说明与上述四类产物齐全、
    `gh run list --workflow=release.yml` 确认成功。

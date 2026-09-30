@@ -86,8 +86,8 @@ npm run build
 打各平台的发布产物走 Tauri 官方打包流程，脚本会自动装好依赖再调 `tauri build`：
 
 ```bash
-npm run build:macos:arm64    # dist-arm64/CC Analyzer.app + CC Analyzer_<版本>_aarch64.dmg
-npm run build:macos:intel    # dist-intel/CC Analyzer.app + CC Analyzer_<版本>_x64.dmg
+npm run build:macos:arm64    # dist-arm64/CC Analyzer.app + CC-Analyzer_<版本>_aarch64.dmg
+npm run build:macos:intel    # dist-intel/CC Analyzer.app + CC-Analyzer_<版本>_x64.dmg
 npm run build:windows        # dist-windows/ NSIS 安装程序 + CC_Analyzer_x64_portable.zip
 ```
 

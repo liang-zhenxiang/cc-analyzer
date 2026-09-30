@@ -61,7 +61,11 @@ try {
         Write-Error "没有找到 NSIS 安装程序，检查 tauri.conf.json 的 bundle.targets 是否含 nsis"
         exit 1
     }
-    Copy-Item $Installer.FullName $DistDir
+    # 产物文件名规范化：Tauri 用 productName（"CC Analyzer"，含空格）命名文件，
+    # 而 GitHub 在上传发布产物时会把空格替换成点——统一改成连字符，
+    # 让本地、文档、发布产物三者同名。
+    $InstallerName = $Installer.Name -replace ' ', '-'
+    Copy-Item $Installer.FullName (Join-Path $DistDir $InstallerName)
 
     # ② 便携版 ZIP：复用刚构建出的 exe，不重复编译一次
     #    存在的意义是给「不想安装、放到 U 盘就能用」的场景

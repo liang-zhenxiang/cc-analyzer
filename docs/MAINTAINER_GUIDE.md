@@ -41,9 +41,9 @@ Security，不自创分类。
    → 组装三段式发布说明（CHANGELOG 手写段 + GitHub 原生 PR 清单 + 可选
    AI 摘要）→ 创建 Release 并上传产物。三个平台都走 Tauri 官方打包
    （`tauri build`），产物名为 `<productName>_<版本>_<arch>.<ext>`：
-   - macOS Apple Silicon：`CC Analyzer_<版本>_aarch64.dmg`
-   - macOS Intel：`CC Analyzer_<版本>_x64.dmg`
-   - Windows x64：`CC Analyzer_<版本>_x64-setup.exe`（NSIS 安装程序）
+   - macOS Apple Silicon：`CC-Analyzer_<版本>_aarch64.dmg`
+   - macOS Intel：`CC-Analyzer_<版本>_x64.dmg`
+   - Windows x64：`CC-Analyzer_<版本>_x64-setup.exe`（NSIS 安装程序）
    - Windows x64 便携版：`CC_Analyzer_x64_portable.zip`
 7. 验证：`gh release view vX.Y.Z` 确认说明齐全、上述四类产物都在列；
    `gh run list --workflow=release.yml` 确认运行成功。
