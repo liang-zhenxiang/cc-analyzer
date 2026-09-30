@@ -50,7 +50,12 @@ test.describe("截图归档", () => {
   for (const theme of ["light", "dark"] as const) {
     test(`主要界面 · ${theme}`, async ({ page }) => {
       await useTheme(page, theme);
-      const shot = (view: string) => page.screenshot({ path: path.join(OUT_DIR, `${view}-${theme}.png`) });
+      // 引擎名进文件名：macOS 上应用跑的是 WKWebView，所以要留下 WebKit 那一份。
+      // chromium 不加后缀，README 引用的是它。
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+      const shot = (view: string) =>
+        page.screenshot({ path: path.join(OUT_DIR, `${view}-${theme}${suffix}.png`) });
 
       await page.goto("/");
       // 会话分析 · 空态

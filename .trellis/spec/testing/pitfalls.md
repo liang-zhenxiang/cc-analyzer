@@ -148,6 +148,13 @@ test: { include: ["src/**/*.test.{ts,tsx}"] }
 **防复发**：遇到「平台不允许自动化」时，**不要去找绕过安全边界的方法**，
 而是重新问「我到底想验证什么」，换一种能被允许的证据。
 
+> **补记（实测，别再试一遍）**：「进程总该能截自己的窗口吧」这个直觉**是错的**。
+> 用 `dlsym` 在运行时取 `CGWindowListCreateImage`、对一个在完整 `NSApp.run()`
+> 循环里绘制好的自家窗口截图，拿到的是**尺寸正确、像素全透明**（`rgba(0,0,0,0)`）的图。
+> 危险之处在于它**不报错**——`if image != nil` 会通过，然后产出一张空白 PNG。
+> macOS 缺权限时给的是「一个窗口形状的洞」，不是错误。
+> 完整实验与替代方案见 [`gui-tests.md`](./gui-tests.md#there-is-no-permission-free-way-to-screenshot-the-app-window-measured-not-assumed)。
+
 ---
 
 ## 8. 用 `open` 启动 .app 传不进环境变量
