@@ -7,6 +7,13 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - The real-app GUI test now **captures the application's own window** instead of reporting the screenshot as skipped. It no longer needs macOS's Screen Recording permission, because it does not read the screen: `WKWebView.createPDF` asks **WebKit to render the page it is already displaying**, which never touches the window server. The app exposes this behind a `gui-capture` Cargo feature that **release builds do not enable**, and `scripts/gui-test.sh` drives it. The captured image is checked for content rather than merely for existence — macOS hands back a correctly sized, entirely blank bitmap when it *does* deny a screen read, so a "did the file appear" check would pass on a transparent PNG. The test counts distinct colours instead, which the blank capture fails and a real UI passes.
+- `./scripts/build-macos.sh --help` now prints usage and exits 0. It previously fell through to the unknown-architecture branch and reported "不支持的架构：--help", which reads as if you had passed an architecture.
+
+### Changed
+
+- `./scripts/lint.sh` now **rejects any argument** instead of ignoring it. It takes no options, so before this `./scripts/lint.sh --help` — or any mistyped flag — ran the whole check suite in silence and looked like the flag had been accepted. It still has no `--help`: a page saying only "runs every check" would be padding, whereas refusing an argument tells you something true.
+- The macOS build wrappers (`build-arm64-macos.sh`, `build-intel-macos.sh`) now **reject an architecture argument** rather than dropping it. `build-arm64-macos.sh x86_64` used to build an aarch64 bundle while the caller believed Intel was in effect. Their `--help` forwards to `build-macos.sh` with a one-line note about their own preset, so the help text keeps a single source and cannot drift.
+- `./scripts/gui-test.sh --help` prints a 19-line usage summary instead of dumping the whole 42-line header comment with its `#` prefixes. The extraction no longer depends on line numbers — that was exactly how the earlier form stopped showing the usage section.
 
 ## [0.3.0] - 2026-10-01
 
