@@ -129,6 +129,16 @@ Variance was tried first and rejected: a perfectly normal light UI scored 167, s
 the threshold would have to sit dangerously close to real values. Colour count
 separates cleanly.
 
+### What CI does *not* cover
+
+The `gui-capture` module is compiled only on macOS **and** only with the feature on,
+so CI's Linux Rust jobs never see it — a mistake there surfaces only when someone
+runs `./scripts/gui-test.sh` locally. Checking it in CI would mean a macOS runner for
+one 60-line test-only module, which is not worth the cost.
+
+The consequence is a rule: **if you touch `gui_capture`, run the script before
+committing.** Nothing else will tell you it broke.
+
 ### Regenerating
 
 Screenshots land in `gui-artifacts/app-window.png` (gitignored). They are the real
