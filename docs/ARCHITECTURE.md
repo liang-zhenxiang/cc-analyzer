@@ -19,11 +19,11 @@ web/ (React 18 + TypeScript + Vite)
 | 目录 | 职责 |
 | --- | --- |
 | `api/` | **UI 组件不直接碰 Tauri**。`bridges.ts` 定义注入接口，`tauri.ts` 是 Tauri 实现，`types.ts` 是与 Rust 命令对齐的参数/返回类型 |
-| `app/` | 应用壳：`AppShell`、`WorkspaceTabs`（三个工作区页）、主题与通知 Provider |
+| `app/` | 应用壳：`AppShell`、`WorkspaceTabs`（会话分析 / 实时监控 两个工作区页）、主题与通知 Provider |
 | `features/sessions/` | 会话分析主功能：仓库读取、JSONL 解析、会话图、日志行模型、筛选、耗时树、报告生成 |
 | `features/monitor/` | 实时监控页（内嵌外部 dashboard）与浮窗消息协议 |
 | `features/settings/` | 分析预算（阈值）的持久化与设置面板 |
-| `lib/` | 通用工具（路径、格式化、JSON 序列化、视口高度约束） |
+| `lib/` | 通用工具（路径、格式化、JSON 序列化、剪贴板） |
 | `components/` | 跨 feature 的共享组件 |
 
 关键模块：
