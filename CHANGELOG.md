@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Project metadata credits both maintainers with contact addresses: `src-tauri/Cargo.toml` (`authors`, plus the new `repository` field), `web/package.json` (`author` / `contributors`), `LICENSE`, and `NOTICE`.
 - The macOS bundle identifier changed from `com.flydiy.cc-analyzer` to `io.github.liang-zhenxiang.cc-analyzer` — derived from the project's GitHub identity instead of a domain the project does not own. App data (metadata cache, thresholds, theme) lives under the new identifier's application-support directory; an existing 0.2.0 install keeps its data under the old directory, so the new build recreates titles and settings on first launch.
 
 ## [0.2.0] - 2026-09-30

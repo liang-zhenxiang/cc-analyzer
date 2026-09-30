@@ -2,6 +2,10 @@
   "name": "cc-analyzer-web",
   "private": true,
   "version": "0.2.0",
+  "author": "liang-zhenxiang <116311683@qq.com>",
+  "contributors": [
+    "nicholyx <nicholyx@163.com>"
+  ],
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
