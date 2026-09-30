@@ -127,8 +127,16 @@ peer 依赖上。
 删除与强推）→ `required_status_checks`（`CI 总览` +
 `strict_required_status_checks_policy`，即分支必须最新）→ `pull_request`
 （`dismiss_stale_reviews_on_push`、`required_review_thread_resolution`、
-`required_approving_review_count: 0`）。管理员保留 `bypass_mode: always`，
-留给发布流水线故障之类必须人工介入的情形。
+`required_approving_review_count: 0` 以及
+`require_extra_approval_for_unattributed_changes`）。管理员保留
+`bypass_mode: always`，留给发布流水线故障之类必须人工介入的情形。
+
+> **未归属提交**：`require_extra_approval_for_unattributed_changes` 开着时，
+> PR 里只要含作者邮箱未关联 GitHub 账号的提交，就会被要求额外审批——单人
+> 维护阶段等于合不进来，而报错只是笼统的 `BLOCKED`，很容易误判成配置坏了。
+> 提交前用 `git config user.email` 确认用的是账号里验证过的邮箱；本机全局
+> 与仓库级都已设为 `116311683@qq.com`（2026-09-30 之前是 `lzx@flydiy.cn`，
+> 那个邮箱未关联账号，提交会显示为未归属）。
 
 ### 仓库标签
 
