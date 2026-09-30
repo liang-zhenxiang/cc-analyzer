@@ -46,6 +46,42 @@ Security，不自创分类。
 **发布幂等**：tag 重复推送触发第二次工作流时，「先查后建」逻辑会改走
 `gh release edit` 更新说明并 `--clobber` 补传产物，不会 422。
 
+## 依赖升级
+
+三类依赖由 `.github/dependabot.yml` 盯着：Rust crates（`src-tauri`）、
+npm 包（`web`）、工作流里的 GitHub Actions。每周一 06:00（Asia/Shanghai）
+检查，新版本发布满 7 天（cooldown）才提 PR。
+
+**分组规则**：同一生态的 minor / patch 合并成一个 PR；**major 不分组**，
+一个依赖一个 PR —— 大版本必须由人判断，不能自动跟进。
+
+**major 的处理原则是「不要逐个合并」**。互相牵制的依赖（vite 与
+`@vitejs/plugin-react`、`vitest`；react 与 `@types/react`）单独升任何一个
+都会在 `npm ci` 阶段挂 ERESOLVE，必须一次性协调升级。已经这样做过：
+
+- `vite` 5 → 8，连带 `vitest` 2 → 5、`@vitejs/plugin-react` 4 → 6、
+  jsdom 24 → 30（PR #13）
+- `typescript` 5 → 7，单独一个 PR（#15）
+
+升级后至少跑：
+
+```bash
+npm --prefix web test
+npm --prefix web run build
+npm audit                                          # 目标：0 vulnerabilities
+cargo check --manifest-path src-tauri/Cargo.toml   # 版本号有改动时
+```
+
+升级过程中会遇到的报错（`manualChunks` 类型、vitest 5 的 `test` 字段、
+jsdom 30 的可访问名称）见
+[`TROUBLESHOOTING.md`](TROUBLESHOOTING.md#依赖升级)。
+
+**当前显式豁免**：`react`、`react-dom`、`@types/react`、`@types/react-dom`
+的 major 更新在 `dependabot.yml` 里被 `ignore`。React 19 要求 `@types`
+成套更换并适配 cleanup 返回值、ref 处理等语义，与安全无关，适合单独一轮。
+真要升的时候先删掉那 4 条 `ignore`，再把四个包一起升——只升一半必然卡在
+peer 依赖上。
+
 ## 仓库配置清单
 
 以下配置不在代码里，重建仓库或换组织时需要重做。

@@ -108,6 +108,7 @@ docs/          使用、架构、排错、维护者文档
 - [ ] 会话跨时间对比（周 / 月趋势）
 - [ ] 报告模板与导出格式
 - [ ] 更多平台支持
+- [ ] 前端升级到 React 19（需与 `@types/react` / `@types/react-dom` 成套迁移）
 
 有想法？欢迎
 [提功能请求](https://github.com/liang-zhenxiang/cc-analyzer/issues/new/choose)。

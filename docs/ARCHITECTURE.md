@@ -92,3 +92,8 @@ meta-cache-v2.json（标题缓存）        run_lines(claude CLI) ──▶ Mark
   让整个面板空白。
 - **时长口径以「时间区间并集」为准**，不做简单求和：嵌套子会话会被重复
   计数，轮间等待单独成行而不是摊进工具耗时。
+- **前端工具链跟随最新主版本，React 暂留 18。** vite / vitest / plugin-react
+  只影响开发与构建：安全补丁与构建速度的收益明确，又被测试和 CI 兜住，
+  一次升到位成本最低。React 19 则要求 `@types` 成套更换并适配 cleanup
+  返回值、ref 处理等语义，与安全无关——混进工具链升级只会放大改动面，
+  所以在 `dependabot.yml` 里显式 `ignore` major，等单独排期。
