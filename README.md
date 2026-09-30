@@ -39,12 +39,14 @@ analysis reports. Built with Tauri 2 and a React web UI.
 Grab the build for your platform from
 [Releases](https://github.com/liang-zhenxiang/cc-analyzer/releases):
 
-| Platform | Artifact |
+| Platform | Download |
 | --- | --- |
-| macOS Apple Silicon | `CC_Analyzer_arm64.dmg` |
-| macOS Intel | `CC_Analyzer_x64.dmg` |
-| Windows x64 | `CC_Analyzer_x64.zip` |
+| macOS Apple Silicon | `CC Analyzer_<version>_aarch64.dmg` |
+| macOS Intel | `CC Analyzer_<version>_x64.dmg` |
+| Windows x64 | `CC Analyzer_<version>_x64-setup.exe` — installer (Start menu entry, uninstaller) |
+| Windows x64 (portable) | `CC_Analyzer_x64_portable.zip` — unzip and run, no installation |
 
+Open the dmg and drag **CC Analyzer** onto the `Applications` shortcut.
 macOS bundles are ad-hoc signed: on first launch, right-click the app and
 choose **Open** to pass Gatekeeper.
 
@@ -53,17 +55,26 @@ choose **Open** to pass Gatekeeper.
 Requirements: Node.js 22 & npm, Rust 1.77+, Xcode Command Line Tools
 (macOS) or Visual Studio Build Tools (Windows).
 
+All three platforms go through Tauri's official bundler, so the bundle
+identity (`identifier`, `copyright`, installer shape) comes from a single
+source: `src-tauri/tauri.conf.json`.
+
 ```bash
-# macOS Apple Silicon
-./scripts/build-arm64-macos.sh     # → dist-arm64/CC Analyzer.app, CC_Analyzer_arm64.dmg
+npm install                    # build toolchain (Tauri CLI)
 
-# macOS Intel (cross-compiled)
-./scripts/build-intel-macos.sh     # → dist-intel/CC Analyzer.app, CC_Analyzer_x64.dmg
+# macOS Apple Silicon            → dist-arm64/CC Analyzer.app + .dmg
+npm run build:macos:arm64
 
-# Windows (PowerShell)
-powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1
-# → dist-windows/CC_Analyzer_x64.zip
+# macOS Intel (cross-compiled)   → dist-intel/CC Analyzer.app + .dmg
+npm run build:macos:intel
+
+# Windows (PowerShell)           → dist-windows/ NSIS installer + portable zip
+npm run build:windows
 ```
+
+The packaging scripts under `scripts/` wrap the same commands, so
+`./scripts/build-macos.sh x86_64` works too. macOS artifacts use ad-hoc
+signing (`signingIdentity: "-"`), which needs no developer certificate.
 
 ## Documentation
 
@@ -101,11 +112,11 @@ cargo check --manifest-path src-tauri/Cargo.toml
 
 ```
 web/           React, TypeScript and Vite source for the UI
-src-tauri/     Tauri 2 backend: Rust command layer, app config, capabilities
-packaging/     macOS bundle metadata and icon
-scripts/       packaging helpers, lint entry point, commit-msg validator
+src-tauri/     Tauri 2 backend: Rust command layer, app config and bundle config, icons
+scripts/       packaging entry points, lint entry point, commit-msg validator
 docs/          usage, architecture, troubleshooting, maintainer guides
 .github/       workflows, issue/PR templates, governance configs
+package.json   build toolchain (Tauri CLI) and the packaging entry points
 ```
 
 ## Roadmap

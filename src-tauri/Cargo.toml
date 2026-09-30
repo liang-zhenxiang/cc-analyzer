@@ -6,6 +6,7 @@ edition = "2021"
 rust-version = "1.77"
 license = "MIT"
 repository = "https://github.com/liang-zhenxiang/cc-analyzer"
+# 维护者名单；版权归属见仓库根的 LICENSE / NOTICE（署名 CC Analyzer）
 authors = [
     "liang-zhenxiang <116311683@qq.com>",
     "nicholyx <nicholyx@163.com>",

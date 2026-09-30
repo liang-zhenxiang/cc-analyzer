@@ -39,8 +39,13 @@ Security，不自创分类。
 
 6. `release.yml` 自动执行：三平台构建（macOS ARM64 / macOS Intel / Windows）
    → 组装三段式发布说明（CHANGELOG 手写段 + GitHub 原生 PR 清单 + 可选
-   AI 摘要）→ 创建 Release 并上传产物。
-7. 验证：`gh release view vX.Y.Z` 确认说明齐全、产物在列；
+   AI 摘要）→ 创建 Release 并上传产物。三个平台都走 Tauri 官方打包
+   （`tauri build`），产物名为 `<productName>_<版本>_<arch>.<ext>`：
+   - macOS Apple Silicon：`CC Analyzer_<版本>_aarch64.dmg`
+   - macOS Intel：`CC Analyzer_<版本>_x64.dmg`
+   - Windows x64：`CC Analyzer_<版本>_x64-setup.exe`（NSIS 安装程序）
+   - Windows x64 便携版：`CC_Analyzer_x64_portable.zip`
+7. 验证：`gh release view vX.Y.Z` 确认说明齐全、上述四类产物都在列；
    `gh run list --workflow=release.yml` 确认运行成功。
 
 **发布幂等**：tag 重复推送触发第二次工作流时，「先查后建」逻辑会改走
@@ -48,9 +53,19 @@ Security，不自创分类。
 
 ## 依赖升级
 
-三类依赖由 `.github/dependabot.yml` 盯着：Rust crates（`src-tauri`）、
-npm 包（`web`）、工作流里的 GitHub Actions。每周一 06:00（Asia/Shanghai）
-检查，新版本发布满 7 天（cooldown）才提 PR。
+四类依赖由 `.github/dependabot.yml` 盯着：Rust crates（`src-tauri`）、
+前端 npm 包（`web`）、构建工具链 npm 包（仓库根）、工作流里的
+GitHub Actions。每周一 06:00（Asia/Shanghai）检查，新版本发布满 7 天
+（cooldown）才提 PR。
+
+> **npm 有两个 manifest**：`web/package.json`（前端依赖）与仓库根的
+> `package.json`（构建工具链，提供 `@tauri-apps/cli`）。两条都要配——
+> 只配一条的话另一边就无人盯，而根依赖被 lockfile 锁定，正是 release
+> 产物可复现的前提。
+>
+> `@tauri-apps/cli` 还需要与 `src-tauri` 侧的 `tauri` crate 保持同步：
+> 两者版本断层时 `tauri build` 会报版本不匹配。升级其中一个时顺手核对
+> 另一个。
 
 **分组规则**：同一生态的 minor / patch 合并成一个 PR；**major 不分组**，
 一个依赖一个 PR —— 大版本必须由人判断，不能自动跟进。
@@ -173,7 +188,8 @@ peer 依赖上。
 | 场景 | 命令 |
 | --- | --- |
 | 本地静态检查（推送前） | `./scripts/lint.sh` |
-| 前端测试 / 构建 | `npm --prefix web test` / `npm --prefix web run build` |
+| 前端测试 / 构建 | `npm test` / `npm run build`（根脚本转发到 `web/`，等价于 `npm --prefix web ...`） |
+| 打包（三平台） | `npm run build:macos:arm64` / `build:macos:intel` / `build:windows`（内部即 `tauri build`，脚本自动装依赖） |
 | Rust 检查 | `cargo fmt --check` / `cargo clippy -- -D warnings` / `cargo check`（manifest 见 CONTRIBUTING.md） |
 | 提交信息预检 | `./scripts/check-commit-msg.sh --message "..."` |
 | CI 状态 | `gh run list --branch main --workflow=ci.yml --limit 3` |

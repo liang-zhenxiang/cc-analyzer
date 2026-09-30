@@ -14,11 +14,16 @@ English guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)。
 安装并验证：
 
 ```bash
+npm install                  # 根目录构建工具链：Tauri CLI
 npm --prefix web install
 npm --prefix web test
 npm --prefix web run build
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
+
+仓库根目录的私有 `package.json` 只管构建工具链——`@tauri-apps/cli` 是它的
+devDependency，版本由 `package-lock.json` 锁定，因此**不需要**全局安装
+`tauri`，也不需要 `cargo install tauri-cli`。
 
 启动开发：
 
@@ -28,6 +33,24 @@ cargo run --manifest-path src-tauri/Cargo.toml
 ```
 
 详见 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md)。
+
+## 打包
+
+三个平台统一走 Tauri 官方打包流程（`tauri build`），identifier、copyright、
+publisher、安装程序形态这些 bundle 配置集中在
+`src-tauri/tauri.conf.json` 一份。`scripts/` 下的脚本是薄封装——它们会先装好
+依赖（根 `npm install` + `npm --prefix web ci`），再调用 `npx tauri build`，
+所以**不需要事先手动准备依赖**。
+
+```bash
+npm run build:macos:arm64    # dist-arm64/CC Analyzer.app + CC Analyzer_<版本>_aarch64.dmg
+npm run build:macos:intel    # dist-intel/CC Analyzer.app + CC Analyzer_<版本>_x64.dmg
+npm run build:windows        # dist-windows/ NSIS 安装程序 + CC_Analyzer_x64_portable.zip
+```
+
+`npm run build:macos` 构建当前机器架构；等价的
+`./scripts/build-macos.sh <架构>` 入口同样可用。macOS 产物是 ad-hoc 签名
+（`signingIdentity: "-"`），不需要开发者证书。
 
 ## 本地检查
 

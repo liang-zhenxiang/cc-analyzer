@@ -76,6 +76,12 @@ meta-cache-v2.json（标题缓存）        run_lines(claude CLI) ──▶ Mark
   + `cargo run`」。试过配置 Vite dev server 集成，但会引入「桌面窗口里跑的
   到底是哪份前端」的歧义，而且 `web/dist` 变化会触发 Rust 重编（`generate_context!`
   重新嵌入），实测没有嵌入缓存问题，两步启动足够简单可靠。
+- **打包统一走官方 `tauri build`，脚本只做薄封装。** identifier、copyright、
+  publisher、安装程序形态（Windows NSIS）这些 bundle 配置集中在
+  `src-tauri/tauri.conf.json` 一份，三个平台共用；`scripts/build-*.sh|ps1` 只负责
+  装依赖（根 `npm install` + `web` 的 `npm ci`）再调 `npx tauri build`。此前
+  手工组装 `.app` 的做法让 macOS 产物游离在这份配置之外——实测后果是 identifier
+  与 copyright 只改了配置却进不了产物，DMG 里也缺少 `Applications` 快捷方式。
 - **meta-cache-v2 不迁移 v1。** v1 缺字段且结构不同，写迁移代码的复杂度
   高于「首启动重扫一次」。v2 独立文件，按 mtime + size 复用条目，重扫成本
   只发生在文件变化时。

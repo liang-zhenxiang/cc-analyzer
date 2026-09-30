@@ -21,8 +21,10 @@ tauri:
 packaging:
   - changed-files:
       - any-glob-to-any-file:
-          - 'packaging/**'
           - 'scripts/build-*'
+          - 'src-tauri/tauri.conf.json'
+          - 'src-tauri/icons/**'
+          - 'package.json'
 
 # CI / 工作流基础设施
 ci:

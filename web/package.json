@@ -2,8 +2,9 @@
   "name": "cc-analyzer-web",
   "private": true,
   "version": "0.2.0",
-  "author": "liang-zhenxiang <116311683@qq.com>",
+  "author": "CC Analyzer",
   "contributors": [
+    "liang-zhenxiang <116311683@qq.com>",
     "nicholyx <nicholyx@163.com>"
   ],
   "type": "module",

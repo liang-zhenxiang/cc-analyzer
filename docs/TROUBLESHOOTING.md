@@ -95,6 +95,20 @@ rustup target add x86_64-apple-darwin    # Intel 交叉编译（在 Apple Silico
 rustup target add aarch64-apple-darwin   # Apple Silicon
 ```
 
+### 打包脚本报找不到 `tauri`（`command not found`）
+
+**现象**：手动执行 `npx tauri ...` 或在没有 `node_modules/` 的干净环境里跑打包
+步骤，报找不到 `tauri` 命令。
+
+**原因**：Tauri CLI 由仓库根 `package.json` 的 devDependency
+（`@tauri-apps/cli`）提供，版本由 `package-lock.json` 锁定；没有跑过根目录的
+`npm install` 时，`node_modules/.bin/tauri` 不存在。
+
+**解决**：在仓库根执行一次 `npm install`。**不需要**全局 `cargo install
+tauri-cli`，也**不要**在 lockfile 之外临时 `npx @tauri-apps/cli@latest`——版本
+锁定是产物可复现的前提。打包脚本本身会先 `npm install`，所以这条通常只在手动
+调 `npx tauri` 时才会遇到。
+
 ### Windows 打包失败
 
 **原因**：缺 Visual Studio Build Tools 或 MSVC Rust target。
@@ -106,6 +120,15 @@ rustup target add aarch64-apple-darwin   # Apple Silicon
 rustup target add x86_64-pc-windows-msvc
 powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1
 ```
+
+Windows 现在走 Tauri 官方打包，一次产出两种形态，都在 `dist-windows/`：
+
+- NSIS 安装程序 `CC Analyzer_<版本>_x64-setup.exe`（双击安装，带开始菜单项与
+  卸载入口）；
+- 便携版 `CC_Analyzer_x64_portable.zip`（解压即用，不需要安装）。
+
+如果脚本报 `没有找到 NSIS 安装程序`，检查 `src-tauri/tauri.conf.json` 的
+`bundle.targets` 是否包含 `nsis`。
 
 ---
 

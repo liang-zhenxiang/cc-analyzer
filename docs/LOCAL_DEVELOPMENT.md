@@ -1,8 +1,9 @@
 # 本地开发启动指南
 
-更新时间：2026-09-21
+更新时间：2026-09-30
 
-本项目前端源码位于 `web/`，使用 React、TypeScript 和 Vite。
+本项目前端源码位于 `web/`，使用 React、TypeScript 和 Vite。仓库根目录还有一个
+私有的 `package.json`，它只管构建工具链（提供 Tauri CLI），不参与前端运行时。
 
 ## 环境要求
 
@@ -69,17 +70,25 @@ cargo check --manifest-path src-tauri/Cargo.toml
 
 详细说明见 [CI.md](CI.md)。
 
-执行 release 构建：
+执行 release 构建（只编译二进制，不打 bundle）：
 
 ```bash
 cargo build --release --manifest-path src-tauri/Cargo.toml
 ```
 
-构建生产前端：
+构建生产前端（根 `package.json` 的 `build` 脚本转发到 `web/`）：
 
 ```bash
-npm --prefix web ci
-npm --prefix web run build
+npm run build
+# 等价于 npm --prefix web run build（依赖仍需先 npm --prefix web ci）
+```
+
+打各平台的发布产物走 Tauri 官方打包流程，脚本会自动装好依赖再调 `tauri build`：
+
+```bash
+npm run build:macos:arm64    # dist-arm64/CC Analyzer.app + CC Analyzer_<版本>_aarch64.dmg
+npm run build:macos:intel    # dist-intel/CC Analyzer.app + CC Analyzer_<版本>_x64.dmg
+npm run build:windows        # dist-windows/ NSIS 安装程序 + CC_Analyzer_x64_portable.zip
 ```
 
 ## 开发注意事项
@@ -92,25 +101,23 @@ npm --prefix web run build
 - 会话数据可能包含代码、路径、命令输出和敏感信息；“生成分析报告”会把结构化摘要交给本机
   `claude` CLI，请注意其后续模型/服务流向。
 
-## 可选：安装 Tauri CLI
+## 可选：使用 Tauri CLI
 
-当前项目可以直接用 `cargo run` 启动。如需使用 Tauri CLI 能力，可安装：
-
-```bash
-cargo install tauri-cli --version "^2"
-```
-
-安装后可执行：
+Tauri CLI 由根 `package.json` 的 devDependency（`@tauri-apps/cli`）提供，
+版本由 `package-lock.json` 锁定——跑一次 `npm install` 即可，**不需要**
+全局 `cargo install tauri-cli`。装好后可以经根脚本调用：
 
 ```bash
-cargo tauri dev
+npm install            # 装好根工具链
+npm run tauri -- dev
 ```
 
-若要使用 Tauri 的开发服务器集成，可先构建生产前端：
+当前项目也可以直接用 `cargo run` 启动。若要用 Tauri 的开发服务器集成，
+可先构建生产前端：
 
 ```bash
 npm --prefix web run build
-cargo tauri dev
+npm run tauri -- dev
 ```
 
 ## 相关设计文档

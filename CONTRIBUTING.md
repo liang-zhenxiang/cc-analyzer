@@ -14,11 +14,16 @@ Thanks for considering a contribution.
 Install and verify:
 
 ```bash
+npm install                  # root build toolchain: the Tauri CLI
 npm --prefix web install
 npm --prefix web test
 npm --prefix web run build
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
+
+The private `package.json` at the repo root carries build tooling only —
+`@tauri-apps/cli` is a devDependency pinned by `package-lock.json`, so no global
+`tauri` install (and no `cargo install tauri-cli`) is needed.
 
 Start development with:
 
@@ -28,6 +33,24 @@ cargo run --manifest-path src-tauri/Cargo.toml
 ```
 
 See [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md) for details.
+
+## Packaging
+
+All three platforms build through Tauri's official bundler (`tauri build`), so
+`identifier`, `copyright`, publisher and installer shape come from one place:
+`src-tauri/tauri.conf.json`. The scripts under `scripts/` are thin wrappers —
+they install the dependencies (root `npm install` + `npm --prefix web ci`) and
+then call `npx tauri build`, so you do not need to install anything beforehand.
+
+```bash
+npm run build:macos:arm64    # dist-arm64/CC Analyzer.app + CC Analyzer_<version>_aarch64.dmg
+npm run build:macos:intel    # dist-intel/CC Analyzer.app + CC Analyzer_<version>_x64.dmg
+npm run build:windows        # dist-windows/ NSIS installer + CC_Analyzer_x64_portable.zip
+```
+
+`npm run build:macos` builds for the host architecture; the equivalent
+`./scripts/build-macos.sh <arch>` entry points work too. macOS bundles are
+ad-hoc signed (`signingIdentity: "-"`), which needs no developer certificate.
 
 ## Local checks
 
