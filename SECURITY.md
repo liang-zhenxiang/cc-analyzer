@@ -45,6 +45,42 @@ CC Analyzer 是一个读取本机 Claude Code 会话数据的桌面应用。它*
 - 外部实时监控服务（`localhost:8090` 的 dashboard 不在本仓库内）的安全
 - 会话数据本身的质量问题（解析失败会报 warning，不会静默出错）
 
+## 已知且不可修复的依赖告警
+
+### `glib` —— GHSA-wrw7-89jp-8q8g（medium）
+
+**状态：不可修复，且不在分发范围内。** Dependabot 会在仓库安全页持续报这一条。
+
+**它是什么**：`glib::VariantStrIter` 的 `Iterator` / `DoubleEndedIterator` 实现存在
+unsoundness。受影响范围 `>= 0.15.0, < 0.20.0`，修复版本 `0.20.0`。
+
+**为什么改不了**：这不是「还没升」而是**上游锁死的版本链**——
+`tauri 2.11.6` → `gtk ^0.18` → `glib ^0.18`。强制 `glib 0.20` 会直接报
+「failed to select a version for the requirement `glib = \"^0.18\"`」，
+因为 gtk 0.18 不接受它。要修复必须等 Tauri 把 GTK 栈推到 0.20。
+
+```
+cargo update --manifest-path src-tauri/Cargo.toml -p glib --precise 0.20.0
+→ error: failed to select a version for the requirement `glib = "^0.18"`
+  required by package `gtk v0.18.2` ... of package `tauri v2.11.6`
+```
+
+**为什么影响不到使用者**：
+
+1. **它是 Linux/GTK 专有依赖。** Tauri 在 macOS 用 WKWebView、在 Windows 用 WebView2，
+   两端都不经过 GTK。本项目发布的 `.dmg` 与 NSIS 安装包里**不含 glib**。
+   它出现在 `Cargo.lock` 里只是因为锁文件是全平台的。
+2. **我们不调用 glib 的任何 API。** `src-tauri/src/` 与 `Cargo.toml` 里都没有引用，
+   它纯粹由 Tauri 的 Linux 后端传递引入。
+   出问题的是 `VariantStrIter`，而没有任何代码路径会构造它。
+
+**处置建议**：在安全页以「Vulnerable code is not actually used」为由关闭该告警，
+并把上面两条依据贴进备注。等 Tauri 升级 GTK 栈后自然消解。
+
+**为什么不加进 `.github/dependabot.yml` 的 `ignore`**：那会连同**合法的** glib
+更新一起屏蔽掉。这条告警的成因是版本链而非我们主动选择，用 ignore 掩盖会让
+「为什么升不了」这个信息从配置里消失。
+
 ## 已知的安全相关配置
 
 - 应用数据（元数据缓存、阈值设置）存储在 `io.github.liang-zhenxiang.cc-analyzer` 的
