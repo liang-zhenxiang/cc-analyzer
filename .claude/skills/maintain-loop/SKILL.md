@@ -105,6 +105,28 @@ git status --short && git log --oneline -3
   pin 到 commit SHA（注释保留版本号），所有 checkout 保持
   `persist-credentials: false`——这两条是供应链基线，别在后续改动中回退。
 
+### 跨平台 workflow 的硬规则（v0.2.1 首发连挂两次，都是 Windows 专有）
+
+这两条**只在 Windows 上暴露**：本地（macOS/Linux）与 macOS 构建全程看不出来，
+CI 也不跑打包，所以只有发布时才炸。判据是「这个差异只在某个 runner 上成立吗」：
+
+- **`run:` 里是多行 bash 脚本时必须显式写 `shell: bash`**。Windows runner 的
+  默认 shell 是 PowerShell，`set -euo pipefail`、`if [[ ... ]]` 会被逐字当成
+  命令执行，步骤当场失败。而 macOS 的默认 shell 恰好就是 bash——同一份工作流
+  在那儿跑得好好的，让人以为没问题。
+- **含非 ASCII 字符的 `.ps1` 必须存成 UTF-8 with BOM**。Windows PowerShell 5.1
+  在没有 BOM 时按系统 ANSI 代码页读脚本，中文注释被误解码后报
+  `Missing closing '}' in statement block or type definition`——报的是解析错误，
+  与真正的问题（编码）隔着好几层。`scripts/lint.sh` 已加检查拦这条。
+
+**同理：产物文件名不要含空格。** Tauri 按 `productName` 命名（"CC Analyzer"），
+而 GitHub 上传 release 产物时把空格换成点——本地、文档、用户下载到的三处名字
+互不相同。打包脚本与 release.yml 现在统一规范化成连字符
+（`CC-Analyzer_<版本>_<arch>.dmg`）。
+
+**改完打包相关的脚本或工作流，本地全绿不等于发布能成**——必要时发个预发布
+tag（`vX.Y.Z-rc.1`）真跑一次。
+
 ### 中文内容质量（高频踩坑）
 
 - **每次编辑中文内容（代码注释、文档、Issue/PR 正文）后，全仓扫描 U+FFFD**：
