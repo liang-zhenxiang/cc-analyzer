@@ -35,6 +35,12 @@
 Trellis 的 Finish 到「PR 已合并」为止——**它不等于发布**，发布仍是独立的一轮。
 一个 GitHub Issue 对应一个 Trellis 任务；纯答疑和一行修复不必建任务。
 
+**分工**：主会话做**调度者与验收者**，功能的实现**一律派智能体团队里的子 agent
+去写，主会话不自己写实现代码**。理由是验收必须独立——实现的人说「没问题」
+不构成验收。主会话仍要亲自读代码、跑验收命令、审 diff，
+并且**亲自看截图、亲自复现缺陷**。完整规则见
+[`.trellis/spec/guides/collaboration-workflow.md`](.trellis/spec/guides/collaboration-workflow.md)。
+
 ### 1. 动手前先盘点现状
 
 ```bash
