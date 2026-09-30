@@ -100,9 +100,17 @@ peer 依赖上。
 > 因「必需检查从未出现过」而卡死。注意 `contexts` 填的是**检查的显示名**
 > （`CI 总览`），不是 job id。配置命令见 `oss-bootstrap` skill。
 
-**当前状态（2026-09-30 核对）**：本项**尚未配置**——`GET
-/branches/main/protection` 返回 404。需要 Admin 权限的维护者执行；
-协作者的 CI 门禁靠「PR 检查红了就不合并」的自觉维持，属过渡状态。
+**当前状态（2026-09-30 核对）**：**已配置**。实现方式是 **Rulesets**
+（Settings → Rulesets，规则集名 `main`），不是经典分支保护——所以
+`GET /repos/<owner>/<repo>/branches/main/protection` 依然返回 404，那是
+经典 API，要查规则请用 `gh api repos/<owner>/<repo>/rulesets`。
+
+规则集内容与上面的清单一一对应：`deletion` + `non_fast_forward`（禁止
+删除与强推）→ `required_status_checks`（`CI 总览` +
+`strict_required_status_checks_policy`，即分支必须最新）→ `pull_request`
+（`dismiss_stale_reviews_on_push`、`required_review_thread_resolution`、
+`required_approving_review_count: 0`）。管理员保留 `bypass_mode: always`，
+留给发布流水线故障之类必须人工介入的情形。
 
 ### 仓库标签
 
@@ -132,13 +140,16 @@ peer 依赖上。
 
 ### 网页端开关（需手动确认）
 
-- Settings → General → Pull Requests → **Allow auto-merge**：建议开启，
-  配合 `gh pr merge --auto` 使用。
-- Settings → Actions → General → Workflow permissions：建议设为
+- Settings → General → Pull Requests → **Allow auto-merge**：已开启，
+  可配合 `gh pr merge --auto` 使用。
+- Settings → General → Pull Requests → **Automatically delete head
+  branches**：已开启，PR 合并后自动删远端分支（`gh pr merge` 就不必再带
+  `--delete-branch`）。
+- Settings → Actions → General → Workflow permissions：已设为
   **Read repository contents and packages permissions**（默认最小权限，
   各工作流已显式声明所需权限）。
-- Discussions：upstream 上按需开启（承接使用提问后，SUPPORT.md 的分流
-  路径可加上 Discussions 一项）。
+- Discussions：已开启，用来承接「怎么用」的提问；`SUPPORT.md` 的分流
+  路径已指向它。
 
 ## 项目红线
 
