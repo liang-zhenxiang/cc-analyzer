@@ -4,7 +4,7 @@
 
 | 版本 | 支持情况 |
 | --- | --- |
-| 0.1.x | ✅ |
+| 0.2.x | ✅ |
 | 更早版本 | ❌ 请升级 |
 
 ## 报告漏洞
@@ -51,3 +51,32 @@ CC Analyzer 是一个读取本机 Claude Code 会话数据的桌面应用。它*
   application-support 目录下，不与 Claude Code 的原始数据混写。
 - 分析报告的生成预算（提示词大小、明细行数等）可由使用者在设置面板收紧，
   减少交给 CLI 的数据量。
+
+## 开发期自动执行的代码（Trellis）
+
+本仓库集成了 [Trellis](https://github.com/mindfold-ai/Trellis) 工程框架，
+它会在**每次会话自动执行**下列代码。这部分**不进入任何发布产物**
+（详见 `NOTICE`），但它确实会在维护者的机器上运行，因此同样受本策略约束：
+
+| 触发时机 | 入口 | 做什么 |
+| --- | --- | --- |
+| `SessionStart`（含 clear / compact） | `.claude/hooks/session-start.py` | 读取 git 分支与工作区状态、当前任务、规范索引，生成一段注入上下文 |
+| `UserPromptSubmit` | `.claude/hooks/inject-workflow-state.py` | 按当前任务状态注入一行提示 |
+| `PreToolUse`（Task / Agent） | `.claude/hooks/inject-subagent-context.py` | 把任务上下文注入派发的子 agent |
+
+**审查结论（2026-10-01，随集成一并复核）**：
+
+- 三个 hook **不发起任何网络请求**——源码中不存在 `urllib` / `requests` /
+  `socket` / `http` 相关调用。
+- 唯一的子进程调用是 `git branch --show-current` 与 `git status --porcelain`
+  （只读，超时 3 秒），以及在项目内执行 `.trellis/scripts/` 下的 Python 脚本。
+- hook 脚本本身不含 `eval` / `exec`。
+
+**由此产生的两条约定**（改动时不得违反）：
+
+1. **`.trellis/scripts/`、`.claude/hooks/`、`.claude/settings.json` 是「会被自动
+   执行的代码」**，不要当作普通文档改动。任何修改都必须在 PR 里说明执行时机与
+   影响面，并与本文的审查结论保持一致。
+2. **`.trellis/` 下的脚本只允许在本机执行**，不得引入网络访问；`tasks/` 与
+   `workspace/` 里的内容是开发者与 AI 的工作记录，可能包含会话片段，
+   **提交前须剔除敏感内容**（与顶层「会话数据视同敏感数据」同一条规则）。
