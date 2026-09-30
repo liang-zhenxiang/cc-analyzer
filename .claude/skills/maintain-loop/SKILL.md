@@ -5,9 +5,13 @@ description: cc-analyzer 项目的维护闭环流程——规划、实现、发�
 
 # 维护闭环（maintain-loop）
 
-本项目（cc-analyzer，开发仓 `nicholyx/cc-analyzer`，项目本体
-`liang-zhenxiang/cc-analyzer`）按真实开源项目的方式维护：
-小批量提交、PR 驱动、CI 门禁、Issue 追踪、里程碑与版本发布。
+本项目（cc-analyzer，仓库 `liang-zhenxiang/cc-analyzer`）按真实开源项目的
+方式维护：小批量提交、PR 驱动、CI 门禁、Issue 追踪、里程碑与版本发布。
+
+**开发直接在主仓库进行**（2026-09-30 起）：协作者从 `main` 切分支、开 PR、
+CI 全绿后 squash 合并，Issue / 里程碑 / 看板 / 发布都在同一仓库内完成——
+不存在「fork 开发再 PR 回上游」这一层。早先用于搭建基建的 fork 仓库已退役，
+不再参与日常开发。
 
 **核心闭环**：`规划 → 实现 → 发布 → 继续规划`。每一轮迭代围绕一个主题，
 走完一轮再开下一轮。下面是每个阶段的操作规范，以及踩过坑之后沉淀的硬规则——

@@ -96,6 +96,14 @@ peer 依赖上。
 - 单人维护阶段 `required_approving_review_count: 0`：不强制他人审批，
   CI 仍是硬门禁
 
+> **启用时机**：必须在 CI 已经在本仓库跑过一次之后才启用，否则所有 PR 会
+> 因「必需检查从未出现过」而卡死。注意 `contexts` 填的是**检查的显示名**
+> （`CI 总览`），不是 job id。配置命令见 `oss-bootstrap` skill。
+
+**当前状态（2026-09-30 核对）**：本项**尚未配置**——`GET
+/branches/main/protection` 返回 404。需要 Admin 权限的维护者执行；
+协作者的 CI 门禁靠「PR 检查红了就不合并」的自觉维持，属过渡状态。
+
 ### 仓库标签
 
 `gh label create <名> --color <色> --description <说明>`，至少包括
@@ -110,15 +118,17 @@ peer 依赖上。
 | --- | --- | --- |
 | `ANTHROPIC_API_KEY` | 可选 | release.yml 的 AI 摘要；不配置走降级路径，发布不受影响 |
 
-### Fork / upstream 双仓运作
+### 仓库与权限
 
-- `liang-zhenxiang/cc-analyzer` 是**项目本体**（文档与 Issue 模板中的链接
-  都指向它）；`nicholyx/cc-analyzer` 是功能开发仓，基建与 CI 在这里先跑通。
-- PR 面向 upstream 提交；fork 上的 `main` 保持与 upstream 可快进同步。
-- **fork 仓库的限制**：Issues 与 Discussions 无法在 fork 上启用（GitHub
-  限制，只能在 upstream 用）；依赖 PR 触发的工作流（welcome / stale 的
-  issue 侧）在 fork 上不会生效，属预期。
-- Scorecard 评分按仓库独立：两边合并后各自跑各自的公开评分。
+项目只有一个仓库 `liang-zhenxiang/cc-analyzer`，**所有开发都在这里进行**。
+
+- 协作者需要 **Write** 权限（能推分支、开 PR）；**Maintain** 权限可以额外
+  管理 Issue / 标签 / 合并 PR；**Admin** 权限才能改分支保护与仓库设置。
+- 分支保护、网页端开关这类仓库级设置只有 Admin 能做——协作者发现「改不了」
+  时先确认是不是权限层级的问题，而不是找绕过办法。
+- 2026-09-30 前曾用一个 fork 仓库搭建基建（原因：当时上游无写权限），
+  基建以 PR 形式合并进本仓库后该 fork 已退役，不再参与日常开发。
+  本文档与 Issue 模板中的链接全部指向本仓库。
 
 ### 网页端开关（需手动确认）
 
