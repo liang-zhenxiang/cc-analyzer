@@ -1,11 +1,95 @@
 # Repository Guidelines
 
+## Open-Source Workflow（协作流程）
+
+本项目按真实开源项目的方式维护：小批量提交、PR 驱动、CI 门禁、Issue 追踪、
+里程碑与版本发布。这一节是**流程的单一入口**——新会话读完它就知道该怎么做事，
+不必先去加载 skill。
+
+> 详细执行规则（bash 编码硬规则、提交细节、完整踩坑记录）见
+> [`.claude/skills/maintain-loop/SKILL.md`](.claude/skills/maintain-loop/SKILL.md)；
+> 从零搭建开源基建的流程见
+> [`.claude/skills/oss-bootstrap/SKILL.md`](.claude/skills/oss-bootstrap/SKILL.md)
+> （项目基建已就位，日常迭代用不到它）。
+> 下面写的是**每次都用得到的部分**。
+
+**核心闭环：规划 → 实现 → 发布 → 继续规划。** 每轮围绕一个主题走完再开下一轮。
+
+### 1. 动手前先盘点现状
+
+```bash
+gh issue list --state open
+gh release list
+git status --short && git log --oneline -3
+```
+
+检查三件事：本地与远端是否一致、`main` 的 CI 是否绿、`CHANGELOG.md` 的
+`[Unreleased]` 是否积压了未发布的改动（积压即说明「发布」这一步欠着，优先补上）。
+
+### 2. 实现：一个 Issue 一个分支一个 PR
+
+- 分支名 `feat/*`、`fix/*`、`docs/*`、`chore/*`
+- **动手前核实 Issue 的前提**——前提不成立时在 Issue 里说明并改写范围，
+  不要硬着头皮实现错误的目标
+- 提交信息遵循约定式提交；CI 校验 PR 里的提交**与 PR 标题**（squash 后标题
+  即提交信息）。可用 `./scripts/check-commit-msg.sh --message "..."` 预检
+- **用户可感知的改动**记入 `CHANGELOG.md` 的 `[Unreleased]`，分类固定为
+  Added / Changed / Deprecated / Removed / Fixed / Security，不自创分类
+- 推送前跑 `./scripts/lint.sh` 与下面「Testing Guidelines」里的构建检查
+
+### 3. 合并：CI 全绿才合
+
+- 分支保护要求 **「CI 总览」** 这一个 check 通过（增删检查项不用改保护规则）
+- `gh pr merge <N> --squash --delete-branch`
+- **`gh pr merge` 常报 `BLOCKED` 而检查其实全绿**：这是 GitHub 的状态同步延迟，
+  等 30~60 秒变 `CLEAN` 再合，**不要当成配置问题去找绕过办法**
+
+### 4. 发布
+
+1. 从最新 `main` 切 `chore/release-vX.Y.Z`
+2. **版本号三处同步**：`web/package.json`、`src-tauri/Cargo.toml`（跑
+   `cargo check` 刷新 `Cargo.lock`）、`src-tauri/tauri.conf.json`
+3. 把 CHANGELOG 的 `[Unreleased]` 归档为 `[X.Y.Z] - 日期`，段首写一句本轮主题；
+   `[Unreleased]` 恢复为空壳
+4. 提交 `chore(release): 发布 vX.Y.Z`，建发布 PR，CI 绿后 squash 合并
+5. **推送 tag 前先确认远端没有同名 tag**（`git ls-remote --tags origin vX.Y.Z`
+   应为空——网络抖动时 `git push` 可能「显示失败、远端已成功」，重推会触发两次
+   发布），然后 `git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin vX.Y.Z`
+6. `release.yml` 自动完成：三平台构建（macOS ARM64 / macOS Intel / Windows NSIS）
+   → 三段式发布说明（CHANGELOG 手写段 + GitHub 原生 PR 清单 + 可选 AI 摘要，
+   各自独立降级）→ 创建 Release 并挂载产物
+7. 验证：`gh release view vX.Y.Z` 确认说明与产物齐全；
+   `gh run list --workflow=release.yml` 确认运行成功
+
+### 项目红线（任何时候不得违反）
+
+- `${{ }}` 表达式不直接写进 `run:`，一律经 `env:` 中转（表达式注入）
+- `pull_request_target` 的工作流**绝不 checkout PR 代码**
+- 不在日志中输出 Secret；会话内容与用户路径视同敏感数据，引用前先剔除
+- 所有 `uses:` 保持按 commit SHA pin、所有 checkout 保持 `persist-credentials: false`
+- `zizmor` 基线 0 findings、`clippy` 基线 0 warnings（`-D warnings`）
+- 不提交生成产物（`web/dist/`、`target/`、`dist-*`、`node_modules/`）
+- release 构建不引入任何缓存路径（缓存投毒 → 带毒产物 → 分发用户）
+- 会话数据不出本机：应用不内置任何遥测
+
+### 只在 CI / 发布时暴露的坑（本地与 macOS 构建都看不出来）
+
+CI 不跑打包，所以下面这些**只有发布时才会炸**。改完打包脚本或 `release.yml`，
+本地全绿不代表发布能成——必要时发预发布 tag（`vX.Y.Z-rc.1`）真跑一次。
+
+- **跨平台 workflow 的 `run:` 是多行 bash 时必须显式 `shell: bash`**。Windows
+  runner 默认 shell 是 PowerShell，`set -euo pipefail` 会被逐字当命令执行
+- **含非 ASCII 字符的 `.ps1` 必须存成 UTF-8 with BOM**。PowerShell 5.1 无 BOM 时
+  按系统 ANSI 解码，中文注释会导致 `Missing closing '}' in statement block`
+  ——报的是解析错误，与真正的原因（编码）隔了好几层。`./scripts/lint.sh` 已加检查
+- **产物文件名不含空格**。Tauri 按 `productName`（"CC Analyzer"）命名，而 GitHub
+  上传 release 产物时把空格换成点，会让本地、文档、用户下载到的是三个名字
+
 ## Project Structure & Module Organization
 
 - `web/` contains the React, TypeScript, and Vite frontend source. Review `web/src/api/tauri.ts` for platform bridges and `web/src/features/` for feature modules.
 - `web/dist/` is generated output consumed by Tauri through `frontendDist`; do not commit it.
-- `src-tauri/` contains the Tauri 2 backend, Rust entry points, app configuration, capabilities, and icons. Review `src-tauri/src/lib.rs` for the main command implementations.
-- `packaging/` stores macOS bundle metadata and application icons.
+- `src-tauri/` contains the Tauri 2 backend, Rust entry points, app configuration, bundle config (`tauri.conf.json`), capabilities, and icons. Review `src-tauri/src/lib.rs` for the main command implementations.
 - `scripts/` contains packaging wrappers, the lint entry point, and the commit-message validator.
 - `package.json` (repo root, private) carries build tooling only; the web frontend keeps its own manifest in `web/package.json`.
 - `docs/` contains development guides and CI notes.
@@ -59,4 +143,4 @@
 - Do not disable Tauri capability checks or broaden filesystem, process, or shell permissions without explaining the requirement in the PR.
 - Avoid committing generated outputs such as `dist-intel/`, `dist-arm64/`, `dist-windows/`, or the root `node_modules/`.
 - Avoid committing `web/dist/`, `web/node_modules/`, Rust `target/`, or temporary analysis files.
-- Keep the application version synchronized between `web/package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, and `packaging/macos/Info.plist`.
+- Keep the application version synchronized across `web/package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`. There were four places until the hand-written `packaging/macos/Info.plist` was deleted — Tauri now generates the plist from `tauri.conf.json`, so do not reintroduce a fourth file to keep in sync.
