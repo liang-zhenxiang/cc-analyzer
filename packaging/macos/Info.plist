@@ -9,7 +9,7 @@
 	<key>CFBundleExecutable</key>
 	<string>cc-analyzer</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.flydiy.cc-analyzer</string>
+	<string>io.github.liang-zhenxiang.cc-analyzer</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>

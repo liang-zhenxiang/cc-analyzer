@@ -80,7 +80,7 @@ Windows 用 `powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1`
 - 「生成分析报告」会把**结构化摘要**交给本机 `claude` CLI，由你配置的
   模型服务处理；对数据流向敏感时请收紧设置里的报告预算，或不使用该功能。
 - 应用自身的状态（标题缓存 `meta-cache-v2.json`、阈值、主题）存储在
-  应用数据目录（bundle id `com.flydiy.cc-analyzer` 对应的
+  应用数据目录（bundle id `io.github.liang-zhenxiang.cc-analyzer` 对应的
   application-support 目录），不写入 Claude Code 的原始数据。
 
 ## 下一步
