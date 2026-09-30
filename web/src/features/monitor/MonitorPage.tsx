@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTheme } from "../../app/ThemeProvider";
 import { useBridges } from "../../api/bridges";
 import { Button } from "../../components/Button";
+import { EmptyState } from "../../components/EmptyState";
+import { Icon } from "../../components/Icon";
 import { isLocalMonitorOrigin } from "./monitorMessages";
 import styles from "./MonitorPage.module.css";
 
@@ -77,25 +79,27 @@ export function MonitorPage({ onEnterFloat }: { onEnterFloat?: () => void } = {}
 
   if (state.status === "probing") {
     return (
-      <div className={styles.center}>
-        <p>
-          正在连接监控代理（第 {state.attempt}/{MAX_ATTEMPTS} 次尝试）…
-        </p>
-      </div>
+      <EmptyState
+        size="page"
+        title="正在连接监控代理"
+        description={`第 ${state.attempt}/${MAX_ATTEMPTS} 次尝试…`}
+      />
     );
   }
 
   if (state.status === "unavailable") {
     return (
-      <div className={styles.center}>
-        <h2>监控代理未启动</h2>
-        <p>
-          端口 {state.port ?? "?"} 无响应（已尝试 {state.attempts} 次，可能被旧 cc-monitor 占用）。
-        </p>
-        <Button type="button" variant="primary" onClick={() => void probe()}>
-          重试
-        </Button>
-      </div>
+      <EmptyState
+        size="page"
+        title="监控代理未启动"
+        description={`端口 ${state.port ?? "?"} 无响应（已尝试 ${state.attempts} 次，可能被旧 cc-monitor 占用）。`}
+        action={
+          <Button type="button" variant="primary" onClick={() => void probe()}>
+            <Icon name="refresh" size={14} />
+            重试
+          </Button>
+        }
+      />
     );
   }
 

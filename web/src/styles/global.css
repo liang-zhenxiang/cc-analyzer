@@ -16,7 +16,7 @@ select {
 }
 
 #root {
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 pre {
@@ -25,13 +25,26 @@ pre {
 
 body {
   margin: 0;
-  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
+  /* 字号与行高成对出现：全局只兜底正文一级，其余各处自己带上 --lh-*。 */
   font-size: var(--fs-base);
-  line-height: 1.5;
+  line-height: var(--lh-base);
   -webkit-font-smoothing: antialiased;
+}
+
+/* 系统开启「减弱动态效果」时，位移与淡入一律归零。
+   保留 0.01ms 而不是 0，是为了让依赖动画结束事件的逻辑仍能收到事件。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .error-boundary {
@@ -51,8 +64,8 @@ body {
 
 .error-boundary button {
   justify-self: center;
-  min-height: 30px;
-  padding: 5px 12px;
+  min-height: var(--control-h);
+  padding: 0 10px;
   border: 1px solid var(--danger);
   border-radius: var(--r-sm);
   background: var(--bg-elevated);

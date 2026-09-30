@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Bridges } from "../../api/types";
 import type { ReportMode } from "./report";
 import { Button } from "../../components/Button";
+import { EmptyState } from "../../components/EmptyState";
 import { ReportMarkdown } from "./ReportMarkdown";
 import styles from "./ReportPanel.module.css";
 
@@ -127,7 +128,7 @@ export function ReportPanel({
       {text ? (
         <ReportMarkdown text={text} />
       ) : (
-        <div className={styles.placeholder}>选择报告范围后点击生成。</div>
+        <EmptyState size="panel" title="选择报告范围后点击生成。" />
       )}
     </section>
   );

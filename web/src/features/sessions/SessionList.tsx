@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from "react";
 import { Button } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
+import { Icon } from "../../components/Icon";
 import { TextInput } from "../../components/TextInput";
 import { sessionTitle, type SessionMeta } from "./metadataCache";
 import { dateBucketLabel, formatBytes, formatRelativeTime } from "../../lib/format";
@@ -11,9 +12,9 @@ import styles from "./SessionList.module.css";
 type ViewMode = "timeline" | "project";
 
 /** Row heights for the virtualised list; keep in sync with the CSS. */
-const GROUP_ROW_HEIGHT = 38;
-const SESSION_ROW_HEIGHT = 62;
-const SESSION_ROW_HEIGHT_WITH_STATUS = 80;
+const GROUP_ROW_HEIGHT = 32;
+const SESSION_ROW_HEIGHT = 54;
+const SESSION_ROW_HEIGHT_WITH_STATUS = 72;
 
 type ListRow =
   | { kind: "group"; key: string; label: string; count: number }
@@ -219,11 +220,15 @@ export function SessionList({
   return (
     <aside className={styles.sidebar} aria-label="会话列表">
       <div className={styles.toolbar}>
-        <TextInput
-          value={search}
-          placeholder="搜会话 ID 或目录…"
-          onChange={(event) => setSearch(event.target.value)}
-        />
+        <span className={styles.search}>
+          <Icon name="search" size={14} className={styles.searchIcon} />
+          <TextInput
+            value={search}
+            aria-label="搜索会话"
+            placeholder="搜会话 ID 或目录…"
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </span>
         <Button type="button" onClick={onRefresh}>刷新会话列表</Button>
       </div>
       <div role="tablist" aria-label="列表视图">

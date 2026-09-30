@@ -1,11 +1,11 @@
+/* 「这里没有东西」只有三种尺寸，全应用共用。
+   边框和底色一律不加——空状态画成框只会让空的地方看起来更空。 */
 .container {
   display: grid;
   place-content: center;
+  /* 不加的话网格项会被拉满整条轨道——空态 CTA 会变成一条通栏大按钮。 */
+  justify-items: center;
   gap: var(--sp-2);
-  padding: var(--sp-5);
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--r-md);
-  background: var(--bg-subtle);
   color: var(--text-tertiary);
   text-align: center;
 }
@@ -16,4 +16,47 @@
 
 .container p {
   margin: 0;
+}
+
+/* page：主区被整体空出来时用。字号是 --fs-lg 的唯一消费者。
+   用 min-height: 100% 而不是 flex: 1——调用方有的把它放进 flex 容器
+   （会话分析的工作区），有的直接放进 <main>（实时监控），
+   百分比高度在两种情况下都能撑满，flex: 1 只对前者有效。 */
+.page {
+  min-height: 100%;
+  padding: var(--sp-5);
+}
+
+.page strong {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  line-height: var(--lh-lg);
+}
+
+.page p {
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+}
+
+.brand {
+  justify-self: center;
+  margin-bottom: var(--sp-2);
+  opacity: 0.9;
+}
+
+/* panel：面板内部没有内容时用。 */
+.panel {
+  padding: var(--sp-5) var(--sp-3);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+}
+
+/* inline：表格体、行内的一行提示。 */
+.inline {
+  margin: 0;
+  padding: var(--sp-4);
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-align: center;
 }

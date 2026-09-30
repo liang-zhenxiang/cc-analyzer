@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Button } from "../../components/Button";
+import { EmptyState } from "../../components/EmptyState";
 import type { ParsedSession, ParsedSessionGraph, SessionRecord } from "./types";
 import type { TimeRange } from "./filters";
 import { buildDurationTree, type DurationNode, type DurationNodeKind } from "./durationTree";
 import { formatDuration } from "../../lib/format";
-import { useViewportCap } from "../../lib/useViewportCap";
 import styles from "./TreeView.module.css";
 
 const kindClasses: Record<DurationNodeKind, string> = {
@@ -51,9 +51,6 @@ export function TreeView({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLElement | null>(null);
-  // Same reason as the log table: an uncapped pane would grow the whole page
-  // instead of scrolling its own content.
-  useViewportCap(containerRef);
 
   useEffect(() => {
     if (!highlightId) return;
@@ -326,7 +323,7 @@ function NodeDetail({ node }: { node: DurationNode | null }) {
   if (!node) {
     return (
       <div className={styles.detailEmpty} role="note">
-        点节点查看详情
+        <EmptyState size="inline" title="点节点查看详情" />
       </div>
     );
   }

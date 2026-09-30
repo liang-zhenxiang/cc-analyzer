@@ -93,14 +93,15 @@ export function FilterBar({
       <fieldset>
         <legend>状态</legend>
         {statusLabels.map(([status, label]) => (
-          <button
+          <Button
             key={status}
             type="button"
+            variant="ghost"
             aria-pressed={filter.statuses.has(status)}
             onClick={() => toggleStatus(status)}
           >
             {label}
-          </button>
+          </Button>
         ))}
       </fieldset>
       <fieldset>
@@ -161,7 +162,11 @@ export function FilterBar({
         </label>
       </fieldset>
       {filter.timeRange ? (
-        <Button type="button" onClick={() => onChange({ ...filter, timeRange: null })}>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => onChange({ ...filter, timeRange: null })}
+        >
           清除时间选区
         </Button>
       ) : null}

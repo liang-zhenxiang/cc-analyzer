@@ -1,22 +1,32 @@
+/* 页面是纵向的：会话信息条（可选）+ 正文。分成两层是必要的——
+   网格里若出现两个 auto 行，多出来的空间会被平分，会话信息条会被撑高。 */
 .page {
-  display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
-  gap: var(--sp-3);
+  display: flex;
   min-height: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-3);
   padding: var(--sp-3);
+}
+
+.page.withDetail .body {
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--detail-w);
+}
+
+.body {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  gap: var(--sp-4);
   align-items: stretch;
 }
 
-.page.withDetail {
-  grid-template-columns: 300px minmax(0, 1fr) 360px;
-}
-
 .workspace {
-  display: grid;
+  display: flex;
   min-width: 0;
+  flex-direction: column;
   gap: var(--sp-3);
-  /* Rows follow whatever the page renders instead of a hard-coded template. */
-  grid-auto-rows: auto;
 }
 
 .pane,
@@ -26,21 +36,32 @@
   flex-direction: column;
 }
 
+/* 日志/树视图吸收剩余高度：内容区因此有了确定高度，表格在内部滚动，
+   页面本身不出现滚动条。
+   用 flex 而不是写死 grid-template-rows 的行序——未选会话时工作区里
+   只有空状态一个块，行序写死就会把它按到第一行、下面留一大片空白。 */
 .pane {
+  flex: 1 1 0;
   min-height: 180px;
 }
 
+/* 卡片（日志表 / 耗时树）填满 pane：只按内容高的话，条目少时卡片悬在半空，
+   底部永远贴不到视口；撑满后「内容多就内部滚动」才是唯一会变化的行为。 */
+.pane > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* 报告按内容走，不参与吸收：它是结论，不是主角。
+   内容比 min-height 短时卡片要撑满，否则底面会缩进去一截。 */
 .reportPane {
+  flex: 0 0 auto;
   min-height: 160px;
 }
 
-.empty {
-  display: grid;
-  min-height: 320px;
-  place-content: center;
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--r-md);
-  color: var(--text-tertiary);
+.reportPane > * {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .viewBar {
@@ -51,44 +72,55 @@
   justify-content: space-between;
 }
 
+/* 分段控件：与顶栏、侧栏选项卡同一套画法。 */
 .viewTabs {
   display: inline-flex;
   gap: 2px;
   padding: 2px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--bg-subtle);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
 }
 
 .viewTabs button {
-  min-height: 26px;
-  padding: 3px 12px;
+  min-height: var(--control-h-sm);
+  padding: 0 var(--sp-3);
   border: 0;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-xs);
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
+  font: inherit;
   font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
   cursor: pointer;
+  transition:
+    background-color var(--dur-hover) var(--ease-in-out),
+    color var(--dur-hover) var(--ease-in-out);
+}
+
+.viewTabs button:hover {
+  color: var(--text);
 }
 
 .viewTabs button[aria-selected="true"] {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--bg-subtle);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
   font-weight: 600;
 }
 
 .graphStatus {
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
 }
 
 @media (max-width: 1100px) {
-  .page,
-  .page.withDetail {
+  .body,
+  .page.withDetail .body {
     grid-template-columns: 260px minmax(0, 1fr);
   }
 
-  .page.withDetail > aside:last-child {
+  .page.withDetail .body > aside:last-child {
     grid-column: 2;
   }
 }

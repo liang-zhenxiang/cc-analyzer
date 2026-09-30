@@ -10,32 +10,29 @@
   background: var(--bg-subtle);
 }
 
+/* 搜索框独占一行，筛选条件另起一行。
+   让它和条件挤在一行的话，flex-grow 会把后面的条件一路推到右边缘；
+   独占一行反而更矮（两行而非三行），搜索框也更长。 */
 .bar > input {
-  flex: 1 1 180px;
-  min-width: 140px;
-  min-height: 30px;
-  padding: 5px 8px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-  background: var(--bg-elevated);
-  color: var(--text);
-  font: inherit;
+  flex: 1 0 100%;
 }
 
 .bar fieldset {
   display: flex;
   align-items: center;
+  gap: var(--sp-2);
   min-width: 0;
   margin: 0;
-  padding: 4px 8px 6px;
+  padding: var(--sp-1) var(--sp-2) 6px;
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
 }
 
 .bar legend {
-  padding: 0 4px;
+  padding: 0 var(--sp-1);
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
 }
 
 .bar label {
@@ -43,36 +40,39 @@
   gap: 3px;
   color: var(--text-secondary);
   font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
 }
 
-.bar input,
+/* 复选框不是文本框。此前它一并继承了下面的 min-width/边框/凹陷底，
+   被渲染成 78px 宽的灰方块，和标签拉开半屏距离。 */
+.bar input:not([type="checkbox"]),
 .bar select {
-  min-height: 28px;
+  min-height: var(--control-h);
   min-width: 78px;
-  padding: 3px 6px;
+  padding: 0 6px;
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
-  background: var(--bg-elevated);
+  background: var(--bg-inset);
   color: var(--text);
   font: inherit;
   font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 .bar fieldset label {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--sp-1);
   color: var(--text);
   font-size: inherit;
 }
 
-.bar button {
-  min-height: 30px;
-  padding: 5px 10px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-  background: var(--bg-elevated);
+/* 开关式筛选：按下态此前完全没有视觉反馈，用户点完不知道生效了没有。
+   底色之外还有 2px 内嵌竖条——只有颜色的话，色弱用户看不出哪几个是开着的。 */
+.bar button[aria-pressed="true"]:not(:disabled) {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
   color: var(--text);
-  font: inherit;
-  cursor: pointer;
+  font-weight: 600;
 }

@@ -4,6 +4,7 @@ import { useNotifications } from "../../app/NotificationProvider";
 import { useSessions } from "./useSessions";
 import { SessionList } from "./SessionList";
 import { SessionHeader } from "./SessionHeader";
+import { EmptyState } from "../../components/EmptyState";
 import { FilterBar } from "./FilterBar";
 import { TimelineTrack } from "./TimelineTrack";
 import { RecordDetailPanel } from "./RecordDetailPanel";
@@ -281,6 +282,8 @@ export function SessionAnalyzerPage() {
     if (record) setSelectedRecord(record);
   }
 
+  const parsing = parseProgress !== null && parseProgress < 1;
+
   return (
     <div className={`${styles.page} ${selectedRecord ? styles.withDetail : ""}`}>
       {selectedSession ? (
@@ -290,123 +293,131 @@ export function SessionAnalyzerPage() {
           onOpenFolder={(path) => void bridges.system.openFolder(path)}
         />
       ) : null}
-      <SessionList
-        sessions={sessions}
-        selected={selectedSession}
-        loading={loading}
-        error={error}
-        progress={progress}
-        onSelect={(session) => void openSession(session)}
-        onRefresh={() => void refresh()}
-      />
-      <div className={styles.workspace}>
-        {!parsed ? (
-          <div className={styles.empty}>
-            {parseProgress !== null && parseProgress < 1
-              ? `正在解析会话… ${Math.round(parseProgress * 100)}%`
-              : "选择一个会话开始分析"}
-          </div>
-        ) : (
-          <>
-            <TimelineTrack
-              session={parsed}
-              selection={filter.timeRange}
-              onSelect={(timeRange) => setFilter({ ...filter, timeRange })}
-              onReveal={revealRecord}
-            />
-            <FilterBar filter={filter} onChange={setFilter} />
-            <div className={styles.viewBar}>
-              <div className={styles.viewTabs} role="tablist" aria-label="视图切换">
-                {(["log", "tree"] as const).map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    role="tab"
-                    aria-selected={view === value}
-                    onClick={() => setView(value)}
-                  >
-                    {value === "log" ? "日志视图" : "树视图"}
-                  </button>
-                ))}
-              </div>
-              <div className={styles.graphStatus} role="status" aria-label="会话图状态">
-                {graphLoading
-                  ? "会话图加载中…"
-                  : graph
-                    ? `会话图已加载 · ${graph.sessions.length} 个会话${graph.warnings.length ? ` · ${graph.warnings.length} 个警告` : ""}`
-                    : ""}
-              </div>
-            </div>
-            <div className={styles.pane}>
-              {view === "log" ? (
-                <LogView
-                  rows={logRows}
-                  selectedId={selectedRecord?.fullId ?? null}
-                  highlightId={highlightId}
-                  timeRange={filter.timeRange}
-                  onSelect={setSelectedRecord}
-                  onLocateInTree={locateInTree}
-                />
-              ) : (
-                <TreeView
-                  session={parsed}
-                  graph={graph}
-                  selection={filter.timeRange}
-                  selectedId={selectedRecord?.fullId ?? null}
-                  highlightId={highlightId}
-                  onSelect={setSelectedRecord}
-                  onAnalyze={analyzeNode}
-                  onEnterChildSession={(child) => void enterChildSession(child)}
-                  onLocateInLog={locateInLog}
-                  windowOnly={windowOnly}
-                  onWindowOnlyChange={setWindowOnly}
-                />
-              )}
-            </div>
-            <div className={styles.reportPane}>
-              <ReportPanel
-                text={report.text}
-                loading={report.loading}
-                error={report.error}
-                stale={stale}
-                mode={mode}
-                onModeChange={setMode}
-                onGenerate={() => void generate()}
-                onCancel={cancelReport}
-                onClear={() =>
-                  setReport({ text: "", loading: false, error: null, signature: null, meta: null })
-                }
-                bridges={bridges}
-                defaultName={`${parsed.sessionId.slice(0, 8)}-${mode}.md`}
-                nodeLabel={reportNode?.label ?? null}
-                meta={report.meta}
-                truncated={{
-                  shown: Math.min(records.length, reportRowLimit),
-                  total: records.length,
-                  limit: reportRowLimit
-                }}
-                onOpenTerminal={
-                  parsed
-                    ? () => void bridges.system.openClaudeTerminal(parsed.sessionId)
-                    : undefined
-                }
-              />
-            </div>
-          </>
-        )}
-      </div>
-      {selectedRecord ? (
-        <RecordDetailPanel
-          record={selectedRecord}
-          graphWarnings={graph?.warnings}
-          clipboard={bridges.clipboard}
-          system={bridges.system}
-          onLocate={locateInTree}
-          onSelectChild={setSelectedRecord}
-          sessionId={parsed?.sessionId}
-          sessionPath={parsed?.path}
+      <div className={styles.body}>
+        <SessionList
+          sessions={sessions}
+          selected={selectedSession}
+          loading={loading}
+          error={error}
+          progress={progress}
+          onSelect={(session) => void openSession(session)}
+          onRefresh={() => void refresh()}
         />
-      ) : null}
+        <div className={styles.workspace}>
+          {!parsed ? (
+            <EmptyState
+              size="page"
+              title={
+                parsing
+                  ? `正在解析会话… ${Math.round((parseProgress ?? 0) * 100)}%`
+                  : "选择一个会话开始分析"
+              }
+              description={
+                parsing ? undefined : "从左侧列表挑一个会话，或先在搜索框里按会话 ID、目录筛选。"
+              }
+            />
+          ) : (
+            <>
+              <TimelineTrack
+                session={parsed}
+                selection={filter.timeRange}
+                onSelect={(timeRange) => setFilter({ ...filter, timeRange })}
+                onReveal={revealRecord}
+              />
+              <FilterBar filter={filter} onChange={setFilter} />
+              <div className={styles.viewBar}>
+                <div className={styles.viewTabs} role="tablist" aria-label="视图切换">
+                  {(["log", "tree"] as const).map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="tab"
+                      aria-selected={view === value}
+                      onClick={() => setView(value)}
+                    >
+                      {value === "log" ? "日志视图" : "树视图"}
+                    </button>
+                  ))}
+                </div>
+                <div className={styles.graphStatus} role="status" aria-label="会话图状态">
+                  {graphLoading
+                    ? "会话图加载中…"
+                    : graph
+                      ? `会话图已加载 · ${graph.sessions.length} 个会话${graph.warnings.length ? ` · ${graph.warnings.length} 个警告` : ""}`
+                      : ""}
+                </div>
+              </div>
+              <div className={styles.pane}>
+                {view === "log" ? (
+                  <LogView
+                    rows={logRows}
+                    selectedId={selectedRecord?.fullId ?? null}
+                    highlightId={highlightId}
+                    timeRange={filter.timeRange}
+                    onSelect={setSelectedRecord}
+                    onLocateInTree={locateInTree}
+                  />
+                ) : (
+                  <TreeView
+                    session={parsed}
+                    graph={graph}
+                    selection={filter.timeRange}
+                    selectedId={selectedRecord?.fullId ?? null}
+                    highlightId={highlightId}
+                    onSelect={setSelectedRecord}
+                    onAnalyze={analyzeNode}
+                    onEnterChildSession={(child) => void enterChildSession(child)}
+                    onLocateInLog={locateInLog}
+                    windowOnly={windowOnly}
+                    onWindowOnlyChange={setWindowOnly}
+                  />
+                )}
+              </div>
+              <div className={styles.reportPane}>
+                <ReportPanel
+                  text={report.text}
+                  loading={report.loading}
+                  error={report.error}
+                  stale={stale}
+                  mode={mode}
+                  onModeChange={setMode}
+                  onGenerate={() => void generate()}
+                  onCancel={cancelReport}
+                  onClear={() =>
+                    setReport({ text: "", loading: false, error: null, signature: null, meta: null })
+                  }
+                  bridges={bridges}
+                  defaultName={`${parsed.sessionId.slice(0, 8)}-${mode}.md`}
+                  nodeLabel={reportNode?.label ?? null}
+                  meta={report.meta}
+                  truncated={{
+                    shown: Math.min(records.length, reportRowLimit),
+                    total: records.length,
+                    limit: reportRowLimit
+                  }}
+                  onOpenTerminal={
+                    parsed
+                      ? () => void bridges.system.openClaudeTerminal(parsed.sessionId)
+                      : undefined
+                  }
+                />
+              </div>
+            </>
+          )}
+        </div>
+        {selectedRecord ? (
+          <RecordDetailPanel
+            record={selectedRecord}
+            graphWarnings={graph?.warnings}
+            clipboard={bridges.clipboard}
+            system={bridges.system}
+            onLocate={locateInTree}
+            onSelectChild={setSelectedRecord}
+            sessionId={parsed?.sessionId}
+            sessionPath={parsed?.path}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }

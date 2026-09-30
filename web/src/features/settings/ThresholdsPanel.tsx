@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Button } from "../../components/Button";
+import { Button, IconButton } from "../../components/Button";
+import { Icon } from "../../components/Icon";
 import { TextInput } from "../../components/TextInput";
 import {
   DEFAULT_THRESHOLDS,
@@ -63,9 +64,9 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
     <section className={styles.panel} aria-label="阈值设置">
       <header className={styles.header}>
         <h2>阈值设置</h2>
-        <Button type="button" onClick={onClose}>
-          关闭
-        </Button>
+        <IconButton label="关闭" onClick={onClose}>
+          <Icon name="close" size={16} />
+        </IconButton>
       </header>
       <p className={styles.note}>
         控制报告与日志表的规模，改动立即生效并保存在本机。

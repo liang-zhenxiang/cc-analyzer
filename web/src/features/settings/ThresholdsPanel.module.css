@@ -1,11 +1,14 @@
+@import "../../styles/animations.css";
+/* 浮层：贴顶栏下沿 var(--sp-2)。用 --topbar-h 而不是 58px 这类字面量，
+   改顶栏高度时这里跟着走，不会静默错位。 */
 .panel {
   position: fixed;
-  top: 58px;
+  top: calc(var(--topbar-h) + var(--sp-2));
   right: var(--sp-4);
   z-index: 20;
   display: flex;
   width: min(420px, calc(100vw - var(--sp-4) * 2));
-  max-height: calc(100vh - 74px);
+  max-height: calc(100dvh - var(--topbar-h) - var(--sp-2) * 2);
   flex-direction: column;
   gap: var(--sp-2);
   overflow: auto;
@@ -13,7 +16,8 @@
   border: 1px solid var(--border-strong);
   border-radius: var(--r-md);
   background: var(--bg-elevated);
-  box-shadow: 0 12px 32px rgb(0 0 0 / 0.18);
+  box-shadow: var(--shadow-md);
+  animation: cca-enter var(--dur-enter) var(--ease-out);
 }
 
 .header {
@@ -25,7 +29,9 @@
 
 .header h2 {
   margin: 0;
-  font-size: var(--fs-md);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  line-height: var(--lh-base);
 }
 
 .note {
@@ -66,9 +72,11 @@
   font-size: var(--fs-xs);
 }
 
+/* 说明文字是要读的信息，--text-faint（2.6:1）只够放装饰。 */
 .hint {
-  color: var(--text-faint);
+  color: var(--text-tertiary);
   font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
 }
 
 .footer {

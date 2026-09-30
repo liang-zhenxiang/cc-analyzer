@@ -13,6 +13,7 @@
   width: 100%;
   border-collapse: collapse;
   font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
   font-variant-numeric: tabular-nums;
 }
 
@@ -25,13 +26,18 @@
   vertical-align: top;
 }
 
+/* 与日志表同一种表头：沉到 --bg-inset，底边强一档。 */
 .container th {
   position: sticky;
   top: 0;
-  background: var(--bg-elevated);
+  height: var(--row-h);
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--bg-inset);
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
   font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: var(--lh-xs);
   white-space: nowrap;
 }
 
@@ -39,13 +45,18 @@
   border-bottom: 0;
 }
 
+.container tbody tr {
+  transition: background-color var(--dur-hover) var(--ease-in-out);
+}
+
 .container tbody tr:hover {
   background: var(--bg-hover);
 }
 
-.container button {
-  min-height: 24px;
-  padding: 2px 7px;
+/* 排序按钮是表头的一部分，不该长得像一颗按钮：ghost + 表头档高度。 */
+.container th button {
+  min-height: var(--control-h-sm);
+  padding: 0 var(--sp-1);
   white-space: nowrap;
 }
 
@@ -63,6 +74,7 @@
   overflow: auto;
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
   white-space: pre-wrap;
 }
 
@@ -70,8 +82,4 @@
   color: var(--danger);
 }
 
-.empty {
-  padding: var(--sp-4);
-  color: var(--text-tertiary);
-  text-align: center;
-}
+

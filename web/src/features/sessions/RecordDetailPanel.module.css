@@ -70,7 +70,7 @@
 }
 
 .actions button {
-  min-height: 28px;
+  min-height: var(--control-h);
 }
 
 .error {
