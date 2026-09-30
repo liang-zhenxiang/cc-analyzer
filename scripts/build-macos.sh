@@ -13,9 +13,38 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+usage() {
+  cat <<'EOF'
+build-macos.sh —— 构建 macOS 产物（.app + .dmg），走 Tauri 官方打包流程
+
+用法：
+  ./scripts/build-macos.sh              # 当前机器架构
+  ./scripts/build-macos.sh x86_64       # Intel（在 Apple Silicon 上交叉编译）
+  ./scripts/build-macos.sh aarch64      # Apple Silicon
+  -h, --help                            # 显示帮助
+
+产物：
+  x86_64  → dist-intel/
+  aarch64 → dist-arm64/
+
+环境变量 TAURI_BUILD_FEATURES 会透传给 tauri build 的 --features。真机 GUI
+测试需要它带 gui-capture（用 ./scripts/gui-test.sh --build 会自动带上）；
+发布产物**不带**任何 feature，所以默认不传。
+EOF
+}
+
 ARCH="${1:-$(uname -m)}"
 
 case "$ARCH" in
+  # 没有这一支时 --help 会掉进下面的 unknown 分支，报「不支持的架构：--help」
+  # ——使用者以为自己在传架构。帮助走 usage 并 exit 0，与 check-commit-msg.sh
+  # 的处置一致。注意别把 unknown 分支的文案与退出码 2 一并改掉：那条是给
+  # 拼错架构用的，行为正确（.trellis/spec/testing/pitfalls.md 第 2 节记着它）。
+  -h|--help)
+    usage
+    exit 0
+    ;;
   x86_64|amd64)
     ARCH="x86_64"
     RUST_TARGET="x86_64-apple-darwin"

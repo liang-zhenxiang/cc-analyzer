@@ -7,7 +7,12 @@
 # 可以把「推上去 → CI 红 → 改了再推」这个来回省掉。
 #
 # 用法：
-#   ./scripts/lint.sh             # 跑全部检查
+#   ./scripts/lint.sh             # 跑全部检查（不接受参数）
+#
+# **不提供 --help**，并把任何参数当作错误拒掉：本脚本没有选项可讲，用法就是
+# 「直接跑」，再印一段只写着「跑全部检查」的帮助是自说自话。真正要解决的是
+# 「参数被静默吃掉」——`./scripts/lint.sh --help`（或任何拼错的选项）会一声不吭
+# 跑完整套检查，看起来像是选项被接受了。拒绝比忽略诚实（见下面的参数检查）。
 #
 # 覆盖范围（别把它当成 CI 的替代品）：
 #   - 覆盖：actionlint、yamllint、shellcheck、bash -n、PowerShell 编码、zizmor
@@ -25,6 +30,14 @@
 # 不会被算作通过。
 
 set -euo pipefail
+
+# 本脚本不接受参数。**显式拒绝**而不是静默忽略：静默忽略会让
+# `./scripts/lint.sh --help`（或任何拼错的选项）看起来像是被接受了，
+# 实际却跑了一遍完整检查。退出码 2 与其他脚本对未知参数的处置一致。
+if [[ $# -gt 0 ]]; then
+  printf 'lint.sh 不接受参数（收到：%s）。用法：./scripts/lint.sh\n' "$1" >&2
+  exit 2
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
