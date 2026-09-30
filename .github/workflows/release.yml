@@ -79,6 +79,11 @@ jobs:
       # release 产物不经过任何缓存路径，杜绝缓存投毒影响分发产物的可能。
 
       - name: 安装构建工具链
+        # 必须显式声明 bash：Windows runner 的默认 shell 是 PowerShell，
+        # 而这段是 bash 脚本——`set -euo pipefail` 在 PowerShell 里会被当成
+        # 命令执行并直接让步骤失败。macOS 的默认 shell 恰好就是 bash，
+        # 所以只在 Windows 上暴露（v0.2.1 首次发布就是这么挂的）。
+        shell: bash
         run: |
           #!/usr/bin/env bash
           set -euo pipefail
