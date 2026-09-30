@@ -4,7 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-01
+
+本轮主题：工程化与体验升级——接入 Trellis 工程框架、建立三层测试网、界面按「仪器面板」重做、新增 Token 计数面板。
+
 ### Added
+
+- A **Trellis engineering framework** integration ([mindfold-ai/Trellis](https://github.com/mindfold-ai/Trellis)) under `.trellis/`, so specs are split by layer instead of living in one monolith, planning is written to files instead of scrolling out of a conversation, and work state carries across sessions via a SessionStart hook. Trellis is AGPL-3.0 and this project is MIT: `NOTICE` states per-path which files come from its templates, records that **no Trellis code is compiled into any released artifact**, and gives the removal path. The hooks it installs (which run on every session) are reviewed and documented in `SECURITY.md` — they make no network requests. Trellis's own generic thinking guides were removed from `.trellis/spec/` because their examples are about Trellis's codebase, not this one.
+- `scripts/lint.sh` now also checks **Python syntax in the auto-executed hooks** and the validity of `.claude/settings.json`. A syntax error in either fails silently — the hook prints one line to stderr and the session simply loses its injected context, while the developer believes the rules still apply.
 
 - A **real-app GUI smoke test** (`./scripts/gui-test.sh`). It launches the packaged `.app` — not a simulation — and verifies the whole chain actually runs by asserting that the app **scans the session files and writes its metadata cache**, which requires webview → React → bridge → Rust → filesystem → parse → write to all have worked. It runs against an isolated `HOME`, so a test run never touches the real `~/.claude` session data. Window screenshots additionally need macOS's Screen Recording permission, which only the user can grant; without it the script reports the screenshot as *skipped* with instructions rather than passing quietly.
 - An **end-to-end test suite** (Playwright) that drives the real production bundle in a real browser. It stubs the Tauri bridge at the boundary the app actually calls — `window.__TAURI_INTERNALS__` — so no application code is test-aware and no stub ships in a release. It found the group-toggle click bug above on its first run. It runs in CI as the `web-e2e` job, which uploads screenshots, video and traces when it fails.
