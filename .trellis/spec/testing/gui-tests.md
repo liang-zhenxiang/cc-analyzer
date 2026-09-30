@@ -94,9 +94,48 @@ script cannot request it. That is a security boundary, not a bug to route around
 
 When it fails the script prints `⚠ 跳过`, the reason, and how to enable it; it
 increments `SKIPPED`, does **not** increment `PASSED`, and lists every skipped check by
-name in the summary so it cannot be read as a pass. Visual verification is the
-Playwright suite's job — Chromium screenshots need no system permission and can run in
-CI.
+name in the summary so it cannot be read as a pass.
+
+### There is no permission-free way to screenshot the app window (measured, not assumed)
+
+The obvious workaround — "surely a process may capture *its own* window" — **does not
+work**. Measured on macOS 26, with a probe that creates an `NSWindow` in a real
+`NSApp.run()` loop, draws a label, waits for compositing, then captures its own window:
+
+| Attempt | Result |
+| --- | --- |
+| `screencapture -x` (any variant) | `could not create image from display` |
+| `CGWindowListCreateImage` on own window, called via `dlsym` | **returns an image of the right size, all pixels `rgba(0,0,0,0)`** |
+
+The second row is the dangerous one: the call **succeeds** and hands back a correctly
+sized, entirely blank bitmap. A naive check like `if image != nil` would pass while
+producing a transparent PNG. macOS gives you a window-shaped hole instead of an error.
+
+The Swift compiler marks `CGWindowListCreateImage` unavailable (macOS 15+); reaching it
+via `dlsym` still yields the blank image, so the deprecation is not the cause — the TCC
+gate is.
+
+**Conclusion: for a screenshot of the real app window, the permission is mandatory.**
+Do not spend time looking for a way around it.
+
+### What covers the visual gap instead
+
+The Playwright suite runs on **both Chromium and WebKit** (`playwright.config.ts`).
+macOS Tauri renders in a **WKWebView**, so the WebKit run exercises the same engine
+family the shipped app uses — real rendering, real form controls, HiDPI — with **no
+system permission**, and it runs in CI.
+
+That is an approximation, not a substitute: it proves the UI code renders correctly in
+that engine, while the smoke test above proves the packaged app launches and drives the
+whole IPC chain. Together they cover what the user asked for; the one thing neither
+gives you is a bitmap of the actual window, and only the permission unlocks that.
+
+Screenshots are archived per engine — `analyzer-log-light.png` (Chromium) and
+`analyzer-log-light-webkit.png`. Regenerate with:
+
+```bash
+SCREENSHOTS=1 npm --prefix web run test:e2e -- --grep "截图归档"
+```
 
 ---
 
