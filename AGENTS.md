@@ -15,6 +15,26 @@
 
 **核心闭环：规划 → 实现 → 发布 → 继续规划。** 每轮围绕一个主题走完再开下一轮。
 
+### 规则写在哪（不要写第二份）
+
+同一个主题只允许有一个权威位置，改规则时只改权威那一处。
+**完整的分工表与理由见
+[`.trellis/spec/guides/collaboration-workflow.md`](.trellis/spec/guides/collaboration-workflow.md)**，
+这里只给结论：
+
+| 主题 | 权威位置 |
+| --- | --- |
+| 协作闭环、阶段动作、项目红线 | **本节（AGENTS.md）** |
+| 执行细节、bash 编码硬规则、完整踩坑史 | `.claude/skills/maintain-loop/SKILL.md` |
+| Trellis 阶段机制、任务状态机 | `.trellis/workflow.md` |
+| 分层编码约定 | `.trellis/spec/frontend/`、`.trellis/spec/backend/` |
+| 发布步骤与仓库配置 | `docs/MAINTAINER_GUIDE.md` |
+
+**Trellis 管「一个任务内部怎么做完」（Plan → Execute → Finish），
+我们管「任务之间怎么流转」（Issue → 分支 → PR → CI → Release）。**
+Trellis 的 Finish 到「PR 已合并」为止——**它不等于发布**，发布仍是独立的一轮。
+一个 GitHub Issue 对应一个 Trellis 任务；纯答疑和一行修复不必建任务。
+
 ### 1. 动手前先盘点现状
 
 ```bash
@@ -144,3 +164,27 @@ CI 不跑打包，所以下面这些**只有发布时才会炸**。改完打包�
 - Avoid committing generated outputs such as `dist-intel/`, `dist-arm64/`, `dist-windows/`, or the root `node_modules/`.
 - Avoid committing `web/dist/`, `web/node_modules/`, Rust `target/`, or temporary analysis files.
 - Keep the application version synchronized across `web/package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`. There were four places until the hand-written `packaging/macos/Info.plist` was deleted — Tauri now generates the plist from `tauri.conf.json`, so do not reintroduce a fourth file to keep in sync.
+- Do not edit inside the `<!-- TRELLIS:START -->` … `<!-- TRELLIS:END -->` block at the end of this file — `trellis update` regenerates it.
+
+<!-- TRELLIS:START -->
+# Trellis Instructions
+
+These instructions are for AI assistants working in this project.
+
+This project is managed by Trellis. The working knowledge you need lives under `.trellis/`:
+
+- `.trellis/workflow.md` — development phases, when to create tasks, skill routing
+- `.trellis/spec/` — package- and layer-scoped coding guidelines (read before writing code in a given layer)
+- `.trellis/workspace/` — per-developer journals and session traces
+- `.trellis/tasks/` — active and archived tasks (PRDs, research, jsonl context)
+
+If a Trellis command is available on your platform (e.g. `/trellis:finish-work`, `/trellis:continue`), prefer it over manual steps. Not every platform exposes every command.
+
+If you're using Codex or another agent-capable tool, additional project-scoped helpers may live in:
+- `.agents/skills/` — reusable Trellis skills
+- `.codex/agents/` — optional custom subagents
+
+Managed by Trellis. Edits outside this block are preserved; edits inside may be overwritten by a future `trellis update`.
+
+<!-- TRELLIS:END -->
+
