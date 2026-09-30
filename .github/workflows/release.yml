@@ -57,7 +57,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           # 刻意不用 npm 缓存（CI 的日常构建才用）：
           # release 产物要分发给用户，缓存是「投毒的缓存 → 带毒的产物」的
