@@ -43,8 +43,8 @@ they install the dependencies (root `npm install` + `npm --prefix web ci`) and
 then call `npx tauri build`, so you do not need to install anything beforehand.
 
 ```bash
-npm run build:macos:arm64    # dist-arm64/CC Analyzer.app + CC Analyzer_<version>_aarch64.dmg
-npm run build:macos:intel    # dist-intel/CC Analyzer.app + CC Analyzer_<version>_x64.dmg
+npm run build:macos:arm64    # dist-arm64/CC Analyzer.app + CC-Analyzer_<version>_aarch64.dmg
+npm run build:macos:intel    # dist-intel/CC Analyzer.app + CC-Analyzer_<version>_x64.dmg
 npm run build:windows        # dist-windows/ NSIS installer + CC_Analyzer_x64_portable.zip
 ```
 

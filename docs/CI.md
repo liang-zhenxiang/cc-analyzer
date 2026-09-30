@@ -65,8 +65,8 @@ cargo check --manifest-path src-tauri/Cargo.toml
 如果修改了 macOS 或 Windows 打包脚本，还要运行对应打包脚本
 （`npm run build:macos:arm64` / `build:macos:intel` / `build:windows`），
 并检查产物架构、签名和启动：macOS 产出 `CC Analyzer.app` 与
-`CC Analyzer_<版本>_<arch>.dmg`（DMG 内含 `Applications` 符号链接），
-Windows 产出 NSIS 安装程序 `CC Analyzer_<版本>_x64-setup.exe` 与便携版
+`CC-Analyzer_<版本>_<arch>.dmg`（DMG 内含 `Applications` 符号链接），
+Windows 产出 NSIS 安装程序 `CC-Analyzer_<版本>_x64-setup.exe` 与便携版
 `CC_Analyzer_x64_portable.zip`。
 
 ## 规范约定

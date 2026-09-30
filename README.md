@@ -41,9 +41,9 @@ Grab the build for your platform from
 
 | Platform | Download |
 | --- | --- |
-| macOS Apple Silicon | `CC Analyzer_<version>_aarch64.dmg` |
-| macOS Intel | `CC Analyzer_<version>_x64.dmg` |
-| Windows x64 | `CC Analyzer_<version>_x64-setup.exe` — installer (Start menu entry, uninstaller) |
+| macOS Apple Silicon | `CC-Analyzer_<version>_aarch64.dmg` |
+| macOS Intel | `CC-Analyzer_<version>_x64.dmg` |
+| Windows x64 | `CC-Analyzer_<version>_x64-setup.exe` — installer (Start menu entry, uninstaller) |
 | Windows x64 (portable) | `CC_Analyzer_x64_portable.zip` — unzip and run, no installation |
 
 Open the dmg and drag **CC Analyzer** onto the `Applications` shortcut.

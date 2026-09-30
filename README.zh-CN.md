@@ -37,9 +37,9 @@
 
 | 平台 | 产物 |
 | --- | --- |
-| macOS Apple Silicon | `CC Analyzer_<版本>_aarch64.dmg` |
-| macOS Intel | `CC Analyzer_<版本>_x64.dmg` |
-| Windows x64 | `CC Analyzer_<版本>_x64-setup.exe` —— 安装程序（开始菜单项 + 卸载入口） |
+| macOS Apple Silicon | `CC-Analyzer_<版本>_aarch64.dmg` |
+| macOS Intel | `CC-Analyzer_<版本>_x64.dmg` |
+| Windows x64 | `CC-Analyzer_<版本>_x64-setup.exe` —— 安装程序（开始菜单项 + 卸载入口） |
 | Windows x64（便携版） | `CC_Analyzer_x64_portable.zip` —— 解压即用，不写注册表 |
 
 打开 dmg 后把 **CC Analyzer** 拖到 `Applications` 快捷方式上即可。

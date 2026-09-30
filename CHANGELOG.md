@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Windows releases now include an **NSIS installer** (`CC Analyzer_<version>_x64-setup.exe`) next to the portable zip. It installs into the user profile with a Start menu entry and an uninstaller, and needs no administrator rights.
+- Windows releases now include an **NSIS installer** (`CC-Analyzer_<version>_x64-setup.exe`) next to the portable zip. It installs into the user profile with a Start menu entry and an uninstaller, and needs no administrator rights.
 - The project-root `package.json` supplies the build toolchain (`@tauri-apps/cli`, pinned by `package-lock.json`) with `npm run build:macos*` / `build:windows` entries, so packaging no longer relies on a globally installed CLI.
 
 ### Changed

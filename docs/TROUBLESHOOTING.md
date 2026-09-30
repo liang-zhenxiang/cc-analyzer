@@ -123,7 +123,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1
 
 Windows 现在走 Tauri 官方打包，一次产出两种形态，都在 `dist-windows/`：
 
-- NSIS 安装程序 `CC Analyzer_<版本>_x64-setup.exe`（双击安装，带开始菜单项与
+- NSIS 安装程序 `CC-Analyzer_<版本>_x64-setup.exe`（双击安装，带开始菜单项与
   卸载入口）；
 - 便携版 `CC_Analyzer_x64_portable.zip`（解压即用，不需要安装）。
 

@@ -43,7 +43,7 @@
 - Frontend tests use Vitest, jsdom, and React Testing Library. Place tests beside implementation files as `*.test.ts` or `*.test.tsx`, and shared JSONL fixtures under `web/tests/fixtures/`.
 - Before submitting, run `./scripts/lint.sh`, `npm --prefix web test`, `npm --prefix web run build`, `cargo fmt --manifest-path src-tauri/Cargo.toml --check`, `cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings`, and `cargo check --manifest-path src-tauri/Cargo.toml`.
 - For parser, duration, filter, or report changes, add or update fixture-based tests.
-- For packaging changes, run the Intel macOS build script and confirm that `dist-intel/CC Analyzer.app` and `dist-intel/CC Analyzer_<version>_x64.dmg` are produced (Windows builds emit both a `-setup.exe` NSIS installer and `CC_Analyzer_x64_portable.zip` under `dist-windows/`).
+- For packaging changes, run the Intel macOS build script and confirm that `dist-intel/CC Analyzer.app` and `dist-intel/CC-Analyzer_<version>_x64.dmg` are produced (Windows builds emit both a `-setup.exe` NSIS installer and `CC_Analyzer_x64_portable.zip` under `dist-windows/`).
 - If adding Rust tests, place unit tests beside the code in `src-tauri/src/` and name them for the behavior under test.
 
 ## Commit & Pull Request Guidelines
