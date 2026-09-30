@@ -163,7 +163,7 @@ which layer a change needs, acceptance criteria, and the pitfalls — live in
 - Place unit tests beside implementation files as `*.test.ts` / `*.test.tsx`; shared JSONL fixtures go under `web/tests/fixtures/` and are used by **both** the unit and the end-to-end suites.
 - **New features ship with tests.** Parser, duration, filter or report changes need fixture-based cases.
 - For parser, duration, filter, or report changes, add or update fixture-based tests.
-- Before submitting, run `./scripts/lint.sh`, `npm --prefix web test`, `npm --prefix web run build`, `cargo fmt --manifest-path src-tauri/Cargo.toml --check`, `cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings`, and `cargo check --manifest-path src-tauri/Cargo.toml`, and `cargo test --manifest-path src-tauri/Cargo.toml`.
+- Before submitting, run `./scripts/lint.sh`, `npm --prefix web test`, `npm --prefix web run build`, `cargo fmt --manifest-path src-tauri/Cargo.toml --check`, `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings`, `cargo check --manifest-path src-tauri/Cargo.toml`, and `cargo test --manifest-path src-tauri/Cargo.toml`.
 - For packaging changes, run the Intel macOS build script and confirm that `dist-intel/CC Analyzer.app` and `dist-intel/CC-Analyzer_<version>_x64.dmg` are produced (Windows builds emit both a `-setup.exe` NSIS installer and `CC_Analyzer_x64_portable.zip` under `dist-windows/`). Packaging is **not** exercised by CI — sending a pre-release tag remains the only real verification.
 - If adding Rust tests, place unit tests beside the code in `src-tauri/src/` and name them for the behavior under test.
 

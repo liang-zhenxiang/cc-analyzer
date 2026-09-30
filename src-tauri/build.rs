@@ -8,6 +8,7 @@ fn main() {
                 "read_head",
                 "write_text",
                 "run_lines",
+                "cancel_lines",
                 "exec_text",
                 "spawn_detached",
                 "home_dir",

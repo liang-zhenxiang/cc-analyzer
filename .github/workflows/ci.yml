@@ -280,7 +280,9 @@ jobs:
           restore-keys: cargo-clippy-${{ runner.os }}-
 
       - name: 运行 cargo clippy
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+        # `--all-targets` 让 `#[cfg(test)]` 里的代码也进 lint 范围。不带它时
+        # 测试代码不受保护——本地写测试踩出的 lint 要等真去跑 clippy 才发现。
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
   # ---------------------------------------------------------------------------
   # Rust 编译检查（与 CONTRIBUTING 中的验证命令保持一致）
