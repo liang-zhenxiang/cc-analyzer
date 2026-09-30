@@ -132,7 +132,14 @@
   height: 4px;
 }
 
-.groups button {
+/* 会话按钮的样式，**刻意限定在会话行内**。
+   早先这里写的是不分青红皂白的 `.groups button`，它把分组折叠按钮也一并选中——
+   而 `0,1,1` 的特异性高过 `.groupToggle` 的 `0,1,0`，于是静默覆盖了后者的
+   `display: flex`。折叠按钮因此变成纵向网格、撑破 38px 的行高，
+   计数徽标压在下面第一条会话上，**把本该属于它的点击吞掉了**。
+   收窄到会话行，是为了让「往 .groups 里再加按钮」不再重蹈覆辙。 */
+.groups .sessionRow button,
+.groups .sessionRowWithStatus button {
   display: grid;
   width: 100%;
   gap: 3px;
@@ -146,16 +153,20 @@
   cursor: pointer;
 }
 
-.groups button:hover {
+.groups .sessionRow button:hover,
+.groups .sessionRowWithStatus button:hover {
   background: var(--bg-hover);
 }
 
-.groups button[aria-current="true"] {
+.groups .sessionRow button[aria-current="true"],
+.groups .sessionRowWithStatus button[aria-current="true"] {
   border-color: var(--accent);
   background: var(--accent-soft);
 }
 
-.groups span {
+/* 同上：限定在会话行内，否则 `.groupCount` 想要的 --text-faint 会被它盖掉。 */
+.groups .sessionRow button span,
+.groups .sessionRowWithStatus button span {
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
