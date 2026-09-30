@@ -21,9 +21,13 @@ jobs:
   # ---------------------------------------------------------------------------
   # 三平台构建矩阵
   #
-  # macOS 的两个架构都在 arm64 runner 上完成：build-macos.sh 通过
+  # 三个平台都走 tauri build：identifier、copyright、publisher、安装程序
+  # 形态这些 bundle 配置集中在 tauri.conf.json，产物因此天然一致——
+  # 不会出现「改了一处配置却只对某个平台生效」。
+  #
+  # macOS 的两个架构都在 arm64 runner 上完成：build-macos.sh 用
   # rustup target add 拉起交叉编译目标，Intel 产物不需要单独的 Intel 机器。
-  # 两个脚本都做 ad-hoc 签名（--sign -），不依赖任何证书 Secret，
+  # 签名身份是 tauri.conf.json 里的 "-"（ad-hoc），不依赖任何证书 Secret，
   # 因此可以在公开 CI 里无人值守运行。
   # ---------------------------------------------------------------------------
   build:
@@ -74,6 +78,16 @@ jobs:
       # 刻意不缓存 cargo（registry / target）：理由同上——
       # release 产物不经过任何缓存路径，杜绝缓存投毒影响分发产物的可能。
 
+      - name: 安装构建工具链
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          # tauri CLI 来自根 package.json 的 devDependency，版本由
+          # package-lock.json 锁定——不在 lockfile 之外临时拉取，
+          # release 产物因此可复现，zizmor 的 adhoc-packages 也不报警
+          npm install --no-audit --no-fund
+          npx tauri --version
+
       - name: 构建打包
         env:
           # ${{ }} 不直接写进 run:，经 env 中转（表达式注入防线）
@@ -82,7 +96,7 @@ jobs:
         run: |
           #!/usr/bin/env bash
           set -euo pipefail
-          # 打包脚本自身会先构建 web 前端（npm ci + build），再交叉/本机编译 Rust
+          # 打包脚本装好前端依赖后调用 tauri build（编译 Rust + 按 bundle 配置打包）
           if [[ "$BUILD_SCRIPT" == *.ps1 ]]; then
             powershell -ExecutionPolicy Bypass -File "scripts/$BUILD_SCRIPT"
           else
@@ -97,6 +111,7 @@ jobs:
           name: ${{ matrix.dist }}
           path: |
             ${{ matrix.dist }}/*.dmg
+            ${{ matrix.dist }}/*.exe
             ${{ matrix.dist }}/*.zip
           if-no-files-found: error
           retention-days: 3

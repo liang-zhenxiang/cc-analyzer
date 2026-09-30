@@ -1,9 +1,10 @@
 CC Analyzer
-Copyright (c) 2026 liang-zhenxiang <116311683@qq.com>
-Copyright (c) 2026 nicholyx <nicholyx@163.com>
+Copyright 2026 CC Analyzer
 
 Licensed under the MIT License. See LICENSE for the full text.
 
 The bundled application links third-party Rust crates and npm packages, each
 of which keeps its own license. Their notices are listed in the dependency
 manifests and lockfiles under `src-tauri/` and `web/`.
+
+Maintainers are listed in MAINTAINERS.md.

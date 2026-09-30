@@ -37,10 +37,12 @@
 
 | 平台 | 产物 |
 | --- | --- |
-| macOS Apple Silicon | `CC_Analyzer_arm64.dmg` |
-| macOS Intel | `CC_Analyzer_x64.dmg` |
-| Windows x64 | `CC_Analyzer_x64.zip` |
+| macOS Apple Silicon | `CC Analyzer_<版本>_aarch64.dmg` |
+| macOS Intel | `CC Analyzer_<版本>_x64.dmg` |
+| Windows x64 | `CC Analyzer_<版本>_x64-setup.exe` —— 安装程序（开始菜单项 + 卸载入口） |
+| Windows x64（便携版） | `CC_Analyzer_x64_portable.zip` —— 解压即用，不写注册表 |
 
+打开 dmg 后把 **CC Analyzer** 拖到 `Applications` 快捷方式上即可。
 macOS 产物为 ad-hoc 签名：首次打开若被 Gatekeeper 拦截，右键 →「打开」即可。
 
 ### 从源码构建
@@ -48,17 +50,25 @@ macOS 产物为 ad-hoc 签名：首次打开若被 Gatekeeper 拦截，右键 �
 环境要求：Node.js 22 与 npm、Rust 1.77+、Xcode Command Line Tools
 （macOS）或 Visual Studio Build Tools（Windows）。
 
+三个平台都走 Tauri 官方打包流程，bundle 身份（`identifier`、`copyright`、
+安装程序形态）因此只有一个来源：`src-tauri/tauri.conf.json`。
+
 ```bash
-# macOS Apple Silicon
-./scripts/build-arm64-macos.sh     # → dist-arm64/CC Analyzer.app, CC_Analyzer_arm64.dmg
+npm install                    # 构建工具链（Tauri CLI）
 
-# macOS Intel（交叉编译）
-./scripts/build-intel-macos.sh     # → dist-intel/CC Analyzer.app, CC_Analyzer_x64.dmg
+# macOS Apple Silicon            → dist-arm64/CC Analyzer.app + .dmg
+npm run build:macos:arm64
 
-# Windows（PowerShell）
-powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1
-# → dist-windows/CC_Analyzer_x64.zip
+# macOS Intel（交叉编译）        → dist-intel/CC Analyzer.app + .dmg
+npm run build:macos:intel
+
+# Windows（PowerShell）           → dist-windows/ NSIS 安装程序 + 便携版 zip
+npm run build:windows
 ```
+
+`scripts/` 下的打包脚本是同一套命令的封装，所以
+`./scripts/build-macos.sh x86_64` 也能用。macOS 产物为 ad-hoc 签名
+（`signingIdentity: "-"`），不需要开发者证书。
 
 ## 文档索引
 
@@ -96,11 +106,11 @@ cargo check --manifest-path src-tauri/Cargo.toml
 
 ```
 web/           React + TypeScript + Vite 前端源码
-src-tauri/     Tauri 2 后端：Rust 命令层、应用配置、capabilities
-packaging/     macOS 打包元数据与图标
-scripts/       打包脚本、lint 统一入口、提交信息校验
+src-tauri/     Tauri 2 后端：Rust 命令层、应用配置、bundle 配置与图标
+scripts/       打包入口、lint 统一入口、提交信息校验
 docs/          使用、架构、排错、维护者文档
 .github/       工作流、Issue/PR 模板、治理配置
+package.json   构建工具链（Tauri CLI）与打包入口
 ```
 
 ## 路线图

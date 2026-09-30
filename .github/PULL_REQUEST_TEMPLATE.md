@@ -35,16 +35,17 @@ Closes #
 
 <!--
 请不要只写「测试通过」。具体说明你做了什么，例如：
-- 跑了 npm --prefix web test / run build
+- 跑了 npm test / npm run build（根脚本，转发到 web/）
 - 跑了 cargo check / clippy / fmt --check（manifest 见 CONTRIBUTING.md）
 - 在 macOS Apple Silicon 上真实打开应用验证了某个界面行为
-- 跑了 ./scripts/build-arm64-macos.sh 并安装了产出的 dmg
+- 跑了 npm run build:macos:arm64 并安装了产出的 dmg
+- 跑了 npm run build:windows 并验证了 NSIS 安装程序与便携版 zip
 -->
 
 ## 提交前检查清单
 
 - [ ] 我已在本地运行与 CI 相同的检查（见 CONTRIBUTING.md「本地检查」一节）
-- [ ] 我的提交信息遵循[约定式提交规范](CONTRIBUTING.zh-CN.md#提交信息规范)
+- [ ] 我的提交信息遵循[约定式提交规范](../CONTRIBUTING.zh-CN.md#提交信息规范)
 - [ ] 如果改动了用户可见的行为，我已在 CHANGELOG.md 的 `Unreleased` 段落中补充说明
 - [ ] 如果改动涉及版本号，`web/package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`、`packaging/macos/Info.plist` 已同步
 - [ ] 我没有在代码、日志或截图里泄露任何会话内容、路径或个人数据

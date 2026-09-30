@@ -83,6 +83,28 @@ updates:
       - "liang-zhenxiang"
       - "nicholyx"
 
+  # 构建工具链依赖（根 package.json：Tauri CLI）。
+  # 它决定打包产物的生成方式，所以和 CI 配置一样单独归类。
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 3
+    cooldown:
+      default-days: 7
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "build"
+      include: "scope"
+    reviewers:
+      - "liang-zhenxiang"
+      - "nicholyx"
+
   # 工作流引用的 GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"

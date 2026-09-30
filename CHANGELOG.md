@@ -4,10 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Windows releases now include an **NSIS installer** (`CC Analyzer_<version>_x64-setup.exe`) next to the portable zip. It installs into the user profile with a Start menu entry and an uninstaller, and needs no administrator rights.
+- The project-root `package.json` supplies the build toolchain (`@tauri-apps/cli`, pinned by `package-lock.json`) with `npm run build:macos*` / `build:windows` entries, so packaging no longer relies on a globally installed CLI.
+
 ### Changed
 
-- Project metadata credits both maintainers with contact addresses: `src-tauri/Cargo.toml` (`authors`, plus the new `repository` field), `web/package.json` (`author` / `contributors`), `LICENSE`, and `NOTICE`.
+- All three platforms now build through Tauri's official bundler (`tauri build`), which makes `identifier`, `copyright`, `publisher` and installer shape a single source of truth in `src-tauri/tauri.conf.json`. Two things follow for users: the macOS dmg now carries an `Applications` shortcut, and the copyright field is populated in the bundles themselves (`NSHumanReadableCopyright` on macOS, the installer's version info on Windows).
+- Copyright now reads **Copyright 2026 CC Analyzer** rather than individual names — in `LICENSE`, `NOTICE`, and the packaged bundles. Maintaining a project-name copyright keeps the attribution stable as maintainers change; the people responsible are listed separately in `MAINTAINERS.md`, `src-tauri/Cargo.toml`, `web/package.json` and `.github/CODEOWNERS`.
 - The macOS bundle identifier changed from `com.flydiy.cc-analyzer` to `io.github.liang-zhenxiang.cc-analyzer` — derived from the project's GitHub identity instead of a domain the project does not own. App data (metadata cache, thresholds, theme) lives under the new identifier's application-support directory; an existing 0.2.0 install keeps its data under the old directory, so the new build recreates titles and settings on first launch.
+
+### Removed
+
+- The `packaging/` directory is gone. It held a hand-written `Info.plist` and a copy of the app icon, both only needed by the old hand-rolled bundler. Tauri now generates the plist from `tauri.conf.json` (verified key-for-key, plus `NSHumanReadableCopyright`) and reads the icon from `src-tauri/icons/`, whose `icon.icns` was byte-identical to the copy. This also drops the version file that had to be kept in sync by hand: releases now bump three places instead of four.
 
 ## [0.2.0] - 2026-09-30
 

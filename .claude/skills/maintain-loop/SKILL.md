@@ -194,7 +194,13 @@ git status --short && git log --oneline -3
 6. `release.yml` 自动执行：三平台构建（macOS ARM64 / Intel / Windows）→
    三段式发布说明（CHANGELOG 手写段 + GitHub 原生 PR 清单 + 可选 AI 摘要，
    未配 `ANTHROPIC_API_KEY` 走降级路径，不影响发布）→ 创建 Release 并上传产物。
-7. 验证：`gh release view vX.Y.Z` 确认说明与产物齐全、
+   三平台统一走 Tauri 官方打包（`tauri build`），bundle 配置集中在
+   `src-tauri/tauri.conf.json`，产物名形如 `<productName>_<版本>_<arch>.<ext>`：
+   - macOS Apple Silicon：`CC Analyzer_<版本>_aarch64.dmg`
+   - macOS Intel：`CC Analyzer_<版本>_x64.dmg`
+   - Windows x64：`CC Analyzer_<版本>_x64-setup.exe`（NSIS 安装程序）
+   - Windows x64 便携版：`CC_Analyzer_x64_portable.zip`
+7. 验证：`gh release view vX.Y.Z` 确认说明与上述四类产物齐全、
    `gh run list --workflow=release.yml` 确认成功。
 
 ### 发布幂等
@@ -229,7 +235,8 @@ release 内容。
 | 操作 | 命令 |
 | --- | --- |
 | 本地全量静态检查 | `./scripts/lint.sh` |
-| 前端测试 / 构建 | `npm --prefix web test` / `npm --prefix web run build` |
+| 前端测试 / 构建 | `npm test` / `npm run build`（根脚本转发到 `web/`；等价于 `npm --prefix web test` / `run build`） |
+| 打包（三平台） | `npm run build:macos:arm64` / `build:macos:intel` / `build:windows`（内部为 `npx tauri build`，脚本自动装依赖；Tauri CLI 来自根 `package.json` 的 devDependency，无需全局安装） |
 | Rust 检查 | `cargo fmt --check`、`cargo clippy -- -D warnings`、`cargo check`（manifest-path 见 CONTRIBUTING.md） |
 | 提交信息预检 | `./scripts/check-commit-msg.sh --message "..."` |
 | 建里程碑 | `gh api repos/liang-zhenxiang/cc-analyzer/milestones -f title=... -f state=open` |

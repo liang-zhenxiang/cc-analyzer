@@ -1,0 +1,19 @@
+{
+  "name": "cc-analyzer-build",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Build tooling for the CC Analyzer desktop application. The web frontend keeps its own manifest in web/package.json.",
+  "scripts": {
+    "build": "npm --prefix web run build",
+    "test": "npm --prefix web test",
+    "tauri": "tauri",
+    "build:macos": "bash scripts/build-macos.sh",
+    "build:macos:arm64": "bash scripts/build-macos.sh aarch64",
+    "build:macos:intel": "bash scripts/build-macos.sh x86_64",
+    "build:windows": "powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.0"
+  },
+  "license": "MIT"
+}

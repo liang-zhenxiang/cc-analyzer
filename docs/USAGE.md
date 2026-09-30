@@ -8,22 +8,29 @@
 
 到 [Releases](https://github.com/liang-zhenxiang/cc-analyzer/releases) 页面下载对应平台的产物：
 
-| 平台 | 产物 |
-| --- | --- |
-| macOS Apple Silicon | `CC_Analyzer_arm64.dmg` |
-| macOS Intel | `CC_Analyzer_x64.dmg` |
-| Windows x64 | `CC_Analyzer_x64.zip` |
+| 平台 | 产物 | 说明 |
+| --- | --- | --- |
+| macOS Apple Silicon | `CC Analyzer_<版本>_aarch64.dmg` | |
+| macOS Intel | `CC Analyzer_<版本>_x64.dmg` | |
+| Windows x64 | `CC Analyzer_<版本>_x64-setup.exe` | 安装程序：装到用户目录，带开始菜单项与卸载入口，**不需要管理员权限** |
+| Windows x64（便携版） | `CC_Analyzer_x64_portable.zip` | 解压即用，不写注册表、无需安装 |
 
-macOS：打开 dmg，把 **CC Analyzer** 拖进「应用程序」。产物使用 ad-hoc 签名，
-首次打开若被 Gatekeeper 拦截，右键 →「打开」即可（只需一次）。
+macOS：打开 dmg，把 **CC Analyzer** 拖到窗口里的 `Applications` 快捷方式上。
+产物使用 ad-hoc 签名，首次打开若被 Gatekeeper 拦截，右键 →「打开」即可（只需一次）。
 
-Windows：解压 zip 后直接运行 `CC Analyzer.exe`。
+Windows：**推荐用安装程序**（`-setup.exe`），双击后按提示完成即可。如果是
+放到 U 盘随身携带、或不允许安装到系统的场景，用便携版 zip 解压后直接运行
+`CC Analyzer.exe`。
 
 ### 方式二：从源码构建
 
-见 [README 的 Build 一节](../README.md#build)。macOS 用
-`./scripts/build-arm64-macos.sh` / `./scripts/build-intel-macos.sh`，
-Windows 用 `powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1`。
+见 [README 的 Build 一节](../README.md#build-from-source)。三个平台都走
+Tauri 官方打包流程：
+
+```bash
+npm install                # 构建工具链（Tauri CLI）
+npm run build:macos:arm64  # 或 build:macos:intel / build:windows
+```
 
 ## 系统要求
 
