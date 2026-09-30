@@ -35,10 +35,10 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } }
     },
     {
-      // macOS 上 Tauri 用的是 WKWebView，而真机截图需要使用者手动授予
-      // 「屏幕录制」权限（详见 .trellis/spec/testing/gui-tests.md）。
-      // 跑一遍 WebKit 是在无权限前提下能做到的**最高保真近似**：
-      // 同一引擎家族的渲染结果，且能进 CI。
+      // macOS 上 Tauri 用的是 WKWebView，所以这一轮跑的是**与发布应用同一引擎
+      // 家族**的渲染——真实表单控件、真实 HiDPI。跑两遍的收益是能抓到引擎相关
+      // 的差异；真机窗口本身的截图由 scripts/gui-test.sh 负责（见
+      // .trellis/spec/testing/gui-tests.md）。
       name: "webkit",
       use: { ...devices["Desktop Safari"], viewport: { width: 1440, height: 900 } }
     }

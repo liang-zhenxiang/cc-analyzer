@@ -549,6 +549,85 @@ fn import_session_menu(app: &tauri::AppHandle) {
         });
 }
 
+/// 真机 GUI 测试取证：把应用自己的 webview 渲染成 PDF。
+///
+/// **为什么需要它**：macOS 上截取屏幕内容要「屏幕录制」权限，而那只有使用者能在
+/// 系统设置里授予——脚本无法申请。实测过连「进程截自己的窗口」也会拿到一张
+/// 尺寸正确但像素全透明的图（详见 `.trellis/spec/testing/gui-tests.md`）。
+///
+/// 这里走的是另一条路：`WKWebView.createPDF` 是 **WebKit 渲染自己的内容**，
+/// 根本不经过截屏通道，因此不受 TCC 限制。拿到 PDF 后由测试脚本转成 PNG。
+///
+/// 只有启用 `gui-capture` feature 才会编译这段代码——**发布构建里没有它**。
+#[cfg(all(target_os = "macos", feature = "gui-capture"))]
+mod gui_capture {
+    use block2::RcBlock;
+    use objc2_foundation::{NSData, NSError};
+    use objc2_web_kit::WKWebView;
+    use std::path::PathBuf;
+    use std::time::Duration;
+    use tauri::Manager;
+
+    /// 应用启动后等这么久再取图：要留出 webview 完成首次渲染的时间。
+    /// 截早了会拿到半张白屏，而那种失败是**静默**的（能生成文件，内容却是空的）。
+    const SETTLE_MS: u64 = 6_000;
+
+    pub fn spawn(webview: tauri::Webview, out: PathBuf) {
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(SETTLE_MS));
+            let result = webview.with_webview(move |platform| {
+                // `inner()` 在 macOS 上返回底层 WKWebView 的裸指针。
+                let ptr = platform.inner().cast::<WKWebView>();
+                if ptr.is_null() {
+                    eprintln!("gui-capture: 拿不到 WKWebView 指针");
+                    return;
+                }
+                let wk: &WKWebView = unsafe { &*ptr };
+
+                let target = out.clone();
+                let handler = RcBlock::new(move |data: *mut NSData, error: *mut NSError| {
+                    if !data.is_null() {
+                        let bytes = unsafe { (*data).to_vec() };
+                        match std::fs::write(&target, &bytes) {
+                            Ok(()) => println!("gui-capture: 已写出 {} 字节", bytes.len()),
+                            Err(err) => eprintln!("gui-capture: 写文件失败 {err}"),
+                        }
+                    } else {
+                        let msg = if error.is_null() {
+                            "未知错误".to_string()
+                        } else {
+                            unsafe { (*error).localizedDescription().to_string() }
+                        };
+                        eprintln!("gui-capture: 取图失败 {msg}");
+                    }
+                    // 刻意不退出：应用由测试脚本统一管理生命周期，
+                    // 这样同一次启动里还能跑「存活 / 内存 / 缓存 / 正常退出」那些断言。
+                });
+
+                // 配置传 None：按文档，这会取「当前显示范围」的整页，
+                // 而不是分页的打印版式。
+                unsafe { wk.createPDFWithConfiguration_completionHandler(None, &handler) };
+            });
+            if let Err(err) = result {
+                eprintln!("gui-capture: with_webview 失败 {err}");
+            }
+        });
+    }
+
+    /// 由 `setup` 调用：只有设了 `CCA_GUI_CAPTURE` 才生效，否则完全惰性。
+    pub fn maybe_spawn(app: &tauri::App) {
+        let Ok(target) = std::env::var("CCA_GUI_CAPTURE") else {
+            return;
+        };
+        if target.trim().is_empty() {
+            return;
+        }
+        if let Some(webview) = app.get_webview_window("main") {
+            spawn(webview.as_ref().clone(), PathBuf::from(target));
+        }
+    }
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -589,6 +668,11 @@ pub fn run() {
             if let Ok(parent) = app.path().app_data_dir() {
                 let _ = std::fs::create_dir_all(parent);
             }
+
+            // 真机 GUI 测试取证；未设 CCA_GUI_CAPTURE 时什么都不做。
+            #[cfg(all(target_os = "macos", feature = "gui-capture"))]
+            gui_capture::maybe_spawn(app);
+
             Ok(())
         })
         .run(tauri::generate_context!())

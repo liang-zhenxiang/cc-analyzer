@@ -52,7 +52,15 @@ npm --prefix web ci
 
 # tauri build 依次执行：beforeBuildCommand（构建 web/dist）→ cargo build
 # → 打包 .app 与 .dmg（签名身份取 tauri.conf.json 里的 signingIdentity）
-npx tauri build --target "$RUST_TARGET"
+# 可选的 cargo feature 透传。真机 GUI 测试用 `TAURI_BUILD_FEATURES=gui-capture`
+# 让应用能把自己的 webview 渲染成图（见 scripts/gui-test.sh）。
+# **默认不传**——发布产物里不该带这段代码。
+if [[ -n "${TAURI_BUILD_FEATURES:-}" ]]; then
+  echo "启用 cargo feature：${TAURI_BUILD_FEATURES}" >&2
+  npx tauri build --target "$RUST_TARGET" --features "$TAURI_BUILD_FEATURES"
+else
+  npx tauri build --target "$RUST_TARGET"
+fi
 
 # 把产物收集到 dist-* 目录，发布工作流按这个约定取文件
 BUNDLE_DIR="src-tauri/target/$RUST_TARGET/release/bundle"
