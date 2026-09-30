@@ -223,7 +223,71 @@ if [[ ${#PS_TARGETS[@]} -gt 0 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 6. zizmor —— 工作流安全扫描（对应 CI 的 zizmor job）
+# 6. Python 语法 —— .claude/hooks 与 .trellis/scripts 是**每次会话自动执行**的代码
+#
+#    意义与 shellcheck 之于 scripts/ 相同，但对象更敏感：hook 一旦有语法错误，
+#    每次会话的上下文注入会**静默失效**——它只往 stderr 打一行，很容易被当成
+#    噪音略过，而使用者以为自己还受规范约束。
+#
+#    用 ast.parse 而不是 py_compile：后者会在源码旁写 __pycache__。
+# ---------------------------------------------------------------------------
+PY_TARGETS=()
+while IFS= read -r f; do
+  PY_TARGETS+=("$f")
+done < <(find .claude/hooks .trellis/scripts -name '*.py' -not -path '*__pycache__*' 2>/dev/null | sort)
+
+check_python_syntax() {
+  local f
+  for f in "${PY_TARGETS[@]}"; do
+    if ! python3 -c \
+      'import ast,sys; ast.parse(open(sys.argv[1],encoding="utf-8").read(), sys.argv[1])' \
+      "$f" 2>/dev/null; then
+      printf '  %s✗ %s 语法错误：%s\n' "$C_RED" "$f" "$C_RESET"
+      python3 -c \
+        'import ast,sys; ast.parse(open(sys.argv[1],encoding="utf-8").read(), sys.argv[1])' \
+        "$f" 2>&1 | tail -2
+      return 1
+    fi
+  done
+  return 0
+}
+
+if ! command -v python3 >/dev/null 2>&1; then
+  skip_check "Python 语法（自动执行的 hook 与脚本）" "未安装 python3" \
+    "Trellis 的 hook 由 python3 驱动，没有它这些 hook 本来也跑不起来"
+elif [[ ${#PY_TARGETS[@]} -gt 0 ]]; then
+  run_check "Python 语法（自动执行的 hook 与脚本）" check_python_syntax
+fi
+
+# ---------------------------------------------------------------------------
+# 7. JSON 合法性 —— .claude/settings.json 决定 hook 能否被加载
+#
+#    这份配置写坏了不会报错，只会让 hook 静默不生效。用 python3 -m json.tool
+#    做纯解析校验（不格式化、不回写）。
+# ---------------------------------------------------------------------------
+JSON_TARGETS=()
+while IFS= read -r f; do
+  JSON_TARGETS+=("$f")
+done < <(find .claude -maxdepth 1 -name '*.json' 2>/dev/null | sort)
+
+check_json_valid() {
+  local f
+  for f in "${JSON_TARGETS[@]}"; do
+    if ! python3 -m json.tool "$f" >/dev/null 2>&1; then
+      printf '  %s✗ %s 不是合法 JSON：%s\n' "$C_RED" "$f" "$C_RESET"
+      python3 -m json.tool "$f" 2>&1 | tail -2
+      return 1
+    fi
+  done
+  return 0
+}
+
+if [[ ${#JSON_TARGETS[@]} -gt 0 ]] && command -v python3 >/dev/null 2>&1; then
+  run_check "JSON 合法性（Claude Code 配置）" check_json_valid
+fi
+
+# ---------------------------------------------------------------------------
+# 8. zizmor —— 工作流安全扫描（对应 CI 的 zizmor job）
 #
 #    镜像引用从 ci.yml 抽，不写第二份：写死会在 CI 升级时静默漂移，
 #    而这一项的全部价值就是「本地过 = CI 过」。

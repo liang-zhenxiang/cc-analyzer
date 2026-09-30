@@ -1,0 +1,30 @@
+{
+  "id": "v030-overhaul",
+  "name": "v030-overhaul",
+  "title": "v0.3.0 工程化与体验升级（总目标）",
+  "description": "承载 v0.3.0 的总体目标与用户原始要求，作为三个子任务（测试体系 / UI-UX 精品化 / 竞品对齐）的父任务；本身不直接实现",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "liangyuxiang",
+  "assignee": "liangyuxiang",
+  "createdAt": "2026-10-01",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "10-01-testing-infra",
+    "10-01-ui-ux-overhaul",
+    "10-01-feature-parity"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
