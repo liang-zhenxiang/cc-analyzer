@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+
+## [0.2.1] - 2026-09-30
+
+本轮主题：打包与项目身份统一——三平台改走 Tauri 官方打包流程，Windows 增加 NSIS 安装程序，版权署名与维护者名单规范化。
+
 ### Added
 
 - Windows releases now include an **NSIS installer** (`CC Analyzer_<version>_x64-setup.exe`) next to the portable zip. It installs into the user profile with a Start menu entry and an uninstaller, and needs no administrator rights.
