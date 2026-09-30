@@ -62,6 +62,22 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    # React 19 是独立的大版本迁移：@types 必须成套更换，代码也要跟着适配，
+    # 需要单独排期，不适合和日常依赖升级混在一起。这里只拦 major，
+    # minor/patch 仍然照常跟进。
+    ignore:
+      - dependency-name: "react"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "react-dom"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "@types/react"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "@types/react-dom"
+        update-types:
+          - "version-update:semver-major"
     reviewers:
       - "nicholyx"
 
