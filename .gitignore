@@ -12,6 +12,12 @@ src-tauri/gen/
 *.dmg
 *.log
 
+# Playwright 端到端测试产物（截图、录像、trace、HTML 报告）
+web/e2e-results/
+web/e2e-report/
+web/playwright-report/
+web/test-results/
+
 # 编辑器与 AI 助手的本地配置（每人自己的工作区设置，不入库）
 .idea/
 .claude/settings.local.json

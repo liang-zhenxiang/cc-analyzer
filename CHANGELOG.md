@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- An **end-to-end test suite** (Playwright) that drives the real production bundle in a real browser. It stubs the Tauri bridge at the boundary the app actually calls — `window.__TAURI_INTERNALS__` — so no application code is test-aware and no stub ships in a release. It found the group-toggle click bug above on its first run.
+
 ### Fixed
 
 - Clicking the first session of a group collapsed the group instead of selecting that session. `SessionList.module.css` carried an unscoped `.groups button` rule that also matched the group collapse toggle; being more specific than `.groupToggle`, it silently overrode the toggle's `display: flex`. The toggle then laid out as a vertical grid, overran its fixed 38px row by 40px, and its count badge came to rest on top of the first session — where it absorbed the click. Found by the new end-to-end suite, which could not click the session for the same reason a user could not. The session-button rules are now scoped to the session rows, so adding another button under `.groups` cannot bring this back.

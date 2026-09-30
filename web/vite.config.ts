@@ -28,6 +28,10 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
-    setupFiles: "./vitest.setup.ts"
+    setupFiles: "./vitest.setup.ts",
+    // 只收 src 下的单测。Playwright 的 e2e/*.spec.ts 也叫 .spec，
+    // 不显式收窄的话 vitest 会去跑它们——而它们需要真实浏览器与
+    // 一个跑着的预览服务器，在 jsdom 里只会以一堆看不懂的错误失败。
+    include: ["src/**/*.test.{ts,tsx}"]
   }
 });

@@ -14,7 +14,7 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "noEmit": true,
-    "types": ["vite/client", "vitest/globals"]
+    "types": ["vite/client", "vitest/globals", "node"]
   },
-  "include": ["src", "vitest.setup.ts", "vite.config.ts"]
+  "include": ["src", "e2e", "vitest.setup.ts", "vite.config.ts", "playwright.config.ts"]
 }
