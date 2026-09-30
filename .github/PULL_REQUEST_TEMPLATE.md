@@ -47,7 +47,7 @@ Closes #
 - [ ] 我已在本地运行与 CI 相同的检查（见 CONTRIBUTING.md「本地检查」一节）
 - [ ] 我的提交信息遵循[约定式提交规范](../CONTRIBUTING.zh-CN.md#提交信息规范)
 - [ ] 如果改动了用户可见的行为，我已在 CHANGELOG.md 的 `Unreleased` 段落中补充说明
-- [ ] 如果改动涉及版本号，`web/package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`、`packaging/macos/Info.plist` 已同步
+- [ ] 如果改动涉及版本号，`web/package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json` 已同步
 - [ ] 我没有在代码、日志或截图里泄露任何会话内容、路径或个人数据
 - [ ] 我没有提交生成产物（`web/dist/`、`node_modules/`、`target/`、`dist-*`）
 - [ ] Tauri capability / 权限没有放宽（如有放宽，请在下方说明必要性）
