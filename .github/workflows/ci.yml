@@ -189,8 +189,11 @@ jobs:
       - name: 安装依赖
         run: npm --prefix web ci
 
-      - name: 安装 Chromium
-        run: npx --prefix web playwright install --with-deps chromium
+      # WebKit 也要装：macOS 上 Tauri 用的是 WKWebView，
+      # 真机截图受屏幕录制权限限制（详见 .trellis/spec/testing/gui-tests.md），
+      # 跑 WebKit 是同一引擎家族、且不需要任何系统权限的近似。
+      - name: 安装浏览器（Chromium + WebKit）
+        run: npx --prefix web playwright install --with-deps chromium webkit
 
       - name: 运行端到端测试
         run: npm --prefix web run test:e2e
