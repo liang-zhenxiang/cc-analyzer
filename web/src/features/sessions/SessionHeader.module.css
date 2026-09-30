@@ -32,7 +32,8 @@
   white-space: nowrap;
 }
 
-.chip {
+.chip,
+.chipButton {
   display: inline-flex;
   min-width: 0;
   align-items: center;
@@ -49,7 +50,35 @@
   white-space: nowrap;
 }
 
-.chip b {
+.chip b,
+.chipButton b {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+/* 成本 chip 是个按钮（它展开面板），外观与相邻的静态 chip 完全一致——
+   按钮不能继承 font，所以逐项取回，而不是用 font 简写覆盖上面的字号。 */
+.chipButton {
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-hover) var(--ease-in-out),
+    color var(--dur-hover) var(--ease-in-out);
+}
+
+.chipButton:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.chipButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 「成本未知」是标注而非告警：它是本面板长期存在的状态，
+   在这里用警示色会让标题栏每次都在喊狼来了。 */
+.cost {
   color: var(--text-secondary);
   font-weight: 600;
 }
@@ -61,7 +90,13 @@
   white-space: nowrap;
 }
 
-.header button {
+/* 「打开位置」独占行尾。用 :not 把成本 chip 排除在外——它必须紧挨「总耗时」，
+   否则 margin-left: auto 会把它甩到行尾，和它并列的语义就断了。 */
+.header button:not(.chipButton) {
   margin-left: auto;
+  white-space: nowrap;
+}
+
+.chipButton {
   white-space: nowrap;
 }

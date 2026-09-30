@@ -4,7 +4,8 @@ import {
   formatBytes,
   formatDateTime,
   formatDuration,
-  formatRelativeTime
+  formatRelativeTime,
+  formatTokenCount
 } from "./format";
 
 describe("format helpers", () => {
@@ -19,6 +20,14 @@ describe("format helpers", () => {
     expect(formatBytes(512)).toBe("512B");
     expect(formatBytes(2048)).toBe("2KB");
     expect(formatBytes(1_572_864)).toBe("1.5MB");
+  });
+
+  it("formats token counts compactly without hiding small values", () => {
+    expect(formatTokenCount(0)).toBe("0");
+    expect(formatTokenCount(120)).toBe("120");
+    expect(formatTokenCount(51_950)).toBe("51,950");
+    expect(formatTokenCount(16_498_154)).toBe("16.5M");
+    expect(formatTokenCount(5_784_080_022)).toBe("5.78B");
   });
 
   it("formats timestamps in Chinese", () => {

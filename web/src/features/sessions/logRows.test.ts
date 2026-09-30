@@ -95,7 +95,7 @@ describe("buildLogRows", () => {
       timestamp: 400,
       durationMs: 300,
       mergedWith: "user",
-      tokens: { input: 10, output: 5 }
+      tokens: { prompt: 10, output: 5 }
     });
     expect(rows[0].records).toEqual([user, assistant]);
   });
@@ -160,7 +160,7 @@ describe("buildLogRows", () => {
     expect(rows[2]).toMatchObject({ action: "Workflow · Release", summary: "Release" });
   });
 
-  it("counts cached input tokens and marks failures", () => {
+  it("reports the whole prompt, cached or not, and marks failures", () => {
     const record = base("llm-1", {
       kind: "assistant",
       usage: {
@@ -170,7 +170,9 @@ describe("buildLogRows", () => {
         cacheReadTokens: 100
       }
     });
-    expect(tokensOf(record)).toEqual({ input: 114, output: 7 });
+    // 114 = 3 input + 11 cache write + 100 cache read. The field is `prompt`, not
+    // `input`: calling 114 "输入" is what made the log column unreadable.
+    expect(tokensOf(record)).toEqual({ prompt: 114, output: 7 });
 
     const failed = buildLogRows([
       base("tool-1", { toolName: "Bash", toolCategory: "direct", isError: true })
@@ -217,7 +219,7 @@ describe("buildLogRows", () => {
       action: "tool_use + Bash",
       mergedWith: "tool",
       durationMs: 300,
-      tokens: { input: 30, output: 5 }
+      tokens: { prompt: 30, output: 5 }
     });
   });
 

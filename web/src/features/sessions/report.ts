@@ -65,14 +65,14 @@ function reportTable(records: SessionRecord[]): string[] {
     : records;
   const lines = [
     `## 记录表（共 ${records.length} 条${truncated ? `，按耗时降序取前 ${limit} 条；其余 ${records.length - limit} 条未列出` : "，全部列出"}）`,
-    "| 记录ID | 时间 | 类型 | 摘要 | 耗时 | 输入tok | 输出tok | 状态 |",
+    "| 记录ID | 时间 | 类型 | 摘要 | 耗时 | 提示词tok(含缓存) | 输出tok | 状态 |",
     "|---|---|---|---|---|---|---|---|",
     ...shown.map(
       (record) => {
         const tokens = tokensOf(record);
         return `| ${record.fullId.slice(0, 12)} | ${formatDateTime(record.timestamp)} | ${record.toolName ?? record.kind} | ${truncateText(record.text, 200)
           .replace(/\|/g, "\\|")
-          .replace(/\r?\n/g, " ")} | ${formatDuration(record.durationMs)} | ${tokens?.input ?? ""} | ${tokens?.output ?? ""} | ${record.isError ? "失败" : "正常"} |`;
+          .replace(/\r?\n/g, " ")} | ${formatDuration(record.durationMs)} | ${tokens?.prompt ?? ""} | ${tokens?.output ?? ""} | ${record.isError ? "失败" : "正常"} |`;
       }
     )
   ];

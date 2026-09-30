@@ -5,6 +5,8 @@ import { BridgesProvider } from "../../api/bridges";
 import { NotificationProvider } from "../../app/NotificationProvider";
 import type { Bridges } from "../../api/types";
 
+import tokenFixture from "../../../tests/fixtures/session-token-usage.jsonl?raw";
+
 function createBridges(): Bridges {
   return {
     fs: {
@@ -584,4 +586,39 @@ test("shows the session header and opens the session folder", async () => {
   expect(bridges.system.openFolder).toHaveBeenCalledWith(
     "/home/tester/.claude/projects/project-a"
   );
+});
+
+test("folds the token panel behind the session header chip", async () => {
+  window.localStorage.clear();
+  const user = userEvent.setup();
+  const bridges = createBridges();
+  bridges.fs.readText = vi.fn(async (path: string) => {
+    if (path.endsWith("meta-cache-v2.json")) return JSON.stringify({ version: 1, entries: {} });
+    return path.endsWith(".jsonl") ? tokenFixture : "{}";
+  }) as Bridges["fs"]["readText"];
+
+  render(
+    <BridgesProvider bridges={bridges}>
+      <NotificationProvider>
+        <SessionAnalyzerPage />
+      </NotificationProvider>
+    </BridgesProvider>
+  );
+
+  await user.click(await screen.findByRole("button", { name: /project-a/ }));
+  expect(await screen.findByRole("application", { name: "时间轨道" })).toBeInTheDocument();
+
+  const chip = screen.getByRole("button", { name: /Token 计数/ });
+  // 默认折叠：面板是会话级明细，不该挤占「时间线 + 筛选 + 视图」的主流程高度。
+  expect(chip).toHaveAttribute("aria-expanded", "false");
+  expect(screen.queryByRole("region", { name: "Token 计数" })).not.toBeInTheDocument();
+
+  await user.click(chip);
+  const panel = screen.getByRole("region", { name: "Token 计数" });
+  expect(chip).toHaveAttribute("aria-expanded", "true");
+  expect(within(panel).getByText("缓存读取")).toBeInTheDocument();
+  expect(within(panel).getByText("成本未知 · 未收录该模型定价")).toBeInTheDocument();
+
+  await user.click(chip);
+  expect(screen.queryByRole("region", { name: "Token 计数" })).not.toBeInTheDocument();
 });

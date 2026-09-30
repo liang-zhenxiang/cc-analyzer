@@ -301,7 +301,8 @@ test("shows tokens, tool input/output, structured results, and API errors", () =
     />
   );
 
-  expect(screen.getByText("输入 15 / 输出 2")).toBeInTheDocument();
+  // 15 = 5 input + 10 cache read：标签必须写出这一点，否则「输入 15」会被当成 input_tokens。
+  expect(screen.getByText("提示词(含缓存) 15 / 输出 2")).toBeInTheDocument();
   expect(screen.getByRole("region", { name: "API 错误" })).toHaveTextContent(
     "overloaded_error (529)"
   );

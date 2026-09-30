@@ -66,6 +66,17 @@ function usageOf(value: unknown): SessionUsage | undefined {
   if (typeof value.cache_read_input_tokens === "number") {
     usage.cacheReadTokens = value.cache_read_input_tokens;
   }
+  // The 5m/1h split is reported raw; `tokenTotals.ts` owns the fallback for the
+  // calls that wrote a cache but never got a TTL breakdown.
+  const cacheCreation = isRecord(value.cache_creation) ? value.cache_creation : undefined;
+  if (cacheCreation) {
+    if (typeof cacheCreation.ephemeral_5m_input_tokens === "number") {
+      usage.cacheCreationFiveMinuteTokens = cacheCreation.ephemeral_5m_input_tokens;
+    }
+    if (typeof cacheCreation.ephemeral_1h_input_tokens === "number") {
+      usage.cacheCreationOneHourTokens = cacheCreation.ephemeral_1h_input_tokens;
+    }
+  }
   return Object.keys(usage).length > 0 ? usage : undefined;
 }
 

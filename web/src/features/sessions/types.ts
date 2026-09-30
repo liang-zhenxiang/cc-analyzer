@@ -1,11 +1,24 @@
 export type RecordKind = "user" | "assistant" | "tool" | "wait";
 export type ToolCategory = "direct" | "delegated" | "workflow" | "wait";
 
+/**
+ * `message.usage` as it appears in the transcript. The four counters are kept
+ * apart on purpose — `input + cacheCreation + cacheRead` is the whole prompt,
+ * but it is not `input_tokens`, and the two must not be shown under one label.
+ *
+ * A missing counter is a zero, not an unknown: Claude Code omits
+ * `cache_creation_input_tokens` (and the whole `cache_creation` sub-object)
+ * when the call wrote no cache at all.
+ */
 export type SessionUsage = {
   inputTokens?: number;
   outputTokens?: number;
   cacheCreationTokens?: number;
   cacheReadTokens?: number;
+  /** `cache_creation.ephemeral_5m_input_tokens` — the 5-minute cache tier. */
+  cacheCreationFiveMinuteTokens?: number;
+  /** `cache_creation.ephemeral_1h_input_tokens` — the 1-hour cache tier. */
+  cacheCreationOneHourTokens?: number;
 };
 
 export type SystemTurnDuration = {

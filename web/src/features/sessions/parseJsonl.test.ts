@@ -3,6 +3,7 @@ import { parseJsonlText, parseJsonlTextAsync } from "./parseJsonl";
 
 import fixture from "../../../tests/fixtures/session-basic.jsonl?raw";
 import enhancedFixture from "../../../tests/fixtures/session-parser-enhanced.jsonl?raw";
+import tokenFixture from "../../../tests/fixtures/session-token-usage.jsonl?raw";
 
 describe("parseJsonlText", () => {
   it("produces the same session as the chunked async parser", async () => {
@@ -547,6 +548,39 @@ describe("PAR-002 enhanced fixture", () => {
     expect(session.unmatchedToolUses.map((record) => record.fullId)).toEqual(["tool-unmatched"]);
     expect(session.warnings.join("\n")).toContain("缺少有效时间戳");
     expect(session.warnings.join("\n")).toContain("解析失败");
+  });
+});
+
+describe("PAR-002 token usage fixture", () => {
+  it("extracts the four counters and the cache-creation TTL split", () => {
+    const session = parseJsonlText(tokenFixture, "/tmp/session-token-usage.jsonl");
+
+    const first = session.records.find((record) => record.assistantMessageId === "tok-msg-1");
+    expect(first?.usage).toEqual({
+      inputTokens: 100,
+      outputTokens: 50,
+      cacheCreationTokens: 1000,
+      cacheReadTokens: 20000,
+      cacheCreationFiveMinuteTokens: 600,
+      cacheCreationOneHourTokens: 400
+    });
+  });
+
+  it("leaves the TTL fields absent when upstream omits them", () => {
+    const session = parseJsonlText(tokenFixture, "/tmp/session-token-usage.jsonl");
+
+    const second = session.records.find((record) => record.assistantMessageId === "tok-msg-2");
+    // Absent means "no breakdown reported", which the totals layer reads as a
+    // zero — asserting the fields are missing keeps the parser from inventing one.
+    expect(second?.usage).toEqual({
+      inputTokens: 200,
+      outputTokens: 60,
+      cacheCreationTokens: 500,
+      cacheReadTokens: 30000
+    });
+
+    const third = session.records.find((record) => record.assistantMessageId === "tok-msg-3");
+    expect(third?.usage).toEqual({ inputTokens: 30, outputTokens: 10 });
   });
 });
 
