@@ -36,6 +36,7 @@ updates:
           - "minor"
           - "patch"
     reviewers:
+      - "liang-zhenxiang"
       - "nicholyx"
 
   # 前端依赖（React / Vite / Vitest 等）
@@ -79,6 +80,7 @@ updates:
         update-types:
           - "version-update:semver-major"
     reviewers:
+      - "liang-zhenxiang"
       - "nicholyx"
 
   # 工作流引用的 GitHub Actions
@@ -107,4 +109,5 @@ updates:
           - "minor"
           - "patch"
     reviewers:
+      - "liang-zhenxiang"
       - "nicholyx"
