@@ -10,7 +10,7 @@
 #   ./scripts/lint.sh             # 跑全部检查
 #
 # 覆盖范围（别把它当成 CI 的替代品）：
-#   - 覆盖：actionlint、yamllint、shellcheck、bash -n、zizmor
+#   - 覆盖：actionlint、yamllint、shellcheck、bash -n、PowerShell 编码、zizmor
 #   - **不覆盖：前端测试/构建与 Rust 检查**（vitest / tsc / cargo fmt / clippy /
 #     check）。它们是「测试与构建」不是静态检查，本地开发时本来就会跑，
 #     命令见 CONTRIBUTING.md；CI 里各有独立 job
@@ -186,7 +186,44 @@ if [[ ${#SH_TARGETS[@]} -gt 0 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 5. zizmor —— 工作流安全扫描（对应 CI 的 zizmor job）
+# 5. PowerShell 脚本编码 —— 含非 ASCII 字符时必须带 UTF-8 BOM
+#
+#    Windows PowerShell 5.1 在没有 BOM 时按系统 ANSI 代码页读取脚本文件，
+#    中文注释会被误解码，进而报出 "Missing closing '}' in statement block"
+#    这类解析错误。它**只在 Windows 上暴露**：本地与 macOS 构建都发现不了，
+#    v0.2.1 首次发布就是这么挂在 Windows runner 上的。
+#
+#    纯 ASCII 的脚本没有这个风险，所以只检查含非 ASCII 的文件。
+# ---------------------------------------------------------------------------
+PS_TARGETS=()
+while IFS= read -r f; do
+  PS_TARGETS+=("$f")
+done < <(find scripts -name '*.ps1' 2>/dev/null | sort)
+
+# C locale 下删掉 ASCII 可打印字符与空白，仍有剩余即为非 ASCII 字节
+has_non_ascii() {
+  [[ "$(LC_ALL=C tr -d '[:print:][:space:]' < "$1" | wc -c | tr -d ' ')" -gt 0 ]]
+}
+has_utf8_bom() {
+  [[ "$(head -c 3 "$1" | od -An -tx1 | tr -d ' \n')" == "efbbbf" ]]
+}
+check_ps_bom() {
+  local f
+  for f in "${PS_TARGETS[@]}"; do
+    if has_non_ascii "$f" && ! has_utf8_bom "$f"; then
+      printf '  %s✗ %s 含非 ASCII 字符但缺少 UTF-8 BOM%s\n' "$C_RED" "$f" "$C_RESET"
+      return 1
+    fi
+  done
+  return 0
+}
+
+if [[ ${#PS_TARGETS[@]} -gt 0 ]]; then
+  run_check "PowerShell 编码（UTF-8 BOM）" check_ps_bom
+fi
+
+# ---------------------------------------------------------------------------
+# 6. zizmor —— 工作流安全扫描（对应 CI 的 zizmor job）
 #
 #    镜像引用从 ci.yml 抽，不写第二份：写死会在 CI 升级时静默漂移，
 #    而这一项的全部价值就是「本地过 = CI 过」。

@@ -1,4 +1,8 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
+# 编码约定：本文件必须保存为 UTF-8 with BOM。
+# Windows PowerShell 5.1 在没有 BOM 时按系统 ANSI 代码页读取脚本，
+# 中文注释会被误解码，进而报出 "Missing closing '}'" 这类解析错误
+# （v0.2.1 首发在 Windows runner 上就是这么挂的）。
 <#
     构建 Windows 产物：NSIS 安装程序 + 便携版（绿色）ZIP。
 
