@@ -220,8 +220,10 @@ test("windows a long session list instead of rendering every row", () => {
   expect(rendered.length).toBeGreaterThan(0);
   expect(rendered.length).toBeLessThan(100);
   // Newest first: session 399 has the newest mtime in the fixture.
-  expect(screen.getByRole("button", { name: /会话 399 / })).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: /会话 0 / })).toBeNull();
+  // No trailing space in the patterns: the accessible name is built by
+  // concatenating inline elements and carries no separator between them.
+  expect(screen.getByRole("button", { name: /会话 399/ })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /会话 0/ })).toBeNull();
 });
 
 test("renders every session while the list is short", () => {
