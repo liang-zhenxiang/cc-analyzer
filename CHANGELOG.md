@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- A **real-app GUI smoke test** (`./scripts/gui-test.sh`). It launches the packaged `.app` — not a simulation — and verifies the whole chain actually runs by asserting that the app **scans the session files and writes its metadata cache**, which requires webview → React → bridge → Rust → filesystem → parse → write to all have worked. It runs against an isolated `HOME`, so a test run never touches the real `~/.claude` session data. Window screenshots additionally need macOS's Screen Recording permission, which only the user can grant; without it the script reports the screenshot as *skipped* with instructions rather than passing quietly.
 - An **end-to-end test suite** (Playwright) that drives the real production bundle in a real browser. It stubs the Tauri bridge at the boundary the app actually calls — `window.__TAURI_INTERNALS__` — so no application code is test-aware and no stub ships in a release. It found the group-toggle click bug above on its first run.
 
 ### Fixed

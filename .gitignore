@@ -18,6 +18,9 @@ web/e2e-report/
 web/playwright-report/
 web/test-results/
 
+# 真机 GUI 测试的截图产物
+gui-artifacts/
+
 # 编辑器与 AI 助手的本地配置（每人自己的工作区设置，不入库）
 .idea/
 .claude/settings.local.json
