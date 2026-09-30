@@ -328,6 +328,62 @@ jobs:
         run: cargo check --manifest-path src-tauri/Cargo.toml
 
   # ---------------------------------------------------------------------------
+  # Rust 单元测试
+  #
+  # 这一项此前是缺的：`cargo fmt / clippy / check` 都跑，唯独不跑 test——
+  # 于是 Rust 侧的测试**永远不会在 CI 上执行**，只有在维护者记得手动跑一次时才有意义。
+  # 不跑的测试等于没有测试，所以补上。
+  #
+  # 与 rust-check 同样需要 web/dist：Tauri 的 generate_context! 在编译期会读
+  # tauri.conf.json 指向的 frontendDist，缺了会报
+  # 「frontendDist ... path doesn't exist」（docs/CI.md 有记录）。
+  # ---------------------------------------------------------------------------
+  rust-test:
+    name: Rust 单元测试
+    needs: web-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: 下载 web/dist 产物
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: web-dist
+          path: web/dist
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+
+      # 同 rust-clippy / rust-check：Linux 上编译 Tauri 需要 GTK / webkit2gtk 系统库
+      - name: 安装 Tauri Linux 依赖
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: 缓存 cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            src-tauri/target
+          key: cargo-test-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-test-${{ runner.os }}-
+
+      - name: 运行 cargo test
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  # ---------------------------------------------------------------------------
   # 提交信息规范
   # 只在 PR 上跑（push 到 main 的提交已经过 PR 校验）。
   # squash merge 后 PR 标题会成为提交信息，所以标题也要一并校验。
@@ -504,7 +560,7 @@ jobs:
   ci-summary:
     name: CI 总览
     runs-on: ubuntu-latest
-    needs: [actionlint, yamllint, shellcheck, web-test, web-e2e, web-build, rust-fmt, rust-clippy, rust-check, commit-messages, zizmor, lint-selftest]
+    needs: [actionlint, yamllint, shellcheck, web-test, web-e2e, web-build, rust-fmt, rust-clippy, rust-check, rust-test, commit-messages, zizmor, lint-selftest]
     if: always()
     steps:
       - name: Checkout Repos
@@ -524,6 +580,7 @@ jobs:
           R_RUST_FMT: ${{ needs.rust-fmt.result }}
           R_RUST_CLIPPY: ${{ needs.rust-clippy.result }}
           R_RUST_CHECK: ${{ needs.rust-check.result }}
+          R_RUST_TEST: ${{ needs.rust-test.result }}
           R_COMMIT_MESSAGES: ${{ needs.commit-messages.result }}
           R_ZIZMOR: ${{ needs.zizmor.result }}
           R_LINT_SELFTEST: ${{ needs.lint-selftest.result }}
@@ -547,6 +604,7 @@ jobs:
             "rust-fmt:Rust 格式检查"
             "rust-clippy:Rust 静态分析"
             "rust-check:Rust 编译检查"
+            "rust-test:Rust 单元测试"
             "commit-messages:提交信息规范"
             "zizmor:工作流安全扫描"
             "lint-selftest:lint.sh 自测"
