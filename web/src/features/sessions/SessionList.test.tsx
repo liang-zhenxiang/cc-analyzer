@@ -1,4 +1,6 @@
 import { beforeEach, expect, test, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SessionList } from "./SessionList";
@@ -383,4 +385,31 @@ test("groups the timeline by date and shows relative time, size and project", as
   await user.click(today);
   expect(screen.queryByText(/刚刚 · 2KB · repo-demo/)).not.toBeInTheDocument();
   expect(screen.getByText(/· 10B · demo-project/)).toBeInTheDocument();
+});
+
+/**
+ * 行高是 CSS 与 TS 常量之间的一份隐式契约：虚拟滚动用常量算偏移，
+ * 用 CSS 画盒子。两边一旦不一致，滚动位置会随列表变长而累积偏移，
+ * 表现为「滚到底部时空一截」或「最后几条被吞掉」——都很难一眼归因。
+ */
+test("keeps the row heights in sync with the virtualised CSS", () => {
+  const source = readFileSync(resolve(process.cwd(), "src/features/sessions/SessionList.tsx"), "utf8");
+  const css = readFileSync(resolve(process.cwd(), "src/features/sessions/SessionList.module.css"), "utf8");
+
+  const constant = (name: string) => {
+    const match = new RegExp(`${name}\\s*=\\s*(\\d+)`).exec(source);
+    expect(match, `常量 ${name} 不存在`).not.toBeNull();
+    return Number(match![1]);
+  };
+  const ruleHeight = (selector: string) => {
+    const match = new RegExp(`\\.${selector}\\s*\\{([^}]*)\\}`, "s").exec(css);
+    expect(match, `规则 .${selector} 不存在`).not.toBeNull();
+    const height = /height:\s*(\d+)px/.exec(match![1]);
+    expect(height, `规则 .${selector} 没有字面量 height`).not.toBeNull();
+    return Number(height![1]);
+  };
+
+  expect(constant("GROUP_ROW_HEIGHT")).toBe(ruleHeight("groupRow"));
+  expect(constant("SESSION_ROW_HEIGHT")).toBe(ruleHeight("sessionRow"));
+  expect(constant("SESSION_ROW_HEIGHT_WITH_STATUS")).toBe(ruleHeight("sessionRowWithStatus"));
 });

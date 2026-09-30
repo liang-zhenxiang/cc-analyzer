@@ -3,21 +3,27 @@
   align-items: center;
   justify-content: center;
   gap: var(--sp-1);
-  min-height: 30px;
-  padding: 5px 12px;
+  min-height: var(--control-h);
+  padding: 0 10px;
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
-  background: var(--bg-elevated);
+  background: var(--bg-subtle);
   color: var(--text);
   font: inherit;
   font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
   cursor: pointer;
-  transition: background var(--transition), border-color var(--transition), color var(--transition);
+  transition:
+    background-color var(--dur-hover) var(--ease-in-out),
+    border-color var(--dur-hover) var(--ease-in-out),
+    color var(--dur-hover) var(--ease-in-out);
 }
 
+/* hover 不再把边框染成强调色——那会让 hover 和 focus-visible 长得几乎一样，
+   用户分不清「鼠标在这」和「键盘焦点在这」。 */
 .button:hover:not(:disabled) {
   background: var(--bg-hover);
-  border-color: var(--accent);
+  border-color: var(--text-faint);
 }
 
 .button:focus-visible {
@@ -30,18 +36,47 @@
   cursor: not-allowed;
 }
 
+/* 主按钮用墨色而不是强调色：强调色一旦同时是「动作」和「数据」，
+   它在数据上就不响了。 */
 .primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--on-ink);
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: var(--ink);
+  border-color: var(--ink);
+  opacity: 0.88;
+}
+
+.ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.ghost:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--bg-hover);
+  color: var(--text);
 }
 
 .danger {
-  background: var(--danger-soft);
-  border-color: var(--danger);
+  border-color: var(--border-strong);
+  background: transparent;
   color: var(--danger);
+}
+
+.danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+/* 图标按钮：--control-h-lg 见方，配 ghost 使用。
+   方形容器 + 居中的图标，一排放在一起才对得齐。 */
+.icon {
+  width: var(--control-h-lg);
+  min-height: var(--control-h-lg);
+  padding: 0;
 }

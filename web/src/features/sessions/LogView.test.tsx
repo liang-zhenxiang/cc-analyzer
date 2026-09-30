@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LogView } from "./LogView";
 import { buildLogRows } from "./logRows";
 import type { SessionRecord, Turn } from "./types";
-import styles from "./LogView.module.css";
 
 function base(id: string, extra: Partial<SessionRecord>): SessionRecord {
   return {
@@ -95,22 +94,10 @@ describe("LogView", () => {
     );
   });
 
-  it("caps the table to the space left in the viewport so it can scroll", () => {
-    const { container } = render(
-      <LogView
-        rows={buildLogRows([user, assistant, read], turns)}
-        selectedId={null}
-        highlightId={null}
-        onSelect={vi.fn()}
-        onLocateInTree={vi.fn()}
-      />
-    );
-
-    // A windowed table that cannot scroll would only ever show its first screen.
-    const scroller = container.querySelector(`.${styles.container}`) as HTMLElement;
-    expect(scroller.style.maxHeight).toMatch(/^\d+px$/);
-    expect(Number.parseInt(scroller.style.maxHeight, 10)).toBeGreaterThanOrEqual(240);
-  });
+  // 「表格要能滚动」这条不变量已经搬到 Playwright：
+  // 它由布局（工作区 flex + pane 的 flex: 1）而非 JS 保证，
+  // jsdom 没有排版引擎，在这里只能测到一串空字符串。
+  // 见 e2e/smoke.spec.ts 的「日志表格在内部滚动」。
 
   it("selects the primary record and can locate it in the tree", async () => {
     const user1 = userEvent.setup();

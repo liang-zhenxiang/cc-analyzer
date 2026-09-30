@@ -11,18 +11,23 @@
   background: var(--bg-subtle);
 }
 
+/* 状态灯用语义色，不用 --cat-compute：类别色是稀缺资产，
+   借去当装饰会让「compute」这个类别少一个可用的色。 */
 .dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--cat-compute);
+  background: var(--success);
 }
 
+/* 会话标题是页面级标题（15px），与面板标题（13px）不同级。 */
 .title {
   overflow: hidden;
   max-width: 420px;
   color: var(--text);
   font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: var(--lh-md);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -31,13 +36,16 @@
   display: inline-flex;
   min-width: 0;
   align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
+  gap: var(--sp-1);
+  padding: 2px var(--sp-2);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
-  background: var(--bg-elevated);
+  background: var(--bg-inset);
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  /* 「总耗时 12.3s」在会话间切换时不能左右跳动。 */
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 

@@ -17,60 +17,82 @@
   gap: var(--sp-2);
 }
 
+/* 面板标题 13px/600，页面标题才是 15px——两级不能同号。 */
 .panel h2 {
   margin: 0;
-  font-size: var(--fs-md);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  line-height: var(--lh-base);
 }
 
+/* 分段控件：与顶栏、侧栏、视图切换同一套画法。 */
 .panel [role="tablist"] {
   display: inline-flex;
-  gap: var(--sp-1);
-  padding: 3px;
-  border: 1px solid var(--border);
+  gap: 2px;
+  padding: 2px;
   border-radius: var(--r-sm);
+  background: var(--bg-inset);
 }
 
-.panel [role="tab"],
-.panel > header button {
-  min-height: 28px;
-  padding: 4px 9px;
+.panel [role="tab"] {
+  min-height: var(--control-h-sm);
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-hover) var(--ease-in-out),
+    color var(--dur-hover) var(--ease-in-out);
+}
+
+.panel [role="tab"]:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.panel [role="tab"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .panel [role="tab"][aria-selected="true"] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
+  background: var(--bg-subtle);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* 头部按钮只负责「不换行、不被压缩」——颜色与底色一律留给 Button 组件，
+   在这里覆盖会让 primary 变体在特异性上输掉（曾经把生成按钮变成白底白字）。 */
+.panel > header button {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .warning {
-  padding: 7px 9px;
+  padding: var(--sp-2) var(--sp-2);
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
   background: var(--danger-soft);
   color: var(--danger);
   font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
 }
 
 .panel [role="alert"] {
   color: var(--danger);
   font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
 }
 
-.placeholder {
-  flex: 1;
-  min-height: 180px;
-  display: grid;
-  place-content: center;
-  padding: var(--sp-3);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  background: var(--bg-elevated);
-  color: var(--text-tertiary);
-  font-size: var(--fs-sm);
-}
 .meta {
   padding: 0 var(--sp-4) var(--sp-2);
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
   font-variant-numeric: tabular-nums;
 }

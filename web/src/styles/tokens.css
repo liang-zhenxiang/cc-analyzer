@@ -1,80 +1,167 @@
+/* 设计 token 的唯一来源（方向 A「仪器面板」）。
+   规则：骨架一律中性灰，颜色只出现在数据上；文档流内的层级只用背景台阶 +
+   发丝边框，阴影只留给脱离文档流的浮层。组件里不得出现字面量颜色、
+   字面量高度、字面量圆角或字面量时长——四者都必须是这里的 token。 */
 :root {
   color-scheme: light;
-  --bg: #f4f6f8;
+  /* 原生控件（<progress>、checkbox、滚动条）用系统色会和强调色打架。 */
+  accent-color: var(--accent);
+
+  /* 表面：四级台阶，浅色下 -subtle 与 -elevated 同色，层级靠台阶而非边框 */
+  --bg: #f4f5f7;
   --bg-subtle: #ffffff;
   --bg-elevated: #ffffff;
-  --bg-hover: #e9edf1;
-  --bg-active: #dde4ea;
-  --text: #18202a;
-  --text-secondary: #4d5a68;
-  --text-tertiary: #6d7c8b;
-  --text-faint: #8d9aa8;
-  --border: #d7dee5;
-  --border-strong: #b9c4ce;
-  --accent: #0f6fde;
-  --accent-hover: #0b5cba;
-  --accent-soft: rgba(15, 111, 222, 0.12);
-  --ring: rgba(15, 111, 222, 0.4);
-  --on-accent: #ffffff;
+  --bg-inset: #f1f3f5;
+  --bg-hover: #f1f3f5;
+  --bg-active: #e8ebef;
+
+  /* 文字：faint 只有 2.6:1，只放不需要读的装饰字 */
+  --text: #16181b;
+  --text-secondary: #4a5260;
+  --text-tertiary: #6b7381;
+  --text-faint: #9aa1ac;
+
+  /* 边框：半透明发丝线，在不同背景台阶上自动适配 */
+  --border: rgba(16, 24, 40, 0.1);
+  --border-strong: rgba(16, 24, 40, 0.18);
+
+  /* 动作色：主按钮用墨色而不是强调色，让强调色退出「动作」语义 */
+  --ink: #16181b;
+  --on-ink: #ffffff;
+
+  /* 强调色：只做焦点环、链接、选中底，像素占比 < 3% */
+  --accent: #2952cc;
+  --accent-hover: #1f42aa;
+  --accent-soft: rgba(41, 82, 204, 0.1);
+  --ring: rgba(41, 82, 204, 0.45);
+
+  /* 语义色 */
+  --success: #1f7a4d;
+  --success-soft: rgba(31, 122, 77, 0.1);
+  --warning: #946200;
+  --warning-soft: rgba(148, 98, 0, 0.1);
   --danger: #b3261e;
   --danger-soft: rgba(179, 38, 30, 0.1);
+
+  /* 类别色（Okabe-Ito）。界面上最响的颜色——不要借去表达非类别语义，
+     那会同时毁掉「类别」和「被借用的那个维度」。 */
   --cat-wait: #6b7280;
   --cat-direct: #0072b2;
   --cat-delegated: #d55e00;
   --cat-compute: #009e73;
   --cat-user: #cc79a7;
   --cat-workflow: #6d3bd4;
-  --code-comment: #8a9199;
+
+  --code-comment: #69707d;
   --code-keyword: #a626a4;
   --code-string: #2f7d32;
   --code-number: #986801;
   --code-function: #1d63c9;
   --code-type: #986801;
+
   --font-sans: system-ui, -apple-system, "Segoe UI", "PingFang SC", sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* 字号：4 级 + 1 保留级。任何 font-size 必须与同级的 line-height 成对出现，
+     不得依赖 body 上的全局 line-height。 */
   --fs-xs: 11px;
+  --lh-xs: 16px;
   --fs-sm: 12px;
+  --lh-sm: 18px;
   --fs-base: 13px;
-  --fs-md: 14px;
-  --fs-lg: 16px;
+  --lh-base: 20px;
+  --fs-md: 15px;
+  --lh-md: 22px;
+  --fs-lg: 20px;
+  --lh-lg: 28px;
+
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-3: 12px;
   --sp-4: 16px;
   --sp-5: 24px;
   --sp-6: 32px;
+
+  /* 圆角：控件只有 24–32px 高，超过高度 1/6 就显成胶囊并压缩可用内边距 */
+  --r-xs: 2px;
   --r-sm: 4px;
   --r-md: 8px;
   --r-lg: 12px;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 8px 24px rgba(24, 32, 42, 0.08);
-  --transition: 160ms ease;
+
+  /* 布局尺寸：顶栏高度是跨文件的隐式契约，写成 token 才不会改一处错三处 */
+  --topbar-h: 48px;
+  --sidebar-w: 300px;
+  --detail-w: 360px;
+  --control-h-sm: 24px;
+  --control-h: 28px;
+  --control-h-lg: 32px;
+  --row-h: 30px;
+
+  /* 阴影：只用于脱离文档流的浮层。深色下阴影不可见，文档流内用它会让
+     两套主题的层级语言分裂。 */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.08);
+  --shadow-md: 0 10px 30px rgba(16, 24, 40, 0.12);
+
+  /* 动效：时长按语义分档，不写「魔法时长」 */
+  --dur-hover: 80ms;
+  --dur-state: 140ms;
+  --dur-enter: 220ms;
+  --dur-layout: 360ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #101418;
-  --bg-subtle: #171d23;
-  --bg-elevated: #1e252c;
-  --bg-hover: #263040;
-  --bg-active: #303c4d;
-  --text: #e7edf4;
-  --text-secondary: #b6c2ce;
-  --text-tertiary: #909ea9;
-  --text-faint: #6e7c88;
-  --border: #2c353f;
-  --border-strong: #3f4c59;
-  --accent: #4c9ffb;
-  --accent-hover: #6db4fc;
-  --accent-soft: rgba(76, 159, 251, 0.16);
-  --ring: rgba(76, 159, 251, 0.5);
-  --on-accent: #08121f;
-  --danger: #f87171;
-  --danger-soft: rgba(248, 113, 113, 0.14);
+
+  --bg: #0d0f12;
+  --bg-subtle: #14161a;
+  --bg-elevated: #1a1d21;
+  --bg-inset: #0a0b0d;
+  --bg-hover: #212429;
+  --bg-active: #2a2e34;
+
+  --text: #f0f2f5;
+  --text-secondary: #b4bcc6;
+  --text-tertiary: #8b939e;
+  --text-faint: #5c636d;
+
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.14);
+
+  --ink: #f0f2f5;
+  --on-ink: #0d0f12;
+
+  --accent: #7fa8ff;
+  --accent-hover: #9bbdff;
+  --accent-soft: rgba(127, 168, 255, 0.16);
+  --ring: rgba(127, 168, 255, 0.55);
+
+  --success: #4cc38a;
+  --success-soft: rgba(76, 195, 138, 0.14);
+  --warning: #e0a33e;
+  --warning-soft: rgba(224, 163, 62, 0.14);
+  --danger: #f0776c;
+  --danger-soft: rgba(240, 119, 108, 0.14);
+
+  /* 类别色只调明度、不动色相，Okabe-Ito 的色盲可区分性因此保持不变。
+     原值在 #101418 底的对比度：direct 3.70:1、workflow 2.95:1、wait 3.97:1，
+     全部低于 4.5:1——深色下时间线与树视图的色块基本看不见。 */
+  --cat-direct: #4da6e0;
+  --cat-workflow: #9b7bf0;
+  --cat-wait: #8a93a0;
+  /* 这三条在原底色上已达标（4.96 / 5.61 / 6.27:1），改底色后依然达标，保持原值。 */
+  --cat-delegated: #d55e00;
+  --cat-compute: #009e73;
+  --cat-user: #cc79a7;
+
   --code-comment: #7f848e;
   --code-keyword: #c678dd;
   --code-string: #98c379;
   --code-number: #d19a66;
   --code-function: #61afef;
   --code-type: #e5c07b;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.5);
 }

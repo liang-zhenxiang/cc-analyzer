@@ -1,3 +1,4 @@
+@import "../styles/animations.css";
 .container {
   position: fixed;
   right: var(--sp-4);
@@ -9,17 +10,20 @@
 }
 
 .toast {
-  padding: 9px 11px;
+  padding: var(--sp-2) var(--sp-3);
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
   background: var(--bg-elevated);
   box-shadow: var(--shadow-md);
   color: var(--text);
   font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  animation: cca-enter var(--dur-enter) var(--ease-out);
 }
 
+/* 成功是语义，不是「强调」。借 --accent 会让成功和选中变成同一种颜色。 */
 .success {
-  border-color: var(--accent);
+  border-color: var(--success);
 }
 
 .error {

@@ -5,7 +5,9 @@ import { SessionAnalyzerPage } from "../features/sessions/SessionAnalyzerPage";
 import { MonitorPage } from "../features/monitor/MonitorPage";
 import { ThresholdsPanel } from "../features/settings/ThresholdsPanel";
 import { WorkspaceTabs } from "./WorkspaceTabs";
-import { Button } from "../components/Button";
+import { Button, IconButton } from "../components/Button";
+import { BrandMark } from "../components/BrandMark";
+import { Icon } from "../components/Icon";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { BridgesProvider } from "../api/bridges";
 import type { Bridges } from "../api/types";
@@ -17,10 +19,11 @@ const TAB_KEY = "cca-workspace-tab";
 
 function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
+  // 图标画的是「点下去会切到哪」。
   return (
-    <Button type="button" onClick={toggleTheme} aria-label="切换主题">
-      {theme === "light" ? "亮色" : "暗色"}
-    </Button>
+    <IconButton label="切换主题" onClick={toggleTheme}>
+      <Icon name={theme === "light" ? "moon" : "sun"} size={16} />
+    </IconButton>
   );
 }
 
@@ -52,7 +55,10 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
         <NotificationProvider>
           <div className={styles.shell}>
             <header className={styles.topbar}>
-              <strong>CC Analyzer</strong>
+              <span className={styles.brand}>
+                <BrandMark size={18} />
+                <strong>CC Analyzer</strong>
+              </span>
               <WorkspaceTabs value={tab} onChange={setTab} />
               <div className={styles.topbarActions}>
                 {canExitFloatMode ? (
@@ -60,13 +66,13 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
                     退出浮窗
                   </Button>
                 ) : null}
-                <Button
-                  type="button"
+                <IconButton
+                  label="设置"
                   aria-expanded={settingsOpen}
                   onClick={() => setSettingsOpen((open) => !open)}
                 >
-                  设置
-                </Button>
+                  <Icon name="settings" size={16} />
+                </IconButton>
                 <ThemeToggle />
               </div>
             </header>

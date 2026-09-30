@@ -1,3 +1,4 @@
+@import "../../styles/animations.css";
 .container {
   min-width: 0;
   overflow: auto;
@@ -10,12 +11,13 @@
   width: 100%;
   border-collapse: collapse;
   font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
   font-variant-numeric: tabular-nums;
 }
 
 .container th,
 .container td {
-  padding: 7px 9px;
+  padding: 6px 10px;
   border-bottom: 1px solid var(--border);
   color: var(--text);
   text-align: left;
@@ -23,32 +25,46 @@
   white-space: nowrap;
 }
 
+/* 表头沉到 --bg-inset：在白色卡片上才有台阶可辨（--bg-elevated 和白卡同色）。
+   底边比行分隔线强一档，滚动时表头和数据行分得开。 */
 .container th {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--bg-elevated);
+  height: var(--row-h);
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--bg-inset);
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
   font-weight: 600;
-  white-space: nowrap;
+  letter-spacing: 0.02em;
+  line-height: var(--lh-xs);
+  vertical-align: middle;
 }
 
-.container tbody tr:last-child td {
-  border-bottom: 0;
+.container tbody tr {
+  transition: background-color var(--dur-hover) var(--ease-in-out);
 }
 
 .container tbody tr:hover {
   background: var(--bg-hover);
 }
 
+.container tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* 类型徽标：左边一条类别色，其余保持中性。
+   类别色因此进入每一行，扫读时不用先找到时间线或树视图。 */
 .kind {
   display: inline-block;
-  padding: 1px 6px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
+  padding: 1px var(--sp-1) 1px 6px;
+  border-left: 2px solid var(--row-color, var(--text-tertiary));
+  border-radius: var(--r-xs);
+  background: var(--bg-inset);
   color: var(--text-secondary);
   font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
   white-space: nowrap;
 }
 
@@ -76,26 +92,20 @@
 }
 
 .actions button {
-  min-height: 24px;
-  padding: 2px 7px;
+  min-height: var(--control-h-sm);
+  padding: 0 var(--sp-2);
   white-space: nowrap;
 }
 
+/* 选中态：底色之外还有字重——灰度截图和色弱用户下，
+   只有 --accent-soft 的选中行会消失。 */
 .selected {
   background: var(--accent-soft) !important;
+  font-weight: 600;
 }
 
 .highlight {
-  animation: flash 1.6s ease-out 1;
-}
-
-@keyframes flash {
-  0% {
-    background: var(--accent-soft);
-  }
-  100% {
-    background: transparent;
-  }
+  animation: cca-flash 600ms var(--ease-out) 1;
 }
 
 .expanded td {
@@ -115,6 +125,7 @@
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
   font-weight: 600;
+  line-height: var(--lh-xs);
 }
 
 .panelMeta {
@@ -129,6 +140,7 @@
   overflow: auto;
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -161,16 +173,20 @@
   --row-color: var(--cat-wait);
 }
 
+/* 耗时档位用文字色阶与字重区分，**不用类别色**。
+   借用 --cat-* 会让蓝色同时是「tool 执行」和「耗时 1–60 秒」，
+   一个维度被拆成两半，两个维度都读不准。 */
 .durationMs {
   color: var(--text-tertiary);
 }
 
 .durationS {
-  color: var(--cat-direct);
+  color: var(--text-secondary);
 }
 
 .durationM {
-  color: var(--cat-delegated);
+  color: var(--text);
+  font-weight: 600;
 }
 
 .share {
@@ -181,9 +197,9 @@
   display: inline-block;
   width: 56px;
   height: 6px;
-  margin-right: 8px;
+  margin-right: var(--sp-2);
   overflow: hidden;
-  border-radius: 3px;
+  border-radius: var(--r-xs);
   background: var(--border-strong);
   vertical-align: middle;
 }
@@ -191,8 +207,8 @@
 .shareFill {
   display: block;
   height: 100%;
-  border-radius: 3px;
-  background: var(--row-color, var(--accent));
+  border-radius: var(--r-xs);
+  background: var(--row-color, var(--text-tertiary));
 }
 
 .shareText {
@@ -200,6 +216,7 @@
   min-width: 42px;
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
   text-align: right;
   vertical-align: middle;
 }
@@ -219,10 +236,4 @@
   bottom: 0;
   border-radius: var(--r-sm);
   background: var(--row-color, var(--text-tertiary));
-}
-
-.empty {
-  padding: var(--sp-4);
-  color: var(--text-tertiary);
-  text-align: center;
 }

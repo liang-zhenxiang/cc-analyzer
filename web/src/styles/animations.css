@@ -1,0 +1,29 @@
+/* 共享的关键帧定义。
+   为什么不放进 global.css：Vite 的 CSS Modules 会把模块里 `animation:`
+   引用的名字也改写成 `_name_hash_1`（它假定你引用的是本模块的 @keyframes），
+   而 global.css 里的 @keyframes 不会被改名——于是两边名字对不上，动画静默失效。
+   把定义 @import 进各模块，让定义和引用处在同一个模块作用域里，名字才一致。
+   代价是产物里有几份副本，换来的是「只写一份定义」。 */
+
+/* 「看这里」的一次性提示：日志行与树节点的定位闪烁。
+   600ms 是提示语汇而不是过渡语汇——原先用了一秒多，每次跳转都拖一下。 */
+@keyframes cca-flash {
+  from {
+    background-color: var(--accent-soft);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+/* 浮层进入：位移 + 透明度。离开不做位移，避免「飞出去」的观感延迟。 */
+@keyframes cca-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

@@ -118,6 +118,59 @@ test.describe("空状态", () => {
   });
 });
 
+/**
+ * 布局不变量。这些只有在真实排版引擎里才成立——
+ * jsdom 没有布局，同样的断言在那里只会拿到一串空字符串。
+ */
+test.describe("视口与布局", () => {
+  test("未选会话时空状态在主区垂直居中，且没有虚线框", async ({ page }) => {
+    await page.goto("/");
+
+    const title = page.getByText("选择一个会话开始分析");
+    await expect(title).toBeVisible();
+
+    const main = await page.getByRole("main").boundingBox();
+    const box = await title.locator("xpath=..").boundingBox();
+    expect(main).not.toBeNull();
+    expect(box).not.toBeNull();
+
+    // 垂直居中：空状态盒子的中线应落在主区中线上。
+    const emptyCenter = box!.y + box!.height / 2;
+    const mainCenter = main!.y + main!.height / 2;
+    expect(Math.abs(emptyCenter - mainCenter)).toBeLessThan(20);
+
+    // 虚线框是「既没撑满、里面又什么都没有」的画法，已经被移除。
+    const borderStyle = await title
+      .locator("xpath=..")
+      .evaluate((element) => getComputedStyle(element).borderTopStyle);
+    expect(borderStyle).not.toBe("dashed");
+  });
+
+  test("选中会话后日志表格在内部滚动，页面本身不出现滚动条", async ({ page }) => {
+    await page.goto("/");
+    await sessionItems(page).first().click();
+    await expect(page.getByLabel("会话图状态")).toContainText("会话图已加载", { timeout: 15_000 });
+
+    // 表格容器吸收剩余高度并在内部滚动。窗口化的表格一旦不能滚动，
+    // 就永远只看得见第一屏——这条不变量原先由 useViewportCap 用 JS 兜着，
+    // 布局修好后由 CSS 承担，所以断言也从单测搬到了这里。
+    const scrollBox = await page.getByRole("main").locator("table").first().locator("xpath=..").boundingBox();
+    expect(scrollBox).not.toBeNull();
+    expect(scrollBox!.height).toBeGreaterThan(240);
+    expect(scrollBox!.y + scrollBox!.height).toBeLessThanOrEqual(900);
+
+    const overflow = await page.evaluate(() => {
+      const content = document.querySelector("main");
+      return {
+        document: document.documentElement.scrollHeight - window.innerHeight,
+        content: content ? content.scrollHeight - content.clientHeight : 0
+      };
+    });
+    expect(overflow.document).toBeLessThanOrEqual(1);
+    expect(overflow.content).toBeLessThanOrEqual(1);
+  });
+});
+
 test.describe("夹具健全性", () => {
   test("默认场景装载了预期数量的会话", ({ scenario }) => {
     // 防止夹具被改坏后，上面那些计数断言静默变成「断言 0 等于 0」

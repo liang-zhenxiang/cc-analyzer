@@ -3,12 +3,12 @@
   min-width: 0;
   flex-direction: column;
   gap: var(--sp-3);
-  /* Pinned and capped to the viewport: the list scrolls inside instead of
-     stretching the whole page (52px topbar + page padding). */
+  /* 钉住并封顶：列表在内部滚动，而不是把整页撑长。
+     上限由 --topbar-h 和页面内边距推出，改顶栏高度时这里跟着走。 */
   position: sticky;
   top: var(--sp-3);
   align-self: start;
-  max-height: calc(100vh - 76px);
+  max-height: calc(100dvh - var(--topbar-h) - var(--sp-3) * 2);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   background: var(--bg-subtle);
@@ -17,83 +17,112 @@
 
 .toolbar {
   display: flex;
+  align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-3);
   border-bottom: 1px solid var(--border);
 }
 
-.toolbar input {
+.search {
+  position: relative;
+  display: flex;
   flex: 1;
   min-width: 0;
-  min-height: 30px;
-  padding: 5px 8px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-  background: var(--bg-elevated);
-  color: var(--text);
-  font: inherit;
+  align-items: center;
 }
 
-.toolbar button {
-  white-space: nowrap;
+.searchIcon {
+  position: absolute;
+  left: var(--sp-2);
+  color: var(--text-tertiary);
+  pointer-events: none;
 }
 
+/* 让出图标的位置：左内边距 = 左边距 + 图标宽 + 间距。 */
+.search input {
+  padding-left: calc(var(--sp-2) + 14px + var(--sp-1));
+}
+
+/* 分段控件：与顶栏的页面切换同一种画法，同一个概念不学两遍。 */
 .sidebar [role="tablist"] {
   display: flex;
-  gap: var(--sp-1);
-  padding: 0 var(--sp-3);
+  gap: 2px;
+  margin: 0 var(--sp-3);
+  padding: 2px;
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
 }
 
 .sidebar [role="tab"] {
-  min-height: 28px;
-  border: 1px solid transparent;
-  border-radius: var(--r-sm);
+  flex: 1;
+  min-height: var(--control-h-sm);
+  border: 0;
+  border-radius: var(--r-xs);
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   font: inherit;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
   cursor: pointer;
+  transition:
+    background-color var(--dur-hover) var(--ease-in-out),
+    color var(--dur-hover) var(--ease-in-out);
+}
+
+.sidebar [role="tab"]:hover {
+  color: var(--text);
 }
 
 .sidebar [role="tab"][aria-selected="true"] {
-  border-color: var(--border);
-  background: var(--bg-elevated);
-  color: var(--accent);
+  background: var(--bg-subtle);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  font-weight: 600;
 }
 
 .groups {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: var(--sp-2);
+  /* 刻意没有 padding-top：sticky 分组头贴到滚动口顶边，
+     上面留缝会露出一条 8px 的滚动带。 */
+  padding: 0 var(--sp-2) var(--sp-2);
 }
 
 /* Row heights are mirrored by GROUP_ROW_HEIGHT / SESSION_ROW_HEIGHT. */
 .groupRow {
-  height: 38px;
-  padding-top: 6px;
-  padding-bottom: 4px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 32px;
+  /* 负外边距抵消 .groups 的左右内边距：滚动时分组头的底色铺满整宽，
+     文字仍与下面的会话行对齐。 */
+  margin: 0 calc(var(--sp-2) * -1);
+  padding: var(--sp-2) var(--sp-2) 0;
+  background: var(--bg-subtle);
 }
 
 .sessionRow {
-  height: 62px;
+  height: 54px;
   overflow: hidden;
 }
 
 .sessionRowWithStatus {
-  height: 80px;
+  height: 72px;
   overflow: hidden;
 }
 
 .groupToggle {
   display: flex;
   width: 100%;
+  height: 100%;
   gap: var(--sp-1);
   align-items: center;
-  padding: 4px var(--sp-1);
+  padding: 0 var(--sp-1);
   border: 0;
   border-radius: var(--r-sm);
   background: transparent;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font: inherit;
   cursor: pointer;
 }
@@ -108,23 +137,28 @@
   overflow: hidden;
   font-size: var(--fs-xs);
   font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: var(--lh-xs);
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* 计数是信息，不是装饰：--text-faint 的 2.6:1 读不出来。 */
 .groupCount {
-  color: var(--text-faint);
+  color: var(--text-tertiary);
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
+  line-height: var(--lh-xs);
 }
 
 .progress {
   display: grid;
-  gap: 4px;
+  gap: var(--sp-1);
   padding: 0 var(--sp-3);
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
 }
 
 .progress progress {
@@ -142,15 +176,18 @@
 .groups .sessionRowWithStatus button {
   display: grid;
   width: 100%;
-  gap: 3px;
-  padding: 10px;
-  border: 1px solid transparent;
+  gap: 2px;
+  padding: 8px 10px;
+  /* 没有边框：选中态用的是内嵌阴影，而 1px 边框会让按钮比 54px 的行高多出 2px，
+     被 .sessionRow 的 overflow: hidden 从底部切掉——正好切在文字下沿。 */
+  border: 0;
   border-radius: var(--r-sm);
   background: transparent;
   color: var(--text);
   text-align: left;
   font: inherit;
   cursor: pointer;
+  transition: background-color var(--dur-hover) var(--ease-in-out);
 }
 
 .groups .sessionRow button:hover,
@@ -158,38 +195,41 @@
   background: var(--bg-hover);
 }
 
+/* 选中态：底色 + 2px 内嵌竖条。竖条是非颜色的第二信号——
+   灰度截图和色弱用户下，只有 --accent-soft 的选中态会消失。
+   用内嵌阴影而不是边框，选中前后不位移。 */
 .groups .sessionRow button[aria-current="true"],
 .groups .sessionRowWithStatus button[aria-current="true"] {
-  border-color: var(--accent);
   background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
-/* 同上：限定在会话行内，否则 `.groupCount` 想要的 --text-faint 会被它盖掉。 */
+/* 同上：限定在会话行内，否则 `.groupCount` 想要的 --text-tertiary 会被它盖掉。 */
 .groups .sessionRow button span,
 .groups .sessionRowWithStatus button span {
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
+  line-height: var(--lh-xs);
 }
 
 .groups small {
   overflow: hidden;
   color: var(--text-faint);
   font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .error {
   margin: 0 var(--sp-3);
-  padding: 8px;
+  padding: var(--sp-2);
   border-radius: var(--r-sm);
   background: var(--danger-soft);
   color: var(--danger);
-}
-
-.empty {
-  margin: var(--sp-3);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
 }
 
 /* Rows are fixed height, so every line stays on one line and ends with an
@@ -201,4 +241,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sessionRow button strong,
+.sessionRowWithStatus button strong {
+  font-size: var(--fs-base);
+  font-weight: 600;
+  line-height: var(--lh-base);
 }

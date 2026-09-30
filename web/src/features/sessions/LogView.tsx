@@ -9,6 +9,7 @@ import {
   type UIEvent
 } from "react";
 import { Button } from "../../components/Button";
+import { EmptyState } from "../../components/EmptyState";
 import type { SessionRecord } from "./types";
 import type { LogRow } from "./logRows";
 import { formatInputValue, structuredResultLines } from "./structuredResultLines";
@@ -17,14 +18,13 @@ import { buildRowOffsets, computeSizedWindow } from "./virtualWindow";
 import type { TimeRange } from "./filters";
 import { formatDateTime, formatDuration } from "../../lib/format";
 import { safeStringify } from "../../lib/json";
-import { useViewportCap } from "../../lib/useViewportCap";
 import { useThresholds } from "../settings/thresholds";
 import styles from "./LogView.module.css";
 
 type Panel = { label: string; meta?: string; body: string };
 type Axis = { lo: number; total: number };
 
-const ROW_HEIGHT = 31;
+const ROW_HEIGHT = 30;
 const EXPANDED_PANEL_HEIGHT = 320;
 const MIN_MARKER_WIDTH = 6;
 
@@ -143,11 +143,6 @@ export function LogView({
     setViewportHeight(element.clientHeight || 480);
   }, []);
 
-  // The table must be able to scroll: windows are computed from its scroll
-  // position, so a container that grows with its content would only ever show
-  // the first screen.
-  useViewportCap(containerRef);
-
   useLayoutEffect(() => {
     const element = containerRef.current;
     if (element) setViewportHeight(element.clientHeight || 480);
@@ -212,7 +207,9 @@ export function LogView({
           ) : null}
         </tbody>
       </table>
-      {rows.length === 0 ? <div className={styles.empty}>没有符合筛选条件的记录</div> : null}
+      {rows.length === 0 ? (
+        <EmptyState size="inline" title="没有符合筛选条件的记录" />
+      ) : null}
     </div>
   );
 }

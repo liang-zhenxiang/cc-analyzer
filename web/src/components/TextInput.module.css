@@ -1,14 +1,28 @@
 .input {
   width: 100%;
   min-width: 0;
-  min-height: 30px;
-  padding: 5px 8px;
+  min-height: var(--control-h);
+  padding: 0 var(--sp-2);
   border: 1px solid var(--border-strong);
+  /* 凹陷底色。原先用 --bg-elevated，在白卡片上就是白对白，
+     控件只剩一圈边框可辨——这正是它「像浏览器默认控件」的原因。 */
   border-radius: var(--r-sm);
-  background: var(--bg-elevated);
+  background: var(--bg-inset);
   color: var(--text);
   font: inherit;
   font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  transition:
+    background-color var(--dur-hover) var(--ease-in-out),
+    border-color var(--dur-hover) var(--ease-in-out);
+}
+
+.input:hover:not(:disabled) {
+  border-color: var(--text-faint);
+}
+
+.input::placeholder {
+  color: var(--text-tertiary);
 }
 
 .input:focus-visible {

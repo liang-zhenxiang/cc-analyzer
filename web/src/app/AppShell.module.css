@@ -1,7 +1,10 @@
 .shell {
   display: flex;
-  min-height: 100vh;
+  /* 定高而不是 min-height：内容区要有一个确定的高度基准，
+     内部的百分比高度和「吸收剩余高度」才解析得出来。 */
+  height: 100dvh;
   flex-direction: column;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
 }
@@ -11,21 +14,35 @@
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: var(--sp-4);
-  height: 52px;
-  min-height: 52px;
+  height: var(--topbar-h);
+  min-height: var(--topbar-h);
   padding: 0 var(--sp-4);
   border-bottom: 1px solid var(--border);
   background: var(--bg-subtle);
 }
 
-.topbar strong {
+/* 品牌识别靠字标排版，不靠颜色——颜色预算全留给数据。 */
+.brand {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* 字标是页面级标题（--fs-md）。design 4.3① 写的 13px 与 §3/4.1 的
+   15px 冲突，按后者——字标要是品牌锚点，不是一段正文。 */
+.brand strong {
+  color: var(--text);
   font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: var(--lh-md);
 }
 
 .topbarActions {
   display: inline-flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--sp-1);
   justify-self: end;
 }
 
@@ -35,28 +52,40 @@
   overflow: auto;
 }
 
+/* 分段控件：凹陷的槽 + 抬起的滑块。滑块是脱离文档流的浮层，
+   用法定的 --shadow-sm，而不是靠加边框。 */
 .workspaceTabs {
   display: inline-flex;
-  gap: var(--sp-1);
-  padding: 3px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--bg-elevated);
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
 }
 
 .workspaceTabs button {
   min-width: 88px;
-  min-height: 28px;
-  padding: 4px 12px;
+  min-height: var(--control-h-sm);
+  padding: 0 var(--sp-3);
   border: 0;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-xs);
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   font: inherit;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
   cursor: pointer;
+  transition:
+    background-color var(--dur-hover) var(--ease-in-out),
+    color var(--dur-hover) var(--ease-in-out);
+}
+
+.workspaceTabs button:hover {
+  color: var(--text);
 }
 
 .workspaceTabs button[aria-selected="true"] {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--bg-subtle);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  font-weight: 600;
 }

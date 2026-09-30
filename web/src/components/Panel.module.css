@@ -19,12 +19,17 @@
   background: var(--bg-subtle);
 }
 
+/* 面板标题 13px/600——与会话标题（15px）拉开一级。 */
 .header h2 {
   margin: 0;
-  font-size: var(--fs-md);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  line-height: var(--lh-base);
 }
 
 .body {
   min-height: 0;
   padding: var(--sp-3);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
 }

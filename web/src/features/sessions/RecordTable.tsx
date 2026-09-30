@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from "react";
 import { Button } from "../../components/Button";
+import { EmptyState } from "../../components/EmptyState";
 import type { SessionRecord } from "./types";
 import { useMeasuredRowHeights } from "./measuredRows";
 import { buildRowOffsets, computeSizedWindow } from "./virtualWindow";
@@ -100,11 +101,11 @@ export function RecordTable({
         <thead>
           <tr>
             <th>记录ID</th>
-            <th><Button type="button" onClick={() => toggleSort("time")}>时间</Button></th>
-            <th><Button type="button" onClick={() => toggleSort("kind")}>类型</Button></th>
+            <th><Button type="button" variant="ghost" onClick={() => toggleSort("time")}>时间</Button></th>
+            <th><Button type="button" variant="ghost" onClick={() => toggleSort("kind")}>类型</Button></th>
             <th>操作 / 摘要</th>
-            <th><Button type="button" onClick={() => toggleSort("duration")}>耗时</Button></th>
-            <th><Button type="button" onClick={() => toggleSort("status")}>状态</Button></th>
+            <th><Button type="button" variant="ghost" onClick={() => toggleSort("duration")}>耗时</Button></th>
+            <th><Button type="button" variant="ghost" onClick={() => toggleSort("status")}>状态</Button></th>
           </tr>
         </thead>
         <tbody>
@@ -126,7 +127,9 @@ export function RecordTable({
           ) : null}
         </tbody>
       </table>
-      {records.length === 0 ? <div className={styles.empty}>没有符合筛选条件的记录</div> : null}
+      {records.length === 0 ? (
+        <EmptyState size="inline" title="没有符合筛选条件的记录" />
+      ) : null}
     </div>
   );
 }
