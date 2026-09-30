@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    ffi::OsString,
     net::{Ipv4Addr, SocketAddr, TcpStream},
     path::{Path, PathBuf},
     sync::Mutex as StdMutex,
@@ -368,14 +369,21 @@ async fn spawn_detached(exe: String, args: Vec<String>, cwd: Option<String>) -> 
     Ok(())
 }
 
-#[tauri::command]
-fn home_dir() -> Result<String, String> {
-    std::env::var_os("USERPROFILE")
-        .or_else(|| std::env::var_os("HOME"))
+/// 主目录的解析规则：`USERPROFILE`（Windows）优先，回退 `HOME`（Unix），空值不算数。
+/// 抽成纯函数是为了在不读改进程环境变量的前提下测试回退顺序——`set_var` 是进程级的，
+/// 并行测试会互相干扰。
+fn home_dir_from(userprofile: Option<OsString>, home: Option<OsString>) -> Result<String, String> {
+    userprofile
+        .or(home)
         .map(PathBuf::from)
         .filter(|path| !path.as_os_str().is_empty())
         .map(|path| path.to_string_lossy().into_owned())
         .ok_or_else(|| "无法获取用户主目录".to_string())
+}
+
+#[tauri::command]
+fn home_dir() -> Result<String, String> {
+    home_dir_from(std::env::var_os("USERPROFILE"), std::env::var_os("HOME"))
 }
 
 #[tauri::command]
@@ -411,6 +419,14 @@ mod float_plugin {
     const NORMAL_MIN_HEIGHT: f64 = 640.0;
     const DEFAULT_WIDTH: f64 = 1400.0;
     const DEFAULT_HEIGHT: f64 = 900.0;
+
+    /// `enter()` 依赖这条关系：浮动尺寸小于常规最小尺寸，所以必须先放松 `min_size`
+    /// 再改尺寸，否则窗口会被常规最小尺寸卡住。两个常量之间的关系用编译期断言表达，
+    /// 比多写一条运行期测试更早失败、也不占运行时间。
+    const _: () = assert!(
+        FLOAT_WIDTH < NORMAL_MIN_WIDTH && FLOAT_HEIGHT < NORMAL_MIN_HEIGHT,
+        "浮动窗口尺寸必须小于常规最小尺寸"
+    );
 
     /// Remembers the window geometry from before float mode so `exit` can restore it.
     #[derive(Default)]
@@ -478,6 +494,41 @@ mod float_plugin {
             })
             .build()
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{
+            DEFAULT_HEIGHT, DEFAULT_WIDTH, MAIN_WINDOW, NORMAL_MIN_HEIGHT, NORMAL_MIN_WIDTH,
+        };
+
+        /// 编译期把配置读进来：改 `tauri.conf.json` 会重新编译本文件，测试不会读到旧值。
+        const TAURI_CONF: &str = include_str!("../tauri.conf.json");
+
+        fn main_window_config() -> serde_json::Value {
+            let config: serde_json::Value =
+                serde_json::from_str(TAURI_CONF).expect("tauri.conf.json 不是合法 JSON");
+            config["app"]["windows"]
+                .get(0)
+                .cloned()
+                .expect("tauri.conf.json 里没有主窗口配置")
+        }
+
+        #[test]
+        fn size_constants_mirror_tauri_conf() {
+            let window = main_window_config();
+            assert_eq!(window["width"].as_f64(), Some(DEFAULT_WIDTH));
+            assert_eq!(window["height"].as_f64(), Some(DEFAULT_HEIGHT));
+            assert_eq!(window["minWidth"].as_f64(), Some(NORMAL_MIN_WIDTH));
+            assert_eq!(window["minHeight"].as_f64(), Some(NORMAL_MIN_HEIGHT));
+        }
+
+        #[test]
+        fn main_window_label_matches_tauri_conf() {
+            // get_webview_window("main") 找不到窗口时只会返回「找不到主窗口」，
+            // label 一旦漂移，浮动模式会在运行时整体失效。
+            assert_eq!(main_window_config()["label"].as_str(), Some(MAIN_WINDOW));
+        }
+    }
 }
 
 fn import_session_menu(app: &tauri::AppHandle) {
@@ -542,4 +593,100 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running CC Analyzer");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{home_dir_from, io_error, string_from_head};
+    use std::ffi::OsString;
+
+    // --- io_error：错误文案会原样展示给用户，不能带出原始信息里的路径 ---
+
+    #[test]
+    fn a_missing_path_becomes_friendly_copy_without_the_raw_message() {
+        let error = std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "No such file or directory: /Users/alice/.claude/projects/x.jsonl",
+        );
+
+        let message = io_error("读取文件失败", error);
+
+        assert_eq!(message, "读取文件失败: 文件或目录不存在");
+        assert!(
+            !message.contains("/Users/"),
+            "错误文案不应泄漏绝对路径，实际为: {message}"
+        );
+    }
+
+    #[test]
+    fn other_io_errors_keep_the_context_and_the_cause() {
+        let error = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "拒绝访问");
+
+        assert_eq!(io_error("写入文件失败", error), "写入文件失败: 拒绝访问");
+    }
+
+    // --- string_from_head：read_head 按字节截断，截口落在字符中间时不能产出半个字符 ---
+
+    #[test]
+    fn a_head_ending_inside_a_character_drops_the_partial_character() {
+        // 「中文会话」的前 4 个字节停在「文」的首字节上，只应留下「中」。
+        let bytes = "中文会话".as_bytes()[..4].to_vec();
+
+        assert_eq!(string_from_head(bytes), "中");
+    }
+
+    #[test]
+    fn a_head_ending_on_a_character_boundary_is_returned_verbatim() {
+        assert_eq!(
+            string_from_head("hello\nworld".as_bytes().to_vec()),
+            "hello\nworld"
+        );
+        assert_eq!(string_from_head("中文".as_bytes().to_vec()), "中文");
+    }
+
+    #[test]
+    fn an_empty_head_is_an_empty_string() {
+        assert_eq!(string_from_head(Vec::new()), "");
+    }
+
+    #[test]
+    fn an_invalid_byte_inside_the_head_drops_everything_after_it() {
+        // 逐字节从尾部回退到第一个合法前缀——非法字节之后的内容不会保留，
+        // 也不会出现替换字符。这个「静默截断」是当前实现的实际行为。
+        assert_eq!(string_from_head(vec![b'a', 0xFF, b'b', b'c']), "a");
+    }
+
+    // --- home_dir_from：USERPROFILE 优先、HOME 兜底、空值不算数 ---
+
+    #[test]
+    fn userprofile_takes_precedence_over_home() {
+        let resolved = home_dir_from(
+            Some(OsString::from(r"C:\Users\alice")),
+            Some(OsString::from("/home/alice")),
+        );
+
+        assert_eq!(resolved, Ok(r"C:\Users\alice".to_string()));
+    }
+
+    #[test]
+    fn home_is_the_fallback_when_userprofile_is_absent() {
+        let resolved = home_dir_from(None, Some(OsString::from("/home/alice")));
+
+        assert_eq!(resolved, Ok("/home/alice".to_string()));
+    }
+
+    #[test]
+    fn an_empty_value_is_not_a_home_directory() {
+        let resolved = home_dir_from(Some(OsString::from("")), None);
+
+        assert_eq!(resolved, Err("无法获取用户主目录".to_string()));
+    }
+
+    #[test]
+    fn neither_variable_set_is_an_error() {
+        assert_eq!(
+            home_dir_from(None, None),
+            Err("无法获取用户主目录".to_string())
+        );
+    }
 }
