@@ -287,7 +287,49 @@ if [[ ${#JSON_TARGETS[@]} -gt 0 ]] && command -v python3 >/dev/null 2>&1; then
 fi
 
 # ---------------------------------------------------------------------------
-# 8. zizmor —— 工作流安全扫描（对应 CI 的 zizmor job）
+# 8. Shell 变量展开紧邻多字节字符 —— macOS 自带 bash 3.2 会解析错
+#
+#    `"$ARCH（请用…）"` 这种写法，变量名后面紧跟一个全角字符，
+#    bash 3.2 会把该多字节字符的首字节当成变量名的一部分，于是变量名变成
+#    「ARCH + 半个汉字」——`set -u` 下直接报 `ARCH?: unbound variable`，
+#    脚本当场死掉，而设计的错误提示一个字都打不出来。
+#
+#    bash 4+ 与 CI 的 bash 5 都不会犯这个错，所以它**只在 macOS 本地暴露**，
+#    和 §5 的 PowerShell BOM 是同一类问题：本地/CI 的表现不一致。
+#
+#    修法一律是加花括号消歧：`"${ARCH}（…）"`。
+# ---------------------------------------------------------------------------
+check_shell_multibyte_expansion() {
+  python3 - "${SH_TARGETS[@]}" <<'PY'
+import pathlib, re, sys
+
+pattern = re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7F]")
+hits = []
+for name in sys.argv[1:]:
+    for lineno, line in enumerate(pathlib.Path(name).read_text(encoding="utf-8").splitlines(), 1):
+        # 整行注释跳过：注释不会被 bash 执行，而这里恰恰需要能写出反例来说明问题
+        # （本检查自身的说明注释里就有一个）。
+        if line.lstrip().startswith("#"):
+            continue
+        for match in pattern.finditer(line):
+            hits.append(f"{name}:{lineno}  {match.group(0)}")
+if hits:
+    print("  变量展开后面紧跟非 ASCII 字符，bash 3.2 会解析错：")
+    for hit in hits:
+        print(f"    {hit}")
+    print("  修法：写成 \"${VAR}（…）\"，用花括号把变量名界住。")
+    sys.exit(1)
+PY
+}
+
+if ! command -v python3 >/dev/null 2>&1; then
+  skip_check "Shell 多字节解析（bash 3.2）" "未安装 python3" "brew install python3"
+elif [[ ${#SH_TARGETS[@]} -gt 0 ]]; then
+  run_check "Shell 多字节解析（bash 3.2）" check_shell_multibyte_expansion
+fi
+
+# ---------------------------------------------------------------------------
+# 9. zizmor —— 工作流安全扫描（对应 CI 的 zizmor job）
 #
 #    镜像引用从 ci.yml 抽，不写第二份：写死会在 CI 升级时静默漂移，
 #    而这一项的全部价值就是「本地过 = CI 过」。

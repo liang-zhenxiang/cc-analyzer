@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- `./scripts/build-macos.sh` printed a bash error instead of its usage message when given an unsupported architecture. The message was written as `"$ARCH（请用…）"` — a variable expansion immediately followed by a full-width character. macOS's own bash 3.2 swallows the first byte of that character into the variable name, so `set -u` aborts with `ARCH?: unbound variable` and the intended guidance never prints (the exit code was 1 instead of the designed 2). bash 4+ and CI's bash 5 parse it fine, so this only ever surfaced locally. Both instances in the tree are fixed with braces (`"${ARCH}（…）"`), and `scripts/lint.sh` now rejects the pattern so it cannot return silently.
 - Clicking the first session of a group collapsed the group instead of selecting that session. `SessionList.module.css` carried an unscoped `.groups button` rule that also matched the group collapse toggle; being more specific than `.groupToggle`, it silently overrode the toggle's `display: flex`. The toggle then laid out as a vertical grid, overran its fixed 38px row by 40px, and its count badge came to rest on top of the first session — where it absorbed the click. Found by the new end-to-end suite, which could not click the session for the same reason a user could not. The session-button rules are now scoped to the session rows, so adding another button under `.groups` cannot bring this back.
 
 ## [0.2.2] - 2026-09-30

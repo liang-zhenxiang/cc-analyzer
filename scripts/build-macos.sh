@@ -27,7 +27,7 @@ case "$ARCH" in
     DIST_DIR="$ROOT_DIR/dist-arm64"
     ;;
   *)
-    echo "不支持的架构：$ARCH（请用 x86_64 或 aarch64）" >&2
+    echo "不支持的架构：${ARCH}（请用 x86_64 或 aarch64）" >&2
     exit 2
     ;;
 esac
