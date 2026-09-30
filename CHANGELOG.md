@@ -4,18 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Changed
+## [0.2.0] - 2026-09-30
 
-- Frontend toolchain upgraded: Vite 8, Vitest 5, `@vitejs/plugin-react` 6, and jsdom 30. `web/vite.config.ts` now takes `defineConfig` from `vitest/config`, uses the function form of `manualChunks` (the object shorthand was removed with the Rollup upgrade), and one virtual-list assertion no longer depends on the whitespace behaviour the older jsdom inserted between inline elements.
-- TypeScript moved from 5.9 to 7.0 in `web/`; `tsc -b` and the Vite build pass unchanged.
-
-### Security
-
-- `npm audit` is back to zero known vulnerabilities. The advisories covering the Vite dev server and the Vitest UI (1 critical, 1 high, 3 moderate) are only patched in Vite 8 / Vitest 5, so the frontend toolchain had to move majors to clear them.
-
-## [0.2.0] - 2026-09-29
-
-本轮主题：开源规范基建——CI 门禁、治理文件、自动化工作流、发布流水线与文档体系全部落地，并包含此前积累的全部功能改动。
+本轮主题：开源规范基建——CI 门禁、治理文件、自动化工作流、发布流水线与文档体系全部落地，并包含此前积累的全部功能改动；发布前把前端工具链升到当前主版本，清空依赖审计告警。
 
 ### Added
 
@@ -69,6 +60,12 @@ All notable changes to this project will be documented in this file.
 - The analyzer workspace sizes its rows from the blocks it renders (each pane carries its own minimum) instead of a fixed grid template, and both the log table and the tree are capped to the viewport so they scroll internally rather than stretching the page.
 - Transcript payloads are serialised with a helper that survives bigints, repeated references and unserialisable values, so a hostile `record.raw` can no longer blank a panel; non-finite `durationMs` values no longer swallow a whole window.
 - The log table windows on measured row heights instead of a 31px guess (real rows measure 39px, so the scrollbar and scroll offsets were off by thousands of pixels), counts an expanded panel's real height, and caps itself to the viewport so the windowed rows can actually be scrolled to.
+- Frontend toolchain upgraded: Vite 8, Vitest 5, `@vitejs/plugin-react` 6, and jsdom 30. `web/vite.config.ts` now takes `defineConfig` from `vitest/config`, uses the function form of `manualChunks` (the object shorthand was removed with the Rollup upgrade), and one virtual-list assertion no longer depends on the whitespace behaviour the older jsdom inserted between inline elements.
+- TypeScript moved from 5.9 to 7.0 in `web/`; `tsc -b` and the Vite build pass unchanged.
+
+### Security
+
+- `npm audit` is back to zero known vulnerabilities. The advisories covering the Vite dev server and the Vitest UI (1 critical, 1 high, 3 moderate) are only patched in Vite 8 / Vitest 5, so the frontend toolchain had to move majors to clear them.
 
 ### Notes
 
