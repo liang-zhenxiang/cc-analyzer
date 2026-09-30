@@ -153,7 +153,12 @@ test: { include: ["src/**/*.test.{ts,tsx}"] }
 > 循环里绘制好的自家窗口截图，拿到的是**尺寸正确、像素全透明**（`rgba(0,0,0,0)`）的图。
 > 危险之处在于它**不报错**——`if image != nil` 会通过，然后产出一张空白 PNG。
 > macOS 缺权限时给的是「一个窗口形状的洞」，不是错误。
-> 完整实验与替代方案见 [`gui-tests.md`](./gui-tests.md#there-is-no-permission-free-way-to-screenshot-the-app-window-measured-not-assumed)。
+>
+> **正确的出路在 2026-10-01 找到了**：不要「读屏幕」，改让 **WebKit 渲染它自己**。
+> `WKWebView.createPDF` 走的是渲染管线而非截屏通道，因此完全不受 TCC 限制。
+> 应用侧只需暴露一个 `gui-capture` feature（发布构建不启用），
+> 由 `scripts/gui-test.sh` 驱动取图。实测产出的是真实窗口内容。
+> 详见 [`gui-tests.md`](./gui-tests.md)。
 
 ---
 

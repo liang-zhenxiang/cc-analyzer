@@ -65,7 +65,14 @@ announces the terminated job on stderr and the noise reads like a failure
    `CACHE_NAME` in `web/src/features/sessions/sessionRepository.ts`).
 4. **The cache holds exactly 2 entries** — matching the 2 fixtures copied in — and
    **every entry path starts with the isolated `HOME`** (`OUTSIDE 0`).
-5. **SIGTERM is followed by exit within 5 seconds.**
+5. **The app renders its own window to a PDF** within 15 seconds of launch.
+6. **That PDF converts to a PNG** (`sips -s format png`).
+7. **The PNG is not blank** — at least 20 distinct colours among a sampled grid.
+   This is the check that makes the screenshot trustworthy; see the trap below.
+8. **SIGTERM is followed by exit within 5 seconds.**
+
+Checks 5–7 are what turn "the app is running" into "the app is *displaying the right
+thing*". They need no privacy permission, because they never read the screen.
 
 Check 3 is the strongest evidence in the whole suite, and it needs **no privacy
 permission**. That file can only exist if the entire chain ran: webview loaded → React
@@ -84,60 +91,50 @@ avoid adding a dependency to the test.
 
 ---
 
-## Screenshots are best-effort, and a skip is not a pass
+## Screenshots: captured from inside the app, no permission needed
 
-`screencapture -x -o gui-artifacts/app-window.png` is attempted at the end. On macOS,
-capturing screen content requires the **Screen Recording** TCC permission, which only
-the user can grant (System Settings → Privacy & Security → Screen Recording) — a
-script cannot request it. That is a security boundary, not a bug to route around
-([`pitfalls.md`](./pitfalls.md) #7).
+The app renders **its own webview** to a PDF, and the script converts that to PNG.
 
-When it fails the script prints `⚠ 跳过`, the reason, and how to enable it; it
-increments `SKIPPED`, does **not** increment `PASSED`, and lists every skipped check by
-name in the summary so it cannot be read as a pass.
+On macOS, capturing screen content normally needs the **Screen Recording** TCC
+permission, which only the user can grant. That gate is real and unavoidable for
+anything that reads the screen — measured, not assumed (see below). So this does
+not go through the screen at all: `WKWebView.createPDF` asks **WebKit to render
+the page it is already displaying**. It never touches the window server, so no
+permission is involved.
 
-### There is no permission-free way to screenshot the app window (measured, not assumed)
+In `src-tauri/src/lib.rs` the `gui_capture` module reads `CCA_GUI_CAPTURE`; when it
+holds a path, the app waits for the webview to settle, renders itself there, and
+keeps running so the rest of the assertions still apply to the same launch.
+`gui-test.sh` builds with `--features gui-capture` and passes the path.
 
-The obvious workaround — "surely a process may capture *its own* window" — **does not
-work**. Measured on macOS 26, with a probe that creates an `NSWindow` in a real
-`NSApp.run()` loop, draws a label, waits for compositing, then captures its own window:
+### The blank-image trap (why the assertion checks pixels, not files)
+
+The reason this section is emphatic: **macOS hands you a correctly sized, entirely
+empty image instead of an error when you lack the permission.** A check like
+`if file exists` or `if image != nil` passes and you ship a transparent PNG.
+
+Measured on macOS 26 with a probe that creates an `NSWindow` in a real `NSApp.run()`
+loop, draws a label, waits for compositing, then captures its own window:
 
 | Attempt | Result |
 | --- | --- |
 | `screencapture -x` (any variant) | `could not create image from display` |
-| `CGWindowListCreateImage` on own window, called via `dlsym` | **returns an image of the right size, all pixels `rgba(0,0,0,0)`** |
+| `CGWindowListCreateImage` on own window, reached via `dlsym` | right-sized image, **every pixel `rgba(0,0,0,0)`** |
 
-The second row is the dangerous one: the call **succeeds** and hands back a correctly
-sized, entirely blank bitmap. A naive check like `if image != nil` would pass while
-producing a transparent PNG. macOS gives you a window-shaped hole instead of an error.
+So "a process may capture its own window" — the obvious workaround — does **not**
+work, and it fails *silently*. Hence the script decodes the PNG and asserts on
+**distinct colours** (a blank capture has one; a real screen has hundreds).
 
-The Swift compiler marks `CGWindowListCreateImage` unavailable (macOS 15+); reaching it
-via `dlsym` still yields the blank image, so the deprecation is not the cause — the TCC
-gate is.
+Variance was tried first and rejected: a perfectly normal light UI scored 167, so
+the threshold would have to sit dangerously close to real values. Colour count
+separates cleanly.
 
-**Conclusion: for a screenshot of the real app window, the permission is mandatory.**
-Do not spend time looking for a way around it.
+### Regenerating
 
-### What covers the visual gap instead
-
-The Playwright suite runs on **both Chromium and WebKit** (`playwright.config.ts`).
-macOS Tauri renders in a **WKWebView**, so the WebKit run exercises the same engine
-family the shipped app uses — real rendering, real form controls, HiDPI — with **no
-system permission**, and it runs in CI.
-
-That is an approximation, not a substitute: it proves the UI code renders correctly in
-that engine, while the smoke test above proves the packaged app launches and drives the
-whole IPC chain. Together they cover what the user asked for; the one thing neither
-gives you is a bitmap of the actual window, and only the permission unlocks that.
-
-Screenshots are archived per engine — `analyzer-log-light.png` (Chromium) and
-`analyzer-log-light-webkit.png`. Regenerate with:
-
-```bash
-SCREENSHOTS=1 npm --prefix web run test:e2e -- --grep "截图归档"
-```
-
----
+Screenshots land in `gui-artifacts/app-window.png` (gitignored). They are the real
+window at its actual size. For per-view coverage in both themes, use the Playwright
+suite (`SCREENSHOTS=1 npm --prefix web run test:e2e -- --grep "截图归档"`), which
+also runs on WebKit — the engine family the macOS app renders in.
 
 ## When to run it, and how to extend it
 

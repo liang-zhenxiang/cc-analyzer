@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- The real-app GUI test now **captures the application's own window** instead of reporting the screenshot as skipped. It no longer needs macOS's Screen Recording permission, because it does not read the screen: `WKWebView.createPDF` asks **WebKit to render the page it is already displaying**, which never touches the window server. The app exposes this behind a `gui-capture` Cargo feature that **release builds do not enable**, and `scripts/gui-test.sh` drives it. The captured image is checked for content rather than merely for existence — macOS hands back a correctly sized, entirely blank bitmap when it *does* deny a screen read, so a "did the file appear" check would pass on a transparent PNG. The test counts distinct colours instead, which the blank capture fails and a real UI passes.
+
 ## [0.3.0] - 2026-10-01
 
 本轮主题：工程化与体验升级——接入 Trellis 工程框架、建立三层测试网、界面按「仪器面板」重做、新增 Token 计数面板。

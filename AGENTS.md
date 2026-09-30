@@ -157,7 +157,7 @@ which layer a change needs, acceptance criteria, and the pitfalls — live in
 | Layer | Command | Covers |
 | --- | --- | --- |
 | Unit / component (Vitest + jsdom) | `npm --prefix web test` | Parsing, duration, filters, reports, component behavior |
-| End-to-end (Playwright, Chromium **+ WebKit**) | `npm --prefix web run test:e2e` | User flows against the **built** bundle; catches real CSS/layout defects. WebKit matters: macOS Tauri renders in a WKWebView, and the real-app screenshot needs a permission only the user can grant (see `.trellis/spec/testing/gui-tests.md`) |
+| End-to-end (Playwright, Chromium **+ WebKit**) | `npm --prefix web run test:e2e` | User flows against the **built** bundle; catches real CSS/layout defects. WebKit matters: macOS Tauri renders in a WKWebView |
 | Real-app GUI (`./scripts/gui-test.sh`) | `./scripts/gui-test.sh [--build]` | The packaged `.app` actually launches and the whole IPC → filesystem chain runs |
 
 - Place unit tests beside implementation files as `*.test.ts` / `*.test.tsx`; shared JSONL fixtures go under `web/tests/fixtures/` and are used by **both** the unit and the end-to-end suites.
