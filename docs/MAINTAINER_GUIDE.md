@@ -21,11 +21,14 @@ Security，不自创分类。
 ## 发布流程
 
 1. 从最新 `main` 切 `chore/release-vX.Y.Z` 分支。
-2. **版本号四处同步**（缺一不可，见仓库配置清单）：
+2. **版本号三处同步**（缺一不可，见仓库配置清单）：
    - `web/package.json`
    - `src-tauri/Cargo.toml`（同步执行 `cargo check` 刷新 `Cargo.lock`）
    - `src-tauri/tauri.conf.json`
-   - `packaging/macos/Info.plist`
+
+   2026-09-30 之前还有第四处手写的 `packaging/macos/Info.plist`，已随官方
+   打包流程删除——Tauri 现在由 `tauri.conf.json` 生成 plist，不要把第四个
+   文件加回来。
 3. 把 CHANGELOG 的 `Unreleased` 归入 `[X.Y.Z] - 日期`，段首写一句本轮主题；
    `Unreleased` 恢复为空壳。
 4. 提交 `chore(release): 发布 vX.Y.Z`，建发布 PR，CI 绿后 squash 合并。

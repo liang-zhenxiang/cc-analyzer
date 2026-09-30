@@ -73,8 +73,9 @@ git status --short && git log --oneline -3
   39px 实测的教训），滚动偏移会差出几千像素。
 - **时长口径以时间区间并集为准**：简单求和会重复计数嵌套子会话；轮间等待
   单独成行，不摊进工具耗时。
-- **版本号四处同步**：`web/package.json`、`src-tauri/Cargo.toml`、
-  `src-tauri/tauri.conf.json`、`packaging/macos/Info.plist`。
+- **版本号三处同步**：`web/package.json`、`src-tauri/Cargo.toml`、
+  `src-tauri/tauri.conf.json`。手写的 `packaging/macos/Info.plist` 已随官方
+  打包流程删除，不要把第四个文件加回来。
 
 ### 测试策略
 
@@ -209,9 +210,8 @@ tag（`vX.Y.Z-rc.1`）真跑一次。
 ## 五、发布
 
 1. 从最新 main 切 `chore/release-vX.Y.Z` 分支。
-2. **版本号四处同步**：`web/package.json`、`src-tauri/Cargo.toml`（跑
-   `cargo check` 刷新 `Cargo.lock`）、`src-tauri/tauri.conf.json`、
-   `packaging/macos/Info.plist`。
+2. **版本号三处同步**：`web/package.json`、`src-tauri/Cargo.toml`（跑
+   `cargo check` 刷新 `Cargo.lock`）、`src-tauri/tauri.conf.json`。
 3. 把 CHANGELOG 的 `[Unreleased]` 归入 `[X.Y.Z] - 日期`，段首加一句话概述
    本轮主题；`[Unreleased]` 恢复为空壳。
 4. 提交信息 `chore(release): 发布 vX.Y.Z`，建发布 PR 并走完整 CI。
