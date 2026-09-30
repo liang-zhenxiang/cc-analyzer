@@ -201,6 +201,6 @@ peer 依赖上。
 | 本地静态检查（推送前） | `./scripts/lint.sh` |
 | 前端测试 / 构建 | `npm test` / `npm run build`（根脚本转发到 `web/`，等价于 `npm --prefix web ...`） |
 | 打包（三平台） | `npm run build:macos:arm64` / `build:macos:intel` / `build:windows`（内部即 `tauri build`，脚本自动装依赖） |
-| Rust 检查 | `cargo fmt --check` / `cargo clippy -- -D warnings` / `cargo check`（manifest 见 CONTRIBUTING.md） |
+| Rust 检查 | `cargo fmt --check` / `cargo clippy --all-targets -- -D warnings` / `cargo check` / `cargo test`（manifest 见 CONTRIBUTING.md） |
 | 提交信息预检 | `./scripts/check-commit-msg.sh --message "..."` |
 | CI 状态 | `gh run list --branch main --workflow=ci.yml --limit 3` |

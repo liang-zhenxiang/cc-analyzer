@@ -65,16 +65,20 @@ counted as passing.
 
 Two things it deliberately does **not** cover:
 
-- **Build & test checks** (`vitest`, `tsc`, `cargo fmt` / `clippy` / `check`) —
-  run them locally as you develop:
+- **Build & test checks** (`vitest`, `tsc`, `cargo fmt` / `clippy` / `check` /
+  `test`) — run them locally as you develop:
 
   ```bash
   npm --prefix web test
   npm --prefix web run build
   cargo fmt --manifest-path src-tauri/Cargo.toml --check
-  cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+  cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
   cargo check --manifest-path src-tauri/Cargo.toml
+  cargo test --manifest-path src-tauri/Cargo.toml
   ```
+
+  `--all-targets` matters: without it clippy skips `#[cfg(test)]` code, so a
+  lint in a new test only shows up once someone runs clippy on it.
 
 - **Commit messages** — CI validates the commits in a PR *and the PR title*,
   and the title does not exist before the PR does. You can pre-check a title

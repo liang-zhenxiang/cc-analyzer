@@ -21,9 +21,9 @@ thing `v0.2.1` broke twice while every other layer was green
 Without `--app` the bundle is chosen by `uname -m`: `dist-arm64/CC Analyzer.app` on
 arm64, `dist-intel/CC Analyzer.app` otherwise. The executable must exist at
 `${APP_PATH}/Contents/MacOS/cc-analyzer`, or the script exits 1 and prints the build
-command to run. **Exit code 0 means every check passed; a skipped screenshot does not
+command to run. **Exit code 0 means every check passed; a skipped check does not
 count as a failure, a failed check does.** The script is macOS-only — `.app` layout,
-`ps`, `screencapture` and the TCC permission below have no portable equivalent.
+`ps`, `sips` and WebKit's own `createPDF` have no portable equivalent.
 
 ---
 
@@ -56,9 +56,13 @@ announces the terminated job on stderr and the noise reads like a failure
 
 1. **The process is still alive after 10 seconds** (`kill -0` polled once a second).
    Catches a crash on launch; on failure it prints the first 20 lines of the app log.
-2. **Resident memory exceeds 20 MB** (`RSS_KB > 20480`). An empty shell process is a
-   few MB; WKWebView plus React is tens to hundreds. The threshold is loose enough not
-   to false-positive and tight enough to exclude "the webview never loaded".
+2. **Resident memory is recorded, not asserted.** `RSS_KB` is printed as a `·` note
+   line and does not count toward pass/fail. It used to be an assertion —
+   `RSS_KB > 20480` ⇒ "the webview loaded" — and that was an over-claim: measured, a
+   minimal window whose only content is a **blank `WKWebView` already sits at
+   69 MB / 16 threads**, far above the threshold. No threshold can separate "our UI
+   loaded" from "a blank webview is sitting there"; they are the same order of
+   magnitude. What actually evidences a loaded webview is checks 5–7.
 3. **`meta-cache-v2.json` exists within 15 seconds.** The path is
    `${HOME_DIR}/Library/Application Support/${BUNDLE_ID}/meta-cache-v2.json`
    (`BUNDLE_ID = io.github.liang-zhenxiang.cc-analyzer`; the filename comes from

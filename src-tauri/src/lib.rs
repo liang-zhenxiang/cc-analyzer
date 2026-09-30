@@ -373,10 +373,13 @@ async fn spawn_detached(exe: String, args: Vec<String>, cwd: Option<String>) -> 
 /// 抽成纯函数是为了在不读改进程环境变量的前提下测试回退顺序——`set_var` 是进程级的，
 /// 并行测试会互相干扰。
 fn home_dir_from(userprofile: Option<OsString>, home: Option<OsString>) -> Result<String, String> {
-    userprofile
-        .or(home)
+    // 空值必须在 `or` 之前剔除：Windows 上 `USERPROFILE=""` 很常见，若先 `or` 再过滤，
+    // `Some("")` 会顶掉 `HOME` 的位置，然后整个候选被丢掉——结果是既不报「没设」、
+    // 也不回退到真正可用的 `HOME`。
+    let pick = |value: Option<OsString>| value.filter(|raw| !raw.is_empty());
+    pick(userprofile)
+        .or_else(|| pick(home))
         .map(PathBuf::from)
-        .filter(|path| !path.as_os_str().is_empty())
         .map(|path| path.to_string_lossy().into_owned())
         .ok_or_else(|| "无法获取用户主目录".to_string())
 }
@@ -395,14 +398,18 @@ fn app_data_dir(app: tauri::AppHandle) -> Result<String, String> {
     Ok(path.to_string_lossy().into_owned())
 }
 
+/// monitor 服务监听的端口。`monitor_port`（前端用来拼地址）与 `monitor_ping`
+/// （用来探测服务是否在跑）必须指同一个端口，所以收敛到一个常量。
+const MONITOR_PORT: u16 = 8090;
+
 #[tauri::command]
 fn monitor_port() -> u16 {
-    8090
+    MONITOR_PORT
 }
 
 #[tauri::command]
 fn monitor_ping() -> bool {
-    let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, 8090));
+    let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, MONITOR_PORT));
     TcpStream::connect_timeout(&addr, Duration::from_millis(250)).is_ok()
 }
 
@@ -682,7 +689,82 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{home_dir_from, io_error, string_from_head};
+    use std::collections::BTreeSet;
     use std::ffi::OsString;
+
+    // --- 命令清单：generate_handler! 与 build.rs 的 app_manifest 必须完全一致 ---
+
+    /// `include_str!` 会把本文件自己的源码读进来，所以 marker 刻意拆成两段写：
+    /// 原样写成一个字面量的话，测试这一行自己就成了一个匹配点，读到的是它后面的
+    /// 内容而不是真的 handler 块。
+    const HANDLER_MARKER: &str = concat!("generate_handler", "![");
+    const APP_MANIFEST_MARKER: &str = "app_manifest(";
+
+    const LIB_RS: &str = include_str!("lib.rs");
+    const BUILD_RS: &str = include_str!("../build.rs");
+
+    /// 取出 `text` 里每一处 `marker` 之后、到最近的 `]` 为止的标识符（去引号、去空白）。
+    ///
+    /// `marker` **必须自带开括号**。不能改成「marker 之后再去找 `[`」：`generate_handler!`
+    /// 后面未必紧跟一个块，那样会一路找到很远的、属于别人的 `[`——读出来的东西
+    /// 看着像命令名，其实与 handler 无关。
+    fn bracketed_items_after(text: &str, marker: &str) -> Vec<Vec<String>> {
+        let mut blocks = Vec::new();
+        let mut rest = text;
+
+        while let Some(found) = rest.find(marker) {
+            let after = &rest[found + marker.len()..];
+            let Some(close) = after.find(']') else { break };
+
+            blocks.push(
+                after[..close]
+                    .split(',')
+                    .map(|item| item.trim().trim_matches('"').to_string())
+                    .filter(|item| !item.is_empty())
+                    .collect(),
+            );
+            rest = &after[close..];
+        }
+
+        blocks
+    }
+
+    #[test]
+    fn build_manifest_lists_exactly_the_registered_commands() {
+        // 主 handler 注册的命令最多——`float_plugin` 里那个小 handler 只有
+        // `enter` / `exit`，它在 build.rs 侧对应的是 `InlinedPlugin::commands`，
+        // 不是 `app_manifest`，两边的对应关系由各自的 marker 分开取。
+        let mut blocks = bracketed_items_after(LIB_RS, HANDLER_MARKER);
+        blocks.sort_by_key(|block| std::cmp::Reverse(block.len()));
+        let registered: BTreeSet<String> = blocks
+            .into_iter()
+            .next()
+            .expect("lib.rs 里找不到 generate_handler! 块")
+            .into_iter()
+            .collect();
+
+        // 从 `app_manifest(` 往后切，取它后面第一个 `.commands(&[...])`。直接全文找
+        // `.commands(` 会先撞上 `build.rs` 里 `InlinedPlugin` 的 `["enter", "exit"]`。
+        let manifest = BUILD_RS
+            .find(APP_MANIFEST_MARKER)
+            .expect("build.rs 里找不到 app_manifest(");
+        let declared: BTreeSet<String> =
+            bracketed_items_after(&BUILD_RS[manifest..], concat!(".commands(&", "["))
+                .into_iter()
+                .next()
+                .expect("app_manifest 里找不到 .commands(&[...])")
+                .into_iter()
+                .collect();
+
+        let missing: Vec<&String> = registered.difference(&declared).collect();
+        let extra: Vec<&String> = declared.difference(&registered).collect();
+        assert!(
+            missing.is_empty() && extra.is_empty(),
+            "build.rs 的 app_manifest 与 lib.rs 的 generate_handler! 不一致：\n  \
+             只有 lib.rs 注册（build.rs 漏声明，权限不会被生成）: {missing:?}\n  \
+             只有 build.rs 声明（注册不存在的命令）: {extra:?}"
+        );
+    }
 
     // --- io_error：错误文案会原样展示给用户，不能带出原始信息里的路径 ---
 
@@ -760,8 +842,27 @@ mod tests {
     }
 
     #[test]
+    fn an_empty_userprofile_falls_back_to_home() {
+        // Windows 上设了空 `USERPROFILE` 是常见情形。空值不算候选，`HOME` 应顶上，
+        // 而不是让整个解析失败。
+        let resolved = home_dir_from(
+            Some(OsString::from("")),
+            Some(OsString::from("/home/alice")),
+        );
+
+        assert_eq!(resolved, Ok("/home/alice".to_string()));
+    }
+
+    #[test]
     fn an_empty_value_is_not_a_home_directory() {
         let resolved = home_dir_from(Some(OsString::from("")), None);
+
+        assert_eq!(resolved, Err("无法获取用户主目录".to_string()));
+    }
+
+    #[test]
+    fn an_empty_home_is_not_a_home_directory_either() {
+        let resolved = home_dir_from(None, Some(OsString::from("")));
 
         assert_eq!(resolved, Err("无法获取用户主目录".to_string()));
     }
