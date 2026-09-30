@@ -109,6 +109,61 @@ powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1
 
 ---
 
+## 依赖升级
+
+### vite 8 报 `manualChunks` 类型错误（TS2769）
+
+**报错原文**：
+
+```
+vite.config.ts(18,11): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Type '{ manualChunks: { markdown: string[]; }; }' is not assignable to type 'OutputOptions | OutputOptions[] | undefined'.
+      Object literal may only specify known properties, and 'markdown' does not exist in type 'ManualChunksFunction'.
+```
+
+**原因**：vite 8 随 Rollup 升级后，`manualChunks` 只接受函数形式，对象写法
+（`{ chunk 名: [包名] }`）被移除。
+
+**解决**：改成按模块 id 判断的函数：
+
+```
+manualChunks(id) {
+  if (/node_modules\/(react-markdown|remark-gfm|rehype-highlight|highlight\.js)\//.test(id)) {
+    return "markdown";
+  }
+}
+```
+
+### vitest 5 下 `vite.config.ts` 的 `test` 字段报 TS2769
+
+**报错原文**：
+
+```
+vite.config.ts(28,3): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Object literal may only specify known properties, and 'test' does not exist in type 'UserConfigExport'.
+```
+
+**原因**：vitest 5 不再自动扩展 vite 的配置类型。
+
+**解决**：`defineConfig` 改从 `vitest/config` 引入，测试配置继续写在
+`vite.config.ts` 里。
+
+### jsdom 30 之后按可访问名称查不到元素
+
+**现象**：`getByRole("button", { name: /会话 399 / })` 这类断言开始失败，
+报 `Unable to find an accessible element with the role "button" and name ...`，
+但 DOM 里确实有这段文字。
+
+**原因**：可访问名称由内联元素拼接而成，规范不插入分隔符。旧 jsdom 会在
+`<strong>会话 399</strong><span>1-1 · 399B</span>` 之间多补一个空格，新版本
+不再补，带尾随空格的正则就匹配不上了。
+
+**解决**：断言不要依赖元素之间的空白，用 `/会话 399/` 而不是 `/会话 399 /`。
+需要看真实名称时，用 `dom-accessibility-api` 的 `computeAccessibleName`
+打印一次即可。
+
 ## 会话数据
 
 ### 会话列表里缺少某些会话

@@ -113,6 +113,7 @@ docs/          usage, architecture, troubleshooting, maintainer guides
 - [ ] Session comparison across time (weekly/monthly trends)
 - [ ] Report templates and export formats
 - [ ] Additional platform support
+- [ ] Frontend upgrade to React 19 (requires moving `@types/react` / `@types/react-dom` together)
 
 Have an idea? [Open a feature request](https://github.com/liang-zhenxiang/cc-analyzer/issues/new/choose).
 

@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Frontend toolchain upgraded: Vite 8, Vitest 5, `@vitejs/plugin-react` 6, and jsdom 30. `web/vite.config.ts` now takes `defineConfig` from `vitest/config`, uses the function form of `manualChunks` (the object shorthand was removed with the Rollup upgrade), and one virtual-list assertion no longer depends on the whitespace behaviour the older jsdom inserted between inline elements.
+- TypeScript moved from 5.9 to 7.0 in `web/`; `tsc -b` and the Vite build pass unchanged.
 
 ### Security
 
