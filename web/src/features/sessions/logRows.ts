@@ -3,7 +3,17 @@ import type { RecordFilter } from "./filters";
 
 export type LogRowKind = "user" | "llm" | "tool" | "subagent" | "workflow" | "wait";
 export type LogRowStatus = "ok" | "error" | "na";
-export type LogTokens = { input: number; output: number };
+/**
+ * Row-level token counts. `prompt` is **every** token the model received as
+ * input — `input_tokens` plus cache writes plus cache reads — which is what the
+ * row's cost-bearing size is. It is not `input_tokens`, and calling it "输入"
+ * was wrong: on a cached session the reads dominate it several-fold, so the
+ * field and every label it reaches must say what it holds.
+ *
+ * The four counters are kept apart in `tokenTotals.ts`; this two-number shape
+ * only survives because the log table has one narrow column.
+ */
+export type LogTokens = { prompt: number; output: number };
 
 export type LogRow = {
   id: string;
@@ -53,10 +63,10 @@ function rowKind(record: SessionRecord): LogRowKind {
 export function tokensOf(record: SessionRecord): LogTokens | null {
   const usage = record.usage;
   if (!usage) return null;
-  const input =
+  const prompt =
     (usage.inputTokens ?? 0) + (usage.cacheCreationTokens ?? 0) + (usage.cacheReadTokens ?? 0);
   const output = usage.outputTokens ?? 0;
-  return input + output > 0 ? { input, output } : null;
+  return prompt + output > 0 ? { prompt, output } : null;
 }
 
 function statusOf(record: SessionRecord, kind: LogRowKind): LogRowStatus {

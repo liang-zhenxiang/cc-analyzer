@@ -60,6 +60,25 @@ function shareLabel(ms: number, axis: Axis): string {
   return `${((ms / axis.total) * 100).toFixed(1)}%`;
 }
 
+/**
+ * Hover text for the token column, spelling out which counters the single
+ * "提示词" figure is made of. Without it the column is a number nobody can
+ * attribute — the exact complaint the four-counter panel exists to answer.
+ */
+function promptBreakdown(row: LogRow): string | undefined {
+  if (!row.tokens) return undefined;
+  const record = [...row.records].reverse().find((item) => item.usage);
+  const usage = record?.usage;
+  if (!usage) return undefined;
+  return [
+    `输入 ${usage.inputTokens ?? 0}`,
+    `+ 缓存写入 ${usage.cacheCreationTokens ?? 0}`,
+    `+ 缓存读取 ${usage.cacheReadTokens ?? 0}`,
+    `= 提示词 ${row.tokens.prompt}`,
+    `· 输出 ${row.tokens.output}`
+  ].join(" ");
+}
+
 function durationClass(ms: number): "durationMs" | "durationS" | "durationM" {
   if (ms < 1000) return "durationMs";
   if (ms < 60_000) return "durationS";
@@ -165,7 +184,9 @@ export function LogView({
             <th>时间</th>
             <th>类型</th>
             <th>操作 / 摘要</th>
-            <th>输入 / 输出 tok</th>
+            {/* 列头必须说清它装的是什么：这个数是提示词总量（含缓存），
+                不是 input_tokens——缓存命中时两者能差一个数量级。 */}
+            <th title="提示词 = input_tokens + 缓存写入 + 缓存读取">提示词(含缓存) / 输出 tok</th>
             <th>耗时</th>
             <th>占比</th>
             <th>waterfall</th>
@@ -277,8 +298,8 @@ function Fragment({
             {row.summary ? ` · ${row.summary}` : ""}
           </span>
         </td>
-        <td className={styles.tokens}>
-          {row.tokens ? `${row.tokens.input} / ${row.tokens.output}` : "—"}
+        <td className={styles.tokens} title={promptBreakdown(row)}>
+          {row.tokens ? `${row.tokens.prompt} / ${row.tokens.output}` : "—"}
         </td>
         <td className={styles[durationClass(row.durationMs)]}>
           {row.durationMs > 0 ? formatDuration(row.durationMs) : "—"}

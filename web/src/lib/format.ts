@@ -22,6 +22,21 @@ export function formatBytes(bytes: number): string {
   return `${bytes}B`;
 }
 
+/**
+ * Compact token counts for dense tables, where four counters sit in one column
+ * and their magnitudes differ by three orders. Below a million the exact value
+ * is kept — those sessions are small enough to read, and the whole point of the
+ * counter is that it is a fact rather than an estimate. The exact value also
+ * goes in the cell's `title` either way; rounding is for scanning, not for the
+ * record.
+ */
+export function formatTokenCount(count: number): string {
+  if (!Number.isFinite(count) || count <= 0) return "0";
+  if (count >= 1_000_000_000) return `${(count / 1_000_000_000).toFixed(2)}B`;
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  return count.toLocaleString("en-US");
+}
+
 /** Relative time labels for the session list (刚刚 / N 分钟前 / 更早). */
 export function formatRelativeTime(ms: number, now = Date.now()): string {
   if (!ms || ms < 0) return "-";

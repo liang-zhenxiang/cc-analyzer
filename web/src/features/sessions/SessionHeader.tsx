@@ -8,10 +8,14 @@ import styles from "./SessionHeader.module.css";
 export function SessionHeader({
   session,
   parsed,
+  tokenPanelOpen,
+  onToggleTokenPanel,
   onOpenFolder
 }: {
   session: SessionMeta;
   parsed: ParsedSession | null;
+  tokenPanelOpen: boolean;
+  onToggleTokenPanel: () => void;
   onOpenFolder: (path: string) => void;
 }) {
   const directory = parentDirectory(session.path);
@@ -24,6 +28,18 @@ export function SessionHeader({
         {sessionTitle(session)}
       </strong>
       <span className={styles.chip}>总耗时 {total === null ? "…" : formatDuration(total)}</span>
+      {/* 与「总耗时」同排紧邻、同视觉规格：两者都是会话级汇总，但不可互相换算，
+          所以除间距外不加任何连接装饰。 */}
+      <button
+        type="button"
+        className={styles.chipButton}
+        aria-expanded={tokenPanelOpen}
+        disabled={!parsed}
+        onClick={onToggleTokenPanel}
+      >
+        Token 计数
+        <b className={styles.cost}>成本未知</b>
+      </button>
       {session.cwd ? (
         <span className={styles.chip} title={session.cwd}>
           项目 <b className={styles.path}>{session.cwd}</b>

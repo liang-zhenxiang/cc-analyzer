@@ -71,7 +71,9 @@ export function RecordDetailPanel({
         {tokens ? (
           <>
             <dt>Token</dt>
-            <dd>输入 {tokens.input} / 输出 {tokens.output}</dd>
+            {/* 与日志表同一口径，标签也必须同口径：这里是提示词总量，不是 input_tokens。
+                四个计数在 Token 面板里分开列。 */}
+            <dd>提示词(含缓存) {tokens.prompt} / 输出 {tokens.output}</dd>
           </>
         ) : null}
         {record.resultTruncated ? <><dt>输出</dt><dd>已截断</dd></> : null}

@@ -1,0 +1,122 @@
+.panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+}
+
+.panel header {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* 面板标题 13px/600，与报告面板同级；页面标题才是 15px。 */
+.panel h2 {
+  margin: 0;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  line-height: var(--lh-base);
+}
+
+/* provenance 徽标：来源用中性色——它只是标注，不是结论。 */
+.source,
+.unknown {
+  padding: 1px var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+.source {
+  color: var(--text-tertiary);
+}
+
+/* 「成本未知」用警示色而不是中性色：它是面板上唯一一个**没有数字**的位置，
+   中性色会让它滑过去，而「我们不编数」正是这块面板要传达的东西。
+   用文字色而非 --warning-soft 填充，避免把一个长期存在的状态画成一个告警块。 */
+.unknown {
+  border-color: var(--border-strong);
+  color: var(--warning);
+}
+
+.panel table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.panel th,
+.panel td {
+  padding: var(--sp-1) var(--sp-2);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.panel thead th {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: var(--lh-xs);
+}
+
+.panel tbody th {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.panel tbody tr:last-child th,
+.panel tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* TTL 拆分是二级行：靠缩进挂到「缓存写入」下面，不另起一级。 */
+.panel tbody th:first-child {
+  width: 30%;
+}
+
+.split th:first-child {
+  padding-left: var(--sp-5);
+  color: var(--text-tertiary);
+}
+
+.field code {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.value,
+.share {
+  text-align: right;
+}
+
+.value {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.share {
+  width: 4.5em;
+  color: var(--text-tertiary);
+}
+
+.scope {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}

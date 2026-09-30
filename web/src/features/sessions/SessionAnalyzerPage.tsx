@@ -7,6 +7,7 @@ import { SessionHeader } from "./SessionHeader";
 import { EmptyState } from "../../components/EmptyState";
 import { FilterBar } from "./FilterBar";
 import { TimelineTrack } from "./TimelineTrack";
+import { TokenPanel } from "./TokenPanel";
 import { RecordDetailPanel } from "./RecordDetailPanel";
 import { ReportPanel } from "./ReportPanel";
 import { TreeView } from "./TreeView";
@@ -55,6 +56,8 @@ export function SessionAnalyzerPage() {
   const [graphLoading, setGraphLoading] = useState(false);
   const [parseProgress, setParseProgress] = useState<number | null>(null);
   const [view, setView] = useState<AnalyzerView>(readStoredView);
+  // 折叠是默认：面板是会话级明细，不是主流程的一部分。
+  const [tokenPanelOpen, setTokenPanelOpen] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [reportNode, setReportNode] = useState<DurationNode | null>(null);
   const [windowOnly, setWindowOnly] = useState(false);
@@ -290,6 +293,8 @@ export function SessionAnalyzerPage() {
         <SessionHeader
           session={selectedSession}
           parsed={parsed}
+          tokenPanelOpen={tokenPanelOpen}
+          onToggleTokenPanel={() => setTokenPanelOpen((open) => !open)}
           onOpenFolder={(path) => void bridges.system.openFolder(path)}
         />
       ) : null}
@@ -318,6 +323,11 @@ export function SessionAnalyzerPage() {
             />
           ) : (
             <>
+              {/* 会话级的东西排在时间线之上：成本/计数是会话的属性，
+                  时间线是会话内部的东西，层级由位置表达。 */}
+              {tokenPanelOpen ? (
+                <TokenPanel records={parsed.records} isSubagent={parsed.isSubagent} />
+              ) : null}
               <TimelineTrack
                 session={parsed}
                 selection={filter.timeRange}

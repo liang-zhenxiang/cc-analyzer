@@ -661,6 +661,8 @@ describe("report generation", () => {
 
     expect(prompt).toContain("筛选后分布");
     expect(prompt).toContain("| 类型 | 条数 | 耗时合计 |");
-    expect(prompt).toContain("| 记录ID | 时间 | 类型 | 摘要 | 耗时 | 输入tok | 输出tok | 状态 |");
+    expect(prompt).toContain(
+      "| 记录ID | 时间 | 类型 | 摘要 | 耗时 | 提示词tok(含缓存) | 输出tok | 状态 |"
+    );
   });
 });

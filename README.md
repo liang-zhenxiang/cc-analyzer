@@ -11,11 +11,18 @@ A desktop application for reviewing AI coding session activity — turn your
 Claude Code session logs into timelines, duration trees, and structured
 analysis reports. Built with Tauri 2 and a React web UI.
 
+![CC Analyzer's session analyzer: grouped session list on the left, filters and log table in the middle, analysis report panel below](docs/screenshots/analyzer-log-light.png)
+
+The session analyzer with a session open — grouped session list on the left,
+filters and the log table in the middle, the analysis report panel below.
+Every screen, in both light and dark themes, is archived in
+[`docs/screenshots/`](docs/screenshots).
+
 ## Features
 
-- **Session explorer** — sessions grouped by timeline (today / this week /
-  this month) and by project, with incrementally scanned titles and relative
-  times.
+- **Session explorer** — sessions grouped by timeline (today / yesterday /
+  this week / this month / earlier) and by project, with incrementally
+  scanned titles and relative times.
 - **Log view with one row model** — user / LLM / tool / agent / workflow /
   wait rows, with duration, share and waterfall columns; filter by row kind,
   success/failure, duration range, or free text.

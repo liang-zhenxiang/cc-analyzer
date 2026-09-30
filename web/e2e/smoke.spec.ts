@@ -65,6 +65,34 @@ test.describe("会话分析", () => {
     await expect(byProject).toHaveAttribute("aria-selected", "true");
   });
 
+  test("Token 计数面板从会话信息条展开，四类计数不合并", async ({ page }) => {
+    await page.goto("/");
+    await sessionItems(page).first().click();
+    await expect(page.getByLabel("会话图状态")).toContainText("会话图已加载", { timeout: 15_000 });
+
+    const chip = page.getByRole("button", { name: /Token 计数/ });
+    await expect(chip).toHaveAttribute("aria-expanded", "false");
+
+    await chip.click();
+
+    const panel = page.getByRole("region", { name: "Token 计数" });
+    await expect(panel).toBeVisible();
+    await expect(chip).toHaveAttribute("aria-expanded", "true");
+
+    // 四类计数各占一行，任何一类都不许被并进另一类。
+    for (const label of ["输入", "缓存写入", "缓存读取", "输出"]) {
+      await expect(panel.getByRole("rowheader", { name: label })).toBeVisible();
+    }
+    // 每个数字都带着它来自哪个日志字段。
+    await expect(panel).toContainText("usage.input_tokens");
+
+    // 算不出来的东西说「未知」，不是 0，也不是空白。
+    await expect(panel).toContainText("成本未知 · 未收录该模型定价");
+
+    await chip.click();
+    await expect(page.getByRole("region", { name: "Token 计数" })).toHaveCount(0);
+  });
+
   test("搜索可以筛掉不匹配的会话", async ({ page }) => {
     await page.goto("/");
     await expect(sessionItems(page)).toHaveCount(5);
