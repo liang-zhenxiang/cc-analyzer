@@ -47,7 +47,7 @@ CC Analyzer 是一个读取本机 Claude Code 会话数据的桌面应用。它*
 
 ## 已知的安全相关配置
 
-- 应用数据（元数据缓存、阈值设置）存储在 `com.flydiy.cc-analyzer` 的
+- 应用数据（元数据缓存、阈值设置）存储在 `io.github.liang-zhenxiang.cc-analyzer` 的
   application-support 目录下，不与 Claude Code 的原始数据混写。
 - 分析报告的生成预算（提示词大小、明细行数等）可由使用者在设置面板收紧，
   减少交给 CLI 的数据量。
