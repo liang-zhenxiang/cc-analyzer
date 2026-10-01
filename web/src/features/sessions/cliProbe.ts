@@ -119,6 +119,48 @@ const WINDOWS_VERSION_ROOTS: readonly VersionManagerRoot[] = [
   { root: (home) => `${home}\\AppData\\Local\\fnm\\aliases`, segments: ["claude.cmd"] }
 ];
 
+/**
+ * Parses `v20.19.5` / `20.19.5` / `v20` into comparable numbers, and returns
+ * `null` for anything that is not a version (`default`, `lts`, `system` — fnm
+ * and nvm both put aliases next to real versions).
+ */
+function parseVersionName(name: string): number[] | null {
+  const match = /^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?$/.exec(name);
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2] ?? 0), Number(match[3] ?? 0)];
+}
+
+/**
+ * Orders enumerated version-directory names newest first.
+ *
+ * `read_dir` hands entries back in whatever order the filesystem happens to
+ * use, which differs between machines. Without sorting, *which install wins* is
+ * an accident of enumeration: the same set of candidates could resolve to the
+ * newest Node on one machine and to a years-old one on another, and the
+ * resulting `command` would differ between two users with identical setups.
+ * Sorting turns "which version was chosen" into a predictable decision, and
+ * newest-first matches what the user's own shell would pick.
+ *
+ * Names that are not versions carry no ordering information, so they sort
+ * *after* every parseable version rather than ahead of it — an alias must never
+ * shadow a real install merely because it was enumerated first.
+ */
+function compareVersionNamesNewestFirst(a: string, b: string): number {
+  const left = parseVersionName(a);
+  const right = parseVersionName(b);
+  if (left && right) {
+    for (let index = 0; index < left.length; index += 1) {
+      if (left[index] !== right[index]) return right[index] - left[index];
+    }
+    return 0;
+  }
+  if (left) return -1;
+  if (right) return 1;
+  // Two non-version names: order them by name so the result stays stable
+  // instead of falling back to the filesystem's enumeration order.
+  return a.localeCompare(b);
+}
+
 async function versionManagerCandidates(bridges: Bridges, home: string): Promise<string[]> {
   const roots = isWindowsHome(home) ? WINDOWS_VERSION_ROOTS : UNIX_VERSION_ROOTS;
   const separator = isWindowsHome(home) ? "\\" : "/";
@@ -137,8 +179,12 @@ async function versionManagerCandidates(bridges: Bridges, home: string): Promise
     // symlinks, so a symlinked version directory reports as neither a file nor
     // a directory — and fnm installs its aliases exactly that way. `stat` does
     // follow links, so it stays the authority on what exists.
-    for (const entry of entries) {
-      paths.push([dir, entry.name, ...segments].join(separator));
+    //
+    // `sort` mutates, and this array comes straight from the bridge, so sort a
+    // copy of the names rather than the entries themselves.
+    const names = entries.map((entry) => entry.name).sort(compareVersionNamesNewestFirst);
+    for (const name of names) {
+      paths.push([dir, name, ...segments].join(separator));
     }
   }
 
@@ -185,28 +231,62 @@ function installHintMessage(): string {
   );
 }
 
-/** Reported only when the CLI was located on disk but would not run. */
-function unrunnableMessage(paths: string[]): string {
+/** One located-but-unusable install, paired with what it did when probed. */
+type UnrunnableCandidate = { path: string; reason: string };
+
+/**
+ * Reported only when the CLI was located on disk but would not run.
+ *
+ * Each candidate carries its own reason. A bare list of paths would leave the
+ * user to guess whether the install is missing a permission bit, built for the
+ * wrong architecture, or — the case that motivated this — a Node script whose
+ * shebang cannot find `node` at all, so that they can tell which fix applies.
+ */
+function unrunnableMessage(candidates: UnrunnableCandidate[]): string {
+  const details = candidates.map(({ path, reason }) => `${path}（${reason}）`).join("、");
   return (
-    `找到 claude CLI 但无法执行它：${paths.join("、")}。` +
-    "文件存在却不能运行，通常是权限不足、安装不完整或与当前系统架构不匹配。" +
+    `找到 claude CLI 但无法执行它：${details}。` +
+    "文件存在却不能运行，通常是权限不足、安装不完整或与当前系统架构不匹配；" +
+    "若失败原因是找不到 node，说明它是由版本管理器安装的 Node 脚本，" +
+    "需要对应的 node 也在 PATH 中（也可改用官方原生二进制发行版）。" +
     "请修复该安装，或卸载后重装 Claude Code CLI（npm i -g @anthropic-ai/claude-code）。"
   );
 }
 
+/** Failure output may be multi-line; the first non-empty line names the cause. */
+function firstLine(text: string): string {
+  return (
+    text
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => line.length > 0) ?? ""
+  );
+}
+
 type HelpOutcome =
-  | { kind: "ran"; hasStreamJson: boolean }
-  | { kind: "spawn-failed" }
+  /** The process started *and* exited 0 — the command genuinely runs. */
+  | { kind: "runnable"; hasStreamJson: boolean }
+  /** The process started but exited non-zero, e.g. a shebang whose `node` is missing. */
+  | { kind: "exited-non-zero"; detail: string }
+  /** The process never started, so nothing exists at this path. */
+  | { kind: "spawn-failed"; detail: string }
+  /** The bridge call itself rejected; retrying through a broken bridge is pointless. */
   | { kind: "bridge-error"; detail: string };
+
+type FailedHelp = Extract<HelpOutcome, { kind: "exited-non-zero" | "spawn-failed" }>;
 
 /**
  * Runs `claude --help` and classifies the outcome.
  *
- * The two failure modes must not be conflated. A *spawn failure* means this
- * particular command was not found, which is worth retrying with another path;
- * a rejected call means the bridge itself is broken, and retrying through it
- * is pointless. A non-zero exit is neither — the CLI exists and ran, so it
- * still counts as usable.
+ * "It started" and "it worked" are different facts, and conflating them is what
+ * made a perfectly dead install look healthy: a `claude` from a version-manager
+ * Node is a script whose shebang is `#!/usr/bin/env node`. With `node` absent
+ * from the (narrow) PATH the process *does* start, then exits 127 with
+ * `env: node: No such file or directory` — no spawn error anywhere in sight.
+ * Hence three distinct outcomes rather than a boolean.
+ *
+ * A rejected call is none of these: the bridge itself is broken, and retrying
+ * through it is pointless.
  */
 async function runHelp(bridges: Bridges, command: string): Promise<HelpOutcome> {
   let result: ExecTextResult;
@@ -217,8 +297,23 @@ async function runHelp(bridges: Bridges, command: string): Promise<HelpOutcome> 
     return { kind: "bridge-error", detail };
   }
 
-  if (result.error?.includes(SPAWN_FAILURE)) return { kind: "spawn-failed" };
-  return { kind: "ran", hasStreamJson: result.ok && result.out.includes("stream-json") };
+  const error = result.error ?? "";
+  if (error.includes(SPAWN_FAILURE)) {
+    const detail = firstLine(error.replace(SPAWN_FAILURE, "").replace(/^[：:\s]+/, ""));
+    return { kind: "spawn-failed", detail };
+  }
+  if (!result.ok) {
+    return { kind: "exited-non-zero", detail: firstLine(error) };
+  }
+  return { kind: "runnable", hasStreamJson: result.out.includes("stream-json") };
+}
+
+/** Turns a probe failure into the parenthetical shown next to its path. */
+function failureReason(outcome: FailedHelp): string {
+  if (outcome.kind === "spawn-failed") {
+    return outcome.detail ? `无法启动：${outcome.detail}` : "无法启动";
+  }
+  return outcome.detail ? `--help 退出码非 0：${outcome.detail}` : "--help 退出码非 0";
 }
 
 /**
@@ -227,19 +322,38 @@ async function runHelp(bridges: Bridges, command: string): Promise<HelpOutcome> 
  * `claude --help` is cheap and proves two things at once: whether the process
  * can be spawned at all, and whether it supports `stream-json` output.
  *
- * A PATH lookup is preferred because it honours whatever the user set up. When
- * it fails — the Finder/Dock case, where the PATH is narrow and a Node version
- * manager is invisible — the installs found on disk are tried in order, and the
- * first one that actually runs becomes the resolved `command`. The order is the
- * fixed locations first, then the enumerated version directories, so which
- * install wins is deterministic rather than dependent on the filesystem; that
- * it runs at all is verified rather than assumed. The resolution happens once
- * per report so the probe and the run cannot disagree.
+ * A PATH lookup is preferred because it honours whatever the user set up, and
+ * it keeps its original lenient rule — for a name resolved through PATH, being
+ * *spawnable* is what proves the CLI exists, and the exit code is not held
+ * against it.
+ *
+ * When that fails — the Finder/Dock case, where the PATH is narrow and a Node
+ * version manager is invisible — the installs found on disk are tried in order,
+ * and the first one that actually runs becomes the resolved `command`. Order is
+ * deterministic: the fixed locations first, then the enumerated version
+ * directories sorted newest-first (see `compareVersionNamesNewestFirst`), so
+ * which install wins does not depend on the filesystem's enumeration order.
+ *
+ * Absolute-path candidates are held to the *stricter* rule that `--help` must
+ * exit 0, because a candidate that cannot run must not be handed to the report
+ * run only to fail there. The trade-off is deliberate: a future version that
+ * exits non-zero on `--help` while working fine for `-p` would be skipped. That
+ * is preferred to reporting a dead install as ready, and each rejected
+ * candidate's reason reaches the user's message either way.
+ *
+ * The resolution happens once per report so the probe and the run cannot
+ * disagree.
  */
 export async function probeClaudeCli(bridges: Bridges): Promise<ClaudeCliProbe> {
   const fromPath = await runHelp(bridges, PATH_COMMAND);
-  if (fromPath.kind === "ran") {
+  if (fromPath.kind === "runnable") {
     return { status: "ready", command: PATH_COMMAND, hasStreamJson: fromPath.hasStreamJson };
+  }
+  if (fromPath.kind === "exited-non-zero") {
+    // Lenient by design, and only here: the name was spawnable, so the CLI is
+    // on PATH and the user can run it. A non-zero `--help` must not turn that
+    // into "not installed".
+    return { status: "ready", command: PATH_COMMAND, hasStreamJson: false };
   }
   if (fromPath.kind === "bridge-error") {
     return { status: "missing", message: bridgeErrorMessage(fromPath.detail) };
@@ -250,16 +364,17 @@ export async function probeClaudeCli(bridges: Bridges): Promise<ClaudeCliProbe> 
     return { status: "missing", message: installHintMessage() };
   }
 
-  const unrunnable: string[] = [];
+  const unrunnable: UnrunnableCandidate[] = [];
   for (const path of found) {
     const outcome = await runHelp(bridges, path);
-    if (outcome.kind === "ran") {
+    if (outcome.kind === "runnable") {
       return { status: "ready", command: path, hasStreamJson: outcome.hasStreamJson };
     }
     if (outcome.kind === "bridge-error") {
       return { status: "missing", message: bridgeErrorMessage(outcome.detail) };
     }
-    unrunnable.push(path);
+    // Located but unusable: keep looking rather than stopping at the first hit.
+    unrunnable.push({ path, reason: failureReason(outcome) });
   }
 
   return { status: "missing", message: unrunnableMessage(unrunnable) };

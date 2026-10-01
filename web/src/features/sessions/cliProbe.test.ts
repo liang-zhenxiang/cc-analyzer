@@ -24,7 +24,7 @@ function createBridges({
   existing = [],
   dirs = {}
 }: {
-  execText: (cmd: string) => Promise<ExecTextResult>;
+  execText: (cmd: string, args: string[]) => Promise<ExecTextResult>;
   home?: string;
   existing?: string[];
   dirs?: Record<string, DirEntry[]>;
@@ -286,5 +286,145 @@ describe("version-manager install directories", () => {
       hasStreamJson: true,
       command: expected
     });
+  });
+});
+
+const NVM_ROOT = "/Users/tester/.nvm/versions/node";
+const FNM_ALIASES = "/Users/tester/.local/share/fnm/aliases";
+
+function nvmClaude(version: string): string {
+  return `${NVM_ROOT}/${version}/bin/claude`;
+}
+
+/**
+ * 真机取证：`~/.nvm/…/v20.19.5/bin/claude` 是 Node 脚本，shebang 为
+ * `#!/usr/bin/env node`。在 Finder/Dock 的窄 PATH 下进程**确实启动了**，
+ * 但退出码 127、stderr 只有这一行——错误里没有「启动命令失败」标记。
+ */
+const NODE_NOT_FOUND: ExecTextResult = {
+  ok: false,
+  out: "",
+  error: "env: node: No such file or directory"
+};
+
+describe("probeClaudeCli：绝对路径候选必须真的跑通", () => {
+  test("skips a candidate whose --help exits non-zero and resolves the next one", async () => {
+    const broken = "/Users/tester/.local/bin/claude";
+    const working = nvmClaude("v24.13.0");
+    const execText = vi.fn(async (cmd: string): Promise<ExecTextResult> => {
+      if (cmd === broken) return NODE_NOT_FOUND;
+      if (cmd === working) return HELP_WITH_STREAM;
+      return SPAWN_FAILED;
+    });
+    const bridges = createBridges({
+      execText,
+      dirs: { [NVM_ROOT]: [dirEntry("v24.13.0")] },
+      existing: [broken, working]
+    });
+
+    await expect(probeClaudeCli(bridges)).resolves.toEqual({
+      status: "ready",
+      hasStreamJson: true,
+      command: working
+    });
+
+    // 探测顺序：PATH 名 → 跑不起来的那个 → 能跑的那个。非 0 退出的候选只被
+    // `--help` 探过，绝不会成为交给执行侧的命令。
+    expect(execText.mock.calls.map(([cmd]) => cmd)).toEqual(["claude", broken, working]);
+  });
+
+  test("keeps going when a located candidate cannot be spawned at all", async () => {
+    const ghost = "/opt/homebrew/bin/claude";
+    const working = nvmClaude("v18.20.8");
+    const execText = vi.fn(async (cmd: string): Promise<ExecTextResult> => {
+      if (cmd === working) return HELP_WITH_STREAM;
+      return SPAWN_FAILED;
+    });
+    const bridges = createBridges({
+      execText,
+      dirs: { [NVM_ROOT]: [dirEntry("v18.20.8")] },
+      existing: [ghost, working]
+    });
+
+    await expect(probeClaudeCli(bridges)).resolves.toEqual({
+      status: "ready",
+      hasStreamJson: true,
+      command: working
+    });
+    expect(execText.mock.calls.map(([cmd]) => cmd)).toEqual(["claude", ghost, working]);
+  });
+
+  test("reports each candidate's own failure reason when none of them runs", async () => {
+    const nodeScript = nvmClaude("v20.19.5");
+    const notSpawnable = "/Users/tester/.local/bin/claude";
+    const execText = vi.fn(async (cmd: string): Promise<ExecTextResult> => {
+      if (cmd === nodeScript) return NODE_NOT_FOUND;
+      return SPAWN_FAILED;
+    });
+    const bridges = createBridges({
+      execText,
+      dirs: { [NVM_ROOT]: [dirEntry("v20.19.5")] },
+      existing: [notSpawnable, nodeScript]
+    });
+
+    const probe = await probeClaudeCli(bridges);
+
+    expect(probe.status).toBe("missing");
+    if (probe.status !== "missing") return;
+    expect(probe.message).toContain("无法执行");
+    expect(probe.message).not.toContain("未找到");
+    // 每个候选的失败原因都要看得出来，而不是只报一串路径。
+    expect(probe.message).toContain(
+      `${notSpawnable}（无法启动：No such file or directory (os error 2)）`
+    );
+    expect(probe.message).toContain(
+      `${nodeScript}（--help 退出码非 0：env: node: No such file or directory）`
+    );
+  });
+});
+
+describe("probeClaudeCli：版本目录的确定顺序", () => {
+  test("prefers the newest version directory whatever order read_dir returns", async () => {
+    // 枚举顺序故意写成「旧的在最前」，文件系统的偶然顺序不该决定选哪个版本。
+    const execText = vi.fn(async (cmd: string): Promise<ExecTextResult> =>
+      cmd.startsWith(NVM_ROOT) ? HELP_WITH_STREAM : SPAWN_FAILED
+    );
+    const bridges = createBridges({
+      execText,
+      dirs: {
+        [NVM_ROOT]: [dirEntry("v18.20.8"), dirEntry("v24.13.0"), dirEntry("v20.19.5")]
+      },
+      existing: [nvmClaude("v18.20.8"), nvmClaude("v24.13.0"), nvmClaude("v20.19.5")]
+    });
+
+    await expect(probeClaudeCli(bridges)).resolves.toEqual({
+      status: "ready",
+      hasStreamJson: true,
+      command: nvmClaude("v24.13.0")
+    });
+    // v24 一次就跑通，v20 / v18 根本没有被探测。
+    expect(execText.mock.calls.map(([cmd]) => cmd)).toEqual(["claude", nvmClaude("v24.13.0")]);
+  });
+
+  test("does not let a non-version alias outrank a real version", async () => {
+    // fnm 的 aliases 目录里 `default` 是指向某个真实版本的符号链接。
+    const alias = `${FNM_ALIASES}/default/bin/claude`;
+    const versioned = `${FNM_ALIASES}/v20.19.5/bin/claude`;
+    const execText = vi.fn(async (cmd: string): Promise<ExecTextResult> =>
+      cmd === alias || cmd === versioned ? HELP_WITH_STREAM : SPAWN_FAILED
+    );
+    const bridges = createBridges({
+      execText,
+      dirs: { [FNM_ALIASES]: [dirEntry("default", "symlink"), dirEntry("v20.19.5")] },
+      existing: [alias, versioned]
+    });
+
+    // 两个都跑得通，所以这里断言的是**排序**：解析不出数字的别名排在真实版本之后。
+    await expect(probeClaudeCli(bridges)).resolves.toEqual({
+      status: "ready",
+      hasStreamJson: true,
+      command: versioned
+    });
+    expect(execText.mock.calls.map(([cmd]) => cmd)).toEqual(["claude", versioned]);
   });
 });
