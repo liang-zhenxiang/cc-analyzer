@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "组件契约、可访问名与交互约定"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "复用既有 context/hook 而不是另造一套"}
+{"file": ".trellis/spec/testing/unit-tests.md", "reason": "组件测试与断言写法"}
+{"file": ".trellis/spec/testing/e2e-tests.md", "reason": "新增用户流程要补端到端"}
+{"file": ".trellis/spec/testing/pitfalls.md", "reason": "夹具健全性与恒真断言"}
