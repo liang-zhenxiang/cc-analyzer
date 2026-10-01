@@ -11,7 +11,7 @@
 - Xcode Command Line Tools（macOS）
 - Node.js 和 npm，用于构建或开发 Web UI
 - 可选：本机安装 `claude` CLI，用于“生成分析报告”
-- 可选：本机 `localhost:8090` 运行外部 cc-monitor/dashboard，用于“实时监控”
+- 可选：本机 `localhost:8090` 运行外部监控仪表盘，用于“实时监控”
 
 ## 启动桌面应用
 
@@ -98,6 +98,7 @@ npm run build:windows        # dist-windows/ NSIS 安装程序 + CC_Analyzer_x64
 - 会话分析读取 `~/.claude/projects`。
 - “生成分析报告”依赖本机 `claude` CLI。
 - “实时监控”页面依赖外部 `localhost:8090` 服务；该服务不在本仓库内。
+  该页默认不探测，点「打开监控」才会去连。
 - 会话数据可能包含代码、路径、命令输出和敏感信息；“生成分析报告”会把结构化摘要交给本机
   `claude` CLI，请注意其后续模型/服务流向。
 

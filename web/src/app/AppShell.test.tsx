@@ -17,6 +17,16 @@ const bridges = {
   monitor: { monitorPort: vi.fn(async () => 8090), pingMonitor: vi.fn(async () => true) }
 } as unknown as Bridges;
 
+/**
+ * 切到监控标签并打开面板。面板不再在挂载时自动探测，
+ * 所以「仪表盘已经内嵌」这件事之前必须先有这一次点击。
+ */
+async function openMonitor(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("tab", { name: "实时监控" }));
+  await user.click(screen.getByRole("button", { name: "打开监控" }));
+  await screen.findByTitle("实时监控仪表盘");
+}
+
 test("switches analyzer and monitor tabs", async () => {
   const user = userEvent.setup();
   render(<AppShell bridges={bridges} />);
@@ -43,8 +53,7 @@ test("shows the float exit button only after the dashboard enters float mode", a
 
   expect(screen.queryByRole("button", { name: "退出浮窗" })).not.toBeInTheDocument();
 
-  await user.click(screen.getByRole("tab", { name: "实时监控" }));
-  await screen.findByTitle("实时监控 dashboard");
+  await openMonitor(user);
   act(() => {
     window.dispatchEvent(
       new MessageEvent("message", {
@@ -76,8 +85,7 @@ test("hides the float exit button when the bridge cannot leave float mode", asyn
     />
   );
 
-  await user.click(screen.getByRole("tab", { name: "实时监控" }));
-  await screen.findByTitle("实时监控 dashboard");
+  await openMonitor(user);
   act(() => {
     window.dispatchEvent(
       new MessageEvent("message", {

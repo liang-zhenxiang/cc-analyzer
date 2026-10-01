@@ -32,7 +32,8 @@ Every screen, in both light and dark themes, is archived in
 - **AI analysis reports** — structured prompts sent to your local `claude`
   CLI, rendered as Markdown with syntax highlighting; cancellable at any
   time, with per-node and per-time-block scoping.
-- **Realtime monitor** — embeds a local cc-monitor dashboard, with a
+- **Realtime monitor** — embeds a local monitoring dashboard you run
+  yourself (not shipped in this repo), opened on demand, with a
   floating-window mode.
 - **Performance at scale** — windowed, measured-height rendering and chunked
   parsing keep large sessions (tens of MB of JSONL) responsive.

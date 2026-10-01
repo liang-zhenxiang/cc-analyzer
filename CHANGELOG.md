@@ -17,6 +17,9 @@ All notable changes to this project will be documented in this file.
 - `./scripts/gui-test.sh --help` 打印一段 19 行的用法摘要，不再把整整 42 行头部注释连同 `#` 前缀一起倒出来。提取方式不再依赖行号——那正是早先那一版不再显示用法段的原因。
 - **`CHANGELOG.md` 的条目改用中文书写。** 发布说明会把 CHANGELOG 中该版本的段落**原样**拼进去，所以 CHANGELOG 的正文就是发布说明的正文——写英文等于发一版英文说明。规则与边界（历史条目不回改）见 `.trellis/spec/guides/release-notes.md`，`AGENTS.md` 与 `docs/MAINTAINER_GUIDE.md` 只做引用。
 
+- **实时监控改为显式打开**：切到「实时监控」标签页不再探测、不再内嵌 iframe，点「打开监控」才开始连接；连上后工具栏提供「关闭监控」，可回到未打开状态。此前是挂载即探测，而那个仪表盘服务不在本仓库内、多数人根本没在跑它——每次切标签都要先白等近两秒的失败重试。
+- **用户可见文案里不再出现外部仪表盘的产品名**。失败提示过去会写到「可能被旧 cc-monitor 占用」——那既是别人家服务的名字（本项目叫 CC Analyzer），也是在猜一个我们并不知道的原因。现在只陈述事实：探测了哪个地址、试了几次、该服务不在本仓库内需另行启动。`README`（中英）、`docs/USAGE.md`、`docs/TROUBLESHOOTING.md`、`docs/LOCAL_DEVELOPMENT.md` 与 `docs/ARCHITECTURE.md` 同步更新。
+
 ### Fixed
 
 - **装好了 `claude` CLI 却报「未找到」**。两个原因叠在一起：候选安装位置表只列了 `~/.claude/local`、`/opt/homebrew/bin` 这类固定路径，**不含任何 Node 版本管理器**（nvm、volta、fnm、asdf、mise、pnpm、yarn），所以找不到；更要紧的是解析出来的路径**只被拼进错误文案**，真正执行时仍然硬编码 `claude`——PATH 里没有就照样启动失败，改文案并不能修好它。现在候选表覆盖各版本管理器的 shim 与**按版本号分目录**的安装（后者靠枚举目录，而不是猜版本号），解析出的命令会真的交给执行侧，且探测与执行用的是同一条命令。若 CLI 在磁盘上但跑不起来，报的是「找到了却无法执行」，不再是「没找到」。

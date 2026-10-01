@@ -7,6 +7,7 @@ import type { Bridges } from "../../api/types";
 import { MonitorPage } from "./MonitorPage";
 
 const RETRY_DELAY_MS = 800;
+const FRAME_TITLE = "实时监控仪表盘";
 
 function createBridges({
   port = 8090,
@@ -47,18 +48,46 @@ function renderMonitor(bridges: Bridges, onEnterFloat?: () => void) {
   );
 }
 
-describe("MonitorPage", () => {
-  test("renders the dashboard when the monitor responds", async () => {
-    renderMonitor(createBridges({}));
+/**
+ * 打开监控。这里的每一步都是刻意的：面板不再在挂载时探测，
+ * 所以每个「探测之后」的断言前面都得先有这个点击。
+ */
+function openMonitor() {
+  fireEvent.click(screen.getByRole("button", { name: "打开监控" }));
+}
 
-    const frame = await screen.findByTitle("实时监控 dashboard");
+describe("MonitorPage", () => {
+  test("does not probe or embed a frame until the user opens the monitor", () => {
+    const monitorPort = vi.fn(async () => 8090);
+    const pingMonitor = vi.fn(async () => true);
+
+    renderMonitor(createBridges({ monitorPort, pingMonitor }));
+
+    expect(screen.getByRole("button", { name: "打开监控" })).toBeInTheDocument();
+    expect(screen.queryByTitle(FRAME_TITLE)).not.toBeInTheDocument();
+    // 「点进去不要马上打开」的机器化表达：挂载本身不产生任何探测。
+    expect(monitorPort).not.toHaveBeenCalled();
+    expect(pingMonitor).not.toHaveBeenCalled();
+  });
+
+  test("embeds the dashboard once the user opens it", async () => {
+    const monitorPort = vi.fn(async () => 8090);
+    const pingMonitor = vi.fn(async () => true);
+
+    renderMonitor(createBridges({ monitorPort, pingMonitor }));
+    openMonitor();
+
+    const frame = await screen.findByTitle(FRAME_TITLE);
     expect(frame).toHaveAttribute("src", "http://localhost:8090/?theme=light");
+    expect(monitorPort).toHaveBeenCalledTimes(1);
+    expect(pingMonitor).toHaveBeenCalledTimes(1);
   });
 
   test("shows the attempt count while probing", async () => {
     vi.useFakeTimers();
     try {
       renderMonitor(createBridges({ ping: false }));
+      openMonitor();
 
       expect(screen.getByText(/第 1\/3 次尝试/)).toBeInTheDocument();
       await act(async () => {
@@ -70,18 +99,19 @@ describe("MonitorPage", () => {
     }
   });
 
-  test("retries three times before reporting the monitor as unavailable", async () => {
+  test("retries three times before reporting the dashboard as unreachable", async () => {
     vi.useFakeTimers();
     try {
       const monitorPort = vi.fn(async () => 8090);
       const pingMonitor = vi.fn(async () => false);
       renderMonitor(createBridges({ monitorPort, pingMonitor }));
+      openMonitor();
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(RETRY_DELAY_MS * 3);
       });
 
-      expect(screen.getByText("监控代理未启动")).toBeInTheDocument();
+      expect(screen.getByText("监控仪表盘未连接")).toBeInTheDocument();
       expect(screen.getByText(/已尝试 3 次/)).toBeInTheDocument();
       expect(pingMonitor).toHaveBeenCalledTimes(3);
     } finally {
@@ -95,6 +125,7 @@ describe("MonitorPage", () => {
       const monitorPort = vi.fn(async () => 8090);
       const pingMonitor = vi.fn(async () => false);
       renderMonitor(createBridges({ monitorPort, pingMonitor }));
+      openMonitor();
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(RETRY_DELAY_MS * 3);
@@ -111,7 +142,7 @@ describe("MonitorPage", () => {
     }
   });
 
-  test("shows an unknown port when the monitor port lookup fails", async () => {
+  test("says nothing about the port when the lookup fails", async () => {
     vi.useFakeTimers();
     try {
       renderMonitor(
@@ -121,11 +152,49 @@ describe("MonitorPage", () => {
           }
         })
       );
+      openMonitor();
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(RETRY_DELAY_MS * 3);
       });
-      expect(screen.getByText(/端口 \? 无响应/)).toBeInTheDocument();
+      expect(screen.getByText(/未在本机 localhost 上检测到监控仪表盘/)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("closes the dashboard and returns to the unopened state", async () => {
+    const user = userEvent.setup();
+    const monitorPort = vi.fn(async () => 8090);
+
+    renderMonitor(createBridges({ monitorPort }));
+    openMonitor();
+    await screen.findByTitle(FRAME_TITLE);
+
+    await user.click(screen.getByRole("button", { name: "关闭监控" }));
+
+    expect(screen.queryByTitle(FRAME_TITLE)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "打开监控" })).toBeInTheDocument();
+    // 关闭只是回到未打开，不是悄悄再探测一轮。
+    expect(monitorPort).toHaveBeenCalledTimes(1);
+  });
+
+  test("states the facts without naming a third-party service", async () => {
+    vi.useFakeTimers();
+    try {
+      renderMonitor(createBridges({ ping: false }));
+      openMonitor();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(RETRY_DELAY_MS * 3);
+      });
+
+      // 失败态整块文案：只说探测了哪个地址、这个服务在哪，
+      // 不出现外部仪表盘的产品名，也不猜「被谁占用」。
+      const box = screen.getByText("监控仪表盘未连接").closest("div")!;
+      expect(box).toHaveTextContent("未在 localhost:8090 上检测到监控仪表盘（已尝试 3 次）");
+      expect(box).toHaveTextContent("该服务不在本仓库内，需要另行启动。");
+      expect(box.textContent).not.toContain("cc-monitor");
     } finally {
       vi.useRealTimers();
     }
@@ -136,8 +205,9 @@ describe("MonitorPage theme and float bridging", () => {
   test("posts the theme on load and whenever it changes", async () => {
     const user = userEvent.setup();
     renderMonitor(createBridges({}));
+    openMonitor();
 
-    const frame = await screen.findByTitle("实时监控 dashboard");
+    const frame = await screen.findByTitle(FRAME_TITLE);
     const postMessage = vi.fn();
     // jsdom swaps contentWindow when the iframe reloads, so stub the element itself.
     Object.defineProperty(frame, "contentWindow", {
@@ -159,7 +229,8 @@ describe("MonitorPage theme and float bridging", () => {
     const enterFloatMode = vi.fn(async () => undefined);
     renderMonitor(createBridges({ enterFloatMode }));
 
-    await screen.findByTitle("实时监控 dashboard");
+    openMonitor();
+    await screen.findByTitle(FRAME_TITLE);
     act(() => {
       window.dispatchEvent(
         new MessageEvent("message", {
@@ -176,7 +247,8 @@ describe("MonitorPage theme and float bridging", () => {
     const onEnterFloat = vi.fn();
     renderMonitor(createBridges({}), onEnterFloat);
 
-    await screen.findByTitle("实时监控 dashboard");
+    openMonitor();
+    await screen.findByTitle(FRAME_TITLE);
     act(() => {
       window.dispatchEvent(
         new MessageEvent("message", {
@@ -194,7 +266,8 @@ describe("MonitorPage theme and float bridging", () => {
     const onEnterFloat = vi.fn();
     renderMonitor(createBridges({ enterFloatMode }), onEnterFloat);
 
-    await screen.findByTitle("实时监控 dashboard");
+    openMonitor();
+    await screen.findByTitle(FRAME_TITLE);
     for (const origin of ["http://evil.example:8090", "https://localhost:8090", ""]) {
       act(() => {
         window.dispatchEvent(
@@ -211,7 +284,8 @@ describe("MonitorPage theme and float bridging", () => {
     const enterFloatMode = vi.fn(async () => undefined);
     renderMonitor(createBridges({ enterFloatMode }));
 
-    await screen.findByTitle("实时监控 dashboard");
+    openMonitor();
+    await screen.findByTitle(FRAME_TITLE);
     act(() => {
       window.dispatchEvent(
         new MessageEvent("message", {
@@ -228,7 +302,8 @@ describe("MonitorPage theme and float bridging", () => {
     const enterFloatMode = vi.fn(async () => undefined);
     renderMonitor(createBridges({ enterFloatMode }));
 
-    await screen.findByTitle("实时监控 dashboard");
+    openMonitor();
+    await screen.findByTitle(FRAME_TITLE);
     act(() => {
       window.dispatchEvent(
         new MessageEvent("message", {

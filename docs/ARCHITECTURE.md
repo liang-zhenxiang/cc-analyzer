@@ -21,7 +21,7 @@ web/ (React 18 + TypeScript + Vite)
 | `api/` | **UI 组件不直接碰 Tauri**。`bridges.ts` 定义注入接口，`tauri.ts` 是 Tauri 实现，`types.ts` 是与 Rust 命令对齐的参数/返回类型 |
 | `app/` | 应用壳：`AppShell`、`WorkspaceTabs`（会话分析 / 实时监控 两个工作区页）、主题与通知 Provider |
 | `features/sessions/` | 会话分析主功能：仓库读取、JSONL 解析、会话图、日志行模型、筛选、耗时树、报告生成 |
-| `features/monitor/` | 实时监控页（内嵌外部 dashboard）与浮窗消息协议 |
+| `features/monitor/` | 实时监控页（用户点「打开监控」后才探测并内嵌外部仪表盘）与浮窗消息协议 |
 | `features/settings/` | 分析预算（阈值）的持久化与设置面板 |
 | `lib/` | 通用工具（路径、格式化、JSON 序列化、剪贴板） |
 | `components/` | 跨 feature 的共享组件 |
@@ -55,7 +55,7 @@ web/ (React 18 + TypeScript + Vite)
 - **进程**：`run_lines`（流式跑子进程，供报告生成；`stdin_text` 可注入，
   `timeout_ms` 可超时）、`cancel_lines`（用户点「停止分析」时杀掉运行中的
   子进程）、`exec_text`、`spawn_detached`（打开文件/终端）。
-- **监控**：`monitor_port` / `monitor_ping`（探测外部 dashboard）。
+- **监控**：`monitor_port` / `monitor_ping`（探测外部仪表盘；只在用户点「打开监控」后调用）。
 - **浮窗**：`float` 插件的 `enter` / `exit`（保存与恢复窗口几何）。
 
 ## 数据流
