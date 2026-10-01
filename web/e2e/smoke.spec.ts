@@ -104,11 +104,22 @@ test.describe("会话分析", () => {
 });
 
 test.describe("页面切换", () => {
-  test("可以切到实时监控再切回来", async ({ page }) => {
+  test("切到实时监控不会自动打开，点击后才探测", async ({ page }) => {
     await page.goto("/");
 
     await page.getByRole("tab", { name: "实时监控" }).click();
     await expect(page.getByRole("tab", { name: "实时监控" })).toHaveAttribute("aria-selected", "true");
+
+    // 切进来只是「可以打开」，不是「已经打开」：没有 iframe，也没有探测。
+    // 夹具里的仪表盘服务是没在跑的，自动探测只会白等一轮失败。
+    const open = page.getByRole("button", { name: "打开监控" });
+    await expect(open).toBeVisible();
+    await expect(page.locator("iframe")).toHaveCount(0);
+
+    // 点了才探测；夹具里的外部服务连不上，所以稳定落在失败态（三次重试约 1.6s）。
+    // 「重试」只出现在失败态，用它比用文案更抗改字。
+    await open.click();
+    await expect(page.getByRole("button", { name: "重试" })).toBeVisible({ timeout: 10_000 });
 
     await page.getByRole("tab", { name: "会话分析" }).click();
     await expect(page.getByRole("tab", { name: "会话分析" })).toHaveAttribute("aria-selected", "true");

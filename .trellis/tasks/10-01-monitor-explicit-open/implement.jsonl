@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "组件状态机与可访问名约定"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "页面状态放哪一层"}
+{"file": ".trellis/spec/testing/unit-tests.md", "reason": "「不该被调用」这类断言的写法"}
+{"file": ".trellis/spec/testing/e2e-tests.md", "reason": "改动了既有用户流程，端到端要跟着改"}
