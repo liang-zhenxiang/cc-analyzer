@@ -1,0 +1,184 @@
+/* 仪表盘是纵向文档流（内容区整体滚动），不是分析页那种撑满视口的网格。
+   限宽是为了读数：图表 viewBox 720，铺到 1440 宽的柱子只会更难对齐。 */
+.page {
+  display: flex;
+  min-height: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+/* 分段控件：与顶栏、视图切换同一套画法（凹陷槽 + 抬起滑块）。 */
+.rangeTabs,
+.classTabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+}
+
+.rangeTabs button,
+.classTabs button {
+  min-height: var(--control-h-sm);
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-hover) var(--ease-in-out),
+    color var(--dur-hover) var(--ease-in-out);
+}
+
+.rangeTabs button:hover,
+.classTabs button:hover {
+  color: var(--text);
+}
+
+.rangeTabs button[aria-selected="true"],
+.classTabs button[aria-selected="true"] {
+  background: var(--bg-subtle);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.progress {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* KPI 读数行：设计 §6 的「读数行语言」——数值并排站在浅台阶上，
+   标签小字、数值 15px/600 + tabular-nums，徽章紧随数值。 */
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+}
+
+.kpi {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-4);
+}
+
+.kpi + .kpi {
+  border-left: 1px solid var(--border);
+}
+
+.kpiLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.kpiValueRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.kpiValue {
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: var(--lh-md);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpiNote {
+  color: var(--warning);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.distributionRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+  align-items: start;
+}
+
+/* 堆叠条只有 30px 高，模型名与数值靠这份清单可读；色块索引与 StackedBar 一致。 */
+.modelLegend {
+  display: flex;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  flex-direction: column;
+  gap: var(--sp-1);
+  list-style: none;
+}
+
+.modelLegend li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.swatch {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-xs);
+}
+
+.modelName {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modelValue {
+  margin-left: auto;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  .kpiRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* 台阶分隔线跟着网格换向：两列时偶数列才有左线，第二行补上线。 */
+  .kpi:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .kpi:nth-child(n + 3) {
+    border-top: 1px solid var(--border);
+  }
+
+  .distributionRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

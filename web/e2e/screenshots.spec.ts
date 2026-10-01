@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { test, expect } from "./fixtures";
+import { test, expect, recentActivityScenario } from "./fixtures";
 import type { Page } from "@playwright/test";
 
 /**
@@ -12,8 +12,8 @@ import type { Page } from "@playwright/test";
  *     SCREENSHOTS=1 npm --prefix web run test:e2e
  *
  * 为什么要有这个脚本而不是手动截图：视觉验收要求「每个主要界面都有
- * 浅色 + 深色两张、共 12 张」，手截的图过一轮就会和代码对不上，
- * 而且没人能复现出上一版是怎么截的。
+ * 浅色 + 深色两张」（会话分析空态/日志/树/报告、设置、实时监控、用量总览），
+ * 手截的图过一轮就会和代码对不上，而且没人能复现出上一版是怎么截的。
  */
 
 const OUT_DIR = path.resolve(process.cwd(), "..", "docs", "screenshots");
@@ -104,6 +104,35 @@ test.describe("截图归档", () => {
       await expect(page.getByRole("button", { name: "打开监控" })).toBeVisible();
       await page.waitForTimeout(250);
       await shot("monitor");
+    });
+  }
+});
+
+// 用量总览需要「最近真的有活动」才有内容可截：仪表盘的时间窗相对
+// Date.now()，夹具的固定时间戳会随着日子过去掉出窗外，截出一排空图。
+// 这里单独用平移后的场景（recentActivityScenario），并等扫描收口再截。
+test.describe("截图归档 · 用量总览", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: recentActivityScenario() });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`用量总览 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+
+      await page.goto("/");
+      await page.getByRole("tab", { name: "用量总览" }).click();
+      // 等扫描收口成统计口径，避免截到「已分析 3 / 7」的中间帧。
+      await expect(page.getByText(/纳入统计/)).toBeVisible({ timeout: 15_000 });
+      await page.waitForTimeout(300);
+      await settleImages(page);
+      await page.screenshot({ path: path.join(OUT_DIR, `usage-${theme}${suffix}.png`) });
     });
   }
 });

@@ -15,7 +15,12 @@ analysis reports. Built with Tauri 2 and a React web UI.
 
 The session analyzer with a session open — grouped session list on the left,
 filters and the log table in the middle, the analysis report panel below.
-Every screen, in both light and dark themes, is archived in
+
+![CC Analyzer's usage overview: KPI readouts, daily token trend, per-project and per-model distributions, activity heatmap](docs/screenshots/usage-light.png)
+
+The usage overview — token consumption trends and distributions for the last
+7 / 30 / 90 days, every figure carrying a provenance badge. Every screen, in
+both light and dark themes, is archived in
 [`docs/screenshots/`](docs/screenshots).
 
 ## Features
@@ -32,6 +37,11 @@ Every screen, in both light and dark themes, is archived in
 - **AI analysis reports** — structured prompts sent to your local `claude`
   CLI, rendered as Markdown with syntax highlighting; cancellable at any
   time, with per-node and per-time-block scoping.
+- **Usage overview** — token trends for the last 7 / 30 / 90 days,
+  per-project and per-model distributions, and a 7×24 activity heatmap;
+  the estimated cost is priced per model against an offline pricing
+  snapshot (date shown), and every figure carries a provenance badge
+  (read from the log / estimated). Aggregated locally, nothing uploaded.
 - **Realtime monitor** — embeds a local monitoring dashboard you run
   yourself (not shipped in this repo), opened on demand, with a
   floating-window mode.

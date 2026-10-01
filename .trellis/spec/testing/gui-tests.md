@@ -169,4 +169,13 @@ To add a check:
   `$PROJECT_DIR` in the 准备隔离环境 step (and update the expected `COUNT`), then assert
   on whatever the app writes. The `python3 - "$CACHE_PATH" "$HOME_DIR" <<'PY'` heredoc
   is the template for reading JSON without new dependencies.
+- Staged fixtures are **time-shifted so the newest activity lands on yesterday**
+  (`shift_fixture_jsonl`, one offset shared by all files). Without the shift, a
+  windowed page — the usage dashboard is the first — shows an empty state on the
+  real-app screenshot and its data path goes unverified. Same trap, same fix as
+  `recentActivityScenario` in the e2e layer; keep the two in step.
+- `CCA_GUI_CAPTURE_TAB=<可访问名>` makes the app click that tab (a real click via
+  `eval`, matching on the accessible name) and capture a **second** PDF, judged by
+  the same convert-and-check pipeline as the first. Use it whenever a new tab ships;
+  the first capture alone only proves the default view.
 - Remember `gui-artifacts/` is gitignored — never commit the screenshot.

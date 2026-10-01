@@ -1,0 +1,34 @@
+/* 置信徽章：细描边、小字号、随档位轻微着色——「诚实仪表」的设计语言。
+   颜色全部走 tokens.css；estimated 用警示色系，读自日志用成功色系。 */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  height: var(--control-h-sm);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  color: var(--text-tertiary);
+  background: var(--bg-inset);
+  white-space: nowrap;
+}
+
+.detail {
+  color: var(--text-faint);
+}
+
+.logged {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.estimated {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.snapshot {
+  color: var(--text-secondary);
+}
