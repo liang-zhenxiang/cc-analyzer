@@ -33,6 +33,20 @@ function sessionItems(page: Page) {
   return page.getByLabel("会话列表").locator("button[title]");
 }
 
+/**
+ * 等页面上的图片真正解码完再截。
+ *
+ * 不等的话会截到「品牌图标是个空方块」的那一帧：`BrandMark` 是张 PNG，
+ * DOM 里 `img` 已经在了，但位图还没解出来。这种缺陷**看不出来是缺陷**——
+ * 图有了、尺寸也对，只是内容还没到，所以它会静静地进到仓库和 README 里。
+ * 实测曾在 `analyzer-empty-*.png` 上发生过。
+ */
+async function settleImages(page: Page) {
+  await page.waitForFunction(
+    () => Array.from(document.images).every((img) => img.complete && img.naturalWidth > 0)
+  );
+}
+
 async function openFirstSession(page: Page) {
   await sessionItems(page).first().click();
   await expect(page.getByLabel("会话图状态")).toContainText("会话图已加载", { timeout: 15_000 });
@@ -54,8 +68,10 @@ test.describe("截图归档", () => {
       // chromium 不加后缀，README 引用的是它。
       const engine = test.info().project.name;
       const suffix = engine === "chromium" ? "" : `-${engine}`;
-      const shot = (view: string) =>
-        page.screenshot({ path: path.join(OUT_DIR, `${view}-${theme}${suffix}.png`) });
+      const shot = async (view: string) => {
+        await settleImages(page);
+        await page.screenshot({ path: path.join(OUT_DIR, `${view}-${theme}${suffix}.png`) });
+      };
 
       await page.goto("/");
       // 会话分析 · 空态
@@ -81,9 +97,12 @@ test.describe("截图归档", () => {
       await shot("settings");
       await page.getByRole("button", { name: "设置" }).click();
 
-      // 实时监控
+      // 实时监控 —— 截的是**未打开**的默认态，也就是用户切进来第一眼看到的样子。
+      // 不点「打开监控」：那个仪表盘服务不在本仓库内、夹具里也没在跑，
+      // 点下去只会得到一张三次重试之后的失败态，而失败态不是这个页面的常态。
       await page.getByRole("tab", { name: "实时监控" }).click();
-      await page.waitForTimeout(3_000);
+      await expect(page.getByRole("button", { name: "打开监控" })).toBeVisible();
+      await page.waitForTimeout(250);
       await shot("monitor");
     });
   }
