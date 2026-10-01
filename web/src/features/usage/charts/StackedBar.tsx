@@ -44,7 +44,12 @@ export function StackedBar({
             width={segmentWidth}
             height={height - 8}
             className={styles.segment}
-            style={{ fill: `var(--chart-${(index % 6) + 1}, var(--accent))` }}
+            /* design.md §6 从严：整行全宽的堆叠段属大面积填充，走 soft；
+               实色只出现在 1px 分段描边与图例小色块（小徽章允许实色）。 */
+            style={{
+              fill: `var(--chart-${(index % 6) + 1}-soft, var(--accent-soft))`,
+              stroke: `var(--chart-${(index % 6) + 1}, var(--accent))`
+            }}
           >
             <title>{`${point.label}：${formatValue(point.value)}`}</title>
           </rect>

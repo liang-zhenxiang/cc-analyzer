@@ -1,12 +1,14 @@
 .segment {
-  /* 发丝分隔线：段与段之间露出面板底色，避免相邻色块糊在一起 */
-  stroke: var(--bg-elevated);
+  /* 分段描边由 TSX 按段色实色给出（各段自己的色收自己的轮廓，与柱状图同语言）；
+     悬停时短暂提高填充不透明度是瞬时强调，不属于稳态大面积实色。 */
   stroke-width: 1;
   transition: fill-opacity var(--dur-hover) var(--ease-out);
 }
 
 .segment:hover {
-  fill-opacity: 0.82;
+  /* soft 基底的悬停往「足额」方向提，而不是压淡——段是低透明填充，
+      悬停要更实才读得出「指到了这一段」。 */
+  fill-opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
