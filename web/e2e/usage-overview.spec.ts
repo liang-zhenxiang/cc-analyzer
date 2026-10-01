@@ -38,7 +38,8 @@ test.describe("用量总览", () => {
     await expect(dashboard.getByText("246,130")).toBeVisible();
     await expect(kpiTile(page, "消息数").getByText("16", { exact: true })).toBeVisible();
     await expect(kpiTile(page, "会话数").getByText("2", { exact: true })).toBeVisible();
-    await expect(dashboard.getByText("读自日志")).toHaveCount(3);
+    // 计费窗口卡的「窗口开启」也标「读自日志」，按 KPI 行作用域数 3 枚。
+    await expect(dashboard.locator("div[class*='kpiRow']").getByText("读自日志")).toHaveCount(3);
     await expect(dashboard.getByText("按定价快照估算")).toBeVisible();
     await expect(dashboard.getByText(/快照日期 \d{4}-\d{2}-\d{2}/)).toBeVisible();
     await expect(dashboard.getByText(/\$\d+\.\d{2}/)).toBeVisible();

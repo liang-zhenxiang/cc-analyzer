@@ -149,3 +149,44 @@ Finder/Dock 那种收窄的 PATH）复核，发现**自己的修复本身还有�
 ### Status
 
 [OK] **Completed**（PR #77 待 CI，合并后打 tag 即收官）
+
+
+## Session 2026-10-02 · Round D：5h 计费窗口仪表（billing-window）
+
+### What Happened
+
+- **派发基础设施仍不可用**（tmux socket 僵死未恢复，探针失败），按 /goal
+  授权与用户「继续下一个功能」的既有指令，Round D 全程主会话实现——
+  第四次破例，且首次是完整功能轮。验收独立性补偿：引擎/预设/仪表/卡片
+  四层各自独立测试文件，双引擎 e2e，真机 GUI --build 重建后截图 +
+  视觉工具独立读数。
+- **实现**：clusterBillingBlocks（ccusage blocks 口径：首条活动起算 5h、
+  窗口闭后首条活动开新窗，开区间边界）+ burnRateOf（<30min 拒绝外推）
+  + predictLimitReach（给具体时刻）；planLimits（四预设 + 自定义，存储
+  镜像 thresholds 的 useSyncExternalStore 模式，不可信输入全回退 none）；
+  Gauge 环形表盘；BillingWindowCard 挂用量总览顶部；设置面板新增
+  「计费窗口」区（原生 select 最稳）。
+- **实现中抓出的真 bug**：速率/预测最初复用「按定价快照估算」徽章——
+  词不达意（它们不来自定价快照），新增 provenance 第四档「按消耗速度
+  推算」。provenance 体系从三档扩到四档，语义纯度保住了。
+- **自己被自己写的指南咬**：e2e 里 getByLabel("计费窗口") 子串命中
+  「历史计费窗口消耗」——正是当天上午沉淀进 spec 的那个坑，按 spec 加
+  exact 解决。指南写得对，写完自己再踩一遍才算真验证过。
+- **网络这次断得更彻底**：github.com 直连与代理先后全断（代理进程本身
+  也挂过），恢复后通道对调（代理 200/0.77s、直连死）。推送按指南走
+  `-c http.proxy` 单命令代理。GUI 测试第一次跑没带 --build、截图字节与
+  上轮完全相同——旧产物没有计费卡，重建后视觉确认才作数。
+- **验证链**：480 单测（+22）→ 双引擎 e2e 26+26（+4）→ lint 16 项 →
+  cargo fmt → GUI 真机 11/11（--build）→ 截图视觉确认（仪表/读数语义/
+  徽章/协调性全对）→ README 引用的 usage-light.png 重出。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a55fbb4` | feat(usage): 5 小时计费窗口仪表 (#82) |
+| `107d5c7` | docs(usage): 重出 README 引用的用量总览截图 |
+
+### Status
+
+[OK] **Completed**（PR #82 待 CI）
