@@ -85,6 +85,14 @@ at once and there is one place to add transcript data.
   `session-duration-model`. It also fills `monitor`, `claudeStdout` and `savePath`,
   which the current smoke spec does not assert on yet.
 - `emptyScenario()` — `files: {}` plus one declared empty `~/.claude/projects`.
+- `recentActivityScenario()` — `defaultScenario()` with every fixture's
+  `"timestamp"` shifted by one shared offset so the newest activity lands on
+  **yesterday**. Use this (not `defaultScenario`) whenever a page windows its
+  data against `Date.now()` — the usage dashboard being the first. Fixture
+  timestamps are frozen (January, September…) while the window moves with the
+  calendar: an unshifted run is green today and red (or falsely green) three
+  days later. The offset is computed once across all files — per-file shifting
+  would distort the relative dates between sessions.
 
 `projectDir(cwd)` replaces `/` with `-`, matching how Claude Code names a project
 directory (`/repo/demo` → `-repo-demo`). Override the scenario with

@@ -1,0 +1,30 @@
+/* 图表共用骨架：中性灰的轴与网格，数据颜色只出现在各图表自己的 module 里。
+   `--chart-*` 令牌在步骤 4 落入 tokens.css，此前所有引用都带 var(--accent) 兜底。 */
+.chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.tickText {
+  fill: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.numeric {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.gridLine {
+  stroke: var(--border);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.axisLine {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}

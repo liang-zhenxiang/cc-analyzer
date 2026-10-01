@@ -3,6 +3,7 @@ import { ThemeProvider, useTheme } from "./ThemeProvider";
 import { NotificationProvider } from "./NotificationProvider";
 import { SessionAnalyzerPage } from "../features/sessions/SessionAnalyzerPage";
 import { MonitorPage } from "../features/monitor/MonitorPage";
+import { UsageOverviewPage } from "../features/usage/UsageOverviewPage";
 import { ThresholdsPanel } from "../features/settings/ThresholdsPanel";
 import { WorkspaceTabs } from "./WorkspaceTabs";
 import { Button, IconButton } from "../components/Button";
@@ -13,9 +14,20 @@ import { BridgesProvider } from "../api/bridges";
 import type { Bridges } from "../api/types";
 import styles from "./AppShell.module.css";
 
-export type WorkspaceTab = "analyzer" | "monitor";
+export type WorkspaceTab = "analyzer" | "usage" | "monitor";
 
 const TAB_KEY = "cca-workspace-tab";
+
+/** Stored values are untrusted: anything unknown falls back to the analyzer. */
+function readStoredTab(): WorkspaceTab {
+  try {
+    const stored = localStorage.getItem(TAB_KEY);
+    if (stored === "usage" || stored === "monitor") return stored;
+  } catch {
+    // localStorage may be unavailable; the default tab still works.
+  }
+  return "analyzer";
+}
 
 function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
@@ -28,14 +40,16 @@ function ThemeToggle() {
 }
 
 export function AppShell({ bridges }: { bridges: Bridges }) {
-  const [tab, setTab] = useState<WorkspaceTab>(() => {
-    return localStorage.getItem(TAB_KEY) === "monitor" ? "monitor" : "analyzer";
-  });
+  const [tab, setTab] = useState<WorkspaceTab>(readStoredTab);
   const [floating, setFloating] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem(TAB_KEY, tab);
+    try {
+      localStorage.setItem(TAB_KEY, tab);
+    } catch {
+      // See readStoredTab: persistence is optional.
+    }
   }, [tab]);
 
   const exitFloatMode = useCallback(async () => {
@@ -81,6 +95,8 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
             <ErrorBoundary>
               {tab === "analyzer" ? (
                 <SessionAnalyzerPage />
+              ) : tab === "usage" ? (
+                <UsageOverviewPage />
               ) : (
                 <MonitorPage onEnterFloat={enterFloatMode} />
               )}

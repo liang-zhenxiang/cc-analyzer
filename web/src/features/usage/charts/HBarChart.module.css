@@ -1,0 +1,20 @@
+/* design.md §6：大面积填充只允许 soft，实色只给描边——条体因此是
+   soft 填充 + 1px 实色描边收轮廓的仪器面板画法。 */
+.bar {
+  fill: var(--chart-1-soft, var(--accent-soft));
+  stroke: var(--chart-1, var(--accent));
+  stroke-width: 1;
+  transition: fill var(--dur-hover) var(--ease-out), fill-opacity var(--dur-hover) var(--ease-out);
+}
+
+/* 悬停是单根条的瞬时强调，不属于稳态大面积填充，允许实色（半透明）。 */
+.bar:hover {
+  fill: var(--chart-1, var(--accent));
+  fill-opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    transition: none;
+  }
+}

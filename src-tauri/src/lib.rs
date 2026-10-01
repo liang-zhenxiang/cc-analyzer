@@ -571,7 +571,7 @@ mod gui_capture {
     use block2::RcBlock;
     use objc2_foundation::{NSData, NSError};
     use objc2_web_kit::WKWebView;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::time::Duration;
     use tauri::Manager;
 
@@ -579,49 +579,127 @@ mod gui_capture {
     /// 截早了会拿到半张白屏，而那种失败是**静默**的（能生成文件，内容却是空的）。
     const SETTLE_MS: u64 = 6_000;
 
-    pub fn spawn(webview: tauri::Webview, out: PathBuf) {
+    /// 点击标签页后等这么久再取第二张图：新标签页要先完成一轮渲染。
+    const TAB_SETTLE_MS: u64 = 2_000;
+
+    /// 等第一张 PDF 落盘的上限：createPDF 的 completion handler 是异步回调，
+    /// 「已发起取图」不等于「文件已写出」，点击动作必须排在实际落盘之后，
+    /// 否则第二张截到的还是旧标签页。
+    const FIRST_PDF_TIMEOUT_MS: u64 = 10_000;
+
+    pub fn spawn(webview: tauri::Webview, out: PathBuf, tab: Option<String>) {
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(SETTLE_MS));
-            let result = webview.with_webview(move |platform| {
-                // `inner()` 在 macOS 上返回底层 WKWebView 的裸指针。
-                let ptr = platform.inner().cast::<WKWebView>();
-                if ptr.is_null() {
-                    eprintln!("gui-capture: 拿不到 WKWebView 指针");
-                    return;
-                }
-                let wk: &WKWebView = unsafe { &*ptr };
+            capture(&webview, &out);
 
-                let target = out.clone();
-                let handler = RcBlock::new(move |data: *mut NSData, error: *mut NSError| {
-                    if !data.is_null() {
-                        let bytes = unsafe { (*data).to_vec() };
-                        match std::fs::write(&target, &bytes) {
-                            Ok(()) => println!("gui-capture: 已写出 {} 字节", bytes.len()),
-                            Err(err) => eprintln!("gui-capture: 写文件失败 {err}"),
-                        }
-                    } else {
-                        let msg = if error.is_null() {
-                            "未知错误".to_string()
-                        } else {
-                            unsafe { (*error).localizedDescription().to_string() }
-                        };
-                        eprintln!("gui-capture: 取图失败 {msg}");
-                    }
-                    // 刻意不退出：应用由测试脚本统一管理生命周期，
-                    // 这样同一次启动里还能跑「存活 / 内存 / 缓存 / 正常退出」那些断言。
-                });
-
-                // 配置传 None：按文档，这会取「当前显示范围」的整页，
-                // 而不是分页的打印版式。
-                unsafe { wk.createPDFWithConfiguration_completionHandler(None, &handler) };
-            });
-            if let Err(err) = result {
-                eprintln!("gui-capture: with_webview 失败 {err}");
+            let Some(tab) = tab else { return };
+            if !wait_for_file(&out, FIRST_PDF_TIMEOUT_MS) {
+                eprintln!("gui-capture: 第一张图迟迟没有落盘，跳过「{tab}」标签页的取图");
+                return;
             }
+            if let Err(err) = webview.eval(click_tab_js(&tab).as_str()) {
+                eprintln!("gui-capture: 执行点击「{tab}」的脚本失败 {err}");
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(TAB_SETTLE_MS));
+            capture(&webview, &tab_output_path(&out));
         });
     }
 
+    /// 把 webview 当前渲染结果写成一份 PDF。只发起、不等完成——落盘由
+    /// createPDF 的 completion handler 异步负责。所有失败路径只打日志、
+    /// 绝不 panic：这个线程挂在渲染循环里会连带整个应用，而它只是取证旁路。
+    fn capture(webview: &tauri::Webview, out: &Path) {
+        let target = out.to_path_buf();
+        let result = webview.with_webview(move |platform| {
+            // `inner()` 在 macOS 上返回底层 WKWebView 的裸指针。
+            let ptr = platform.inner().cast::<WKWebView>();
+            if ptr.is_null() {
+                eprintln!("gui-capture: 拿不到 WKWebView 指针");
+                return;
+            }
+            let wk: &WKWebView = unsafe { &*ptr };
+
+            let handler = RcBlock::new(move |data: *mut NSData, error: *mut NSError| {
+                if !data.is_null() {
+                    let bytes = unsafe { (*data).to_vec() };
+                    match std::fs::write(&target, &bytes) {
+                        Ok(()) => println!("gui-capture: 已写出 {} 字节", bytes.len()),
+                        Err(err) => eprintln!("gui-capture: 写文件失败 {err}"),
+                    }
+                } else {
+                    let msg = if error.is_null() {
+                        "未知错误".to_string()
+                    } else {
+                        unsafe { (*error).localizedDescription().to_string() }
+                    };
+                    eprintln!("gui-capture: 取图失败 {msg}");
+                }
+                // 刻意不退出：应用由测试脚本统一管理生命周期，
+                // 这样同一次启动里还能跑「存活 / 内存 / 缓存 / 正常退出」那些断言。
+            });
+
+            // 配置传 None：按文档，这会取「当前显示范围」的整页，
+            // 而不是分页的打印版式。
+            unsafe { wk.createPDFWithConfiguration_completionHandler(None, &handler) };
+        });
+        if let Err(err) = result {
+            eprintln!("gui-capture: with_webview 失败 {err}");
+        }
+    }
+
+    /// 轮询等文件出现。completion handler 跑在主线程，这里不能回调式串联
+    /// （把点击塞进 handler 会在主线程上引入等待），轮询最直白也最容易看出超时。
+    fn wait_for_file(path: &Path, timeout_ms: u64) -> bool {
+        let deadline = std::time::Instant::now() + Duration::from_millis(timeout_ms);
+        while std::time::Instant::now() < deadline {
+            if path.is_file() {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        path.is_file()
+    }
+
+    /// 第二张图的输出路径：第一张去掉 `.pdf` 后缀再加 `-tab.pdf`。
+    fn tab_output_path(first: &Path) -> PathBuf {
+        let mut second = first.to_path_buf();
+        second.set_extension("");
+        second.as_mut_os_string().push("-tab.pdf");
+        second
+    }
+
+    /// 找到可访问名匹配的标签页并点击。`eval` 是单向的（拿不到脚本返回值），
+    /// 所以点击结果写进 console：成功与失败各一条，都能在测试脚本收集的
+    /// 应用日志里追查。脚本只做这一次点击，不做任何别的事。
+    fn click_tab_js(tab: &str) -> String {
+        let escaped = tab
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r");
+        format!(
+            r#"(function () {{
+  var wanted = "{escaped}";
+  var tabs = document.querySelectorAll('[role="tablist"] button[role="tab"]');
+  for (var i = 0; i < tabs.length; i++) {{
+    var el = tabs[i];
+    var name = (el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, ' ').trim();
+    if (name === wanted) {{
+      el.click();
+      console.log('gui-capture: 已点击标签页 ' + wanted);
+      return;
+    }}
+  }}
+  console.warn('gui-capture: 没有可访问名为 ' + wanted + ' 的标签页');
+}})();"#
+        )
+    }
+
     /// 由 `setup` 调用：只有设了 `CCA_GUI_CAPTURE` 才生效，否则完全惰性。
+    /// 可选的 `CCA_GUI_CAPTURE_TAB` 是「第二张图」指令：值为某个标签页的
+    /// 可访问名（如「用量总览」），应用会在第一张取图落盘后点击该标签页，
+    /// 等一轮渲染再取第二张，用于真机验证非默认标签页的内容。
     pub fn maybe_spawn(app: &tauri::App) {
         let Ok(target) = std::env::var("CCA_GUI_CAPTURE") else {
             return;
@@ -629,8 +707,12 @@ mod gui_capture {
         if target.trim().is_empty() {
             return;
         }
+        let tab = std::env::var("CCA_GUI_CAPTURE_TAB")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
         if let Some(webview) = app.get_webview_window("main") {
-            spawn(webview.as_ref().clone(), PathBuf::from(target));
+            spawn(webview.as_ref().clone(), PathBuf::from(target), tab);
         }
     }
 }

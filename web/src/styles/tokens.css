@@ -52,6 +52,27 @@
   --cat-user: #cc79a7;
   --cat-workflow: #6d3bd4;
 
+  /* 图表 categorical 色板：语义无关、只论顺序——chart-1 是「第一个系列」，
+     不指代任何品类。与 --cat-* 是两套资产、严禁互借：类别色已被「记录类别」
+     语义占满，图表再借去表达项目 / 模型 / 日期，两个维度会一起失效。
+     各色与最邻近的既有彩色（类别 / 语义 / 强调）保持整档明度差，而不是
+     微调一两个分量——那样等于换了个写法的同值复用。
+     大面积填充（柱、面积、热力格）只允许 -soft；实色只给描边、点、小徽标。
+     在 --bg #f4f5f7（最保守的浅底）上的对比度：1 5.17 / 2 4.32 / 3 3.98 /
+     4 3.56 / 5 3.63 / 6 4.31，全部高于图形件 3:1 门槛。 */
+  --chart-1: #2f6b9f;
+  --chart-1-soft: rgba(47, 107, 159, 0.1);
+  --chart-2: #0f7f8f;
+  --chart-2-soft: rgba(15, 127, 143, 0.1);
+  --chart-3: #618428;
+  --chart-3-soft: rgba(97, 132, 40, 0.1);
+  --chart-4: #a67a08;
+  --chart-4-soft: rgba(166, 122, 8, 0.1);
+  --chart-5: #8a6fd4;
+  --chart-5-soft: rgba(138, 111, 212, 0.1);
+  --chart-6: #bf4a78;
+  --chart-6-soft: rgba(191, 74, 120, 0.1);
+
   --code-comment: #69707d;
   --code-keyword: #a626a4;
   --code-string: #2f7d32;
@@ -154,6 +175,23 @@
   --cat-delegated: #d55e00;
   --cat-compute: #009e73;
   --cat-user: #cc79a7;
+
+  /* 图表色板深色版：与浅色版同色相、整体提明度（和类别色深色版同一策略），
+     互借禁令与「大面积只许 -soft」的规则见浅色块注释。
+     在 --bg-elevated #1a1d21 上的对比度：1 7.83 / 2 7.84 / 3 8.22 / 4 9.94 /
+     5 7.27 / 6 7.21。 */
+  --chart-1: #82b5e8;
+  --chart-1-soft: rgba(130, 181, 232, 0.14);
+  --chart-2: #55bfce;
+  --chart-2-soft: rgba(85, 191, 206, 0.14);
+  --chart-3: #8ec45c;
+  --chart-3-soft: rgba(142, 196, 92, 0.14);
+  --chart-4: #edc14e;
+  --chart-4-soft: rgba(237, 193, 78, 0.14);
+  --chart-5: #c398ec;
+  --chart-5-soft: rgba(195, 152, 236, 0.14);
+  --chart-6: #ef8ab3;
+  --chart-6-soft: rgba(239, 138, 179, 0.14);
 
   --code-comment: #7f848e;
   --code-keyword: #c678dd;

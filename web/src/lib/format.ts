@@ -37,6 +37,17 @@ export function formatTokenCount(count: number): string {
   return count.toLocaleString("en-US");
 }
 
+/**
+ * USD amounts for the dashboard's cost estimate. Always two decimals below a
+ * thousand (the figure is an estimate read next to a badge saying so — extra
+ * precision would fake accuracy), and grouping only above it.
+ */
+export function formatUsd(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "$0.00";
+  if (value >= 1000) return `$${value.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+  return `$${value.toFixed(2)}`;
+}
+
 /** Relative time labels for the session list (刚刚 / N 分钟前 / 更早). */
 export function formatRelativeTime(ms: number, now = Date.now()): string {
   if (!ms || ms < 0) return "-";

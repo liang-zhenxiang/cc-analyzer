@@ -89,6 +89,15 @@ files allowed to import `@tauri-apps/*` are `api/tauri.ts` and `api/bridges.test
 - **Colors, spacing, radii, fonts and transitions come from `styles/tokens.css`**
   (`var(--bg-elevated)`, `var(--sp-3)`, `var(--r-md)`, `var(--cat-compute)`, ...).
   Every `.module.css` in the tree uses these variables.
+- Two color families, two jobs — never borrowed across: `--cat-*` is bound to
+  **record categories** (TreeView swatches, LogView rows, TimelineTrack blocks);
+  `--chart-1..6` is the **order-only categorical palette** for charts (first
+  series, second series…). A blue that means both "tool call" and "some project"
+  makes two dimensions lie at once. Large-area fills (bars, areas, heatmap cells)
+  use `--chart-*-soft` only; the solid steps are for strokes, dots and small
+  badges. Inline `style={{ fill: var(--chart-N) }}` is sanctioned exactly where
+  the index is computed (StackedBar segments, the model legend) — CSS Modules
+  cannot compute a token name, and the escape hatch is commented at each site.
 - Dark mode is a token swap on `document.documentElement.dataset.theme` (set by
   `ThemeProvider`), so a component never branches on the theme.
 - One hard-coded literal exists today — `rgb(0 0 0 / 0.18)` for the settings

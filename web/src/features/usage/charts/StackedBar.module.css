@@ -1,0 +1,16 @@
+.segment {
+  /* 发丝分隔线：段与段之间露出面板底色，避免相邻色块糊在一起 */
+  stroke: var(--bg-elevated);
+  stroke-width: 1;
+  transition: fill-opacity var(--dur-hover) var(--ease-out);
+}
+
+.segment:hover {
+  fill-opacity: 0.82;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .segment {
+    transition: none;
+  }
+}

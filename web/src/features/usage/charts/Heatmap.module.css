@@ -1,0 +1,21 @@
+.cell {
+  fill: var(--chart-1, var(--accent));
+  transition: fill-opacity var(--dur-hover) var(--ease-out);
+}
+
+.cell:hover {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+
+.emptyCell {
+  fill: var(--bg-inset);
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell {
+    transition: none;
+  }
+}

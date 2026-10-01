@@ -3,6 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { AppShell } from "./AppShell";
 import type { Bridges } from "../api/types";
 
+beforeEach(() => {
+  window.localStorage.clear();
+});
+
 const bridges = {
   fs: {
     homeDir: vi.fn(async () => "/home/tester"),
@@ -35,6 +39,24 @@ test("switches analyzer and monitor tabs", async () => {
   await user.click(screen.getByRole("tab", { name: "实时监控" }));
   expect(screen.getByRole("tab", { name: "实时监控", selected: true })).toBeInTheDocument();
   expect(localStorage.getItem("cca-workspace-tab")).toBe("monitor");
+});
+
+test("switches to the usage overview tab and persists the choice", async () => {
+  const user = userEvent.setup();
+  render(<AppShell bridges={bridges} />);
+
+  await user.click(screen.getByRole("tab", { name: "用量总览" }));
+  expect(screen.getByRole("tab", { name: "用量总览", selected: true })).toBeInTheDocument();
+  expect(localStorage.getItem("cca-workspace-tab")).toBe("usage");
+  // 没有会话可统计时给引导，而不是空白仪表盘。
+  expect(await screen.findByText("还没有可统计的会话")).toBeInTheDocument();
+});
+
+test("falls back to the analyzer when the stored tab is unknown", () => {
+  window.localStorage.setItem("cca-workspace-tab", "bogus");
+  render(<AppShell bridges={bridges} />);
+
+  expect(screen.getByRole("tab", { name: "会话分析", selected: true })).toBeInTheDocument();
 });
 
 test("shows the float exit button only after the dashboard enters float mode", async () => {

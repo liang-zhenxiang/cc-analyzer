@@ -3,6 +3,7 @@ import styles from "./AppShell.module.css";
 
 const tabs: Array<{ value: WorkspaceTab; label: string }> = [
   { value: "analyzer", label: "会话分析" },
+  { value: "usage", label: "用量总览" },
   { value: "monitor", label: "实时监控" }
 ];
 

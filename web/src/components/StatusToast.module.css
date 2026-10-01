@@ -12,7 +12,10 @@
 .toast {
   padding: var(--sp-2) var(--sp-3);
   border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
+  /* 浮层用比文档流面板大一档的圆角（12 > 8 > 4），让「脱离文档流」在形状
+     上也有信号——这也是 --r-lg 的第一个消费者。Toast 是弹性高度的气泡
+     而非 24–32px 的控件，12px 不会把它压成胶囊。 */
+  border-radius: var(--r-lg);
   background: var(--bg-elevated);
   box-shadow: var(--shadow-md);
   color: var(--text);
