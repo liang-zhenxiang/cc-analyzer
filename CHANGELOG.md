@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- 「按模型分布」堆叠条的段填充改走图表规格的低饱和档（`-soft` 填充 + 各段实色细描边），悬停改往足额方向提亮——与柱状图的画法统一为同一语言。
+
 ## [0.6.0] - 2026-10-02
 
 本轮主题：「通电」界面精修——UI/UX 专业评审的结论是「界面差最后一步：仪器还没通电」，本轮把刻度、读数、状态灯补齐，只加信息不加装饰。
