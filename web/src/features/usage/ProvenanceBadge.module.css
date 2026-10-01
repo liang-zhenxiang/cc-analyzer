@@ -32,3 +32,8 @@
 .snapshot {
   color: var(--text-secondary);
 }
+
+/* 推算档与估算档同款描边色：都是「非读自日志」，差异在文案而非颜色等级。 */
+.inferred {
+  border-color: var(--warning);
+}

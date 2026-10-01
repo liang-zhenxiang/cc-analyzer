@@ -127,7 +127,10 @@ describe("UsageOverviewPage", () => {
 
     // Logged figures say so; the cost says how it was estimated and against
     // which snapshot — the acceptance criteria make these labels load-bearing.
-    expect(await within(dashboard).findAllByText("读自日志")).toHaveLength(3);
+    // 计费窗口卡的「窗口开启」也是读自日志，因此按 KPI 行的作用域数 3 枚。
+    const kpiRow = dashboard.querySelector("div[class*='kpiRow']");
+    expect(kpiRow).not.toBeNull();
+    expect(await within(kpiRow as HTMLElement).findAllByText("读自日志")).toHaveLength(3);
     expect(within(dashboard).getByText("按定价快照估算")).toBeInTheDocument();
     expect(within(dashboard).getByText(/快照日期 \d{4}-\d{2}-\d{2}/)).toBeInTheDocument();
   });

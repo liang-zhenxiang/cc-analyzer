@@ -5,6 +5,7 @@ import { formatTokenCount, formatUsd } from "../../lib/format";
 import { PRICING_AS_OF, estimateCost } from "./pricingSnapshot";
 import { ProvenanceBadge } from "./ProvenanceBadge";
 import { useUsageOverview } from "./useUsageOverview";
+import { BillingWindowCard } from "./BillingWindowCard";
 import {
   aggregateRange,
   formatDayLabel,
@@ -143,6 +144,8 @@ export function UsageOverviewPage() {
           {skipped > 0 ? ` · ${skipped} 个会话读取失败已跳过` : ""}
         </span>
       </div>
+
+      <BillingWindowCard inputs={inputs} />
 
       <div className={styles.kpiRow}>
         <div className={styles.kpi}>
