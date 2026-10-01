@@ -11,6 +11,7 @@
 | --- | --- |
 | [collaboration-workflow.md](./collaboration-workflow.md) | **Trellis 与本项目既有流程怎么协同**：粒度对应、何时建任务、以及「同一主题只有一个权威位置」的分工表 |
 | [release-notes.md](./release-notes.md) | **发布说明长什么样**：必须全中文、三段式各自的降级、分类标题与模板串分别改哪里、怎么验证 |
+| [network-and-proxy.md](./network-and-proxy.md) | **GitHub 访问异常时的排查清单**：先量化两种通道再下结论；代理因人而异，没有普适结论 |
 
 ---
 

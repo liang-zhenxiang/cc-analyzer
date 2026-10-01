@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "读数行/徽章/按钮的组件契约与令牌纪律"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "键盘导航事件处理的写法"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "禁用模式与中文文案英文注释"}
+{"file": ".trellis/spec/testing/unit-tests.md", "reason": "组件测试断言可访问名"}
+{"file": ".trellis/spec/testing/e2e-tests.md", "reason": "键盘流要补端到端"}
+{"file": ".trellis/spec/testing/pitfalls.md", "reason": "夹具健全性与恒真断言"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "记录状态判定的类型收窄"}

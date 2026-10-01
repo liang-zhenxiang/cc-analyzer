@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "新目录 features/usage/ 的层级与依赖方向"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "命名函数组件、CSS Modules + tokens、可访问名由测试断言"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "渐进扫描 hook 的异步数据流与 stale 防护"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "不引状态库；localStorage 键守卫读"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "零 any、中文文案英文注释、测试放实现旁"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "磁盘边界 unknown 收窄的既有写法"}
+{"file": ".trellis/spec/testing/unit-tests.md", "reason": "聚合与成本计算的夹具用例写法"}
+{"file": ".trellis/spec/testing/e2e-tests.md", "reason": "新标签页要补双引擎端到端"}
+{"file": ".trellis/spec/testing/pitfalls.md", "reason": "夹具健全性与恒真断言"}

@@ -61,3 +61,48 @@ Finder/Dock 那种收窄的 PATH）复核，发现**自己的修复本身还有�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 2026-10-01/02 · Round B：用量总览仪表盘（usage-dashboard）
+
+### What Happened
+
+- **Round A 先补发布欠账**：[Unreleased] 积压 #58–#63 → v0.4.0（PR #64，tag 推送前
+  按规矩 ls-remote 防双发布；坏 runner 卡 apt 25 分钟，cancel + rerun --failed 只重跑该 job）。
+- **Round B 主题由两路并行调研定盘**：竞品调研 agent（ccusage 18.8k⭐ / opcode 22.4k⭐ /
+  monitor 8.7k⭐ / CCHV / phuryn）+ UI/UX 设计师 agent 评审（结论「界面差最后一步——
+  仪器还没通电」）。功能空白（成本/趋势/分布）与视觉语言（读数行、图表色板）各取所长，
+  融合成「用量总览」仪表盘 + provenance 置信徽章（把竞品的「数字不准」危机变成
+  「诚实仪表」品牌语言）。调研与评审全文落盘 workspace，后续路线图建成 Issue #66、#68–#73。
+- **实现全走子 agent**：impl-core（夹具/聚合/定价/图表）、impl-infra（--chart-* 色板 +
+  CCA_GUI_CAPTURE_TAB 真机取图钩子）、impl-page（页面/hook/接线/E2E/文档）。
+  主会话只做验收：亲读全部交付代码，返工 3 处（StackedBar %8→%6 引用不存在的
+  chart-7/8、柱体大面积实色违反「只许 soft」、热力阶梯顶格 1.0）。
+- **验收教训两则**：
+  1. GUI 真机截图起初全 0——gui-test.sh 装的是 1 月旧夹具，30 天窗口恒空：
+     功能没错，但验证等于没测数据路径。修法：夹具统一时间平移到「最新活动日=昨天」
+     （与 e2e recentActivityScenario 同策略，spec 双双沉淀）。
+  2. 两张截图颜色统计相同差点误判「没切标签」——统计巧合（两页共享中性骨架），
+     视觉确认才作数。颜色方差能证「非空白」，证不了「内容正确」。
+- **tmux 面板基础设施中途损坏**（Could not determine current tmux pane/window），
+  派发 trellis-check 失败三次。检查环由主会话亲自完成（逐文件审读 + 全量门禁），
+  gui-test.sh 的夹具平移修复也由主会话破例代写（约 40 行，测试基建非产品代码，
+  偏离已在此记录）。踩坑：node -e 脚本传负数参数要 `--` 分隔（node: bad option: -1）；
+  单引号 JS 模板字面量触发 SC2016 误报，按仓库惯例带理由 disable。
+- **网络抖动全天**：代理出口被 GitHub 403 限流（EOF / SSL_ERROR_SYSCALL），直连
+  200/0.3s。沉淀 .trellis/spec/guides/network-and-proxy.md（措辞刻意不绝对——
+  不是人人有代理，结论永远以两通道实测为准）。
+- **验证图片边界**：gui-artifacts/ 一直 gitignore；PR 里顺手重出的 24 张旧界面截图
+  属噪音，按用户意见回退，只留 README 引用的 4 张 usage 新图。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `819dff1` | chore(release): 发布 v0.4.0 (#64) |
+| `574c11e` | feat(usage): 新增「用量总览」仪表盘——趋势、分布、热力与估算成本 (#67) |
+| `ca8a57a` | chore(assets): 回退顺手重出的旧界面截图，PR 只保留 README 引用的 usage 新图 |
+
+### Status
+
+[OK] **Completed**（PR #67 待合并后走 v0.5.0 发布轮）
