@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-01
+
+本轮主题：让既有功能真正可靠——claude CLI 探测覆盖各 Node 版本管理器且必须可执行才算可用、实时监控改为显式打开、详情面板与复制交互补齐反馈；真机 GUI 测试升级为窗口内截图校验，发布说明全面中文化。
+
 ### Added
 
 - 真机 GUI 测试现在**截取应用自己的窗口**，不再把截图记为「已跳过」。它不再需要 macOS 的「屏幕录制」权限，因为它根本不读屏幕：`WKWebView.createPDF` 是**让 WebKit 渲染它正在显示的那一页**，全程不经过窗口服务器。该能力挂在 `gui-capture` 这个 Cargo feature 后面，**发布构建不启用**，由 `scripts/gui-test.sh` 驱动。截图的判定是「有没有内容」而不是「文件在不在」——macOS 在真的拒绝读屏时会返回一张尺寸正确、像素全透明的位图，所以「文件出现没有」这种检查在一张透明 PNG 上照样通过。测试改为统计不同颜色的数量：空白截图过不了，真实界面能过。
