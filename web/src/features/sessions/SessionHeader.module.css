@@ -99,7 +99,9 @@
 .readouts {
   display: flex;
   min-width: 0;
-  flex-wrap: wrap;
+  /* 不换行：五个读数在 CI 的 CJK 回退字体下更宽，换行会让头部多出一行、
+     把下方表格压破「内部滚动」的布局不变量（e2e 视口与布局用例守着这条）。 */
+  flex-wrap: nowrap;
   gap: var(--sp-1) var(--sp-4);
   align-items: baseline;
   padding: var(--sp-1) var(--sp-2);
