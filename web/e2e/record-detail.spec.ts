@@ -15,7 +15,7 @@ import { test, expect } from "./fixtures";
  */
 
 function sessionItems(page: Page) {
-  return page.getByLabel("会话列表").locator("button[title]");
+  return page.getByLabel("会话列表", { exact: true }).locator("button[title]:has(strong)");
 }
 
 /** 日志表的记录行。点一下就会把该行的主记录选进详情面板。 */

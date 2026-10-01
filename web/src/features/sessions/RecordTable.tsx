@@ -5,6 +5,7 @@ import type { SessionRecord } from "./types";
 import { useMeasuredRowHeights } from "./measuredRows";
 import { buildRowOffsets, computeSizedWindow } from "./virtualWindow";
 import { useThresholds } from "../settings/thresholds";
+import { focusRowIn, useRowNavigation } from "./useRowNavigation";
 import { formatDateTime, formatDuration } from "../../lib/format";
 import { safeStringify } from "../../lib/json";
 import styles from "./RecordTable.module.css";
@@ -84,6 +85,19 @@ export function RecordTable({
   );
   const visible = virtualize ? sorted.slice(window.start, window.end) : sorted;
 
+  // 行级键盘导航（评审 #3）：↑↓/Home/End 移动焦点行，Enter/Space 选中——
+  // 与鼠标点击走同一个 onSelect，不另设一条激活路径。
+  const tbodyRef = useRef<HTMLTableSectionElement>(null);
+  const focusRow = useCallback(
+    (index: number) => focusRowIn(tbodyRef.current, "tr", index),
+    []
+  );
+  const { activeIndex, setActiveIndex, onKeyDown: onRowKeyDown } = useRowNavigation({
+    count: visible.length,
+    onActivate: (index) => onSelect(visible[index]),
+    focusRow
+  });
+
   const onScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
     const element = event.currentTarget;
     setScrollTop(element.scrollTop);
@@ -108,12 +122,15 @@ export function RecordTable({
             <th><Button type="button" variant="ghost" onClick={() => toggleSort("status")}>状态</Button></th>
           </tr>
         </thead>
-        <tbody>
+        <tbody ref={tbodyRef} onKeyDown={onRowKeyDown}>
           {window.padTop > 0 ? <tr aria-hidden="true" style={{ height: window.padTop }} /> : null}
-          {visible.map((record) => (
+          {visible.map((record, index) => (
             <FragmentRow
               key={record.fullId}
               record={record}
+              navIndex={index}
+              navActive={index === activeIndex}
+              onNavFocus={setActiveIndex}
               selected={selectedId === record.fullId}
               expanded={expandedId === record.fullId}
               onSelect={onSelect}
@@ -136,6 +153,9 @@ export function RecordTable({
 
 function FragmentRow({
   record,
+  navIndex,
+  navActive,
+  onNavFocus,
   selected,
   expanded,
   onSelect,
@@ -144,6 +164,9 @@ function FragmentRow({
   panelMeasure
 }: {
   record: SessionRecord;
+  navIndex: number;
+  navActive: boolean;
+  onNavFocus: (index: number) => void;
   selected: boolean;
   expanded: boolean;
   onSelect: (record: SessionRecord) => void;
@@ -156,6 +179,9 @@ function FragmentRow({
       <tr
         ref={rowMeasure}
         className={selected ? styles.selected : undefined}
+        data-row-index={navIndex}
+        tabIndex={navActive ? 0 : -1}
+        onFocus={() => onNavFocus(navIndex)}
         onClick={() => onSelect(record)}
       >
         <td><code>{record.id}</code></td>

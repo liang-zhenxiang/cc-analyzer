@@ -9,8 +9,10 @@
 
 .track {
   position: relative;
-  height: 54px;
-  min-height: 54px;
+  /* 66 = 块区 46（6 顶距 + 40 高）+ 刻度读数区 14 + 余量 6。 */
+  height: 66px;
+  min-height: 66px;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   background:
@@ -19,15 +21,17 @@
   cursor: crosshair;
 }
 
+/* 块宽映射记录时长（blockWidthShare）：锚在记录起始时刻、向右延伸，
+   min-width 保底短记录可见，max-width 封顶防单条挂起吞掉整条轨道。 */
 .track > button {
   position: absolute;
   top: 6px;
-  width: 8px;
   height: 40px;
+  min-width: 2px;
+  max-width: 15%;
   padding: 0;
   border: 0;
-  border-radius: var(--r-xs);
-  transform: translateX(-50%);
+  border-radius: 0 var(--r-xs) var(--r-xs) 0;
   cursor: pointer;
 }
 
@@ -41,11 +45,75 @@
 .selection {
   position: absolute;
   top: 2px;
-  bottom: 2px;
+  /* 避开底部刻度读数区。 */
+  bottom: 16px;
   border: 1px solid var(--accent);
   border-radius: var(--r-sm);
   background: var(--accent-soft);
   pointer-events: none;
+}
+
+/* 准线：1px 竖线 + 顶部时间气泡，跟随鼠标/拖选。 */
+.probe {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.probeLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: var(--border-strong);
+}
+
+.probeBubble {
+  position: absolute;
+  top: 2px;
+  left: 0;
+  padding: 1px var(--sp-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+/* 刻度读数：绝对定位在轨道内部底部——首、1/3、2/3、尾四点 + 选区时长。
+   pointer-events:none，不挡轨道的拉选。 */
+.track > .axisStart,
+.track > .axisThird,
+.track > .axisTwoThirds,
+.track > .axisEnd,
+.track > .axisSelection {
+  position: absolute;
+  bottom: 1px;
+  pointer-events: none;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.axisStart { left: 6px; }
+.axisThird { left: 33.3%; transform: translateX(-50%); }
+.axisTwoThirds { left: 66.6%; transform: translateX(-50%); }
+.axisEnd { right: 6px; }
+.axisSelection {
+  /* 选区时长居中悬浮在刻度线上方一点，与四个固定刻度不抢位。 */
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 .container footer {

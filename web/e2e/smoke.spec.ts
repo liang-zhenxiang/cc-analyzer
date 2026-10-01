@@ -15,14 +15,14 @@ import { test, expect, emptyScenario } from "./fixtures";
  * 会话条目带 `title={cwd ?? path}`，这是给用户看的路径提示，语义正好。
  */
 function sessionItems(page: Page) {
-  return page.getByLabel("会话列表").locator("button[title]");
+  return page.getByLabel("会话列表", { exact: true }).locator("button[title]:has(strong)");
 }
 
 test.describe("会话分析", () => {
   test("启动后列出磁盘上的全部会话", async ({ page }) => {
     await page.goto("/");
 
-    const list = page.getByLabel("会话列表");
+    const list = page.getByLabel("会话列表", { exact: true });
     await expect(list).toBeVisible();
 
     // 七个夹具项目 → 七条会话
@@ -70,7 +70,8 @@ test.describe("会话分析", () => {
     await sessionItems(page).first().click();
     await expect(page.getByLabel("会话图状态")).toContainText("会话图已加载", { timeout: 15_000 });
 
-    const chip = page.getByRole("button", { name: /Token 计数/ });
+    // 读数行按钮（「会话读数」）接管了原「Token 计数」chip 的展开职责。
+    const chip = page.getByRole("button", { name: "会话读数" });
     await expect(chip).toHaveAttribute("aria-expanded", "false");
 
     await chip.click();
@@ -151,7 +152,7 @@ test.describe("空状态", () => {
   test("没有任何会话时给出空列表而不是报错", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.getByLabel("会话列表")).toBeVisible();
+    await expect(page.getByLabel("会话列表", { exact: true })).toBeVisible();
     await expect(sessionItems(page)).toHaveCount(0);
     await expect(page.getByRole("alert")).toHaveCount(0);
   });

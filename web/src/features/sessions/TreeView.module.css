@@ -252,3 +252,10 @@
 }
 
 
+
+/* 键盘导航的焦点行：复用选中态的竖条语言。 */
+.row:focus-visible {
+  outline: none;
+  background: var(--bg-hover);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
