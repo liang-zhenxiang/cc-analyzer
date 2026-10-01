@@ -1,7 +1,7 @@
 {
   "name": "cc-analyzer-web",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "author": "CC Analyzer",
   "contributors": [
     "liang-zhenxiang <116311683@qq.com>",
