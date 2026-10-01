@@ -15,6 +15,14 @@
   gap: var(--sp-1);
 }
 
+/* 标题与关闭按钮同一行：收起是这一列唯一的全局动作，放在标题右侧。 */
+.headerTitle {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
 .panel h3,
 .panel h4 {
   margin: 0;
@@ -71,6 +79,12 @@
 
 .actions button {
   min-height: var(--control-h);
+}
+
+.hint {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
 }
 
 .error {

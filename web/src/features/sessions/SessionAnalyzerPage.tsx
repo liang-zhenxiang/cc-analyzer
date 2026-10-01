@@ -422,6 +422,7 @@ export function SessionAnalyzerPage() {
             clipboard={bridges.clipboard}
             system={bridges.system}
             onLocate={locateInTree}
+            onClose={() => setSelectedRecord(null)}
             onSelectChild={setSelectedRecord}
             sessionId={parsed?.sessionId}
             sessionPath={parsed?.path}
