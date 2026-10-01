@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/testing/index.md", "reason": "完成标准与门禁清单"}
+{"file": ".trellis/spec/testing/pitfalls.md", "reason": "恒真断言与夹具健全性自查"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "组件契约与可访问名合规"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "禁用模式与 review 清单"}
