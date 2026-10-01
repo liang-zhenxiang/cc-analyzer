@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/guides/collaboration-workflow.md", "reason": "发布流程与「唯一权威位置」分工表——新规范要挂到已有权威位置而不是新起一份"}
+{"file": ".trellis/spec/testing/index.md", "reason": "改了脚本就必须知道该补哪层测试"}
+{"file": ".trellis/spec/testing/unit-tests.md", "reason": "脚本单元测试与夹具写法"}
+{"file": ".claude/skills/maintain-loop/SKILL.md", "reason": "发布步骤与 bash 编码硬规则（CI/发布才会暴露的坑）"}

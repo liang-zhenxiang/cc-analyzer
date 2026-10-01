@@ -6,14 +6,16 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- The real-app GUI test now **captures the application's own window** instead of reporting the screenshot as skipped. It no longer needs macOS's Screen Recording permission, because it does not read the screen: `WKWebView.createPDF` asks **WebKit to render the page it is already displaying**, which never touches the window server. The app exposes this behind a `gui-capture` Cargo feature that **release builds do not enable**, and `scripts/gui-test.sh` drives it. The captured image is checked for content rather than merely for existence — macOS hands back a correctly sized, entirely blank bitmap when it *does* deny a screen read, so a "did the file appear" check would pass on a transparent PNG. The test counts distinct colours instead, which the blank capture fails and a real UI passes.
-- `./scripts/build-macos.sh --help` now prints usage and exits 0. It previously fell through to the unknown-architecture branch and reported "不支持的架构：--help", which reads as if you had passed an architecture.
+- 真机 GUI 测试现在**截取应用自己的窗口**，不再把截图记为「已跳过」。它不再需要 macOS 的「屏幕录制」权限，因为它根本不读屏幕：`WKWebView.createPDF` 是**让 WebKit 渲染它正在显示的那一页**，全程不经过窗口服务器。该能力挂在 `gui-capture` 这个 Cargo feature 后面，**发布构建不启用**，由 `scripts/gui-test.sh` 驱动。截图的判定是「有没有内容」而不是「文件在不在」——macOS 在真的拒绝读屏时会返回一张尺寸正确、像素全透明的位图，所以「文件出现没有」这种检查在一张透明 PNG 上照样通过。测试改为统计不同颜色的数量：空白截图过不了，真实界面能过。
+- `./scripts/build-macos.sh --help` 现在打印用法并以 0 退出。此前它会落到「未知架构」分支并报「不支持的架构：--help」，读起来像是你传了一个架构进去。
+- 发布说明的**中文化转换**：新增 `scripts/format-release-notes.sh` 与仓库级 `.github/release.yml`。GitHub 原生变更清单自带的英文模板串（`What's Changed`、`New Contributors`、`Full Changelog`、`by @user in …`）在拼装发布说明时被转成中文，`### ` 那一层的分类标题则由 `.github/release.yml` 直接配成中文——配置能解决的就不靠后处理去猜，猜错是静默的。`.github/workflows/ci.yml` 增加 `release-notes-test` 任务，用夹具逐字比对转换结果，并验证幂等与空输入降级；转换逻辑若只写在 `release.yml` 的 `run:` 里，唯一的验证方式就只剩「发一次版，用人眼看」。
 
 ### Changed
 
-- `./scripts/lint.sh` now **rejects any argument** instead of ignoring it. It takes no options, so before this `./scripts/lint.sh --help` — or any mistyped flag — ran the whole check suite in silence and looked like the flag had been accepted. It still has no `--help`: a page saying only "runs every check" would be padding, whereas refusing an argument tells you something true.
-- The macOS build wrappers (`build-arm64-macos.sh`, `build-intel-macos.sh`) now **reject an architecture argument** rather than dropping it. `build-arm64-macos.sh x86_64` used to build an aarch64 bundle while the caller believed Intel was in effect. Their `--help` forwards to `build-macos.sh` with a one-line note about their own preset, so the help text keeps a single source and cannot drift.
-- `./scripts/gui-test.sh --help` prints a 19-line usage summary instead of dumping the whole 42-line header comment with its `#` prefixes. The extraction no longer depends on line numbers — that was exactly how the earlier form stopped showing the usage section.
+- `./scripts/lint.sh` 现在**拒绝任何参数**，不再默默忽略。它不接受任何选项，所以在此之前 `./scripts/lint.sh --help`（或任何打错的旗标）会一声不吭地把整套检查跑完，看起来像参数被接受了。它仍然没有 `--help`：一页只写着「跑所有检查」的说明是凑数，而拒绝一个参数是实话。
+- macOS 构建包装脚本（`build-arm64-macos.sh`、`build-intel-macos.sh`）现在**拒绝架构参数**，不再丢弃它。`build-arm64-macos.sh x86_64` 以前会构建出 aarch64 产物，而调用者以为生效的是 Intel。它们的 `--help` 转发给 `build-macos.sh` 并附一行说明自己的预设，帮助文本因此只有一个来源，不会漂移。
+- `./scripts/gui-test.sh --help` 打印一段 19 行的用法摘要，不再把整整 42 行头部注释连同 `#` 前缀一起倒出来。提取方式不再依赖行号——那正是早先那一版不再显示用法段的原因。
+- **`CHANGELOG.md` 的条目改用中文书写。** 发布说明会把 CHANGELOG 中该版本的段落**原样**拼进去，所以 CHANGELOG 的正文就是发布说明的正文——写英文等于发一版英文说明。规则与边界（历史条目不回改）见 `.trellis/spec/guides/release-notes.md`，`AGENTS.md` 与 `docs/MAINTAINER_GUIDE.md` 只做引用。
 
 ## [0.3.0] - 2026-10-01
 

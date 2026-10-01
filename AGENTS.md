@@ -60,7 +60,9 @@ git status --short && git log --oneline -3
 - 提交信息遵循约定式提交；CI 校验 PR 里的提交**与 PR 标题**（squash 后标题
   即提交信息）。可用 `./scripts/check-commit-msg.sh --message "..."` 预检
 - **用户可感知的改动**记入 `CHANGELOG.md` 的 `[Unreleased]`，分类固定为
-  Added / Changed / Deprecated / Removed / Fixed / Security，不自创分类
+  Added / Changed / Deprecated / Removed / Fixed / Security，不自创分类。
+  **条目用中文写**——CHANGELOG 的段落会被原样拼进发布说明，写英文等于发一版
+  英文说明（规则见 [`.trellis/spec/guides/release-notes.md`](.trellis/spec/guides/release-notes.md)）
 - 推送前跑 `./scripts/lint.sh` 与下面「Testing Guidelines」里的构建检查
 
 ### 3. 合并：CI 全绿才合

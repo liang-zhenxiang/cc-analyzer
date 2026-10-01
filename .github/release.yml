@@ -1,0 +1,50 @@
+# 发布说明的分类配置 —— GitHub 原生的 releases/generate-notes 会读它
+#
+# 为什么需要这份文件：generate-notes 生成的变更清单自带一套英文模板，
+# 其中 `## What's Changed` / `## New Contributors` 是**改不掉的常量**（任何配置
+# 都动不了那几个词，只能事后用脚本转，见 scripts/format-release-notes.sh），
+# 而 `### 分类标题` 这一层是**可以配置**的。分类标题能用配置解决就不要靠后处理
+# 去猜——猜错是静默的，配置错了至少能在这里读出来。
+#
+# 分类按 **PR 标签**匹配，不是按 conventional commit 前缀：GitHub 的分类配置
+# 只认标签。标签由 .github/labeler.yml 按改动路径自动打（frontend / tauri /
+# ci / documentation …），外加人工使用的 enhancement / bug / security。
+#
+# **顺序有意义**：一个 PR 归入第一个命中的分类，所以 `'*'` 通配必须放最后。
+# 分类按「改动是什么性质」划分，不按「改到哪一层」——frontend / tauri 这类
+# 位置标签几乎每个 PR 都有，拿它们当分类会让所有 PR 挤进同一格。
+#
+# 规则写在哪：见 .trellis/spec/guides/release-notes.md（发布说明必须中文）。
+# 文档：https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
+
+changelog:
+  categories:
+    - title: 新功能
+      labels:
+        - enhancement
+    - title: 修复
+      labels:
+        - bug
+    - title: 安全
+      labels:
+        - security
+    - title: 文档
+      labels:
+        - documentation
+    - title: 构建与打包
+      labels:
+        - packaging
+    - title: 持续集成与自动化
+      labels:
+        - ci
+        - github_actions
+        - automation
+    - title: 依赖更新
+      labels:
+        - dependencies
+    # 通配放最后：没命中以上任何分类的 PR 全部落到这里。
+    # 少了它，那些 PR 会从发布说明里**静默消失**——少一个 PR 比多一个空分类
+    # 严重得多，而且很难有人发现。
+    - title: 其他变更
+      labels:
+        - '*'

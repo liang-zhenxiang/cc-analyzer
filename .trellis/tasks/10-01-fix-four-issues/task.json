@@ -1,0 +1,31 @@
+{
+  "id": "fix-four-issues",
+  "name": "fix-four-issues",
+  "title": "修复四个用户可见缺陷并沉淀发布语言规范",
+  "description": "父任务：承接用户报的四个问题（发布说明中文化、claude CLI 探测失败、记录详情面板不可收起/复制无反馈/复制摘要为空、实时监控自动打开与命名混乱），拆成四个可独立验收的子任务，并统一补测试盯住。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P0",
+  "creator": "liangyuxiang",
+  "assignee": "liangyuxiang",
+  "createdAt": "2026-10-01",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "10-01-release-notes-zh",
+    "10-01-claude-cli-probe",
+    "10-01-record-detail-panel",
+    "10-01-monitor-explicit-open"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
