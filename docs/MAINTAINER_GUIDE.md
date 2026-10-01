@@ -18,6 +18,11 @@
 `Unreleased` 段，分类固定为 Added / Changed / Deprecated / Removed / Fixed /
 Security，不自创分类。
 
+**条目用中文书写。** CHANGELOG 的段落会被**原样**拼进发布说明，所以它就是发布
+说明的正文——写英文等于发一版英文说明。因果与边界（历史条目不回改）见
+[`.trellis/spec/guides/release-notes.md`](../.trellis/spec/guides/release-notes.md)，
+**权威位置在那里，这里只做引用**。
+
 ## 发布流程
 
 1. 从最新 `main` 切 `chore/release-vX.Y.Z` 分支。
@@ -44,11 +49,22 @@ Security，不自创分类。
    → 组装三段式发布说明（CHANGELOG 手写段 + GitHub 原生 PR 清单 + 可选
    AI 摘要）→ 创建 Release 并上传产物。三个平台都走 Tauri 官方打包
    （`tauri build`），产物名为 `<productName>_<版本>_<arch>.<ext>`：
+
+   > **发布说明必须是全中文的**——CHANGELOG 的段落会被原样拼进来（所以它的条目
+   > 也要用中文写），`generate-notes` 自带的英文模板串与 CHANGELOG 的六个分类标题
+   > 由 `scripts/format-release-notes.sh` 转换，PR 清单的分类标题由
+   > `.github/release.yml` 提供。规则细节、降级行为与验证方式见
+   > [`.trellis/spec/guides/release-notes.md`](../.trellis/spec/guides/release-notes.md)
+   > （**权威位置在那里，这里只做引用**）。改动转换规则后跑
+   > `./scripts/format-release-notes-test.sh`，CI 里也有同一项。
+
+   产物清单：
    - macOS Apple Silicon：`CC-Analyzer_<版本>_aarch64.dmg`
    - macOS Intel：`CC-Analyzer_<版本>_x64.dmg`
    - Windows x64：`CC-Analyzer_<版本>_x64-setup.exe`（NSIS 安装程序）
    - Windows x64 便携版：`CC_Analyzer_x64_portable.zip`
-7. 验证：`gh release view vX.Y.Z` 确认说明齐全、上述四类产物都在列；
+7. 验证：`gh release view vX.Y.Z` 确认说明齐全（**全中文**，没有
+   `What's Changed` 这类英文模板串）、上述四类产物都在列；
    `gh run list --workflow=release.yml` 确认运行成功。
 
 **发布幂等**：tag 重复推送触发第二次工作流时，「先查后建」逻辑会改走
@@ -203,4 +219,5 @@ peer 依赖上。
 | 打包（三平台） | `npm run build:macos:arm64` / `build:macos:intel` / `build:windows`（内部即 `tauri build`，脚本自动装依赖） |
 | Rust 检查 | `cargo fmt --check` / `cargo clippy --all-targets -- -D warnings` / `cargo check` / `cargo test`（manifest 见 CONTRIBUTING.md） |
 | 提交信息预检 | `./scripts/check-commit-msg.sh --message "..."` |
+| 发布说明转换自测 | `./scripts/format-release-notes-test.sh` |
 | CI 状态 | `gh run list --branch main --workflow=ci.yml --limit 3` |

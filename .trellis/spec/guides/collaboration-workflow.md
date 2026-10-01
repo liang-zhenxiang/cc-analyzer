@@ -163,6 +163,7 @@ Trellis 的部分默认行为**必须让位于本项目红线**（红线全文�
 | 分层编码约定（后端 / Tauri） | `.trellis/spec/backend/` | 按需 |
 | **测试分层、验收标准、测试踩坑** | `.trellis/spec/testing/` | 按需 |
 | 发布步骤与仓库配置清单 | `docs/MAINTAINER_GUIDE.md` | 按需 |
+| **发布说明的措辞与语言**（必须全中文、三段式降级、怎么验证） | `.trellis/spec/guides/release-notes.md` | 按需（改发布说明或 `release.yml` 时必读） |
 | 版本号同步点（3 处） | `AGENTS.md` + `docs/MAINTAINER_GUIDE.md` | —— |
 
 **为什么要有这张表**：同一个主题写在两个地方，两份就会漂移；

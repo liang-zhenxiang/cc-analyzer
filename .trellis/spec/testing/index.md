@@ -31,6 +31,7 @@
 | 用户流程的增删改 | 端到端 | —— |
 | Tauri 命令、capabilities、权限 | —— | 真机 GUI（IPC 链路） |
 | 打包脚本、`tauri.conf.json` | —— | **发预发布 tag 真跑一次**（见 `AGENTS.md`） |
+| `scripts/` 下的纯逻辑脚本（如发布说明转换） | 脚本自测：夹具 + 断言，`scripts/<名字>-test.sh`，夹具在 `scripts/tests/fixtures/` | 接进 `.github/workflows/ci.yml` 的一个 job，否则它只在有人记得跑时才有意义 |
 
 **凡是新增功能，都要带测试。** 这不是「有时间再说」的项——
 维护者的原话是「确保后面加的每一个功能都不会影响到老功能」，

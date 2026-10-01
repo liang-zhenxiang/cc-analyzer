@@ -207,6 +207,18 @@ jobs:
       #
       # releases/generate-notes 会返回自上一个 tag 以来的 PR 列表、贡献者，
       # 以及 Full Changelog 对比链接。自己拼这些既麻烦又容易漏。
+      #
+      # **发布说明只做中文**（权威条款见 .trellis/spec/guides/release-notes.md）。
+      # 生成结果自带的英文分两块处理：
+      #   - `### 分类标题` 由 .github/release.yml 配置成中文（本步骤显式把该文件
+      #     传给 API；不传时 API 默认也会找 .github/release.yml，但把默认值写出来
+      #     才不会在默认值变动、文件挪位置时**静默退回英文**）
+      #     ⚠ 实测：该文件是**从远端默认分支**读的，不是从本地工作区、也不是从
+      #     当前 tag。文件不在 main 上时 API 直接 400（`Could not find a
+      #     configuration file at .github/release.yml`），下面的降级分支会把整份
+      #     PR 清单丢掉。所以这个文件必须**先合进 main，再发版**。
+      #   - `## What's Changed` / `## New Contributors` / `**Full Changelog**`
+      #     是 GitHub 模板里的常量，配置改不了，由步骤 ④ 调脚本转换
       # -----------------------------------------------------------------------
       - name: 生成变更清单
         id: prs
@@ -232,6 +244,7 @@ jobs:
           if ! gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
               -f tag_name="$TAG" \
               -f previous_tag_name="$prev" \
+              -f configuration_file_path=".github/release.yml" \
               --jq '.body' > pr-list.md; then
             echo "::warning::变更清单生成失败，发布说明将不含 PR 列表"
             : > pr-list.md
@@ -348,8 +361,13 @@ jobs:
           fi
 
           # —— 变更内容（CHANGELOG 手写部分）——
+          # 这一段是**原样拼进发布说明**的，所以它的语言就是发布说明的语言：
+          # 正文由人用中文写（条款见 .trellis/spec/guides/release-notes.md 条款二），
+          # 而 `### Added` 这六个分类标题是 Keep a Changelog 的固定英文——
+          # AGENTS.md 规定分类固定为它们、不许自创，所以 CHANGELOG.md 里保持原样，
+          # 拼进来的时候转成中文。
           if [[ "$HAS_CHANGELOG" == "true" ]] && [[ -s changelog-section.md ]]; then
-            cat changelog-section.md >> release-notes.md
+            ./scripts/format-release-notes.sh changelog-section.md >> release-notes.md
           elif [[ -n "$PREV_TAG" ]]; then
             # CHANGELOG 没写时不要只留一句占位——直接把对比链接给出来，
             # 读者仍然能一键看到全部改动
@@ -363,9 +381,29 @@ jobs:
           fi
 
           # —— 变更清单（PR / 贡献者 / 对比链接）——
+          # GitHub 原生生成的是英文模板，交给 scripts/format-release-notes.sh 转成
+          # 中文。转换是**幂等**的：tag 重推触发第二次工作流时（走 gh release edit
+          # 那条分支），已中文化的说明不会被再改一遍。
+          # 空文件不进入这一支——脚本对空输入同样以 0 退出，但多一次无意义的调用
+          # 只会让日志更难读。
+          # 脚本**失败会让这一步失败**，这是有意的：内容缺失（没有 PR 清单、没有
+          # 上一个 tag、没有 API Key）都走降级，而转换脚本自己坏掉是本仓库的 bug。
+          # 它由 CI 的 release-notes-test job 在每次 PR 上跑一遍，坏版本进不了
+          # tag；真出事时重跑工作流会走 gh release edit 那条幂等分支，不必重发版。
           if [[ -s pr-list.md ]]; then
             printf '\n---\n\n' >> release-notes.md
-            cat pr-list.md >> release-notes.md
+            ./scripts/format-release-notes.sh pr-list.md >> release-notes.md
+          fi
+
+          # 兜底检查：分类标题来自 .github/release.yml，模板串靠上面的脚本转换，
+          # CHANGELOG 段落的正文由人写——三者任一失效都会让英文漏进发布说明，
+          # 而它只在用户看得见的地方显形（发布页发出去就收不回来）。
+          # 检测式在脚本里，**这里不另抄一份正则**（抄的那份不会跟着改）；
+          # 命中行由脚本打印，日志里直接能看到是哪里漏的。
+          # **只警告不失败**：三段式各自的降级是既有设计，措辞不完美也好过整次
+          # 发布卡住（见 docs/MAINTAINER_GUIDE.md 的发布流程）。
+          if ! ./scripts/format-release-notes.sh --check release-notes.md; then
+            echo "::warning::发布说明里仍有英文模板串（命中行见上），请检查 .github/release.yml、CHANGELOG 段落的语言与转换规则"
           fi
 
           echo "=== 最终发布说明 ==="
