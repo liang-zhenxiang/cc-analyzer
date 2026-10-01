@@ -358,8 +358,12 @@ export async function generateReport(
 ): Promise<ReportResult> {
   if (signal?.aborted) throw new ReportCancelledError();
   const report = buildReport(input);
+  // Resolved once and reused for the whole run: probing one command and then
+  // launching another is exactly how a machine with the CLI installed ends up
+  // reporting "not found".
   const cli = await probeClaudeCli(bridges);
   if (cli.status === "missing") throw new Error(cli.message);
+  const claudeCommand = cli.command;
   const supportsStream = cli.hasStreamJson;
   const args = supportsStream
     ? ["-p", "--verbose", "--include-partial-messages", "--output-format", "stream-json"]
@@ -381,7 +385,7 @@ export async function generateReport(
 
   try {
     const result = await bridges.proc.runLines(
-      "claude",
+      claudeCommand,
       args,
       `以下是本地整理好的会话数据与统计口径，请据此生成中文分析报告。\n\n${report}`,
       10 * 60 * 1000,
@@ -434,7 +438,7 @@ export async function generateReport(
     if (!result.ok && result.error) {
       if (result.error === "分析已取消") throw new ReportCancelledError();
       if (result.error.includes("启动命令失败")) {
-        throw new Error(`${result.error}（请确认 claude CLI 已安装且在 PATH 中）`);
+        throw new Error(`${result.error}（claude CLI 已解析为 ${claudeCommand}，但它未能运行）`);
       }
       throw new Error(result.error);
     }

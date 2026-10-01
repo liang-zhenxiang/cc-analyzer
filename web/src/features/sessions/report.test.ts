@@ -74,6 +74,28 @@ function createStreamHarness({
   };
 }
 
+/**
+ * Gives a harness bridges a filesystem holding exactly `existing`. No version
+ * manager is installed, so `readDir` fails for every root — the state a machine
+ * relying on a plain PATH install is in.
+ */
+function attachFs(
+  bridges: Bridges,
+  { home = "/Users/tester", existing = [] }: { home?: string; existing?: string[] } = {}
+): Bridges {
+  (bridges as unknown as { fs: unknown }).fs = {
+    homeDir: async () => home,
+    stat: async (path: string) => {
+      if (!existing.includes(path)) throw new Error("文件或目录不存在");
+      return { is_file: true, size: 1, mtime_ms: 1 };
+    },
+    readDir: async () => {
+      throw new Error("读取目录失败: 文件或目录不存在");
+    }
+  };
+  return bridges;
+}
+
 function createGraphReportFixture() {
   const childSession: ParsedSession = {
     sessionId: "child",
@@ -522,20 +544,65 @@ describe("report generation", () => {
     expect(runLines.mock.calls[0]?.[2]).toContain("- 子 agent: 500ms");
   });
 
-  it("fails fast with an actionable message when the claude CLI cannot be started", async () => {
+  it("runs the resolved absolute path when the app's PATH has no claude", async () => {
+    const installed = "/Users/tester/.local/bin/claude";
+    const { bridges, runLines } = createStreamHarness({ lines: [] });
+    bridges.proc.execText = vi.fn(async (cmd: string) =>
+      cmd === "claude"
+        ? { ok: false, out: "", error: "启动命令失败: No such file or directory (os error 2)" }
+        : { ok: true, out: "--include-partial-messages --output-format stream-json" }
+    );
+    attachFs(bridges, { existing: [installed] });
+    const { session } = createGraphReportFixture();
+
+    await generateReport(
+      { session, records: session.records, mode: "whole", filter: emptyFilter },
+      bridges,
+      () => undefined
+    );
+
+    expect(runLines).toHaveBeenCalledTimes(1);
+    expect(runLines.mock.calls[0]?.[0]).toBe(installed);
+    // `--help` still decides the argument set: resolving the command must not
+    // cost the stream-json detection.
+    expect(runLines.mock.calls[0]?.[1]).toEqual([
+      "-p",
+      "--verbose",
+      "--include-partial-messages",
+      "--output-format",
+      "stream-json"
+    ]);
+  });
+
+  it("says the install is unrunnable rather than claiming claude is missing", async () => {
+    const installed = "/Users/tester/.local/bin/claude";
+    const { bridges, runLines } = createStreamHarness({});
+    bridges.proc.execText = vi.fn(async () => ({
+      ok: false,
+      out: "",
+      error: "启动命令失败: Permission denied (os error 13)"
+    }));
+    attachFs(bridges, { existing: [installed] });
+    const { session } = createGraphReportFixture();
+
+    await expect(
+      generateReport(
+        { session, records: session.records, mode: "whole", filter: emptyFilter },
+        bridges,
+        () => undefined
+      )
+    ).rejects.toThrow(/找到 claude CLI 但无法执行它：\/Users\/tester\/\.local\/bin\/claude/);
+    expect(runLines).not.toHaveBeenCalled();
+  });
+
+  it("fails fast with an actionable message when nothing can be resolved at all", async () => {
     const { bridges, runLines } = createStreamHarness({});
     bridges.proc.execText = vi.fn(async () => ({
       ok: false,
       out: "",
       error: "启动命令失败: No such file or directory (os error 2)"
     }));
-    (bridges as unknown as { fs: unknown }).fs = {
-      homeDir: async () => "/Users/tester",
-      stat: async (path: string) => {
-        if (path !== "/Users/tester/.local/bin/claude") throw new Error("文件或目录不存在");
-        return { is_file: true, size: 1, mtime_ms: 1 };
-      }
-    };
+    attachFs(bridges);
     const { session } = createGraphReportFixture();
 
     await expect(

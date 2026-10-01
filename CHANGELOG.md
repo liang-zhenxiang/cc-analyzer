@@ -17,6 +17,10 @@ All notable changes to this project will be documented in this file.
 - `./scripts/gui-test.sh --help` 打印一段 19 行的用法摘要，不再把整整 42 行头部注释连同 `#` 前缀一起倒出来。提取方式不再依赖行号——那正是早先那一版不再显示用法段的原因。
 - **`CHANGELOG.md` 的条目改用中文书写。** 发布说明会把 CHANGELOG 中该版本的段落**原样**拼进去，所以 CHANGELOG 的正文就是发布说明的正文——写英文等于发一版英文说明。规则与边界（历史条目不回改）见 `.trellis/spec/guides/release-notes.md`，`AGENTS.md` 与 `docs/MAINTAINER_GUIDE.md` 只做引用。
 
+### Fixed
+
+- **装好了 `claude` CLI 却报「未找到」**。两个原因叠在一起：候选安装位置表只列了 `~/.claude/local`、`/opt/homebrew/bin` 这类固定路径，**不含任何 Node 版本管理器**（nvm、volta、fnm、asdf、mise、pnpm、yarn），所以找不到；更要紧的是解析出来的路径**只被拼进错误文案**，真正执行时仍然硬编码 `claude`——PATH 里没有就照样启动失败，改文案并不能修好它。现在候选表覆盖各版本管理器的 shim 与**按版本号分目录**的安装（后者靠枚举目录，而不是猜版本号），解析出的命令会真的交给执行侧，且探测与执行用的是同一条命令。若 CLI 在磁盘上但跑不起来，报的是「找到了却无法执行」，不再是「没找到」。
+
 ## [0.3.0] - 2026-10-01
 
 本轮主题：工程化与体验升级——接入 Trellis 工程框架、建立三层测试网、界面按「仪器面板」重做、新增 Token 计数面板。

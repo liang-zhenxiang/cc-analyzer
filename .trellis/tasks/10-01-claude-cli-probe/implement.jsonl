@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "解析结果类型收窄与判别联合的写法"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端这一层的门禁与做法"}
+{"file": ".trellis/spec/testing/unit-tests.md", "reason": "mock bridge 与夹具写法"}
+{"file": ".trellis/spec/testing/pitfalls.md", "reason": "别写出恒真断言——本任务大量是「断言某个调用发生了」"}
