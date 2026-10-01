@@ -608,7 +608,8 @@ test("folds the token panel behind the session header chip", async () => {
   await user.click(await screen.findByRole("button", { name: /project-a/ }));
   expect(await screen.findByRole("application", { name: "时间轨道" })).toBeInTheDocument();
 
-  const chip = screen.getByRole("button", { name: /Token 计数/ });
+  // 读数行（「会话读数」按钮）接管了原「Token 计数」chip 的展开职责。
+  const chip = screen.getByRole("button", { name: "会话读数" });
   // 默认折叠：面板是会话级明细，不该挤占「时间线 + 筛选 + 视图」的主流程高度。
   expect(chip).toHaveAttribute("aria-expanded", "false");
   expect(screen.queryByRole("region", { name: "Token 计数" })).not.toBeInTheDocument();

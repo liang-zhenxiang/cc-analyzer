@@ -30,7 +30,7 @@ async function useTheme(page: Page, theme: "light" | "dark") {
 }
 
 function sessionItems(page: Page) {
-  return page.getByLabel("会话列表").locator("button[title]");
+  return page.getByLabel("会话列表", { exact: true }).locator("button[title]:has(strong)");
 }
 
 /**

@@ -48,6 +48,14 @@ export function formatUsd(value: number): string {
   return `$${value.toFixed(2)}`;
 }
 
+/** Wall-clock labels for the timeline scale (HH:mm) and probe (HH:mm:ss). */
+export function formatClock(ms: number, withSeconds = false): string {
+  const date = new Date(ms);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const base = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return withSeconds ? `${base}:${pad(date.getSeconds())}` : base;
+}
+
 /** Relative time labels for the session list (刚刚 / N 分钟前 / 更早). */
 export function formatRelativeTime(ms: number, now = Date.now()): string {
   if (!ms || ms < 0) return "-";

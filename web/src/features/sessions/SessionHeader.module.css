@@ -1,23 +1,48 @@
 .header {
   grid-column: 1 / -1;
   display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: var(--sp-2);
-  align-items: center;
   padding: var(--sp-2) var(--sp-3);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   background: var(--bg-subtle);
 }
 
-/* 状态灯用语义色，不用 --cat-compute：类别色是稀缺资产，
-   借去当装饰会让「compute」这个类别少一个可用的色。 */
+.titleRow {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+/* 状态灯三态（sessionHealth.ts）：常亮的灯不指示任何东西，所以灯必须
+   回答「为什么亮」。语义色按既有分工：success/danger/text-faint。 */
 .dot {
   width: 8px;
   height: 8px;
+  flex: none;
   border-radius: 50%;
+  background: var(--text-faint);
+}
+
+.active-today {
   background: var(--success);
+}
+
+.has-errors {
+  background: var(--danger);
+}
+
+/* 颜色之外的可读状态文案（屏幕阅读器与高对比场景）。 */
+.srOnly {
+  position: absolute;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  width: 1px;
+  height: 1px;
+  white-space: nowrap;
 }
 
 /* 会话标题是页面级标题（15px），与面板标题（13px）不同级。 */
@@ -32,8 +57,9 @@
   white-space: nowrap;
 }
 
-.chip,
-.chipButton {
+/* chips 在读数行出现后降级为次级元信息：项目与相对时间，
+   不再承载任何「用户打开应用要回答的问题」。 */
+.chip {
   display: inline-flex;
   min-width: 0;
   align-items: center;
@@ -45,40 +71,11 @@
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
   line-height: var(--lh-xs);
-  /* 「总耗时 12.3s」在会话间切换时不能左右跳动。 */
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.chip b,
-.chipButton b {
-  color: var(--text-secondary);
-  font-weight: 600;
-}
-
-/* 成本 chip 是个按钮（它展开面板），外观与相邻的静态 chip 完全一致——
-   按钮不能继承 font，所以逐项取回，而不是用 font 简写覆盖上面的字号。 */
-.chipButton {
-  font-family: inherit;
-  cursor: pointer;
-  transition:
-    background-color var(--dur-hover) var(--ease-in-out),
-    color var(--dur-hover) var(--ease-in-out);
-}
-
-.chipButton:hover:not(:disabled) {
-  background: var(--bg-hover);
-  color: var(--text-secondary);
-}
-
-.chipButton:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* 「成本未知」是标注而非告警：它是本面板长期存在的状态，
-   在这里用警示色会让标题栏每次都在喊狼来了。 */
-.cost {
+.chip b {
   color: var(--text-secondary);
   font-weight: 600;
 }
@@ -90,13 +87,63 @@
   white-space: nowrap;
 }
 
-/* 「打开位置」独占行尾。用 :not 把成本 chip 排除在外——它必须紧挨「总耗时」，
-   否则 margin-left: auto 会把它甩到行尾，和它并列的语义就断了。 */
-.header button:not(.chipButton) {
+/* 「打开位置」独占行尾。 */
+.titleRow > button {
   margin-left: auto;
   white-space: nowrap;
 }
 
-.chipButton {
+/* 读数行：本页最大的数字都在这里（15px/600 + tabular-nums）。
+   它是按钮（点击展开 Token 面板），但视觉上是一排仪表读数——
+   所以描边与底色保持「台阶」而非「控件」，hover 才露出可点性。 */
+.readouts {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+  align-items: baseline;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-hover) var(--ease-in-out),
+    background-color var(--dur-hover) var(--ease-in-out);
+}
+
+.readouts:hover:not(:disabled),
+.readouts:focus-visible {
+  border-color: var(--border);
+  background: var(--bg-hover);
+}
+
+.readouts:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.readout {
+  display: inline-flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--sp-1);
   white-space: nowrap;
+}
+
+.readoutLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.readoutValue {
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: var(--lh-md);
+  /* 会话间切换时读数不能左右跳动。 */
+  font-variant-numeric: tabular-nums;
 }

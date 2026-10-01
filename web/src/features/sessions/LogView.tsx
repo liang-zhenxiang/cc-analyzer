@@ -13,6 +13,7 @@ import { EmptyState } from "../../components/EmptyState";
 import type { SessionRecord } from "./types";
 import type { LogRow } from "./logRows";
 import { formatInputValue, structuredResultLines } from "./structuredResultLines";
+import { focusRowIn, useRowNavigation } from "./useRowNavigation";
 import { useMeasuredRowHeights } from "./measuredRows";
 import { buildRowOffsets, computeSizedWindow } from "./virtualWindow";
 import type { TimeRange } from "./filters";
@@ -151,6 +152,21 @@ export function LogView({
   const end = virtualize ? virtualWindow.end : rows.length;
   const visibleRows = virtualize ? rows.slice(start, end) : rows;
 
+  // 行级键盘导航（评审 #3）：与 RecordTable/TreeView 共用 useRowNavigation。
+  const tbodyRef = useRef<HTMLTableSectionElement>(null);
+  const focusRow = useCallback(
+    (index: number) => focusRowIn(tbodyRef.current, "tr", index),
+    []
+  );
+  const { activeIndex, setActiveIndex, onKeyDown: onRowKeyDown } = useRowNavigation({
+    count: visibleRows.length,
+    onActivate: (index) => {
+      const primary = visibleRows[index]?.records[visibleRows[index].records.length - 1];
+      if (primary) onSelect(primary);
+    },
+    focusRow
+  });
+
   useEffect(() => {
     if (!highlightId || !highlightRef.current) return;
     highlightRef.current.scrollIntoView({ block: "center" });
@@ -194,11 +210,11 @@ export function LogView({
             <th aria-label="行操作" />
           </tr>
         </thead>
-        <tbody>
+        <tbody ref={tbodyRef} onKeyDown={onRowKeyDown}>
           {start > 0 ? (
             <tr aria-hidden="true" style={{ height: virtualWindow.padTop }} />
           ) : null}
-          {visibleRows.map((row) => {
+          {visibleRows.map((row, index) => {
             const primary = row.records[row.records.length - 1];
             const selected = row.records.some((record) => record.fullId === selectedId);
             const expanded = expandedId === row.id;
@@ -210,6 +226,9 @@ export function LogView({
                 key={row.id}
                 row={row}
                 primary={primary}
+                navIndex={index}
+                navActive={index === activeIndex}
+                onNavFocus={setActiveIndex}
                 selected={selected}
                 expanded={expanded}
                 highlighted={highlighted}
@@ -238,6 +257,9 @@ export function LogView({
 function Fragment({
   row,
   primary,
+  navIndex,
+  navActive,
+  onNavFocus,
   selected,
   expanded,
   highlighted,
@@ -251,6 +273,9 @@ function Fragment({
 }: {
   row: LogRow;
   primary: SessionRecord | undefined;
+  navIndex: number;
+  navActive: boolean;
+  onNavFocus: (index: number) => void;
   selected: boolean;
   expanded: boolean;
   highlighted: boolean;
@@ -283,6 +308,9 @@ function Fragment({
           selected ? styles.selected : "",
           highlighted ? styles.highlight : ""
         ].filter(Boolean).join(" ")}
+        data-row-index={navIndex}
+        tabIndex={navActive ? 0 : -1}
+        onFocus={() => onNavFocus(navIndex)}
         onClick={() => {
           if (primary) onSelect(primary);
         }}

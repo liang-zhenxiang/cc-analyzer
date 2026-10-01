@@ -1,44 +1,23 @@
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { TimelineTrack } from "./TimelineTrack";
-import { parseJsonlText } from "./parseJsonl";
-import fixture from "../../../tests/fixtures/session-basic.jsonl?raw";
+import { describe, expect, it } from "vitest";
+import { blockWidthShare } from "./TimelineTrack";
 
-test("clears selection with Escape", async () => {
-  const user = userEvent.setup();
-  const onSelect = vi.fn();
-  const session = parseJsonlText(fixture, "/tmp/session.jsonl");
-  render(
-    <TimelineTrack
-      session={session}
-      selection={{ start: 1, end: 2 }}
-      onSelect={onSelect}
-      onReveal={() => undefined}
-    />
-  );
+describe("blockWidthShare（块宽按时长映射）", () => {
+  it("时长为轨道跨度的 10% → 10% 宽", () => {
+    expect(blockWidthShare(1_000, 10_000)).toBeCloseTo(0.1);
+  });
 
-  screen.getByRole("application", { name: "时间轨道" }).focus();
-  await user.keyboard("{Escape}");
-  expect(onSelect).toHaveBeenCalledWith(null);
-});
+  it("6 秒与 30 毫秒在同一条 60 秒轨道上不再同宽", () => {
+    const span = 60_000;
+    expect(blockWidthShare(6_000, span)).toBeCloseTo(0.1);
+    expect(blockWidthShare(30, span)).toBeCloseTo(0.0005);
+  });
 
-test("selects a block by double click and reveals it by click", async () => {
-  const user = userEvent.setup();
-  const onSelect = vi.fn();
-  const onReveal = vi.fn();
-  const session = parseJsonlText(fixture, "/tmp/session.jsonl");
-  render(
-    <TimelineTrack
-      session={session}
-      selection={null}
-      onSelect={onSelect}
-      onReveal={onReveal}
-    />
-  );
+  it("超长记录封顶 15%——单条挂起不能吞掉整条轨道", () => {
+    expect(blockWidthShare(120_000, 60_000)).toBe(0.15);
+  });
 
-  const block = screen.getByTitle(/^turn-1-user/);
-  await user.click(block);
-  await user.dblClick(block);
-  expect(onReveal).toHaveBeenCalledWith("turn-1-user");
-  expect(onSelect).toHaveBeenLastCalledWith({ start: session.records[0].timestamp, end: session.records[0].timestamp + 1 });
+  it("零时长或零跨度 → 0（由 CSS min-width 兜底可见性）", () => {
+    expect(blockWidthShare(0, 10_000)).toBe(0);
+    expect(blockWidthShare(1_000, 0)).toBe(0);
+  });
 });

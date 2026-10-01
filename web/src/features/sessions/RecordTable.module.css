@@ -83,3 +83,10 @@
 }
 
 
+
+/* 键盘导航的焦点行：复用选中态的竖条语言，焦点可见性不依赖颜色以外的信号。 */
+tbody tr:focus-visible {
+  outline: none;
+  background: var(--bg-hover);
+  box-shadow: inset 2px 0 0 var(--accent);
+}

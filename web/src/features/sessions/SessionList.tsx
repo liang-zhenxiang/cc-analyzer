@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from "react";
-import { Button } from "../../components/Button";
+import { IconButton } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
 import { Icon } from "../../components/Icon";
 import { TextInput } from "../../components/TextInput";
@@ -229,7 +229,9 @@ export function SessionList({
             onChange={(event) => setSearch(event.target.value)}
           />
         </span>
-        <Button type="button" onClick={onRefresh}>刷新会话列表</Button>
+        <IconButton label="刷新会话列表" onClick={onRefresh}>
+          <Icon name="refresh" size={14} />
+        </IconButton>
       </div>
       <div role="tablist" aria-label="列表视图">
         <button role="tab" aria-selected={view === "timeline"} onClick={() => setView("timeline")}>时间线</button>

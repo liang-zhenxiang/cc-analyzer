@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
 import type { ParsedSession, ParsedSessionGraph, SessionRecord } from "./types";
 import type { TimeRange } from "./filters";
 import { buildDurationTree, type DurationNode, type DurationNodeKind } from "./durationTree";
+import { focusRowIn, useRowNavigation } from "./useRowNavigation";
 import { formatDuration } from "../../lib/format";
 import styles from "./TreeView.module.css";
 
@@ -72,6 +73,32 @@ export function TreeView({
     });
   }
 
+  // 键盘导航（评审 #3）：树的行是递归渲染的，先扁平化「当前可见」的节点，
+  // 折叠的分支不占序号——焦点顺序与视觉顺序一致。
+  const visibleIds = useMemo(() => {
+    const ids: string[] = [];
+    const walk = (node: DurationNode) => {
+      ids.push(node.id);
+      if (!collapsed.has(node.id) && node.children) node.children.forEach(walk);
+    };
+    walk(tree);
+    return ids;
+  }, [tree, collapsed]);
+  const navIndexById = useMemo(
+    () => new Map(visibleIds.map((id, index) => [id, index])),
+    [visibleIds]
+  );
+  const treeBodyRef = useRef<HTMLDivElement>(null);
+  const focusRow = useCallback(
+    (index: number) => focusRowIn(treeBodyRef.current, "[role='treeitem']", index),
+    []
+  );
+  const { activeIndex, setActiveIndex, onKeyDown: onRowKeyDown } = useRowNavigation({
+    count: visibleIds.length,
+    onActivate: (index) => setSelectedNodeId(visibleIds[index]),
+    focusRow
+  });
+
   return (
     <section className={styles.container} ref={containerRef}>
       <header className={styles.legend}>
@@ -93,10 +120,13 @@ export function TreeView({
           </label>
         ) : null}
       </header>
-      <div role="tree" aria-label="耗时树" className={styles.tree}>
+      <div role="tree" aria-label="耗时树" className={styles.tree} ref={treeBodyRef} onKeyDown={onRowKeyDown}>
         <TreeRow
           node={tree}
           depth={0}
+          navIndexById={navIndexById}
+          navActiveIndex={activeIndex}
+          onNavFocus={setActiveIndex}
           collapsed={collapsed}
           onToggle={toggle}
           selectedId={selectedId}
@@ -126,6 +156,9 @@ const legendLabels = {
 function TreeRow({
   node,
   depth,
+  navIndexById,
+  navActiveIndex,
+  onNavFocus,
   collapsed,
   onToggle,
   selectedId,
@@ -140,6 +173,9 @@ function TreeRow({
 }: {
   node: DurationNode;
   depth: number;
+  navIndexById: Map<string, number>;
+  navActiveIndex: number;
+  onNavFocus: (index: number) => void;
   collapsed: Set<string>;
   onToggle: (id: string) => void;
   selectedId: string | null;
@@ -179,6 +215,12 @@ function TreeRow({
           highlighted ? styles.highlight : ""
         ].filter(Boolean).join(" ")}
         style={{ paddingLeft: depth * 16 + 8 }}
+        data-row-index={navIndexById.get(node.id)}
+        tabIndex={navIndexById.get(node.id) === navActiveIndex ? 0 : -1}
+        onFocus={() => {
+          const index = navIndexById.get(node.id);
+          if (index !== undefined) onNavFocus(index);
+        }}
         onClick={() => onSelectNode(node.id)}
       >
         {expandable ? (
@@ -256,6 +298,9 @@ function TreeRow({
               key={child.id}
               node={child}
               depth={depth + 1}
+              navIndexById={navIndexById}
+              navActiveIndex={navActiveIndex}
+              onNavFocus={onNavFocus}
               collapsed={collapsed}
               onToggle={onToggle}
               selectedId={selectedId}
