@@ -85,3 +85,22 @@
   border-top: 1px solid var(--border);
   padding-top: var(--sp-2);
 }
+
+.sectionTitle {
+  margin: var(--sp-3) 0 0;
+  color: var(--text);
+  font-size: var(--fs-base);
+  font-weight: 600;
+}
+
+/* 原生 select 在两端引擎里最稳；描边与内边距对齐 TextInput 的画法。 */
+.select {
+  width: 100%;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-base);
+}

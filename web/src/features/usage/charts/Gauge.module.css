@@ -1,0 +1,21 @@
+.progress {
+  /* 进度弧是窄描边，过渡只走状态档时长；reduced-motion 由全局归零兜底。 */
+  transition: stroke-dasharray var(--dur-state, 140ms) var(--ease-out);
+}
+
+/* 无计划（无分母）时进度弧不画，只剩中性底环——「只看消耗」的视觉态。 */
+.inert {
+  stroke: transparent;
+}
+
+.centerValue {
+  fill: var(--text);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.centerLabel {
+  fill: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}

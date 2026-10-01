@@ -1,0 +1,72 @@
+.card {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+}
+
+.gaugeArea {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  align-items: center;
+}
+
+.readouts {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: var(--sp-2) var(--sp-4);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.readout {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  align-items: baseline;
+  grid-auto-flow: column;
+  justify-content: start;
+  column-gap: var(--sp-1);
+}
+
+.label {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.value {
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: var(--lh-md);
+  font-variant-numeric: tabular-nums;
+}
+
+.sub {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.planNote {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.history {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.historyLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
