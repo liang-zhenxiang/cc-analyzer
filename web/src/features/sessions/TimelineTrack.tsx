@@ -159,6 +159,17 @@ export function TimelineTrack({
             style={selectionStyle(shownSelection, range)}
           />
         )}
+        {/* 刻度读数放在轨道内部的底部：单独一行会把下方表格压到
+            「内部滚动」布局不变量的地板上（e2e 视口用例守着 240px 线）。 */}
+        <span className={styles.axisStart} aria-hidden="true">{formatClock(range.start)}</span>
+        <span className={styles.axisThird} aria-hidden="true">{formatClock(range.start + span / 3)}</span>
+        <span className={styles.axisTwoThirds} aria-hidden="true">{formatClock(range.start + (span * 2) / 3)}</span>
+        <span className={styles.axisEnd} aria-hidden="true">{formatClock(range.end)}</span>
+        {shownSelection && shownSelection.end > shownSelection.start ? (
+          <span className={styles.axisSelection} aria-hidden="true">
+            选区 {formatDuration(Math.min(shownSelection.end, range.end) - Math.max(shownSelection.start, range.start))}
+          </span>
+        ) : null}
         {probeAt !== null && (
           /* 准线与读数：把 crosshair 从「光标形状」升级成真探针（评审 #2）。
              aria-hidden——时刻对读屏用户由选区文案与记录 title 承载。 */
@@ -167,18 +178,6 @@ export function TimelineTrack({
             <span className={styles.probeBubble}>{probeBubble}</span>
           </span>
         )}
-      </div>
-      {/* 刻度轴：给网格底纹配上读数——起止与两个中间刻度（评审 #2「有网格无刻度」）。 */}
-      <div className={styles.axis} aria-hidden="true">
-        <span>{formatClock(range.start)}</span>
-        <span>{formatClock(range.start + span / 3)}</span>
-        <span>{formatClock(range.start + (span * 2) / 3)}</span>
-        <span>{formatClock(range.end)}</span>
-        {shownSelection && shownSelection.end > shownSelection.start ? (
-          <span className={styles.axisSelection}>
-            选区 {formatDuration(Math.min(shownSelection.end, range.end) - Math.max(shownSelection.start, range.start))}
-          </span>
-        ) : null}
       </div>
       <footer>在轨道上拉选一段时间可只看那一段；按 Esc 清除选区，Shift+←/→ 微调选区终点。</footer>
     </section>
