@@ -106,3 +106,46 @@ Finder/Dock 那种收窄的 PATH）复核，发现**自己的修复本身还有�
 ### Status
 
 [OK] **Completed**（PR #67 待合并后走 v0.5.0 发布轮）
+
+
+## Session 2026-10-02 · Round C：「通电」界面精修（electrify）
+
+### What Happened
+
+- **派发基础设施中断**：agent-team 的 tmux socket（/tmp/orca-claude-agent-teams/…）报
+  stale or unauthorized，新子 agent 全部派不出去（试了 3 次）。Round C 按 /goal 的
+  自主推进授权由主会话亲自实现（偏离记录在案），验收独立性以三层测试门禁 +
+  视觉分析工具的独立读数补偿。
+- **实现内容**（按评审 Top 项）：首屏读数行（SessionHeader 重写，读数行按钮化接管
+  TokenPanel 展开）、sessionHealth 三态纯函数（错误优先于「今天」：可行动的胜过
+  氛围性的）、TimelineTrack 通电（刻度读数、悬停准线+时刻气泡、块宽按时长映射
+  封顶 15%、Shift+←/→）、useRowNavigation 共享 hook 接三表（RecordTable/LogView/
+  TreeView 各自的行结构适配：虚拟窗口的 visible 序号、树的递归扁平化）、侧栏
+  刷新改 IconButton。
+- **两个跨层级的坑，都已沉淀**：
+  1. **IconButton 的 title/label 打破 e2e 选择器假设**：`button[title]` 先命中带
+     title 的刷新钮（把「点击会话」变成「点击刷新」），且 `getByLabel("会话列表")`
+     子串匹配命中「刷新**会话列表**」引发 strict mode 冲突。二分定位（stash/分半
+     还原）耗了五轮——教训：可访问名与定位器的耦合是隐式契约，改 label 就该
+     grep 测试。修法 exact + :has(strong)。
+  2. **纵向空间预算**：读数行 + 独立刻度轴共占 ~54px，CI 的 CJK 回退字体更宽
+     （换行→更高），720px 视口下表格被压到 min-height 地板——恰好 240.00px 被
+     `toBeGreaterThan(240)` 拦下。修法是把空间还回去（刻度并入轨道底部、
+     gap/padding 各收一档），而不是放宽断言。布局不变量测试第一次真正咬人。
+- **验证链**：451 单测 → 双引擎 e2e（23×2，新增 keyboard-nav 流）→ lint/fmt →
+  GUI 真机 11/11 → README 主图重出并经视觉确认（读数行落地，9.2/10）。
+  CI WebKit 的布局用例先后拦下两版（换行版、独立轴版），第三版过。
+- **流程修正**：本轮 task.py start 在切好分支之后执行（上轮记录的 branch=main
+  元数据错误不再重现）；发布分支提交改用显式文件清单，杜绝 add -A 卷入工件。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cb5116f` | feat(usage): 用量总览仪表盘 (#67) |
+| `3c18a5a` | feat(sessions): 「通电」精修轮 (#76) |
+| `f168c2d` | chore(release): 发布 v0.6.0 (#77) |
+
+### Status
+
+[OK] **Completed**（PR #77 待 CI，合并后打 tag 即收官）

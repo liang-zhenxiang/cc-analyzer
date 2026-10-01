@@ -107,7 +107,17 @@ Assert **user-visible outcomes only** — `smoke.spec.ts` says so explicitly, so
 survives a visual rework. Shape: `page.goto("/")` → drive the UI → assert. Prefer role +
 accessible name: `getByRole("tab", { name: "日志视图" })` then
 `toHaveAttribute("aria-selected", "true")`; `getByRole("status", { name: "会话图状态" })`
-then `toContainText("会话图已加载")`; `getByLabel("会话列表")` to scope a panel.
+then `toContainText("会话图已加载")`; `getByLabel("会话列表", { exact: true })` to scope
+a panel.
+
+Accessible names and locators form an implicit contract — grep the specs before changing
+any `label`/`aria-label`/`title`. Two traps hit in one round (2026-10-02): an
+`IconButton` label ("刷新会话列表") that *contains* another element's name made
+`getByLabel("会话列表")` resolve to 2 elements (strict-mode violation), and its
+`title` (IconButton binds accessible name to tooltip) made `button[title]` match the
+toolbar button before session rows. Fixes that held: `{ exact: true }` on panel-scope
+lookups and discriminating attribute selectors (`button[title]:has(strong)` — session
+rows contain a `<strong>` title).
 
 Session rows use `page.getByLabel("会话列表").locator("button[title]")`, **not**
 `button:has(strong)`: the latter also matches the group-collapse toggle (its label is a
