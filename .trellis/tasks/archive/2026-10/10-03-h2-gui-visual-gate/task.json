@@ -3,7 +3,7 @@
   "name": "h2-gui-visual-gate",
   "title": "H2 · 真机截图视觉门禁（几何断言 + 多页归档）",
   "description": "把 scripts/gui-test.sh 的真机截图从「人工过目」升级为自动化视觉门禁：支持多标签页取图、在真机上探测关键元素几何并断言（如表盘不超出卡片、无横向溢出），使布局回归在真机窗口尺寸下被自动抓住。同步纠正 testing/index.md 中「GUI 抓不到界面细节」的过时结论。",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,8 +11,8 @@
   "creator": "liangyuxiang",
   "assignee": "liangyuxiang",
   "createdAt": "2026-10-03",
-  "completedAt": null,
-  "branch": "feat/gui-visual-gate",
+  "completedAt": "2026-10-03",
+  "branch": null,
   "base_branch": "main",
   "worktree_path": null,
   "commit": null,
@@ -22,5 +22,8 @@
   "parent": "10-03-round-h-visual",
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {
+    "pr_url": "https://github.com/liang-zhenxiang/cc-analyzer/pull/107",
+    "commit": "df81330"
+  }
 }

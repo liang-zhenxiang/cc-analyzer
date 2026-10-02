@@ -54,6 +54,21 @@ export function installTauriMock(scenario: MockScenario): void {
     log.push({ op, args });
   };
 
+  // 剪贴板不在 Tauri 边界上，但 e2e 需要一条**确定性**的写入通道：Chromium
+  // 未授权时会拒绝 `navigator.clipboard.writeText`、WebKit 放行，两条分支来自
+  // 浏览器权限模型而非产品行为（见 record-detail.spec.ts 的说明）。用桩把写入
+  // 记下来，「点一下复制到的到底是什么」才能被逐字符断言。
+  const clipboardWrites: string[] = [];
+  (window as unknown as Record<string, unknown>).__CCA_CLIPBOARD__ = clipboardWrites;
+  Object.defineProperty(window.navigator, "clipboard", {
+    configurable: true,
+    value: {
+      writeText: async (text: string) => {
+        clipboardWrites.push(text);
+      }
+    }
+  });
+
   let callbackSeq = 0;
   const internals = {
     transformCallback(cb: (payload: unknown) => void, once?: boolean) {
