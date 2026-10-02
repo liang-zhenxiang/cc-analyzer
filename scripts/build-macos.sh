@@ -113,9 +113,25 @@ cp -R "$BUNDLE_DIR/macos/CC Analyzer.app" "$DIST_DIR/"
 cp "$BUNDLE_DIR/dmg/"*.dmg "$DIST_DIR/"
 # 更新包与签名：tauri 在 bundle/macos/ 下产出 .app.tar.gz 与 .sig
 # （createUpdaterArtifacts 开启时；本地 overlay 构建会跳过，nullglob 兜底）。
+# 上游文件名不带版本与架构（两架构同名），照原样上传会互相覆盖、
+# make-updater-json 的平台匹配也认不出——收集时就改成规范名：
+# CC-Analyzer_<版本>_<架构>.app.tar.gz（.sig 跟着改）。
 shopt -s nullglob
-cp "$BUNDLE_DIR/macos/"*.app.tar.gz "$DIST_DIR/" 2>/dev/null || true
-cp "$BUNDLE_DIR/macos/"*.sig "$DIST_DIR/" 2>/dev/null || true
+arch="unknown"
+case "$RUST_TARGET" in
+  *aarch64*) arch="aarch64" ;;
+  *x86_64*)  arch="x64" ;;
+esac
+for pkg in "$BUNDLE_DIR/macos/"*.app.tar.gz; do
+  [[ -e "$pkg" ]] || continue
+  first_dmg="$(find "$BUNDLE_DIR/dmg" -name '*.dmg' -maxdepth 1 | head -n 1)"
+  version="$(basename "$first_dmg" | sed -E 's/.*_([0-9]+\.[0-9]+\.[0-9]+[^_]*)_.*/\1/')"
+  dest="$DIST_DIR/CC-Analyzer_${version}_${arch}.app.tar.gz"
+  cp "$pkg" "$dest"
+  if [[ -f "${pkg}.sig" ]]; then
+    cp "${pkg}.sig" "${dest}.sig"
+  fi
+done
 
 # 产物文件名规范化：Tauri 用 productName（"CC Analyzer"，含空格）命名文件，
 # 而 GitHub 在上传发布产物时会把空格替换成点——于是本地、文档、用户下载到
