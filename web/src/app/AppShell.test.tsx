@@ -19,6 +19,7 @@ const bridges = {
   },
   events: { onSessionImport: vi.fn(async () => () => undefined) },
   monitor: { monitorPort: vi.fn(async () => 8090), pingMonitor: vi.fn(async () => true) },
+  clipboard: { writeText: vi.fn(async () => undefined) },
   updater: {
     appVersion: vi.fn(async () => "0.0.0-test"),
     checkUpdates: vi.fn(async () => ({ available: false, currentVersion: "0.0.0-test" })),
@@ -35,6 +36,20 @@ async function openMonitor(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "打开监控" }));
   await screen.findByTitle("实时监控仪表盘");
 }
+
+test("顶栏版本徽章显示真实版本并可点击复制", async () => {
+  const user = userEvent.setup();
+  render(<AppShell bridges={bridges} />);
+
+  // 版本取自 Rust 的 package_info（mock 桩为非零值），是升级生效的第一眼证据
+  const badge = await screen.findByRole("button", { name: /当前版本 v0\.0\.0-test/ });
+  expect(badge).toBeInTheDocument();
+
+  await user.click(badge);
+  await waitFor(() =>
+    expect(bridges.clipboard.writeText).toHaveBeenCalledWith("CC Analyzer v0.0.0-test")
+  );
+});
 
 test("⌘K 唤起全局搜索面板，Esc 关闭；顶栏按钮亦可唤起", async () => {
   const user = userEvent.setup();

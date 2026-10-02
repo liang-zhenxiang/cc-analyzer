@@ -52,6 +52,8 @@ export function defaultScenario(overrides: Partial<MockScenario> = {}): MockScen
     appData: APP_DATA,
     files: sessionsToFiles(SESSION_SEEDS),
     monitor: { port: 8090, alive: false },
+    // 顶栏版本徽章读它；截图与断言都该看到一个正常的版本号
+    updater: { currentVersion: "0.10.0" },
     claudeStdout: [
       "## 会话概览",
       "",

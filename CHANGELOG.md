@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **顶栏版本徽章**：应用名旁显示当前运行版本（点击复制「CC Analyzer vX.Y.Z」）。版本号取自 Rust 的 `package_info()`——编译进二进制的真实版本，不是前端常量，所以它不可能「显示新版本而实际还是旧的」；自动更新把应用换掉之后，顶栏数字随笔就变，是升级是否生效的第一眼证据。
+
+
 ## [0.9.0] - 2026-10-02
 
 本轮主题：双渠道自动更新——beta 全自动发版与稳定版人工晋升。
