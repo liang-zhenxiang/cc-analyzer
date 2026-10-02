@@ -190,6 +190,10 @@ jobs:
           git tag -a "${STABLE_TAG}" -m "${STABLE_TAG}"
           git push "$remote" "${STABLE_TAG}"
 
+          # GITHUB_TOKEN 推的 tag 不会触发 release.yml 的 push 事件
+          # （GitHub 防递归规则）——显式 dispatch 到该 tag 跑发布。
+          gh workflow run release.yml --ref "${STABLE_TAG}"
+
           # 同步 PR：main 的版本号追平（tag 已发布，PR 只是记账）
           gh pr create \
             --title "chore(release): 发布 ${STABLE_TAG}（晋升自 ${BETA_TAG}）" \

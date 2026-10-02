@@ -5,6 +5,9 @@ run-name: 发布 ${{ github.ref_name }}
 
 # 怎样触发工作流
 on:
+  # 兜底入口：GITHUB_TOKEN 推的 tag 不会触发 push 事件（GitHub 防递归），
+  # promote-stable 打完 tag 后用 dispatch 显式跑这里的发布。
+  workflow_dispatch:
   push:
     # 形如 v1.2.3 的 tag 触发发布。
     # 末尾的 * 是必要的：没有它，v1.2.3-rc.1 这类预发布版本根本不会触发本
