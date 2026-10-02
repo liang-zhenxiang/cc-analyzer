@@ -105,6 +105,8 @@ jobs:
       # 推分支/tag 与开 PR 需要写权限；发布本身交给 release.yml
       contents: write
       pull-requests: write
+      # dispatch 触发 release.yml 需要 actions:write（四跑 403 的原因）
+      actions: write
     steps:
       - name: Checkout Repos
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
