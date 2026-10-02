@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-updater::install-update"
+description = "Enables the updater::install_update command without any pre-configured scope."
+commands.allow = ["updater::install_update"]
+
+[[permission]]
+identifier = "deny-updater::install-update"
+description = "Denies the updater::install_update command without any pre-configured scope."
+commands.deny = ["updater::install_update"]

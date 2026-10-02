@@ -84,12 +84,26 @@ npm --prefix web ci
 # 可选的 cargo feature 透传。真机 GUI 测试用 `TAURI_BUILD_FEATURES=gui-capture`
 # 让应用能把自己的 webview 渲染成图（见 scripts/gui-test.sh）。
 # **默认不传**——发布产物里不该带这段代码。
+# --config 叠加层经 TAURI_BUILD_CONFIG 透传（本地构建用它关掉更新包签名：
+# 私钥只在 CI 的 Secrets 里，本地没有私钥，带 updater 产物的构建必失败）。
+CONFIG_ARGS=()
+if [[ -n "${TAURI_BUILD_CONFIG:-}" ]]; then
+  CONFIG_ARGS=(--config "$TAURI_BUILD_CONFIG")
+fi
+FEATURE_ARGS=()
 if [[ -n "${TAURI_BUILD_FEATURES:-}" ]]; then
   echo "启用 cargo feature：${TAURI_BUILD_FEATURES}" >&2
-  npx tauri build --target "$RUST_TARGET" --features "$TAURI_BUILD_FEATURES"
-else
-  npx tauri build --target "$RUST_TARGET"
+  FEATURE_ARGS=(--features "$TAURI_BUILD_FEATURES")
 fi
+# bash 3.2 的 set -u 下空数组展开是 unbound variable——先判长度再拼。
+BUILD_ARGS=(--target "$RUST_TARGET")
+if [[ ${#FEATURE_ARGS[@]} -gt 0 ]]; then
+  BUILD_ARGS+=("${FEATURE_ARGS[@]}")
+fi
+if [[ ${#CONFIG_ARGS[@]} -gt 0 ]]; then
+  BUILD_ARGS+=("${CONFIG_ARGS[@]}")
+fi
+npx tauri build "${BUILD_ARGS[@]}"
 
 # 把产物收集到 dist-* 目录，发布工作流按这个约定取文件
 BUNDLE_DIR="src-tauri/target/$RUST_TARGET/release/bundle"

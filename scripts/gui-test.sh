@@ -270,9 +270,17 @@ if [[ "$BUILD" == "1" ]]; then
   printf '  %s$ 构建中（npm run build:macos:*，启用 gui-capture）…%s\n' "$C_BLUE" "$C_RESET"
   # 带 `gui-capture` feature 构建：让应用能把自己的 webview 渲染成图。
   # 这个 feature 只影响这次构建，发布产物依旧不带它（见 Cargo.toml）。
+  # TAURI_BUILD_CONFIG 关掉更新包签名产物：私钥只在 CI Secrets 里，
+  # 本地构建带它必然失败（v0.9.0 引入更新渠道时踩过）。
   case "$(uname -m)" in
-    arm64) TAURI_BUILD_FEATURES=gui-capture npm run --silent build:macos:arm64 ;;
-    *)     TAURI_BUILD_FEATURES=gui-capture npm run --silent build:macos:intel ;;
+    arm64)
+      TAURI_BUILD_FEATURES=gui-capture TAURI_BUILD_CONFIG=scripts/local-build.conf.json \
+        npm run --silent build:macos:arm64
+      ;;
+    *)
+      TAURI_BUILD_FEATURES=gui-capture TAURI_BUILD_CONFIG=scripts/local-build.conf.json \
+        npm run --silent build:macos:intel
+      ;;
   esac
 fi
 

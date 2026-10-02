@@ -558,6 +558,8 @@ fn import_session_menu(app: &tauri::AppHandle) {
 
 /// 真机 GUI 测试取证：把应用自己的 webview 渲染成 PDF。
 ///
+mod updater;
+
 /// **为什么需要它**：macOS 上截取屏幕内容要「屏幕录制」权限，而那只有使用者能在
 /// 系统设置里授予——脚本无法申请。实测过连「进程截自己的窗口」也会拿到一张
 /// 尺寸正确但像素全透明的图（详见 `.trellis/spec/testing/gui-tests.md`）。
@@ -720,8 +722,10 @@ mod gui_capture {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(float_plugin::init())
         .manage(ProcState::default())
+        .manage(updater::PendingUpdate::default())
         .invoke_handler(tauri::generate_handler![
             read_dir,
             stat,
@@ -736,6 +740,10 @@ pub fn run() {
             app_data_dir,
             monitor_port,
             monitor_ping,
+            updater::app_version,
+            updater::check_updates,
+            updater::install_update,
+            updater::relaunch_app,
         ])
         .setup(|app| {
             use tauri::menu::{MenuBuilder, SubmenuBuilder};

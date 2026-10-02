@@ -2,6 +2,25 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ThresholdsPanel } from "./ThresholdsPanel";
+import { BridgesProvider } from "../../api/bridges";
+import type { Bridges } from "../../api/types";
+
+/** 面板现在读 updater 桥（版本与检查），测试给个最简桩。 */
+const stubBridges = {
+  updater: {
+    appVersion: async () => "0.0.0-test",
+    checkUpdates: async () => ({ available: false, currentVersion: "0.0.0-test" }),
+    relaunch: async () => undefined
+  }
+} as unknown as Bridges;
+
+function renderPanel() {
+  return render(
+    <BridgesProvider bridges={stubBridges}>
+      <ThresholdsPanel onClose={() => undefined} />
+    </BridgesProvider>
+  );
+}
 import { getThresholds, resetThresholds, setThreshold } from "./thresholds";
 
 beforeEach(() => {
@@ -12,7 +31,7 @@ beforeEach(() => {
 
 describe("ThresholdsPanel", () => {
   test("shows every budget with its current value and unit", () => {
-    render(<ThresholdsPanel onClose={() => undefined} />);
+    renderPanel();
 
     expect(screen.getByRole("heading", { name: "阈值设置" })).toBeInTheDocument();
     expect(screen.getByLabelText("Prompt 上限")).toHaveValue(96);
@@ -25,7 +44,7 @@ describe("ThresholdsPanel", () => {
 
   test("writes edits through to the store and to storage", async () => {
     const user = userEvent.setup();
-    render(<ThresholdsPanel onClose={() => undefined} />);
+    renderPanel();
 
     const rows = screen.getByLabelText("记录明细行数");
     await user.clear(rows);
@@ -39,7 +58,7 @@ describe("ThresholdsPanel", () => {
 
   test("converts the prompt budget between KB and bytes", async () => {
     const user = userEvent.setup();
-    render(<ThresholdsPanel onClose={() => undefined} />);
+    renderPanel();
 
     const prompt = screen.getByLabelText("Prompt 上限");
     await user.clear(prompt);
@@ -51,7 +70,7 @@ describe("ThresholdsPanel", () => {
   test("restores the defaults and disables the reset button afterwards", async () => {
     const user = userEvent.setup();
     setThreshold("slowTools", 25);
-    render(<ThresholdsPanel onClose={() => undefined} />);
+    renderPanel();
 
     const reset = screen.getByRole("button", { name: "恢复默认" });
     await user.click(reset);
@@ -63,7 +82,7 @@ describe("ThresholdsPanel", () => {
 
   test("keeps the value when the input is cleared", async () => {
     const user = userEvent.setup();
-    render(<ThresholdsPanel onClose={() => undefined} />);
+    renderPanel();
 
     await user.clear(screen.getByLabelText("子 agent 条数"));
 
@@ -73,7 +92,11 @@ describe("ThresholdsPanel", () => {
   test("closes through the close button", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
-    render(<ThresholdsPanel onClose={onClose} />);
+    render(
+      <BridgesProvider bridges={stubBridges}>
+        <ThresholdsPanel onClose={onClose} />
+      </BridgesProvider>
+    );
 
     await user.click(screen.getByRole("button", { name: "关闭" }));
     expect(onClose).toHaveBeenCalledTimes(1);

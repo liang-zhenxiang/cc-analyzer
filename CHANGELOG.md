@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **双渠道自动更新**：设置新增「软件更新」——可选稳定版（默认，维护者人工晋升）或 Beta（AI 每轮功能自动发版的先行渠道），支持「立即检查」与一键「安装并重启」。更新包经 minisign 签名校验；更新检查只是一次对 GitHub 发布页的 GET，不上传任何数据（SECURITY.md 有完整说明）。
+- **发布流水线配套**：`vX.Y.Z-beta.N` tag 自动发布 prerelease 并刷新 beta 渠道更新源；新增 **Promote Stable** 工作流——维护者在 Actions 页面填一次 beta tag，即完成「全量门禁 → 版本收敛 → 稳定版发布 → stable 更新源刷新 → 版本同步 PR」。晋升出的稳定版代码与被试用的 beta 完全一致，不会夹带未验证提交。
+
 ## [0.8.0] - 2026-10-02
 
 本轮主题：全局搜索命令面板——「上次那段对话在哪」从此一个 ⌘K 的事；跳转联动（搜得到即跳得到）是本轮验收命门。

@@ -15,6 +15,10 @@ fn main() {
                 "app_data_dir",
                 "monitor_port",
                 "monitor_ping",
+                "updater::app_version",
+                "updater::check_updates",
+                "updater::install_update",
+                "updater::relaunch_app",
             ]))
             .plugin(
                 "float",
