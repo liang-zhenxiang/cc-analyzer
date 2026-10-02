@@ -262,3 +262,17 @@ Finder/Dock 那种收窄的 PATH）复核，发现**自己的修复本身还有�
 ### Status
 
 [OK] **Completed**（beta 链路实跑验证中）
+
+**Round F 续：beta 链路四跑通（三坑记录）**
+
+- 一跑挂：`updater::app_version.toml` 文件名含 `::`，Windows 文件系统非法
+  ——命令改顶层重导出裸名注册（PR #89）。
+- 二跑挂：workflow 上传清单加了 *.sig/*.tar.gz，但构建脚本没收进 dist-*
+  ——补 macOS/Windows 收集（PR #90）。
+- 三跑「成功但残」：tauri 的 macOS 更新包上游名不带版本与架构，两架构
+  同名互覆，live JSON 只剩 windows 平台——收集时规范命名（PR #91）。
+- 四跑全通：三平台签名产物 + latest-beta.json（rolling release `beta`）
+  可公网访问、三平台键齐全、sig 内容为真签名（非占位）。
+- 过程教训：本地直推 main 被分支保护拦（规矩是对的）；修复一律走小 PR。
+  残留小尾巴：无版本名的 CC-Analyzer.app.tar.gz 旧资产仍在（不影响
+  JSON 与客户端，下轮清理收集路径即可）。
