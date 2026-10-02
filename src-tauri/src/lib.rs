@@ -675,9 +675,11 @@ mod gui_capture {
         second
     }
 
-    /// 找到可访问名匹配的标签页并点击。`eval` 是单向的（拿不到脚本返回值），
-    /// 所以点击结果写进 console：成功与失败各一条，都能在测试脚本收集的
-    /// 应用日志里追查。脚本只做这一次点击，不做任何别的事。
+    /// 找到可访问名匹配的按钮并点击（v0.9.0 起不限于标签页：优先标签，
+    /// 其次任意可访问名按钮——「立即检查更新」这类真实用户操作也能驱动）。
+    /// `eval` 是单向的（拿不到脚本返回值），所以点击结果写进 console：
+    /// 成功与失败各一条，都能在测试脚本收集的应用日志里追查。
+    /// 脚本只做这一次点击，不做任何别的事。
     fn click_tab_js(tab: &str) -> String {
         let escaped = tab
             .replace('\\', "\\\\")
@@ -687,17 +689,23 @@ mod gui_capture {
         format!(
             r#"(function () {{
   var wanted = "{escaped}";
-  var tabs = document.querySelectorAll('[role="tablist"] button[role="tab"]');
-  for (var i = 0; i < tabs.length; i++) {{
-    var el = tabs[i];
-    var name = (el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, ' ').trim();
-    if (name === wanted) {{
-      el.click();
-      console.log('gui-capture: 已点击标签页 ' + wanted);
-      return;
+  var scopes = [
+    document.querySelectorAll('[role="tablist"] button[role="tab"]'),
+    document.querySelectorAll('button')
+  ];
+  for (var s = 0; s < scopes.length; s++) {{
+    var tabs = scopes[s];
+    for (var i = 0; i < tabs.length; i++) {{
+      var el = tabs[i];
+      var name = (el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (name === wanted) {{
+        el.click();
+        console.log('gui-capture: 已点击 ' + wanted);
+        return;
+      }}
     }}
   }}
-  console.warn('gui-capture: 没有可访问名为 ' + wanted + ' 的标签页');
+  console.warn('gui-capture: 没有可访问名为 ' + wanted + ' 的按钮');
 }})();"#
         )
     }
