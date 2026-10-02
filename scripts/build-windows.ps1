@@ -66,6 +66,9 @@ try {
     # 让本地、文档、发布产物三者同名。
     $InstallerName = $Installer.Name -replace ' ', '-'
     Copy-Item $Installer.FullName (Join-Path $DistDir $InstallerName)
+    # 更新签名（.sig 与 setup.exe 同目录产出；CI 签名构建才有，本地无则跳过）
+    $Sigs = Get-ChildItem (Join-Path $BundleDir "nsis") -Filter "*.sig" -ErrorAction SilentlyContinue
+    foreach ($Sig in $Sigs) { Copy-Item $Sig.FullName (Join-Path $DistDir $Sig.Name) }
 
     # ② 便携版 ZIP：复用刚构建出的 exe，不重复编译一次
     #    存在的意义是给「不想安装、放到 U 盘就能用」的场景

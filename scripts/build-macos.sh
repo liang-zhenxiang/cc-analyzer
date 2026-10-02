@@ -111,13 +111,18 @@ rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
 cp -R "$BUNDLE_DIR/macos/CC Analyzer.app" "$DIST_DIR/"
 cp "$BUNDLE_DIR/dmg/"*.dmg "$DIST_DIR/"
+# 更新包与签名：tauri 在 bundle/macos/ 下产出 .app.tar.gz 与 .sig
+# （createUpdaterArtifacts 开启时；本地 overlay 构建会跳过，nullglob 兜底）。
+shopt -s nullglob
+cp "$BUNDLE_DIR/macos/"*.app.tar.gz "$DIST_DIR/" 2>/dev/null || true
+cp "$BUNDLE_DIR/macos/"*.sig "$DIST_DIR/" 2>/dev/null || true
 
 # 产物文件名规范化：Tauri 用 productName（"CC Analyzer"，含空格）命名文件，
 # 而 GitHub 在上传发布产物时会把空格替换成点——于是本地、文档、用户下载到
 # 的三种名字互相对不上。统一改成连字符，本地与发布产物同名。
 # （.app 目录名不改：它是应用本身的名字，不是分发文件。）
 shopt -s nullglob
-for f in "$DIST_DIR"/*\ *.dmg; do
+for f in "$DIST_DIR"/*\ *.dmg "$DIST_DIR"/*\ *.tar.gz "$DIST_DIR"/*\ *.sig; do
   mv "$f" "${f// /-}"
 done
 
