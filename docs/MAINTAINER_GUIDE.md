@@ -50,6 +50,21 @@ Security，不自创分类。
 **私钥丢失 = 更新渠道永久失效**，请自行备份（本机生成时若未留副本，
 需要重新生成并连带发一个大版本让旧客户端换公钥——代价很高）。
 
+### 实跑手册（2026-10-02 首次全链路验证后的补充）
+
+**发一个 beta（AI 每轮收尾的常规动作）**：
+1. 三处版本号改为 `X.Y.Z-beta.N` + `cargo check` 刷 Cargo.lock，随收尾 PR 合入 main
+2. `git ls-remote --tags origin vX.Y.Z-beta.N` 确认无同名 → 打 tag 推送
+3. 等 release.yml 绿 → 验证：产物含三平台 `.sig`；`releases/download/beta/latest-beta.json`
+   的 `platforms` 有 darwin-aarch64 / darwin-x86_64 / windows-x86_64 三个键
+
+**发一个稳定版（你的唯一动作）**：见上面的 Promote Stable 用法。注意：
+- 选哪个 beta 晋升是你的决策（建议日常装 beta 渠道亲自用几天再晋升）
+- 晋升完成后会自动出现一个「版本同步」PR——合并它，main 即与 tag 一致
+- 首跑踩坑已修：门禁需 Tauri Linux 系统库（apt）、macOS 更新包收集时规范命名、
+  命令须裸名注册（`::` 在 Windows 文件名非法）——改构建/发布脚本后**必须**
+  实跑一次 beta tag 验证，本地全绿不代表发布能成
+
 ## 发布流程（手动兜底）
 
 
