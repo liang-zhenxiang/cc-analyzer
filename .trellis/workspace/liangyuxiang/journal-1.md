@@ -190,3 +190,37 @@ Finder/Dock 那种收窄的 PATH）复核，发现**自己的修复本身还有�
 ### Status
 
 [OK] **Completed**（PR #82 待 CI）
+
+
+## Session 2026-10-02 · Round E：全局搜索命令面板（global-search）
+
+### What Happened
+
+- **派发基础设施第三次探测仍僵死**，Round E 主会话实现（第五次破例，
+  完整功能轮）。交付：searchIndex 纯逻辑（分组/排序/截窗/渐进单例）+
+  SearchPalette 浮层 + useSearchIndex（与用量总览共享解析缓存单例——
+  一个文件只解析一次）+ AppShell ⌘K/顶栏按钮 + AnalyzerPage 跳转。
+- **本轮最难的一个缺陷**：Enter 真实键盘事件下渲染线程卡死。二分定位
+  五轮（变体 A/B/C + 挂载计数 + effect 计数）才抓住：reveal effect 把
+  openSession 放进 deps，AppShell 内联回调身份每次渲染都变 → effect
+  重入 → openSession 连发；在真实键盘的同步离散提交路径里演变成重入
+  风暴（合成 dispatchEvent 走异步优先级路径测不出来——这就是为什么
+  evaluate 派发「看起来没问题」）。修法不是加锁，是**重构职责**：拆成
+  「打开一次」（deps 仅请求）与「定位一次」两个幂等 effect。教训：
+  effect 里调用「会 setState 的异步函数」时，deps 宁缺勿滥，用 ref 读
+  最新值；事件合成与真实键的优先级差异足以让「测试通过」完全失真。
+- **又踩了一遍自家的坑（第二次）**：getByRole('tab', {name:'会话分析'})
+  命中「整会话分析」；region vs complementary 的面板角色记错。定位器
+  规则已两次咬人——e2e 写新定位时 exact 是默认动作而不是补救。
+- **验证链**：495 单测（+15）→ 双引擎 e2e 31+31（+4，含跳转联动命门）
+  → lint → GUI 真机 11/11（--build）→ 顶栏视觉确认。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e2db7a6` | feat(search): 全局搜索命令面板 (#85) |
+
+### Status
+
+[OK] **Completed**（PR #85 待 CI）
