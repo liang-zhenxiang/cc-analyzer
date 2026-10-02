@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppShell } from "./AppShell";
 import type { Bridges } from "../api/types";
@@ -30,6 +30,26 @@ async function openMonitor(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "打开监控" }));
   await screen.findByTitle("实时监控仪表盘");
 }
+
+test("⌘K 唤起全局搜索面板，Esc 关闭；顶栏按钮亦可唤起", async () => {
+  const user = userEvent.setup();
+  render(<AppShell bridges={bridges} />);
+
+  // 快捷键打开：对话框出现且焦点在输入框。
+  // jsdom 里 userEvent 的修饰键链路到不了 window 级监听，直接派发。
+  fireEvent.keyDown(window, { key: "k", metaKey: true });
+  const dialog = screen.getByRole("dialog", { name: "全局搜索" });
+  expect(dialog).toBeInTheDocument();
+  expect(screen.getByLabelText("搜索消息")).toHaveFocus();
+
+  // Esc 关闭
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("dialog", { name: "全局搜索" })).not.toBeInTheDocument();
+
+  // 顶栏按钮同样可唤起
+  await user.click(screen.getByRole("button", { name: "全局搜索" }));
+  expect(screen.getByRole("dialog", { name: "全局搜索" })).toBeInTheDocument();
+});
 
 test("switches analyzer and monitor tabs", async () => {
   const user = userEvent.setup();
