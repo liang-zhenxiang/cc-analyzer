@@ -1,3 +1,14 @@
+/* 正方形仪表自己的尺寸：边长来自 --gauge-size，`flex: 0 0 auto` 让它在
+   `.gaugeArea` 里既不拉伸也不被压缩。它刻意**不复用** chartPrimitives 的
+   `.chart`（那条规则是 `width: 100%`，给铺满宽度的柱状 / 热力图用的），
+   否则正方形会被解析成「占满一行」并被等比放大。 */
+.gauge {
+  display: block;
+  width: var(--gauge-size);
+  height: var(--gauge-size);
+  flex: 0 0 auto;
+}
+
 .progress {
   /* 进度弧是窄描边，过渡只走状态档时长；reduced-motion 由全局归零兜底。 */
   transition: stroke-dasharray var(--dur-state, 140ms) var(--ease-out);

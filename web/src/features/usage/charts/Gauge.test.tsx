@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { render, screen } from "@testing-library/react";
 import { Gauge } from "./Gauge";
+
+const gaugeCss = readFileSync(resolve(process.cwd(), "src/features/usage/charts/Gauge.module.css"), "utf8");
+const primitiveCss = readFileSync(resolve(process.cwd(), "src/features/usage/charts/chartPrimitives.module.css"), "utf8");
 
 describe("Gauge（计费窗口仪表）", () => {
   it("渲染读数与可访问名，进度弧按比例画弧长", () => {
@@ -37,5 +42,27 @@ describe("Gauge（计费窗口仪表）", () => {
       .split(" ")
       .map(Number);
     expect(dash).toBe(circumference);
+  });
+
+  it("用仪表自己的尺寸类，不复用铺满宽度的通用图表规则", () => {
+    // 回归防线：正方形仪表若挂回 chartPrimitives 的 `.chart`（`width: 100%`），
+    // 作为 flex item 时会被解析成容器宽度并被等比放大——README 首图那个
+    // 撑满整屏的巨环就是这么来的。
+    render(<Gauge progress={0.5} centerValue="45K" centerLabel="已消耗" ariaLabel="当前窗口" />);
+    const classAttr = screen.getByRole("img", { name: "当前窗口" }).getAttribute("class") ?? "";
+    expect(classAttr).toContain("gauge");
+    expect(classAttr).not.toContain("chart");
+  });
+});
+
+describe("Gauge 尺寸约束（读 CSS，防通用规则被误改）", () => {
+  it("仪表尺寸来自 --gauge-size，且不随容器拉伸", () => {
+    expect(gaugeCss).toMatch(/\.gauge\s*\{[^}]*width:\s*var\(--gauge-size\)/s);
+    expect(gaugeCss).toMatch(/\.gauge\s*\{[^}]*height:\s*var\(--gauge-size\)/s);
+    expect(gaugeCss).toMatch(/\.gauge\s*\{[^}]*flex:\s*0 0 auto/s);
+  });
+
+  it("通用图表规则仍是 width:100%——柱状 / 热力 / 堆叠 / 横向条的行为不许被波及", () => {
+    expect(primitiveCss).toMatch(/\.chart\s*\{[^}]*width:\s*100%/s);
   });
 });

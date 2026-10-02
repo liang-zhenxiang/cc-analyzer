@@ -212,3 +212,45 @@ readonly WORK_DIR
 
 **教训**：测试脚本的输出是要给人看的。**任何「不是失败却长得像失败」的东西
 都要消掉**，否则真正的失败会被淹没。
+
+---
+
+## 11. 「可见的横向滚动提示」不能靠原生滚动条——macOS 是覆盖式的
+
+**现象**：修一个「表格右端列被硬切、且看不出能横向滚」的缺陷时，先想的是给
+`overflow: auto` 的容器加一套 `::-webkit-scrollbar` 样式，让它「常驻可见」。
+
+**为什么不行**：macOS 的原生滚动条是**覆盖式**的——静止时不占位、不绘制。浏览器
+的 `::-webkit-scrollbar` 样式只在**经典滚动条**上生效；在覆盖式模式下，无论怎么
+配色、给多粗的 `height`，滚动条都**不进布局、不显示**。实测在 headless Chromium
+里，把 `overflow-x: scroll` 甚至 `scrollbar-width` 都加上也没用：
+`clientHeight === offsetHeight - 边框`，说明它压根没占位。
+
+**修法**：要「静止可见」，就**自己渲染**一条——在溢出容器底部放一条占据布局空间的
+细滚动条（轨道 `--bg-hover`、滑块 `--border-strong`），仅在 `scrollWidth > clientWidth`
+时出现，滑块位置随 `scrollLeft` 走（`web/src/components/ScrollArea.tsx`）。
+
+**防复发**：判据不是「加没加滚动条样式」，而是「它在**静止**时占不占布局空间」。
+用 `offsetHeight - clientHeight` / `offsetWidth - clientWidth` 是否大于纯边框来验——
+等于纯边框就说明滚动条没进布局，等于没修。
+
+---
+
+## 12. 用「每次渲染后同步」的 `useLayoutEffect` 驱动测量，会踩 React #185
+
+**现象**：`ScrollArea` 最初用 `useLayoutEffect(() => { sync(); })`（**无依赖数组**，
+每次渲染后都跑一遍去测量溢出、`setState` 记录滑块位置）。页面上第一次打开
+「记录详情」列时，整页崩进错误边界：`Minified React error #185`（更新深度超限）。
+
+**根因**：无依赖的 `useLayoutEffect` 里 `setState` 是经典的无限更新循环诱因。即便
+加了「值没变就不换引用」的守卫，在**布局跳变**（详情面板开合使主区变窄 → 溢出状态
+翻转）时，测量值与渲染出的滑块之间会来回拉锯，守卫的容差挡不住，循环到 React 上限。
+
+**修法**：**不要**靠「每次渲染后同步一次」。改成事件驱动：
+`ResizeObserver` 同时观察滚动容器**和它的内容元素**——行数 / 列宽变化改的是内容的盒子，
+容器自己的盒子不变，所以两者都要观察；再叠一个 `scroll` 事件。`sync` 只在真正变化时
+`setState`（值相等返回 `prev`，靠 `Object.is` 短路）。
+
+**防复发**：写「测量 → setState」的 effect 时，先问「它在什么情况下会**每次都**改变
+输出」。无依赖数组的 effect、以及会随自身渲染结果变化的测量，都是嫌疑犯。这条在
+单元测试（jsdom 不做布局）里抓不到，只有真机 / e2e 打开那个布局跳变才现形。

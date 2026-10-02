@@ -20,6 +20,7 @@ import type { TimeRange } from "./filters";
 import { formatDateTime, formatDuration } from "../../lib/format";
 import { safeStringify } from "../../lib/json";
 import { useThresholds } from "../settings/thresholds";
+import { ScrollArea } from "../../components/ScrollArea";
 import styles from "./LogView.module.css";
 
 type Panel = { label: string; meta?: string; body: string };
@@ -193,7 +194,7 @@ export function LogView({
   }, [highlightId, offsets, rows, virtualize]);
 
   return (
-    <div className={styles.container} ref={containerRef} onScroll={onScroll}>
+    <ScrollArea scrollerRef={containerRef} className={styles.container} onScroll={onScroll}>
       <table>
         <thead>
           <tr>
@@ -201,8 +202,9 @@ export function LogView({
             <th>类型</th>
             <th>操作 / 摘要</th>
             {/* 列头必须说清它装的是什么：这个数是提示词总量（含缓存），
-                不是 input_tokens——缓存命中时两者能差一个数量级。 */}
-            <th title="提示词 = input_tokens + 缓存写入 + 缓存读取">提示词(含缓存) / 输出 tok</th>
+                不是 input_tokens——缓存命中时两者能差一个数量级。
+                标题留在 tooltip 里，表头文字收短——它原本撑宽了整个列。 */}
+            <th title="提示词 = input_tokens + 缓存写入 + 缓存读取">提示词 / 输出</th>
             <th>耗时</th>
             <th>占比</th>
             <th>waterfall</th>
@@ -250,7 +252,7 @@ export function LogView({
       {rows.length === 0 ? (
         <EmptyState size="inline" title="没有符合筛选条件的记录" />
       ) : null}
-    </div>
+    </ScrollArea>
   );
 }
 

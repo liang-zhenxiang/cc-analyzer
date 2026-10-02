@@ -11,6 +11,10 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./e2e",
+  // 截图归档跑完写一份清单（视图 × 主题 × 引擎 + 生成 SHA），供
+  // scripts/check-screenshots.sh 在本地与 CI 上核对。用 globalTeardown 而非某个
+  // 测试的 afterAll：出图是并行的，afterAll 会在别的 worker 还没写完时落盘。
+  globalTeardown: "./e2e/screenshots-teardown.ts",
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,

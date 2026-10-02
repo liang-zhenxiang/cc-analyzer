@@ -21,3 +21,15 @@ if (!window.matchMedia) {
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = vi.fn();
 }
+
+// jsdom does not implement ResizeObserver; ScrollArea uses it to re-measure the
+// scroll container. A no-op stub is enough — the overflow hint is a layout
+// concern tested in the browser (e2e), not in jsdom.
+if (!window.ResizeObserver) {
+  class ResizeObserverStub {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  window.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
+}
