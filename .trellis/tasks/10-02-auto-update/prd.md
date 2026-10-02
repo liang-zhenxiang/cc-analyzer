@@ -42,11 +42,11 @@
 
 ## 验收标准
 
-- [ ] 密钥已生成，公钥入仓、私钥入 Secrets，`.gitignore` 无泄露
-- [ ] beta.yml 实跑一次成功：prerelease 带 sig，rolling beta 的 JSON 可被
+- [x] 密钥已生成，公钥入仓、私钥入 Secrets，`.gitignore` 无泄露
+- [x] beta.yml 实跑一次成功：prerelease 带 sig，rolling beta 的 JSON 可被
       updater 语义消费（URL 固定不变）
-- [ ] promote-stable.yml 实跑一次成功：产物 + latest-stable.json + 同步 PR
-- [ ] 应用内：渠道切换持久化；mock 检查的「已是最新 / 发现新版」两态可测
-- [ ] 单测（渠道与版本辅助逻辑）+ e2e（设置更新区）+ GUI 真机全绿
-- [ ] MAINTAINER_GUIDE 写清「如何发一个稳定版」（用户明确要求）
-- [ ] SECURITY.md 增补更新检查的网络行为说明；CHANGELOG 中文条目
+- [x] promote-stable.yml 实跑一次成功：产物 + latest-stable.json + 同步 PR
+- [x] 应用内：渠道切换持久化；mock 检查的「已是最新 / 发现新版」两态可测
+- [x] 单测（渠道与版本辅助逻辑）+ e2e（设置更新区）+ GUI 真机全绿
+- [x] MAINTAINER_GUIDE 写清「如何发一个稳定版」（用户明确要求）
+- [x] SECURITY.md 增补更新检查的网络行为说明；CHANGELOG 中文条目
