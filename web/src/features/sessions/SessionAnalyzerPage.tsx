@@ -333,6 +333,7 @@ export function SessionAnalyzerPage({
           tokenPanelOpen={tokenPanelOpen}
           onToggleTokenPanel={() => setTokenPanelOpen((open) => !open)}
           onOpenFolder={(path) => void bridges.system.openFolder(path)}
+          clipboard={bridges.clipboard}
         />
       ) : null}
       <div className={styles.body}>

@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/testing/gui-tests.md", "reason": "本任务的主战场：真机测试机制、既有 8 项断言、取图原理与陷阱"}
-{"file": ".trellis/spec/testing/index.md", "reason": "三层分工与「GUI 层能力边界」的过时结论（本任务要纠正它）"}
-{"file": ".trellis/spec/backend/index.md", "reason": "Rust 侧约定入口（要改 gui_capture 模块）"}
-{"file": ".trellis/spec/testing/pitfalls.md", "reason": "踩坑史：静默失败模式"}
