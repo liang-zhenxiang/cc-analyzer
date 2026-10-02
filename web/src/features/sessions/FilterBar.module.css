@@ -23,7 +23,7 @@
   gap: var(--sp-2);
   min-width: 0;
   margin: 0;
-  padding: var(--sp-1) var(--sp-2) 6px;
+  padding: var(--sp-1) var(--sp-2) var(--sp-15);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
 }
@@ -37,7 +37,7 @@
 
 .bar label {
   display: grid;
-  gap: 3px;
+  gap: var(--sp-1);
   color: var(--text-secondary);
   font-size: var(--fs-xs);
   line-height: var(--lh-xs);
@@ -49,7 +49,7 @@
 .bar select {
   min-height: var(--control-h);
   min-width: 78px;
-  padding: 0 6px;
+  padding: 0 var(--sp-15);
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
   background: var(--bg-inset);

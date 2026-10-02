@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "../../components/EmptyState";
 import { Panel } from "../../components/Panel";
+import { SegmentedControl, type SegmentedItem } from "../../components/SegmentedControl";
 import { formatTokenCount, formatUsd } from "../../lib/format";
 import { PRICING_AS_OF, estimateCost } from "./pricingSnapshot";
 import { ProvenanceBadge } from "./ProvenanceBadge";
@@ -21,6 +22,16 @@ import styles from "./UsageOverviewPage.module.css";
 const RANGE_KEY = "cca-usage-range";
 const RANGE_OPTIONS = [7, 30, 90] as const;
 type UsageRange = (typeof RANGE_OPTIONS)[number];
+
+const RANGE_ITEMS: SegmentedItem<string>[] = RANGE_OPTIONS.map((option) => ({
+  value: String(option),
+  label: `近 ${option} 天`
+}));
+
+/** 分段控件的值是字符串，这里把它窄化回数字档位（不用类型断言）。 */
+function toRange(value: string): UsageRange {
+  return value === "7" ? 7 : value === "90" ? 90 : 30;
+}
 
 function readStoredRange(): UsageRange {
   try {
@@ -48,6 +59,11 @@ const TOKEN_CLASSES = [
   { key: "cacheRead", label: "缓存读取" }
 ] as const;
 type TokenClass = (typeof TOKEN_CLASSES)[number]["key"];
+
+const CLASS_ITEMS: SegmentedItem<TokenClass>[] = TOKEN_CLASSES.map((option) => ({
+  value: option.key,
+  label: option.label
+}));
 
 function tokenClassValue(totals: UsageTotals, tokenClass: TokenClass): number {
   return tokenClass === "total" ? totalsSum(totals) : totals[tokenClass];
@@ -124,19 +140,12 @@ export function UsageOverviewPage() {
   return (
     <section className={styles.page} aria-label="用量总览">
       <div className={styles.header}>
-        <div className={styles.rangeTabs} role="tablist" aria-label="时间范围">
-          {RANGE_OPTIONS.map((option) => (
-            <button
-              key={option}
-              type="button"
-              role="tab"
-              aria-selected={days === option}
-              onClick={() => setDays(option)}
-            >
-              近 {option} 天
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          items={RANGE_ITEMS}
+          value={String(days)}
+          onChange={(next) => setDays(toRange(next))}
+          ariaLabel="时间范围"
+        />
         <span className={styles.progress}>
           {scanning
             ? `已分析 ${progress.done} / ${progress.total} 个会话`
@@ -186,19 +195,12 @@ export function UsageOverviewPage() {
       <Panel
         title="每日 Token 消耗"
         actions={
-          <div className={styles.classTabs} role="tablist" aria-label="Token 类别">
-            {TOKEN_CLASSES.map((option) => (
-              <button
-                key={option.key}
-                type="button"
-                role="tab"
-                aria-selected={tokenClass === option.key}
-                onClick={() => setTokenClass(option.key)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            items={CLASS_ITEMS}
+            value={tokenClass}
+            onChange={setTokenClass}
+            ariaLabel="Token 类别"
+          />
         }
       >
         <BarChart

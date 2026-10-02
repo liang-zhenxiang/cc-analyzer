@@ -72,40 +72,20 @@
   justify-content: space-between;
 }
 
-/* 分段控件：与顶栏、侧栏选项卡同一套画法。 */
-.viewTabs {
-  display: inline-flex;
-  gap: 2px;
-  padding: 2px;
-  border-radius: var(--r-sm);
-  background: var(--bg-inset);
+/* 解析期间的工作区：表格剪影 + 一行确定型进度。填满剩余高度，
+   使解析结束、真实表格挂载时页面高度不跳。 */
+.parsing {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--sp-3);
 }
 
-.viewTabs button {
-  min-height: var(--control-h-sm);
-  padding: 0 var(--sp-3);
-  border: 0;
-  border-radius: var(--r-xs);
-  background: transparent;
+.parseProgress {
   color: var(--text-tertiary);
-  font: inherit;
-  font-size: var(--fs-sm);
-  line-height: var(--lh-sm);
-  cursor: pointer;
-  transition:
-    background-color var(--dur-hover) var(--ease-in-out),
-    color var(--dur-hover) var(--ease-in-out);
-}
-
-.viewTabs button:hover {
-  color: var(--text);
-}
-
-.viewTabs button[aria-selected="true"] {
-  background: var(--bg-subtle);
-  box-shadow: var(--shadow-sm);
-  color: var(--text);
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
 }
 
 .graphStatus {
