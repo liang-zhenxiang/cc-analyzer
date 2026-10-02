@@ -23,3 +23,19 @@
   background: var(--bg-hover);
   color: var(--text-secondary);
 }
+
+/* 先行版：警示色系点出「这不是稳定版」。只染文字与描边，不做整块底色——
+   仪器面板的规矩是颜色上数据，徽章本身是铭牌不是告警条。 */
+.prerelease {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.tag {
+  margin-left: var(--sp-1);
+  padding: 0 4px;
+  border-radius: var(--r-xs);
+  background: var(--warning-soft, color-mix(in srgb, var(--warning) 14%, transparent));
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}

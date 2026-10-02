@@ -34,12 +34,16 @@ export function VersionBadge() {
 
   if (!version) return null;
 
+  // 预发布版本（含 `-`）在徽章上显式标出：装的是 beta 还是稳定版，应该一眼
+  // 看得出来，而不是让人去比对版本号里有没有 `-beta`。
+  const isPrerelease = version.includes("-");
+
   return (
     <button
       type="button"
-      className={styles.badge}
+      className={isPrerelease ? `${styles.badge} ${styles.prerelease}` : styles.badge}
       title="点击复制版本信息"
-      aria-label={`当前版本 v${version}，点击复制版本信息`}
+      aria-label={`当前版本 v${version}${isPrerelease ? "（先行版）" : ""}，点击复制版本信息`}
       onClick={() => {
         void bridges.clipboard
           .writeText(`CC Analyzer v${version}`)
@@ -50,6 +54,7 @@ export function VersionBadge() {
       }}
     >
       v{version}
+      {isPrerelease ? <span className={styles.tag}>Beta</span> : null}
     </button>
   );
 }

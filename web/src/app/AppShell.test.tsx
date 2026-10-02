@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppShell } from "./AppShell";
 import type { Bridges } from "../api/types";
@@ -44,6 +44,8 @@ test("顶栏版本徽章显示真实版本并可点击复制", async () => {
   // 版本取自 Rust 的 package_info（mock 桩为非零值），是升级生效的第一眼证据
   const badge = await screen.findByRole("button", { name: /当前版本 v0\.0\.0-test/ });
   expect(badge).toBeInTheDocument();
+  // 版本号里带 `-` 即为先行版：徽章显式标 Beta，一眼区分装的是哪种渠道
+  expect(within(badge).getByText("Beta")).toBeInTheDocument();
 
   await user.click(badge);
   await waitFor(() =>
