@@ -575,7 +575,8 @@ use updater::{app_version, check_updates, install_update, relaunch_app};
 #[cfg(all(target_os = "macos", feature = "gui-capture"))]
 mod gui_capture {
     use block2::RcBlock;
-    use objc2_foundation::{NSData, NSError};
+    use objc2::runtime::AnyObject;
+    use objc2_foundation::{NSData, NSError, NSString};
     use objc2_web_kit::WKWebView;
     use std::path::{Path, PathBuf};
     use std::time::Duration;
@@ -585,30 +586,108 @@ mod gui_capture {
     /// 截早了会拿到半张白屏，而那种失败是**静默**的（能生成文件，内容却是空的）。
     const SETTLE_MS: u64 = 6_000;
 
-    /// 点击标签页后等这么久再取第二张图：新标签页要先完成一轮渲染。
-    const TAB_SETTLE_MS: u64 = 2_000;
+    /// 点击目标后等这么久再取图：新视图要先完成一轮渲染（打开会话还要先读文件
+    /// 并解析）。探针与取图都排在这之后。
+    const TAB_SETTLE_MS: u64 = 3_000;
 
-    /// 等第一张 PDF 落盘的上限：createPDF 的 completion handler 是异步回调，
-    /// 「已发起取图」不等于「文件已写出」，点击动作必须排在实际落盘之后，
-    /// 否则第二张截到的还是旧标签页。
-    const FIRST_PDF_TIMEOUT_MS: u64 = 10_000;
+    /// 等 PDF 落盘的上限。createPDF 的 completion handler 是异步回调，而且它的
+    /// 渲染是**延后**发生的：实测过「探针先于快照求值」——同一张图对应的探针读到的
+    /// 却是点击生效前、快照还没跟上的旧视图。所以探针一律等到 PDF 落盘后再求值，
+    /// 落盘即代表快照已完成，两者描述同一视图。点击下一步前也要等，
+    /// 否则下一张截到的还是旧视图。
+    const PDF_TIMEOUT_MS: u64 = 10_000;
 
-    pub fn spawn(webview: tauri::Webview, out: PathBuf, tab: Option<String>) {
+    /// 几何探针脚本：**只收集事实，不含任何断言或阈值**——判定属于测试脚本，
+    /// 应用不该携带测试策略。返回一个 JSON 字符串。
+    ///
+    /// 锚点：`data-probe="gauge"`（仅用于探测的稳定属性；Gauge 的 `aria-label`
+    /// 是随读数变化的文案，靠它匹配会在文案改动后**静默失配**），卡片复用既有的
+    /// `aria-label="计费窗口"`，记录表复用 `table` / `[data-scroll-hint]` 结构。
+    const PROBE_JS: &str = r##"(function () {
+  function rectOf(el) {
+    var r = el.getBoundingClientRect();
+    return { x: r.left, y: r.top, width: r.width, height: r.height };
+  }
+  function boxOf(el) {
+    if (!el) return null;
+    return {
+      clientWidth: el.clientWidth,
+      scrollWidth: el.scrollWidth,
+      overflowX: getComputedStyle(el).overflowX,
+      right: el.getBoundingClientRect().right
+    };
+  }
+  var facts = {
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    document: {
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth
+    },
+    main: boxOf(document.querySelector('main')),
+    elements: [],
+    tables: []
+  };
+  var gauge = document.querySelector("[data-probe='gauge']");
+  if (gauge) {
+    var card = gauge.closest("[aria-label='计费窗口']");
+    facts.elements.push({ name: 'gauge', rect: rectOf(gauge), card: card ? rectOf(card) : null });
+  }
+  var table = document.querySelector('table');
+  if (table) {
+    var container = table.parentElement;
+    var headers = table.querySelectorAll('thead th');
+    var lastHeader = headers.length ? headers[headers.length - 1] : null;
+    var wrap = container ? container.parentElement : null;
+    var hint = wrap ? wrap.querySelector('[data-scroll-hint]') : null;
+    facts.tables.push({
+      name: 'records',
+      container: boxOf(container),
+      hasLastColumn: !!lastHeader,
+      lastColumnRight: lastHeader ? lastHeader.getBoundingClientRect().right : null,
+      hasScrollHint: !!hint
+    });
+  }
+  return JSON.stringify(facts);
+})();"##;
+
+    /// 取图线程：默认视图先取一张，然后按 `tabs` 依次点击、每步再取一张。
+    /// 每次都同步取一份几何探针（若设了 `CCA_GUI_PROBE`），供测试脚本判定布局。
+    pub fn spawn(webview: tauri::Webview, out: PathBuf, tabs: Vec<String>, probe: Option<PathBuf>) {
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(SETTLE_MS));
             capture(&webview, &out);
+            if wait_for_file(&out, PDF_TIMEOUT_MS) {
+                if let Some(probe) = &probe {
+                    probe_at(&webview, probe);
+                }
+            } else {
+                eprintln!("gui-capture: 默认视图的图没有落盘，跳过它的几何探针");
+            }
 
-            let Some(tab) = tab else { return };
-            if !wait_for_file(&out, FIRST_PDF_TIMEOUT_MS) {
-                eprintln!("gui-capture: 第一张图迟迟没有落盘，跳过「{tab}」标签页的取图");
-                return;
+            // 每一步都要等**上一步**的 PDF 落盘再点下一个，否则截到的还是旧视图；
+            // 探针也等本步 PDF 落盘后再求值（理由见 PDF_TIMEOUT_MS 的注释）。
+            let mut previous = out.clone();
+            for tab in tabs.iter() {
+                if !wait_for_file(&previous, PDF_TIMEOUT_MS) {
+                    eprintln!("gui-capture: 上一张图迟迟没有落盘，停在「{tab}」之前");
+                    return;
+                }
+                if let Err(err) = webview.eval(click_target_js(tab).as_str()) {
+                    eprintln!("gui-capture: 执行点击「{tab}」的脚本失败 {err}");
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(TAB_SETTLE_MS));
+                let pdf = tab_output_path(&out, tabs.len(), tab);
+                capture(&webview, &pdf);
+                if wait_for_file(&pdf, PDF_TIMEOUT_MS) {
+                    if let Some(probe) = &probe {
+                        probe_at(&webview, &probe_output_path(probe, tabs.len(), tab));
+                    }
+                } else {
+                    eprintln!("gui-capture: 「{tab}」的图没有落盘，跳过它的几何探针");
+                }
+                previous = pdf;
             }
-            if let Err(err) = webview.eval(click_tab_js(&tab).as_str()) {
-                eprintln!("gui-capture: 执行点击「{tab}」的脚本失败 {err}");
-                return;
-            }
-            std::thread::sleep(Duration::from_millis(TAB_SETTLE_MS));
-            capture(&webview, &tab_output_path(&out));
         });
     }
 
@@ -654,6 +733,45 @@ mod gui_capture {
         }
     }
 
+    /// 求值几何探针并把返回的 JSON 写入 `out`。走 `evaluateJavaScript:completionHandler:`
+    /// ——它是**双向**的，能拿回脚本的返回值；`webview.eval` 是单向的、拿不到。
+    /// 与 `capture` 同一条纪律：只发起、不等完成，失败只打日志、绝不 panic。
+    fn probe_at(webview: &tauri::Webview, out: &Path) {
+        let target = out.to_path_buf();
+        let result = webview.with_webview(move |platform| {
+            let ptr = platform.inner().cast::<WKWebView>();
+            if ptr.is_null() {
+                eprintln!("gui-probe: 拿不到 WKWebView 指针");
+                return;
+            }
+            let wk: &WKWebView = unsafe { &*ptr };
+
+            let handler = RcBlock::new(move |value: *mut AnyObject, error: *mut NSError| {
+                if value.is_null() {
+                    let msg = if error.is_null() {
+                        "未知错误".to_string()
+                    } else {
+                        unsafe { (*error).localizedDescription().to_string() }
+                    };
+                    eprintln!("gui-probe: 求值失败 {msg}");
+                    return;
+                }
+                // 探针脚本返回 JSON 字符串，桥接过来就是 NSString。
+                let text = unsafe { (*value.cast::<NSString>()).to_string() };
+                match std::fs::write(&target, text.as_bytes()) {
+                    Ok(()) => println!("gui-probe: 已写出 {} 字节", text.len()),
+                    Err(err) => eprintln!("gui-probe: 写文件失败 {err}"),
+                }
+            });
+
+            let source = NSString::from_str(PROBE_JS);
+            unsafe { wk.evaluateJavaScript_completionHandler(&source, Some(&handler)) };
+        });
+        if let Err(err) = result {
+            eprintln!("gui-probe: with_webview 失败 {err}");
+        }
+    }
+
     /// 轮询等文件出现。completion handler 跑在主线程，这里不能回调式串联
     /// （把点击塞进 handler 会在主线程上引入等待），轮询最直白也最容易看出超时。
     fn wait_for_file(path: &Path, timeout_ms: u64) -> bool {
@@ -667,21 +785,64 @@ mod gui_capture {
         path.is_file()
     }
 
-    /// 第二张图的输出路径：第一张去掉 `.pdf` 后缀再加 `-tab.pdf`。
-    fn tab_output_path(first: &Path) -> PathBuf {
-        let mut second = first.to_path_buf();
-        second.set_extension("");
-        second.as_mut_os_string().push("-tab.pdf");
-        second
+    /// 把目标名安全化成文件名片段：保留字母数字（含中文），其余折叠成单个 `-`。
+    /// 与 `scripts/gui-test.sh` 里的 `slug_of` **必须逐字一致**——文件名对不上时
+    /// 脚本会一直等不到文件，而那看起来像「取图失败」。
+    fn slug_of(value: &str) -> String {
+        let mut out = String::new();
+        let mut pending_dash = false;
+        for ch in value.chars() {
+            if ch.is_alphanumeric() {
+                if pending_dash && !out.is_empty() {
+                    out.push('-');
+                }
+                pending_dash = false;
+                out.push(ch);
+            } else {
+                pending_dash = true;
+            }
+        }
+        if out.is_empty() {
+            "tab".to_string()
+        } else {
+            out
+        }
     }
 
-    /// 找到可访问名匹配的按钮并点击（v0.9.0 起不限于标签页：优先标签，
-    /// 其次任意可访问名按钮——「立即检查更新」这类真实用户操作也能驱动）。
-    /// `eval` 是单向的（拿不到脚本返回值），所以点击结果写进 console：
-    /// 成功与失败各一条，都能在测试脚本收集的应用日志里追查。
-    /// 脚本只做这一次点击，不做任何别的事。
-    fn click_tab_js(tab: &str) -> String {
-        let escaped = tab
+    /// 文件名后缀：**单个**目标沿用旧名 `-tab`（既有文档与脚本依赖它）；
+    /// 多个目标各用 `-<slug>`，文件名能看出是哪张图。
+    fn tab_suffix(count: usize, tab: &str) -> String {
+        if count == 1 {
+            "-tab".to_string()
+        } else {
+            format!("-{}", slug_of(tab))
+        }
+    }
+
+    /// 第 N 张图的输出路径：第一张去掉 `.pdf` 后缀再加 `-tab.pdf` / `-<slug>.pdf`。
+    fn tab_output_path(first: &Path, count: usize, tab: &str) -> PathBuf {
+        let mut path = first.to_path_buf();
+        path.set_extension("");
+        path.as_mut_os_string()
+            .push(format!("{}.pdf", tab_suffix(count, tab)));
+        path
+    }
+
+    /// 探针 JSON 的输出路径：文件名规则与取图一致，只是后缀换成 `.json`。
+    fn probe_output_path(first: &Path, count: usize, tab: &str) -> PathBuf {
+        let mut path = first.to_path_buf();
+        path.set_extension("");
+        path.as_mut_os_string()
+            .push(format!("{}.json", tab_suffix(count, tab)));
+        path
+    }
+
+    /// 找到目标并点击：优先标签页，其次任意按钮。匹配可取访问名的三种来源——
+    /// `aria-label`、`title`、可见文本——所以既能点标签页（文本 / aria-label），
+    /// 也能点会话条目（它的 `title` 是 cwd）。`eval` 是单向的（拿不到脚本返回值），
+    /// 所以点击结果写进 console：成功与失败各一条，都能在测试脚本收集的应用日志里追查。
+    fn click_target_js(target: &str) -> String {
+        let escaped = target
             .replace('\\', "\\\\")
             .replace('"', "\\\"")
             .replace('\n', "\\n")
@@ -690,30 +851,34 @@ mod gui_capture {
             r#"(function () {{
   var wanted = "{escaped}";
   var scopes = [
-    document.querySelectorAll('[role="tablist"] button[role="tab"]'),
+    document.querySelectorAll('[role="tablist"] button'),
     document.querySelectorAll('button')
   ];
   for (var s = 0; s < scopes.length; s++) {{
-    var tabs = scopes[s];
-    for (var i = 0; i < tabs.length; i++) {{
-      var el = tabs[i];
-      var name = (el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, ' ').trim();
-      if (name === wanted) {{
+    var buttons = scopes[s];
+    for (var i = 0; i < buttons.length; i++) {{
+      var el = buttons[i];
+      var candidates = [
+        el.getAttribute('aria-label'),
+        el.getAttribute('title'),
+        (el.textContent || '').replace(/\s+/g, ' ').trim()
+      ];
+      if (candidates.indexOf(wanted) >= 0) {{
         el.click();
         console.log('gui-capture: 已点击 ' + wanted);
         return;
       }}
     }}
   }}
-  console.warn('gui-capture: 没有可访问名为 ' + wanted + ' 的按钮');
+  console.warn('gui-capture: 找不到目标 ' + wanted);
 }})();"#
         )
     }
 
     /// 由 `setup` 调用：只有设了 `CCA_GUI_CAPTURE` 才生效，否则完全惰性。
-    /// 可选的 `CCA_GUI_CAPTURE_TAB` 是「第二张图」指令：值为某个标签页的
-    /// 可访问名（如「用量总览」），应用会在第一张取图落盘后点击该标签页，
-    /// 等一轮渲染再取第二张，用于真机验证非默认标签页的内容。
+    /// - `CCA_GUI_CAPTURE_TAB`：逗号分隔的目标列表（可取访问名或会话 cwd），
+    ///   应用依次点击并在每步取一张图；**单个值沿用旧文件名 `-tab.pdf`**。
+    /// - `CCA_GUI_PROBE`：几何探针输出路径；每张图对应一份 JSON 事实。
     pub fn maybe_spawn(app: &tauri::App) {
         let Ok(target) = std::env::var("CCA_GUI_CAPTURE") else {
             return;
@@ -721,12 +886,22 @@ mod gui_capture {
         if target.trim().is_empty() {
             return;
         }
-        let tab = std::env::var("CCA_GUI_CAPTURE_TAB")
+        let tabs: Vec<String> = std::env::var("CCA_GUI_CAPTURE_TAB")
+            .map(|value| {
+                value
+                    .split(',')
+                    .map(|item| item.trim().to_string())
+                    .filter(|item| !item.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let probe = std::env::var("CCA_GUI_PROBE")
             .ok()
             .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty());
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from);
         if let Some(webview) = app.get_webview_window("main") {
-            spawn(webview.as_ref().clone(), PathBuf::from(target), tab);
+            spawn(webview.as_ref().clone(), PathBuf::from(target), tabs, probe);
         }
     }
 }
