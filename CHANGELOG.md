@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-02
+
+本轮主题：双渠道自动更新——beta 全自动发版与稳定版人工晋升。
+
 ### Added
 
 - **双渠道自动更新**：设置新增「软件更新」——可选稳定版（默认，维护者人工晋升）或 Beta（AI 每轮功能自动发版的先行渠道），支持「立即检查」与一键「安装并重启」。更新包经 minisign 签名校验；更新检查只是一次对 GitHub 发布页的 GET，不上传任何数据（SECURITY.md 有完整说明）。
