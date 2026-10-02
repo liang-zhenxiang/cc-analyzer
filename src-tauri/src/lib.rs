@@ -579,7 +579,8 @@ mod gui_capture {
     use objc2_foundation::{NSData, NSError, NSString};
     use objc2_web_kit::WKWebView;
     use std::path::{Path, PathBuf};
-    use std::time::Duration;
+    use std::sync::mpsc;
+    use std::time::{Duration, Instant};
     use tauri::Manager;
 
     /// 应用启动后等这么久再取图：要留出 webview 完成首次渲染的时间。
@@ -590,12 +591,31 @@ mod gui_capture {
     /// 并解析）。探针与取图都排在这之后。
     const TAB_SETTLE_MS: u64 = 3_000;
 
-    /// 等 PDF 落盘的上限。createPDF 的 completion handler 是异步回调，而且它的
+    /// 等一张图落盘的上限。createPDF 的 completion handler 是异步回调，而且它的
     /// 渲染是**延后**发生的：实测过「探针先于快照求值」——同一张图对应的探针读到的
-    /// 却是点击生效前、快照还没跟上的旧视图。所以探针一律等到 PDF 落盘后再求值，
+    /// 却是点击生效前、快照还没跟上的旧视图。所以探针要等到 PDF 落盘后再求值，
     /// 落盘即代表快照已完成，两者描述同一视图。点击下一步前也要等，
     /// 否则下一张截到的还是旧视图。
-    const PDF_TIMEOUT_MS: u64 = 10_000;
+    ///
+    /// **但这个上限不再是「探针的开关」**：等超时了也照样取探针（见 `spawn` 的注释）。
+    /// 取 15s 与 `scripts/gui-test.sh` 里每个视图等取图 PDF 的秒数一致——它只决定
+    /// 「正常路径下探针是否等到快照之后」，定大一点只是让正常的对齐更稳，
+    /// 不会因为定大了就把失败藏起来。
+    const PDF_TIMEOUT_MS: u64 = 15_000;
+
+    /// 几何探针求值遇到瞬时失败时的重试次数与间隔。
+    ///
+    /// **只重试「求值本身失败」**（`evaluateJavaScript` 报错、回调没回、写文件失败）。
+    /// 探针一旦**成功写出** JSON 就立刻返回——哪怕那份 JSON 描述的是一个坏布局
+    /// （表盘被撑爆、记录表被裁切），也照样返回、由脚本判定失败。所以重试**不会**
+    /// 掩盖真回归，它只把「页面过渡态 / 主线程忙导致的偶发求值失败」抹平。
+    const PROBE_ATTEMPTS: u32 = 5;
+    const PROBE_RETRY_MS: u64 = 300;
+
+    /// 单次等待求值回调的上限。`with_webview` 是异步投递，回调何时回来由主线程决定；
+    /// 给个上限，主线程若长时间不回来，重试不会被永久卡死。
+    /// 5 × (3s + 0.3s) ≈ 17s 是最坏情况，脚本等探针的超时要盖过它（见 gui-test.sh）。
+    const PROBE_EVAL_TIMEOUT_MS: u64 = 3_000;
 
     /// 几何探针脚本：**只收集事实，不含任何断言或阈值**——判定属于测试脚本，
     /// 应用不该携带测试策略。返回一个 JSON 字符串。
@@ -651,25 +671,46 @@ mod gui_capture {
 })();"##;
 
     /// 取图线程：默认视图先取一张，然后按 `tabs` 依次点击、每步再取一张。
-    /// 每次都同步取一份几何探针（若设了 `CCA_GUI_PROBE`），供测试脚本判定布局。
+    /// 每张图都配一份几何探针（若设了 `CCA_GUI_PROBE`），供测试脚本判定布局。
     pub fn spawn(webview: tauri::Webview, out: PathBuf, tabs: Vec<String>, probe: Option<PathBuf>) {
         std::thread::spawn(move || {
+            let start = Instant::now();
             std::thread::sleep(Duration::from_millis(SETTLE_MS));
-            capture(&webview, &out);
+            capture(&webview, &out, start);
+            // 默认视图的探针**不拿 PDF 当开关**：等图落盘只是为了让它和快照描述同一
+            // 视图，等到等不到都照常求值。之前这里写的是「等不到就跳过探针」，于是存在
+            // 这样一个窗口：应用这边等超时、把探针整个跳过，而脚本那边同一张图还在等、
+            // 最终算作「截图通过」——表现为「截图过、探针缺」的假红。默认视图是启动后
+            // 第一张，正赶上应用最忙的时刻，最慢、也最先撞上。默认视图之前没有任何
+            // 点击/切换，「探针读到快照前旧视图」这个风险对它并不成立。
             if wait_for_file(&out, PDF_TIMEOUT_MS) {
-                if let Some(probe) = &probe {
-                    probe_at(&webview, probe);
-                }
+                println!(
+                    "gui-capture: [+{}ms] 默认视图的图已落盘",
+                    start.elapsed().as_millis()
+                );
             } else {
-                eprintln!("gui-capture: 默认视图的图没有落盘，跳过它的几何探针");
+                eprintln!(
+                    "gui-capture: [+{}ms] 默认视图的图没有落盘（等 {}ms），探针仍照常取",
+                    start.elapsed().as_millis(),
+                    PDF_TIMEOUT_MS
+                );
+            }
+            if let Some(probe) = &probe {
+                probe_at(&webview, probe, start);
             }
 
-            // 每一步都要等**上一步**的 PDF 落盘再点下一个，否则截到的还是旧视图；
-            // 探针也等本步 PDF 落盘后再求值（理由见 PDF_TIMEOUT_MS 的注释）。
+            // 每一步都要等**上一步**的 PDF 落盘再点下一个，否则截到的还是旧视图。
+            // 探针同样不拿本步 PDF 当开关：等到了就等它落盘后再求值（与快照对齐），
+            // 等不到也照常求值——宁可探针早一点，也不要「截图过、探针缺」。
             let mut previous = out.clone();
+            let mut previous_label = "默认视图".to_string();
             for tab in tabs.iter() {
                 if !wait_for_file(&previous, PDF_TIMEOUT_MS) {
-                    eprintln!("gui-capture: 上一张图迟迟没有落盘，停在「{tab}」之前");
+                    eprintln!(
+                        "gui-capture: [+{}ms] {previous_label}的图迟迟没有落盘（等 {}ms），停在「{tab}」之前",
+                        start.elapsed().as_millis(),
+                        PDF_TIMEOUT_MS
+                    );
                     return;
                 }
                 if let Err(err) = webview.eval(click_target_js(tab).as_str()) {
@@ -678,15 +719,20 @@ mod gui_capture {
                 }
                 std::thread::sleep(Duration::from_millis(TAB_SETTLE_MS));
                 let pdf = tab_output_path(&out, tabs.len(), tab);
-                capture(&webview, &pdf);
-                if wait_for_file(&pdf, PDF_TIMEOUT_MS) {
-                    if let Some(probe) = &probe {
-                        probe_at(&webview, &probe_output_path(probe, tabs.len(), tab));
-                    }
-                } else {
-                    eprintln!("gui-capture: 「{tab}」的图没有落盘，跳过它的几何探针");
+                capture(&webview, &pdf, start);
+                if !wait_for_file(&pdf, PDF_TIMEOUT_MS) {
+                    eprintln!(
+                        "gui-capture: [+{}ms] 「{}」的图没有落盘（等 {}ms），探针仍照常取",
+                        start.elapsed().as_millis(),
+                        tab,
+                        PDF_TIMEOUT_MS
+                    );
+                }
+                if let Some(probe) = &probe {
+                    probe_at(&webview, &probe_output_path(probe, tabs.len(), tab), start);
                 }
                 previous = pdf;
+                previous_label = format!("「{tab}」");
             }
         });
     }
@@ -694,8 +740,10 @@ mod gui_capture {
     /// 把 webview 当前渲染结果写成一份 PDF。只发起、不等完成——落盘由
     /// createPDF 的 completion handler 异步负责。所有失败路径只打日志、
     /// 绝不 panic：这个线程挂在渲染循环里会连带整个应用，而它只是取证旁路。
-    fn capture(webview: &tauri::Webview, out: &Path) {
+    fn capture(webview: &tauri::Webview, out: &Path, start: Instant) {
         let target = out.to_path_buf();
+        let name = file_label(out);
+        let name_in_handler = name.clone();
         let result = webview.with_webview(move |platform| {
             // `inner()` 在 macOS 上返回底层 WKWebView 的裸指针。
             let ptr = platform.inner().cast::<WKWebView>();
@@ -709,8 +757,15 @@ mod gui_capture {
                 if !data.is_null() {
                     let bytes = unsafe { (*data).to_vec() };
                     match std::fs::write(&target, &bytes) {
-                        Ok(()) => println!("gui-capture: 已写出 {} 字节", bytes.len()),
-                        Err(err) => eprintln!("gui-capture: 写文件失败 {err}"),
+                        Ok(()) => println!(
+                            "gui-capture: [+{}ms] {name_in_handler} 已写出 {} 字节",
+                            start.elapsed().as_millis(),
+                            bytes.len()
+                        ),
+                        Err(err) => eprintln!(
+                            "gui-capture: [+{}ms] {name_in_handler} 写文件失败 {err}",
+                            start.elapsed().as_millis()
+                        ),
                     }
                 } else {
                     let msg = if error.is_null() {
@@ -718,7 +773,10 @@ mod gui_capture {
                     } else {
                         unsafe { (*error).localizedDescription().to_string() }
                     };
-                    eprintln!("gui-capture: 取图失败 {msg}");
+                    eprintln!(
+                        "gui-capture: [+{}ms] {name_in_handler} 取图失败 {msg}",
+                        start.elapsed().as_millis()
+                    );
                 }
                 // 刻意不退出：应用由测试脚本统一管理生命周期，
                 // 这样同一次启动里还能跑「存活 / 内存 / 缓存 / 正常退出」那些断言。
@@ -729,19 +787,62 @@ mod gui_capture {
             unsafe { wk.createPDFWithConfiguration_completionHandler(None, &handler) };
         });
         if let Err(err) = result {
-            eprintln!("gui-capture: with_webview 失败 {err}");
+            eprintln!(
+                "gui-capture: [+{}ms] {name} with_webview 失败 {err}",
+                start.elapsed().as_millis()
+            );
         }
     }
 
-    /// 求值几何探针并把返回的 JSON 写入 `out`。走 `evaluateJavaScript:completionHandler:`
-    /// ——它是**双向**的，能拿回脚本的返回值；`webview.eval` 是单向的、拿不到。
-    /// 与 `capture` 同一条纪律：只发起、不等完成，失败只打日志、绝不 panic。
-    fn probe_at(webview: &tauri::Webview, out: &Path) {
+    /// 求值几何探针并把返回的 JSON 写入 `out`，遇到瞬时失败重试有限次。
+    ///
+    /// 走 `evaluateJavaScript:completionHandler:`——它是**双向**的，能拿回脚本的返回值；
+    /// `webview.eval` 是单向的、拿不到。与 `capture` 同一条纪律：失败只打日志、绝不 panic。
+    ///
+    /// **重试只针对「求值 / 写盘失败」**：探针一旦成功写出 JSON 就立刻返回，哪怕那份
+    /// JSON 描述的是坏布局，也照样返回、由脚本判失败——重试不会把它吞掉（见
+    /// `PROBE_ATTEMPTS` 的注释）。
+    fn probe_at(webview: &tauri::Webview, out: &Path, start: Instant) {
+        let name = file_label(out);
+        for attempt in 1..=PROBE_ATTEMPTS {
+            match probe_once(webview, out) {
+                Ok(bytes) => {
+                    println!(
+                        "gui-probe: [+{}ms] {name} 已写出 {bytes} 字节",
+                        start.elapsed().as_millis()
+                    );
+                    return;
+                }
+                Err(msg) if attempt < PROBE_ATTEMPTS => {
+                    eprintln!(
+                        "gui-probe: [+{}ms] {name} 第 {attempt}/{PROBE_ATTEMPTS} 次求值失败（{msg}），{PROBE_RETRY_MS}ms 后重试",
+                        start.elapsed().as_millis()
+                    );
+                    std::thread::sleep(Duration::from_millis(PROBE_RETRY_MS));
+                }
+                Err(msg) => {
+                    eprintln!(
+                        "gui-probe: [+{}ms] {name} 求值重试 {PROBE_ATTEMPTS} 次仍失败（{msg}），放弃写出",
+                        start.elapsed().as_millis()
+                    );
+                    return;
+                }
+            }
+        }
+    }
+
+    /// 单次求值：把结果（写出字节数或错误信息）经通道送回调用线程。
+    ///
+    /// `with_webview` 是**异步投递**（把闭包塞进主线程事件队列后立刻返回），所以这里要等
+    /// 回调，并给一个上限——主线程若长时间不回来，重试不会被永久卡死。回调里 `value`
+    /// 为空即求值失败（`error` 带原因），此时不写任何文件。
+    fn probe_once(webview: &tauri::Webview, out: &Path) -> Result<usize, String> {
         let target = out.to_path_buf();
+        let (tx, rx) = mpsc::channel::<Result<usize, String>>();
         let result = webview.with_webview(move |platform| {
             let ptr = platform.inner().cast::<WKWebView>();
             if ptr.is_null() {
-                eprintln!("gui-probe: 拿不到 WKWebView 指针");
+                let _ = tx.send(Err("拿不到 WKWebView 指针".to_string()));
                 return;
             }
             let wk: &WKWebView = unsafe { &*ptr };
@@ -753,14 +854,18 @@ mod gui_capture {
                     } else {
                         unsafe { (*error).localizedDescription().to_string() }
                     };
-                    eprintln!("gui-probe: 求值失败 {msg}");
+                    let _ = tx.send(Err(msg));
                     return;
                 }
                 // 探针脚本返回 JSON 字符串，桥接过来就是 NSString。
                 let text = unsafe { (*value.cast::<NSString>()).to_string() };
                 match std::fs::write(&target, text.as_bytes()) {
-                    Ok(()) => println!("gui-probe: 已写出 {} 字节", text.len()),
-                    Err(err) => eprintln!("gui-probe: 写文件失败 {err}"),
+                    Ok(()) => {
+                        let _ = tx.send(Ok(text.len()));
+                    }
+                    Err(err) => {
+                        let _ = tx.send(Err(format!("写文件失败 {err}")));
+                    }
                 }
             });
 
@@ -768,8 +873,20 @@ mod gui_capture {
             unsafe { wk.evaluateJavaScript_completionHandler(&source, Some(&handler)) };
         });
         if let Err(err) = result {
-            eprintln!("gui-probe: with_webview 失败 {err}");
+            return Err(format!("with_webview 失败 {err}"));
         }
+        match rx.recv_timeout(Duration::from_millis(PROBE_EVAL_TIMEOUT_MS)) {
+            Ok(outcome) => outcome,
+            Err(mpsc::RecvTimeoutError::Timeout) => Err("等待求值回调超时".to_string()),
+            Err(mpsc::RecvTimeoutError::Disconnected) => Err("求值回调通道断开".to_string()),
+        }
+    }
+
+    /// 日志里用来指认是哪张图 / 哪份探针：只取文件名，脚本按名 grep 定位。
+    fn file_label(path: &Path) -> String {
+        path.file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.display().to_string())
     }
 
     /// 轮询等文件出现。completion handler 跑在主线程，这里不能回调式串联
