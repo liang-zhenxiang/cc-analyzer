@@ -31,6 +31,27 @@ Worked example — `read_head`:
 For a **plugin** command (see `float`): step 3 becomes `InlinedPlugin::new().commands(&["enter","exit"])`,
 step 5 becomes `"float:allow-enter"` (namespaced), and JS calls `plugin:float|enter`.
 
+### 第 5 步漏掉的代价：静默失效（v0.9.0-beta.1 实录）
+
+漏了 `capabilities` 那一行，**构建、单测、e2e 全绿**——因为 mock 与 jsdom 都不经过
+权限层。真机上的表现是：
+
+- `invoke` 一律被拒，前端 `catch` 后走自己的兜底文案（用户看到「当前版本 未知」）
+- 整个自动更新链路（检查、下载、安装）形同虚设，而**没有任何地方报错**
+
+两个衍生教训：
+
+1. **命令名不要带 `::`**。曾用 `updater::app_version` 注册，生成的权限文件名
+   含 `::`，在 Windows 文件系统上非法——checkout 当场失败。命令在 `lib.rs`
+   顶层重导出，以裸名注册（`mod updater; use updater::{app_version};`）。
+2. 自动生成的文件名是**下划线**（`app_version.toml`），而权限标识符是
+   **连字符**（`allow-app-version`）——照文件名去写 capability 会写错。
+
+**现已由测试强制**：`lib.rs` 的 `every_app_command_is_allowed_in_the_capability`
+逐个核对 `build.rs` 清单里的命令在 capability 里有对应 `allow-<kebab>` 条目，
+漏一条即失败并指名道姓（变异验证过：删掉一条授权，测试报
+`capabilities/default.json 缺少这些命令的授权…["allow-app-version"]`）。
+
 ---
 
 ## Naming and Arguments
