@@ -1,0 +1,33 @@
+.wrap {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+/* 里层才滚动：外层只负责给底部的滚动提示腾出一条固定的位置。 */
+.scroller {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* 常驻的横向滚动提示。原生滚动条在 macOS 上是覆盖式的——静止时不占位、
+   不可见，内容被裁到边缘时看起来就像表格坏了。这条提示占据布局空间，
+   静止可见，仅在真的横向溢出时渲染（不在溢出时它压根不存在）。 */
+.track {
+  position: relative;
+  flex: 0 0 auto;
+  height: var(--scrollbar-size);
+  margin-top: var(--sp-1);
+  border-radius: var(--r-xs);
+  background: var(--bg-hover);
+}
+
+.thumb {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--r-xs);
+  background: var(--border-strong);
+}

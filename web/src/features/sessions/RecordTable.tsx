@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from "react";
 import { Button } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
+import { ScrollArea } from "../../components/ScrollArea";
 import type { SessionRecord } from "./types";
 import { useMeasuredRowHeights } from "./measuredRows";
 import { buildRowOffsets, computeSizedWindow } from "./virtualWindow";
@@ -110,7 +111,7 @@ export function RecordTable({
   }, [records]);
 
   return (
-    <div className={styles.container} ref={containerRef} onScroll={onScroll}>
+    <ScrollArea scrollerRef={containerRef} className={styles.container} onScroll={onScroll}>
       <table>
         <thead>
           <tr>
@@ -147,7 +148,7 @@ export function RecordTable({
       {records.length === 0 ? (
         <EmptyState size="inline" title="没有符合筛选条件的记录" />
       ) : null}
-    </div>
+    </ScrollArea>
   );
 }
 

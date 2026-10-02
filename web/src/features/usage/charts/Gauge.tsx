@@ -1,5 +1,4 @@
 import { formatTokenCount } from "../../../lib/format";
-import primitiveStyles from "./chartPrimitives.module.css";
 import styles from "./Gauge.module.css";
 
 /**
@@ -32,7 +31,7 @@ export function Gauge({
       viewBox={`0 0 ${size} ${size}`}
       role="img"
       aria-label={ariaLabel}
-      className={primitiveStyles.chart}
+      className={styles.gauge}
     >
       {/* 底环中性灰；进度弧走 chart-1 软硬两档：弧是窄描边（实色允许），
           环心留给大号读数。 */}
