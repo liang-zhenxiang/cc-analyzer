@@ -276,3 +276,23 @@ Finder/Dock 那种收窄的 PATH）复核，发现**自己的修复本身还有�
 - 过程教训：本地直推 main 被分支保护拦（规矩是对的）；修复一律走小 PR。
   残留小尾巴：无版本名的 CC-Analyzer.app.tar.gz 旧资产仍在（不影响
   JSON 与客户端，下轮清理收集路径即可）。
+
+**Round F 终章：全链路模拟与五坑补遗**
+
+- 晋升五坑全记录：①updater:: 文件名 Windows 非法 ②门禁缺 Tauri Linux 库
+  ③Cargo.lock 刷新依赖 cargo 编译（改纯文本替换）④GITHUB_TOKEN 推 tag
+  不触发 workflow（release.yml 加 dispatch + promote 显式触发）⑤dispatch
+  需要 actions:write 权限。全部修复合并（#89/#93/#95/#96/#100）。
+- 双渠道实况：v0.9.0-beta.1（prerelease）→ v0.9.0 → v0.9.1-beta.1 →
+  v0.9.1（均 9 资产三平台签名齐全，rolling JSON 双渠道公网可访问）。
+- 真实用户模拟：/Applications 安装 v0.9.0 → 设置→立即检查更新 → 真实
+  GitHub 端点返回「发现新版本 0.9.1 + 安装并重启」（截图存证）。应用内
+  一键安装的按钮级链路验证到此；「点击安装→替换→重启」的最后一步在
+  本会话的 UI 自动化（capture 点击时序 / osascript AX 不可达）未能完成
+  取证——引擎侧（tauri-plugin-updater 标准 download_and_install）与
+  工件侧（tar.gz 内 plist=0.9.1、codesign 完好）均已独立验证。留给
+  维护者第一次真实点击收口（若异常，错误文案会显示在更新区）。
+- 挂载陷阱存档：hdiutil 指定 -mountpoint 若目录曾被占用会看到旧卷内容
+  （v0.9.0 官方 dmg 被误判 0.3.0 的乌龙）——验 dmg 务必全新挂载点。
+- promote 的自动同步 PR 在两次晋升中都未建成（仅 warning 不阻塞），
+  手动补齐等价提交；#101 待修（gh pr create 失败原因待查日志）。
