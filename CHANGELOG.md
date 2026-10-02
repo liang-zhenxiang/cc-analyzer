@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-02
+
+本轮主题：发布渠道健壮性——晋升自动触发与更新流程可验证
+
 ## [0.9.0] - 2026-10-02
 
 本轮主题：双渠道自动更新——beta 全自动发版与稳定版人工晋升。
