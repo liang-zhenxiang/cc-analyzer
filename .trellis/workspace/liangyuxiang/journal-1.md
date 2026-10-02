@@ -296,3 +296,30 @@ Finder/Dock 那种收窄的 PATH）复核，发现**自己的修复本身还有�
   （v0.9.0 官方 dmg 被误判 0.3.0 的乌龙）——验 dmg 务必全新挂载点。
 - promote 的自动同步 PR 在两次晋升中都未建成（仅 warning 不阻塞），
   手动补齐等价提交；#101 待修（gh pr create 失败原因待查日志）。
+
+
+## Session 2026-10-02/03 · Round G：beta.2 发布与 capability 缺陷抢修
+
+### What Happened
+
+- **用户实测报缺陷**：装 0.9.0-beta.1 后设置里「当前版本 未知」。根因——
+  四个 updater 自定义命令从未进 `capabilities`（只加了插件的 `updater:default`），
+  `invoke` 全被拒。**整个自动更新功能自 v0.9.0-beta.1 起就是死的**，而
+  构建/单测/e2e 全绿：mock 与 jsdom 不经过权限层，真机才有真相。
+- **修复**（PR #102）：capability 补四条 `allow-*`；新增 Rust 回归测试
+  `every_app_command_is_allowed_in_the_capability`（变异验证：删一条即失败）；
+  顶栏加**版本徽章**（读 `package_info`，升级是否生效的第一眼证据；先行版
+  带「Beta」标记）。
+- **发布**：v0.10.0-beta.1（含修复）→ v0.10.0-beta.2（徽章标先行版）。
+  beta 渠道 JSON 已指向 0.10.0-beta.2。
+- **端到端验证**（探针构建，仅本地）：从 v0.10.0-beta.1 tag 构建带 gui-capture
+  的应用，用应用**自己的 IPC** 调命令并把结果渲染/落盘：
+  - `app_version` → `0.10.0-beta.1` ✓（权限已通）
+  - `check_updates(beta)` → `available: true, version: 0.10.0-beta.2` ✓（真实端点）
+  - `install_update` → 磁盘上的 .app 从 beta.1 变 beta.2 ✓（下载+验签+替换，两次成功）
+  - `relaunch_app` → 重启后有新实例在跑 ✓
+  - 失败路径也验了：一次网络抖动时 check 返回我们自己的中文错误文案
+    （「更新检查失败：error sending request…」），不崩、不误导
+- **教训**：spec 里早已写明第 5 步（capability），是我没照做且缺自动检查——
+  知识在文档里，纪律要靠测试。已把失败模式与两个衍生坑（`::` 文件名、
+  下划线文件名 vs 连字符标识符）写进 command-guidelines.md，并注明由测试强制。
