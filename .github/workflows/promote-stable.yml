@@ -136,6 +136,21 @@ jobs:
           grep -q "\"version\": \"${stable}\"" web/package.json
           grep -q "^version = \"${stable}\"" src-tauri/Cargo.toml
 
+          # Cargo.lock 就地改版本条目而不是跑 cargo check 刷锁——cargo
+          # 编译依赖需要 Tauri 的 Linux 系统库（二跑挂在这），而锁文件里
+          # cc-analyzer 的版本只是纯文本条目。
+          python3 - "$stable" <<'PYLOCK'
+          import re
+          import sys
+
+          stable = sys.argv[1]
+          text = open("src-tauri/Cargo.lock").read()
+          pattern = r'(name = "cc-analyzer"\nversion = ")[^"]+(")'
+          updated, count = re.subn(pattern, r"\g<1>" + stable + r"\g<2>", text, count=1)
+          assert count == 1, "Cargo.lock 里没找到 cc-analyzer 的版本条目"
+          open("src-tauri/Cargo.lock", "w").write(updated)
+          PYLOCK
+
           # CHANGELOG：[Unreleased] 归档为 [X.Y.Z] - 今天，可带主题句
           today="$(date +%Y-%m-%d)"
           python3 - "$stable" "$today" "$THEME" <<'PY'
@@ -152,12 +167,6 @@ jobs:
           text = text.replace(marker, marker + heading, 1)
           open("CHANGELOG.md", "w").write(text)
           PY
-
-      - name: 安装 Rust 工具链（刷新 Cargo.lock）
-        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
-
-      - name: 刷新 Cargo.lock
-        run: cargo check --manifest-path src-tauri/Cargo.toml --quiet
 
       - name: 提交并打 tag
         env:
