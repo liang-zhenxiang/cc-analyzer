@@ -11,20 +11,46 @@ A desktop application for reviewing AI coding session activity — turn your
 Claude Code session logs into timelines, duration trees, and structured
 analysis reports. Built with Tauri 2 and a React web UI.
 
+Claude subscription plans meter usage in rolling five-hour windows, so the
+numbers people check all day are always the same three: when the current
+window closes, how much of it is left, and — at the rate you are burning
+through it — when you will hit the limit. The usage overview answers all
+three from your own logs, with no account and no network call.
+
 ![CC Analyzer's session analyzer: grouped session list on the left, filters and log table in the middle, analysis report panel below](docs/screenshots/analyzer-log-light.png)
 
 The session analyzer with a session open — grouped session list on the left,
 filters and the log table in the middle, the analysis report panel below.
 
-![CC Analyzer's usage overview: KPI readouts, daily token trend, per-project and per-model distributions, activity heatmap](docs/screenshots/usage-light.png)
+![CC Analyzer's usage overview: the five-hour billing-window card, KPI readouts, daily token trend, per-project and per-model distributions, activity heatmap](docs/screenshots/usage-light.png)
 
-The usage overview — token consumption trends and distributions for the last
-7 / 30 / 90 days, every figure carrying a provenance badge. Every screen, in
-both light and dark themes, is archived in
+The usage overview — the 5-hour billing-window card (current consumption, open
+and close times, a burn-rate projection), KPI readouts, and token trends and
+distributions for the last 7 / 30 / 90 days, every figure carrying a provenance
+badge. Every screen, in both light and dark themes, is archived in
 [`docs/screenshots/`](docs/screenshots).
 
 ## Features
 
+- **5-hour billing window** — a plan-aware view of the window your subscription
+  is metered in: the current consumption dial, when the window opened, a
+  countdown to when it closes, and a projection of when you will reach the
+  limit at the current burn rate. Window clustering matches ccusage's `blocks`
+  (five hours from the first activity). Plan limits are community estimates and
+  are labelled as such; with no plan selected the app shows consumption only,
+  never a percentage it cannot stand behind — and a window younger than 30
+  minutes says "not enough data" instead of extrapolating. Derived entirely
+  from the local log.
+- **Global search (⌘K / Ctrl+K)** — message-level search across every project
+  and session, results grouped by project → session with the matching snippet
+  and a relative time. Enter jumps into the session, opens the record and
+  expands its detail panel, so a hit is always reachable, not merely listed.
+  The index is built in the background and lives in memory only.
+- **Usage overview** — token consumption trends for the last 7 / 30 / 90 days,
+  per-project and per-model distributions, and a 7×24 activity heatmap. Every
+  figure carries a provenance badge (read from the log / estimated), the
+  estimated cost is priced per model against an offline pricing snapshot (date
+  shown), and everything is aggregated locally — nothing is uploaded.
 - **Session explorer** — sessions grouped by timeline (today / yesterday /
   this week / this month / earlier) and by project, with incrementally
   scanned titles and relative times.
@@ -37,11 +63,17 @@ both light and dark themes, is archived in
 - **AI analysis reports** — structured prompts sent to your local `claude`
   CLI, rendered as Markdown with syntax highlighting; cancellable at any
   time, with per-node and per-time-block scoping.
-- **Usage overview** — token trends for the last 7 / 30 / 90 days,
-  per-project and per-model distributions, and a 7×24 activity heatmap;
-  the estimated cost is priced per model against an offline pricing
-  snapshot (date shown), and every figure carries a provenance badge
-  (read from the log / estimated). Aggregated locally, nothing uploaded.
+- **Session readouts, ruler and keyboard navigation** — the session header
+  opens with a readout row (total duration / input / cache read / output /
+  records), clicked to expand the token panel; the timeline gained tick marks,
+  a hover crosshair and a live selection readout; the three data tables share
+  one row-navigation model (↑↓, Home/End, Enter/Space). A button in the header
+  copies a ready-to-run `claude --resume` command for that session.
+- **Two-channel auto-update** — choose the stable channel (default, promoted
+  after maintainer verification) or the beta channel (built automatically each
+  feature round), check on demand and install with one click. Packages are
+  signature-verified, and a check is a single read of the GitHub releases
+  page — no data is uploaded.
 - **Realtime monitor** — embeds a local monitoring dashboard you run
   yourself (not shipped in this repo), opened on demand, with a
   floating-window mode.
@@ -115,15 +147,22 @@ cd web && npm install && npm run dev   # Vite dev server on 127.0.0.1:5173
 cargo run --manifest-path src-tauri/Cargo.toml
 ```
 
-Pre-push checks (same as CI):
+Pre-push checks — run the layers your change touches. The authoritative rules
+(which layer a change needs, and what counts as done) live in
+[`.trellis/spec/testing/`](.trellis/spec/testing/index.md), reached from
+[`AGENTS.md`](AGENTS.md) → Testing Guidelines; the command list below is a
+summary kept in sync with that source.
 
 ```bash
-./scripts/lint.sh                      # static checks: actionlint, yamllint, shellcheck, zizmor
-npm --prefix web test
-npm --prefix web run build
+./scripts/lint.sh                       # static checks: actionlint, yamllint, shellcheck, zizmor
+npm --prefix web test                   # unit / component tests (Vitest)
+npm --prefix web run test:e2e           # end-to-end tests (Playwright, Chromium + WebKit)
+npm --prefix web run build              # type-check + production build
 cargo fmt --manifest-path src-tauri/Cargo.toml --check
-cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+./scripts/gui-test.sh                   # packaged-app smoke test (a build must exist; run after packaging / IPC changes)
 ```
 
 ## Repository layout
@@ -139,10 +178,19 @@ package.json   build toolchain (Tauri CLI) and the packaging entry points
 
 ## Roadmap
 
-- [ ] Session comparison across time (weekly/monthly trends)
-- [ ] Report templates and export formats
-- [ ] Additional platform support
-- [ ] Frontend upgrade to React 19 (requires moving `@types/react` / `@types/react-dom` together)
+The roadmap tracks open issues; each item links to the issue that owns it.
+
+- [ ] Local archive repo — keep sessions past Claude Code's own cleanup, and
+  analyse across months and years
+  ([#70](https://github.com/liang-zhenxiang/cc-analyzer/issues/70))
+- [ ] Structured export — CSV and single-file HTML
+  ([#71](https://github.com/liang-zhenxiang/cc-analyzer/issues/71))
+- [ ] Accessibility & performance pack — ANSI rendering, virtual scrolling,
+  font scaling
+  ([#73](https://github.com/liang-zhenxiang/cc-analyzer/issues/73))
+- [ ] Frontend upgrade to React 19, moving `@types/react` / `@types/react-dom`
+  together
+  ([#19](https://github.com/liang-zhenxiang/cc-analyzer/issues/19))
 
 Have an idea? [Open a feature request](https://github.com/liang-zhenxiang/cc-analyzer/issues/new/choose).
 
