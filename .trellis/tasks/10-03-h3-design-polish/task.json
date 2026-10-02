@@ -18,7 +18,10 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [],
+  "children": [
+    "10-03-h3a-tokens-components",
+    "10-03-h3b-density-actions"
+  ],
   "parent": "10-03-round-h-visual",
   "relatedFiles": [],
   "notes": "",
