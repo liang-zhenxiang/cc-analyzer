@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **版本徽章标出先行版**：版本号带 `-`（如 `0.10.0-beta.2`）时徽章显式加「Beta」标记并用警示色描边——装的是稳定版还是先行版应当一眼可辨，而不是让人去比对版本号里有没有 `-beta`。
+
+
 ### Added
 
 - **顶栏版本徽章**：应用名旁显示当前运行版本（点击复制「CC Analyzer vX.Y.Z」）。版本号取自 Rust 的 `package_info()`——编译进二进制的真实版本，不是前端常量，所以它不可能「显示新版本而实际还是旧的」；自动更新把应用换掉之后，顶栏数字随笔就变，是升级是否生效的第一眼证据。
