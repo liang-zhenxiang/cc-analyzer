@@ -9,6 +9,7 @@ import { sessionHealth, sessionHealthText } from "./sessionHealth";
 import { resumeCommand } from "./resumeCommand";
 import { useNotifications } from "../../app/NotificationProvider";
 import { Button } from "../../components/Button";
+import { SkeletonBar } from "../../components/Skeleton";
 import styles from "./SessionHeader.module.css";
 
 /**
@@ -114,17 +115,20 @@ export function SessionHeader({
         className={styles.readouts}
         aria-label="会话读数"
         aria-expanded={tokenPanelOpen}
+        aria-busy={!parsed}
         disabled={!parsed}
         onClick={onToggleTokenPanel}
       >
         <span className={styles.readout}>
           <span className={styles.readoutLabel}>总耗时</span>
-          <b className={styles.readoutValue}>{total === null ? "…" : formatDuration(total)}</b>
+          <b className={styles.readoutValue}>
+            {total === null ? <SkeletonBar width="value" /> : formatDuration(total)}
+          </b>
         </span>
         <span className={styles.readout}>
           <span className={styles.readoutLabel}>输入</span>
           <b className={styles.readoutValue}>
-            {totals ? formatTokenCount(totals.input) : "…"}
+            {totals ? formatTokenCount(totals.input) : <SkeletonBar width="value" />}
           </b>
         </span>
         {/* 缓存读取往往比输入高一个数量级（tokenTotals.ts 的立场），
@@ -132,19 +136,19 @@ export function SessionHeader({
         <span className={styles.readout}>
           <span className={styles.readoutLabel}>缓存读取</span>
           <b className={styles.readoutValue}>
-            {totals ? formatTokenCount(totals.cacheRead) : "…"}
+            {totals ? formatTokenCount(totals.cacheRead) : <SkeletonBar width="value" />}
           </b>
         </span>
         <span className={styles.readout}>
           <span className={styles.readoutLabel}>输出</span>
           <b className={styles.readoutValue}>
-            {totals ? formatTokenCount(totals.output) : "…"}
+            {totals ? formatTokenCount(totals.output) : <SkeletonBar width="value" />}
           </b>
         </span>
         <span className={styles.readout}>
           <span className={styles.readoutLabel}>记录数</span>
           <b className={styles.readoutValue}>
-            {parsed ? parsed.records.length.toLocaleString("en-US") : "…"}
+            {parsed ? parsed.records.length.toLocaleString("en-US") : <SkeletonBar width="value" />}
           </b>
         </span>
       </button>

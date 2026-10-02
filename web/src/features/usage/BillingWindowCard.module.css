@@ -25,7 +25,7 @@
 
 .readout {
   display: grid;
-  gap: 2px;
+  gap: var(--sp-05);
   align-content: start;
   align-items: baseline;
   grid-auto-flow: column;

@@ -233,7 +233,7 @@
 
 .detail h4 {
   display: flex;
-  gap: 6px;
+  gap: var(--sp-15);
   align-items: baseline;
   margin: 0;
   color: var(--text);

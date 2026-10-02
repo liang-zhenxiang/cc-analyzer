@@ -964,8 +964,10 @@ token 化图标尺寸超出本轮范围（§C.3）。加注释说明「改图标
 
 - [ ] **`tokens.css` 是唯一来源**：新增/引用的每一个尺寸都能在 tokens.css 找到
       （`--sp-05` / `--sp-15` / `--row-pad-x` / `--row-pad-y` / `--row-pad-y-tight` / `--dur-pulse`）。
-- [ ] **间距字面量清零**：`grep` 间距类 2px/3px/6px 在 `tokens.css` 外无命中
-      （已注明的描边宽度与图形尺寸除外）。
+- [ ] **间距字面量清零**：`grep -rnE "(gap|padding|margin)[^;]*: [^;]*\b(2px|3px|6px)\b" web/src --include='*.css'`
+      在 `tokens.css` 外无命中（**已就地注明的「形」尺寸**除外）。
+      **唯一例外**：三张数据表的行内边距（`LogView` 的 `padding: 6px 10px` 等）由 H3b 的 §B.4
+      统一为 `--row-pad-*`，不在 H3a 范围内——该条在 H3a 合并后仍有这 1 处命中，H3b 合并后归零。
 - [ ] **`--r-lg` / `--warning` 保留且注释说明分工**（不是删掉）。
 - [ ] **三处加载态共用同一个骨架原语**（`components/Skeleton.*`，无第二份实现）。
 - [ ] **六处分段控件共用同一个组件**（`components/SegmentedControl.*`，无第二份实现）。

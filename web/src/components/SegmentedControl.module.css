@@ -1,0 +1,57 @@
+/* 分段控件：一个概念，一种画法。
+   凹陷的槽 + 抬起的滑块，构成一凹一凸；滑块用 --bg-subtle（深浅两主题下都与
+   顶栏背景同色），它的边界不靠「自己的一面」，而靠 --bg-inset 的槽把它框出来。
+   因此深浅两主题下都成立，无需任何主题分支。 */
+
+.root {
+  display: inline-flex;
+  gap: var(--sp-05);
+  padding: var(--sp-05);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+}
+
+.item {
+  min-height: var(--control-h-sm);
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-hover) var(--ease-in-out),
+    color var(--dur-hover) var(--ease-in-out);
+}
+
+.item:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 选中态：抬起面 + 阴影 + 字重 600。阴影（脱离文档流浮层唯一合法用途）与
+   字重在灰度截图下都还在，所以选中不只是一片颜色。 */
+.item[aria-selected="true"] {
+  background: var(--bg-subtle);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* wide：顶栏页面切换专用。88px 是**宽度**不是高度/颜色/圆角/时长，
+   不违反 tokens 纪律。 */
+.wide .item {
+  min-width: 88px;
+}
+
+/* equal：侧栏列表视图专用，两项等分。 */
+.equal .item {
+  flex: 1;
+}

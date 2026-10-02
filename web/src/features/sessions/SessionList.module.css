@@ -43,41 +43,9 @@
   padding-left: calc(var(--sp-2) + 14px + var(--sp-1));
 }
 
-/* 分段控件：与顶栏的页面切换同一种画法，同一个概念不学两遍。 */
-.sidebar [role="tablist"] {
-  display: flex;
-  gap: 2px;
+/* 分段控件的视觉由 SegmentedControl 组件负责；这里只给它侧栏内的外边距。 */
+.viewTabs {
   margin: 0 var(--sp-3);
-  padding: 2px;
-  border-radius: var(--r-sm);
-  background: var(--bg-inset);
-}
-
-.sidebar [role="tab"] {
-  flex: 1;
-  min-height: var(--control-h-sm);
-  border: 0;
-  border-radius: var(--r-xs);
-  background: transparent;
-  color: var(--text-tertiary);
-  font: inherit;
-  font-size: var(--fs-sm);
-  line-height: var(--lh-sm);
-  cursor: pointer;
-  transition:
-    background-color var(--dur-hover) var(--ease-in-out),
-    color var(--dur-hover) var(--ease-in-out);
-}
-
-.sidebar [role="tab"]:hover {
-  color: var(--text);
-}
-
-.sidebar [role="tab"][aria-selected="true"] {
-  background: var(--bg-subtle);
-  box-shadow: var(--shadow-sm);
-  color: var(--text);
-  font-weight: 600;
 }
 
 .groups {
@@ -176,7 +144,7 @@
 .groups .sessionRowWithStatus button {
   display: grid;
   width: 100%;
-  gap: 2px;
+  gap: var(--sp-05);
   padding: 8px 10px;
   /* 没有边框：选中态用的是内嵌阴影，而 1px 边框会让按钮比 54px 的行高多出 2px，
      被 .sessionRow 的 overflow: hidden 从底部切掉——正好切在文字下沿。 */

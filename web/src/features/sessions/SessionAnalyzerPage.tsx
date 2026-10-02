@@ -5,6 +5,8 @@ import { useSessions } from "./useSessions";
 import { SessionList } from "./SessionList";
 import { SessionHeader } from "./SessionHeader";
 import { EmptyState } from "../../components/EmptyState";
+import { SegmentedControl, type SegmentedItem } from "../../components/SegmentedControl";
+import { Skeleton } from "../../components/Skeleton";
 import { FilterBar } from "./FilterBar";
 import { TimelineTrack } from "./TimelineTrack";
 import { TokenPanel } from "./TokenPanel";
@@ -30,6 +32,11 @@ import type { ParsedSession, ParsedSessionGraph, SessionRecord } from "./types";
 import styles from "./SessionAnalyzerPage.module.css";
 
 type AnalyzerView = "log" | "tree";
+
+const ANALYZER_VIEW_ITEMS: SegmentedItem<AnalyzerView>[] = [
+  { value: "log", label: "日志视图" },
+  { value: "tree", label: "树视图" }
+];
 
 const VIEW_STORAGE_KEY = "cca-analyzer-view";
 
@@ -348,17 +355,23 @@ export function SessionAnalyzerPage({
         />
         <div className={styles.workspace}>
           {!parsed ? (
-            <EmptyState
-              size="page"
-              title={
-                parsing
-                  ? `正在解析会话… ${Math.round((parseProgress ?? 0) * 100)}%`
-                  : "选择一个会话开始分析"
-              }
-              description={
-                parsing ? undefined : "从左侧列表挑一个会话，或先在搜索框里按会话 ID、目录筛选。"
-              }
-            />
+            parsing ? (
+              // 解析期间工作区里还没有表格，用表格剪影占住它将要出现的形状；
+              // 上方保留确定型进度——剪影说「有内容要来」，百分比说「还差多远」，
+              // 两者不冲突，砍掉数字才是丢信息。
+              <div className={styles.parsing}>
+                <div className={styles.parseProgress} role="status">
+                  正在解析会话 {Math.round((parseProgress ?? 0) * 100)}%
+                </div>
+                <Skeleton variant="table" rows={8} label="正在解析会话" />
+              </div>
+            ) : (
+              <EmptyState
+                size="page"
+                title="选择一个会话开始分析"
+                description="从左侧列表挑一个会话，或先在搜索框里按会话 ID、目录筛选。"
+              />
+            )
           ) : (
             <>
               {/* 会话级的东西排在时间线之上：成本/计数是会话的属性，
@@ -374,19 +387,12 @@ export function SessionAnalyzerPage({
               />
               <FilterBar filter={filter} onChange={setFilter} />
               <div className={styles.viewBar}>
-                <div className={styles.viewTabs} role="tablist" aria-label="视图切换">
-                  {(["log", "tree"] as const).map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      role="tab"
-                      aria-selected={view === value}
-                      onClick={() => setView(value)}
-                    >
-                      {value === "log" ? "日志视图" : "树视图"}
-                    </button>
-                  ))}
-                </div>
+                <SegmentedControl
+                  items={ANALYZER_VIEW_ITEMS}
+                  value={view}
+                  onChange={setView}
+                  ariaLabel="视图切换"
+                />
                 <div className={styles.graphStatus} role="status" aria-label="会话图状态">
                   {graphLoading
                     ? "会话图加载中…"

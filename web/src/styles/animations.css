@@ -27,3 +27,15 @@
     transform: none;
   }
 }
+
+/* 加载骨架的呼吸：只负责「变暗」这一段。条的基色 --bg-hover 本身
+   就是静止可见的形态，动画结束后回到 base style（不设 fill-mode），
+   所以 prefers-reduced-motion 归零动画后留下的是稳定实心条，而不是空白。 */
+@keyframes cca-breathe {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}

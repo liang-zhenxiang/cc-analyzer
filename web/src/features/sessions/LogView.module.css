@@ -58,7 +58,10 @@
    类别色因此进入每一行，扫读时不用先找到时间线或树视图。 */
 .kind {
   display: inline-block;
-  padding: 1px var(--sp-1) 1px 6px;
+  /* 这里的 1px（上/下）、2px（左侧描边）是「形」不是「距」：1px 是让标签贴边的
+     发丝竖直内距，2px 是类别色描边——把它们塞进 --sp-* 会让间距序列混入描边/图形值。
+     右侧 6px 是真正的文字内距，走 --sp-15。 */
+  padding: 1px var(--sp-1) 1px var(--sp-15);
   border-left: 2px solid var(--row-color, var(--text-tertiary));
   border-radius: var(--r-xs);
   background: var(--bg-inset);

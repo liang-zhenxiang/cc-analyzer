@@ -1,7 +1,8 @@
 import type { WorkspaceTab } from "./AppShell";
+import { SegmentedControl, type SegmentedItem } from "../components/SegmentedControl";
 import styles from "./AppShell.module.css";
 
-const tabs: Array<{ value: WorkspaceTab; label: string }> = [
+const tabs: SegmentedItem<WorkspaceTab>[] = [
   { value: "analyzer", label: "会话分析" },
   { value: "usage", label: "用量总览" },
   { value: "monitor", label: "实时监控" }
@@ -15,18 +16,13 @@ export function WorkspaceTabs({
   onChange: (tab: WorkspaceTab) => void;
 }) {
   return (
-    <nav className={styles.workspaceTabs} role="tablist" aria-label="页面切换">
-      {tabs.map((tab) => (
-        <button
-          key={tab.value}
-          type="button"
-          role="tab"
-          aria-selected={value === tab.value}
-          onClick={() => onChange(tab.value)}
-        >
-          {tab.label}
-        </button>
-      ))}
-    </nav>
+    <SegmentedControl
+      items={tabs}
+      value={value}
+      onChange={onChange}
+      ariaLabel="页面切换"
+      variant="wide"
+      className={styles.workspaceTabs}
+    />
   );
 }
