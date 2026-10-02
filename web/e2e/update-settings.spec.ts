@@ -16,6 +16,11 @@ async function openUpdateSection(page: Page) {
 }
 
 test.describe("软件更新", () => {
+  test("顶栏版本徽章显示当前版本（升级生效的第一眼证据）", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("button", { name: /当前版本 v0\.10\.0/ })).toBeVisible();
+  });
+
   test("更新区展示当前版本与渠道选择，默认稳定版", async ({ page }) => {
     const panel = await openUpdateSection(page);
     await expect(panel.getByText("软件更新")).toBeVisible();

@@ -804,6 +804,7 @@ mod tests {
 
     const LIB_RS: &str = include_str!("lib.rs");
     const BUILD_RS: &str = include_str!("../build.rs");
+    const CAPABILITY: &str = include_str!("../capabilities/default.json");
 
     /// 取出 `text` 里每一处 `marker` 之后、到最近的 `]` 为止的标识符（去引号、去空白）。
     ///
@@ -865,6 +866,33 @@ mod tests {
             "build.rs 的 app_manifest 与 lib.rs 的 generate_handler! 不一致：\n  \
              只有 lib.rs 注册（build.rs 漏声明，权限不会被生成）: {missing:?}\n  \
              只有 build.rs 声明（注册不存在的命令）: {extra:?}"
+        );
+    }
+
+    #[test]
+    fn every_app_command_is_allowed_in_the_capability() {
+        // 缺 `allow-<命令>` 的后果是静默的：命令注册得好好的、build 全绿，
+        // 但前端 invoke 一律被拒——用户侧表现为「版本未知」「检查更新一直失败」。
+        // v0.9.0-beta.1 就是这么把整个更新功能发出去的，这条测试专门堵它。
+        let manifest = BUILD_RS
+            .find(APP_MANIFEST_MARKER)
+            .expect("build.rs 里找不到 app_manifest(");
+        let declared = bracketed_items_after(&BUILD_RS[manifest..], concat!(".commands(&", "["))
+            .into_iter()
+            .next()
+            .expect("app_manifest 里找不到 .commands(&[...])");
+
+        let missing: Vec<String> = declared
+            .iter()
+            .filter_map(|command| {
+                let permission = format!("allow-{}", command.replace('_', "-"));
+                (!CAPABILITY.contains(&format!("\"{permission}\""))).then_some(permission)
+            })
+            .collect();
+
+        assert!(
+            missing.is_empty(),
+            "capabilities/default.json 缺少这些命令的授权（前端 invoke 会被拒）：{missing:?}"
         );
     }
 

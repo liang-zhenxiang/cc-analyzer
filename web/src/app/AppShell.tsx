@@ -11,6 +11,7 @@ import { BrandMark } from "../components/BrandMark";
 import { Icon } from "../components/Icon";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { SearchPalette } from "../features/search/SearchPalette";
+import { VersionBadge } from "./VersionBadge";
 import { loadAutoCheck, loadChannel } from "../features/settings/updateChannel";
 import { BridgesProvider } from "../api/bridges";
 import type { Bridges } from "../api/types";
@@ -118,6 +119,8 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
               <span className={styles.brand}>
                 <BrandMark size={18} />
                 <strong>CC Analyzer</strong>
+                {/* 版本徽章紧挨字标：升级是否生效，第一眼就能读到。 */}
+                <VersionBadge />
               </span>
               <WorkspaceTabs value={tab} onChange={setTab} />
               <div className={styles.topbarActions}>
