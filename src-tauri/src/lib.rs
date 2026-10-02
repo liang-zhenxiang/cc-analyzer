@@ -559,6 +559,10 @@ fn import_session_menu(app: &tauri::AppHandle) {
 /// 真机 GUI 测试取证：把应用自己的 webview 渲染成 PDF。
 ///
 mod updater;
+// 顶层重导出：generate_handler 以裸名注册，build.rs 的权限清单才能用
+// 裸名——带 `::` 的名字会生成 Windows 文件系统非法的权限文件名
+// （v0.9.0-beta.1 的 Windows 构建当场拦下）。
+use updater::{app_version, check_updates, install_update, relaunch_app};
 
 /// **为什么需要它**：macOS 上截取屏幕内容要「屏幕录制」权限，而那只有使用者能在
 /// 系统设置里授予——脚本无法申请。实测过连「进程截自己的窗口」也会拿到一张
@@ -740,10 +744,10 @@ pub fn run() {
             app_data_dir,
             monitor_port,
             monitor_ping,
-            updater::app_version,
-            updater::check_updates,
-            updater::install_update,
-            updater::relaunch_app,
+            app_version,
+            check_updates,
+            install_update,
+            relaunch_app,
         ])
         .setup(|app| {
             use tauri::menu::{MenuBuilder, SubmenuBuilder};

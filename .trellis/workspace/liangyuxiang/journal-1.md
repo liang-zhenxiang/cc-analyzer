@@ -224,3 +224,41 @@ Finder/Dock 那种收窄的 PATH）复核，发现**自己的修复本身还有�
 ### Status
 
 [OK] **Completed**（PR #85 待 CI）
+
+
+## Session 2026-10-02 · Round F：双渠道自动更新（auto-update）
+
+### What Happened
+
+- **目标**（用户原话要点）：beta 渠道 AI 自动发版；稳定版维护者「配一个 tag
+  或点一下」晋升；设置里可选渠道；要把流水线配好并讲清怎么发稳定版。
+- **实现**：tauri-plugin-updater（minisign 签名，公钥入仓/私钥仅 GitHub
+  Secrets——gh secret set 写入后本地密钥材料即焚）；Rust 侧渠道 endpoint
+  运行时拼（channel_endpoint 纯函数可测）+ PendingUpdate 状态 + 四命令；
+  前端设置「软件更新」区 + 启动静默检查（挂在 NotificationProvider 内——
+  AppShell 体内拿不到自家 Provider 的教训）；e2e mock 扩 updater 两态。
+- **流水线**：release.yml 渠道感知（tag 形态分流）+ 签名产物上传 +
+  make-updater-json.sh（一份映射两渠道共用）+ rolling release 刷新；
+  promote-stable.yml 一键晋升（门禁→版本收敛→CHANGELOG 归档→打 tag→
+  同步 PR）。
+- **踩的坑**：
+  1. 本地构建带 pubkey 无私钥必败——TAURI_BUILD_CONFIG overlay 关掉
+     updater 产物（私钥不出 CI 是刻意的）；
+  2. build.rs 命令清单治理测试当场拦住「注册了但清单没声明」（该项目
+     测试设计者预期的样子）；
+  3. 两次 Python 补丁把 bash if/fi 搞断 + 空数组展开撞 bash 3.2 set -u
+     （项目硬规则第三次救场）；
+  4. mod updater; 插进 cfg 属性与 mod gui_capture 之间，属性错挂。
+- **验证**：500 前端 + 17 Rust + 双引擎 e2e 35+35 + lint（新 workflow
+  过 actionlint/yamllint/zizmor）+ 真机 GUI 11/11（无更新源 404 场景
+  的「失败不打扰」实证）。v0.9.0-beta.1 tag 已推，release.yml 首跑验证中。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e90dc95` | feat(updater): 双渠道自动更新 (#88) |
+
+### Status
+
+[OK] **Completed**（beta 链路实跑验证中）
