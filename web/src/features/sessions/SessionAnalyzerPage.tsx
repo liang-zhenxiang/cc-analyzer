@@ -41,7 +41,14 @@ function readStoredView(): AnalyzerView {
   }
 }
 
-export function SessionAnalyzerPage() {
+export function SessionAnalyzerPage({
+  revealRequest = null,
+  onRevealHandled
+}: {
+  /** 全局搜索的跳转请求：打开该会话并定位到该记录。 */
+  revealRequest?: { path: string; recordId: string; nonce: number } | null;
+  onRevealHandled?: () => void;
+} = {}) {
   const bridges = useBridges();
   const { notify } = useNotifications();
   const { sessions, loading, error, progress, refresh } = useSessions();
@@ -62,6 +69,12 @@ export function SessionAnalyzerPage() {
   const [reportNode, setReportNode] = useState<DurationNode | null>(null);
   const [windowOnly, setWindowOnly] = useState(false);
   const reportAbortRef = useRef<AbortController | null>(null);
+  // 跳转 effect 的「只随请求发生一次」需要读取最新列表/选择而不重触发：
+  // 用 ref 镜像，让 effect 的 deps 保持最小。
+  const selectedSessionRef = useRef(selectedSession);
+  selectedSessionRef.current = selectedSession;
+  const sessionsRef = useRef(sessions);
+  sessionsRef.current = sessions;
   const [mode, setMode] = useState<ReportMode>("whole");
   const [report, setReport] = useState<{
     text: string;
@@ -279,6 +292,30 @@ export function SessionAnalyzerPage() {
     setView("log");
     setHighlightId(recordId);
   }, []);
+
+  // 全局搜索跳转，拆成两个职责单一的 effect——「打开会话」与「定位记录」。
+  // 混在一个 effect 里让 openSession 依赖进 deps，会被回调身份抖动反复
+  // 触发（实测在真实键盘事件下变成同步重入风暴）；拆开后各自天然幂等：
+  // 打开只随请求发生一次，定位只在记录就绪时发生一次。
+  useEffect(() => {
+    if (!revealRequest) return;
+    if (selectedSessionRef.current?.path === revealRequest.path) return;
+    const target = sessionsRef.current.find((item) => item.path === revealRequest.path);
+    if (target) void openSession(target);
+    else onRevealHandled?.();
+    // 刻意只依赖 revealRequest：请求本身就是重放的单位。
+  }, [revealRequest, openSession, onRevealHandled]);
+
+  useEffect(() => {
+    if (!revealRequest) return;
+    if (selectedSession?.path !== revealRequest.path) return;
+    const record = parsed?.records.find((item) => item.fullId === revealRequest.recordId);
+    if (record) {
+      locateInLog(record.fullId);
+      setSelectedRecord(record);
+      onRevealHandled?.();
+    }
+  }, [revealRequest, selectedSession, parsed, locateInLog, onRevealHandled]);
 
   function revealRecord(recordId: string) {
     const record = parsed?.records.find((item) => item.fullId === recordId);

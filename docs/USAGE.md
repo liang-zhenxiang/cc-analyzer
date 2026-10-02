@@ -39,6 +39,12 @@ npm run build:macos:arm64  # 或 build:macos:intel / build:windows
 - 应用分析的数据来自本机 Claude Code 的会话目录（`~/.claude/projects`），
   本机安装过 Claude Code 并产生过会话即可
 
+## 快捷键与全局搜索
+
+- **⌘K / Ctrl+K**（或顶栏放大镜按钮）唤起全局搜索：跨全部项目搜索会话
+  消息，结果按项目分组；↑↓ 选择，Enter 跳转到该会话并定位记录、展开详情，
+  Esc 关闭。索引在后台渐进构建（面板内显示进度），纯内存不落盘。
+
 ## 功能总览
 
 应用围绕「AI 编码会话回顾」组织，顶部工作区标签在「会话分析」「用量总览」

@@ -10,6 +10,7 @@ import { Button, IconButton } from "../components/Button";
 import { BrandMark } from "../components/BrandMark";
 import { Icon } from "../components/Icon";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { SearchPalette } from "../features/search/SearchPalette";
 import { BridgesProvider } from "../api/bridges";
 import type { Bridges } from "../api/types";
 import styles from "./AppShell.module.css";
@@ -43,6 +44,25 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
   const [tab, setTab] = useState<WorkspaceTab>(readStoredTab);
   const [floating, setFloating] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [revealRequest, setRevealRequest] = useState<{
+    path: string;
+    recordId: string;
+    nonce: number;
+  } | null>(null);
+
+  // ⌘K / Ctrl+K 唤起全局搜索。监听挂在 window：快捷键在顶栏按钮之外
+  // 也要随处可用，且面板关闭时不拦截输入。
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSearchOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     try {
@@ -81,6 +101,13 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
                   </Button>
                 ) : null}
                 <IconButton
+                  label="全局搜索"
+                  aria-expanded={searchOpen}
+                  onClick={() => setSearchOpen((open) => !open)}
+                >
+                  <Icon name="search" size={16} />
+                </IconButton>
+                <IconButton
                   label="设置"
                   aria-expanded={settingsOpen}
                   onClick={() => setSettingsOpen((open) => !open)}
@@ -94,7 +121,10 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
           <main className={styles.content}>
             <ErrorBoundary>
               {tab === "analyzer" ? (
-                <SessionAnalyzerPage />
+                <SessionAnalyzerPage
+                  revealRequest={revealRequest}
+                  onRevealHandled={() => setRevealRequest(null)}
+                />
               ) : tab === "usage" ? (
                 <UsageOverviewPage />
               ) : (
@@ -102,6 +132,15 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
               )}
             </ErrorBoundary>
           </main>
+          {/* 浮层在 shell 之外顶层渲染；跳转先切回会话分析页再发请求。 */}
+          <SearchPalette
+            open={searchOpen}
+            onClose={() => setSearchOpen(false)}
+            onReveal={(path, recordId) => {
+              setTab("analyzer");
+              setRevealRequest({ path, recordId, nonce: Date.now() });
+            }}
+          />
           </div>
         </NotificationProvider>
       </BridgesProvider>

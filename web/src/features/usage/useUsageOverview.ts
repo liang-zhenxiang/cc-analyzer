@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useBridges } from "../../api/bridges";
 import { useSessions } from "../sessions/useSessions";
 import { parseJsonlTextAsync } from "../sessions/parseJsonl";
-import { createSessionParseCache, type SessionParseCache } from "../sessions/sessionParseCache";
+import { sharedSessionParseCache } from "../sessions/sessionParseCache";
 import type { SessionMeta } from "../sessions/metadataCache";
 import type { ParsedSession } from "../sessions/types";
 import {
@@ -14,14 +14,9 @@ import {
   type UsageSessionInput
 } from "./usageAggregations";
 
-/**
- * Module-level on purpose: `AppShell` unmounts a page when the user leaves the
- * tab, so a ref inside this hook would be dropped and the second visit would
- * re-parse everything. Entries are validated against mtime + size, so an edited
- * file is always re-read — the cache can only be stale within one mount, never
- * wrong.
- */
-const parseCache: SessionParseCache = createSessionParseCache();
+// 解析缓存与全局搜索共享同一单例（见 sessionParseCache.ts 的注释）：
+// 一个文件只解析一次，消费方再多也不重复付费。
+const parseCache = sharedSessionParseCache;
 
 /**
  * Intermediate results reach the page in batches: every `setInputs` changes the
