@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ThemeProvider, useTheme } from "./ThemeProvider";
-import { NotificationProvider } from "./NotificationProvider";
+import { NotificationProvider, useNotifications } from "./NotificationProvider";
 import { SessionAnalyzerPage } from "../features/sessions/SessionAnalyzerPage";
 import { MonitorPage } from "../features/monitor/MonitorPage";
 import { UsageOverviewPage } from "../features/usage/UsageOverviewPage";
@@ -11,6 +11,7 @@ import { BrandMark } from "../components/BrandMark";
 import { Icon } from "../components/Icon";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { SearchPalette } from "../features/search/SearchPalette";
+import { loadAutoCheck, loadChannel } from "../features/settings/updateChannel";
 import { BridgesProvider } from "../api/bridges";
 import type { Bridges } from "../api/types";
 import styles from "./AppShell.module.css";
@@ -38,6 +39,30 @@ function ThemeToggle() {
       <Icon name={theme === "light" ? "moon" : "sun"} size={16} />
     </IconButton>
   );
+}
+
+/**
+ * 启动时静默检查一次更新。挂在 NotificationProvider 内部（AppShell 本体
+ * 在自己的 return 里才渲染 Provider，体内拿不到 notify）。
+ */
+function StartupUpdateCheck({ bridges }: { bridges: Bridges }) {
+  const { notify } = useNotifications();
+  useEffect(() => {
+    if (!loadAutoCheck() || !bridges.updater) return;
+    let cancelled = false;
+    bridges.updater
+      .checkUpdates(loadChannel())
+      .then((result) => {
+        if (!cancelled && result.available) {
+          notify(`发现新版本 ${result.version}，可在「设置 → 软件更新」安装。`);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [bridges, notify]);
+  return null;
 }
 
 export function AppShell({ bridges }: { bridges: Bridges }) {
@@ -87,6 +112,7 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
     <ThemeProvider>
       <BridgesProvider bridges={bridges}>
         <NotificationProvider>
+          <StartupUpdateCheck bridges={bridges} />
           <div className={styles.shell}>
             <header className={styles.topbar}>
               <span className={styles.brand}>

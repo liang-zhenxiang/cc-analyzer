@@ -97,6 +97,11 @@ jobs:
         env:
           # ${{ }} 不直接写进 run:，经 env 中转（表达式注入防线）
           BUILD_SCRIPT: ${{ matrix.script }}
+          # 更新包签名（minisign）：私钥只在 GitHub Secrets，产物带 .sig，
+          # 客户端用 tauri.conf.json 里的公钥强校验。缺钥时 tauri 会跳过
+          # updater 产物——发布更新渠道的构建绝不能缺，所以放行失败。
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         shell: bash
         run: |
           #!/usr/bin/env bash
@@ -118,6 +123,8 @@ jobs:
             ${{ matrix.dist }}/*.dmg
             ${{ matrix.dist }}/*.exe
             ${{ matrix.dist }}/*.zip
+            ${{ matrix.dist }}/*.tar.gz
+            ${{ matrix.dist }}/*.sig
           if-no-files-found: error
           retention-days: 3
 
@@ -455,3 +462,48 @@ jobs:
 
           echo "✅ Release ${TAG} 已创建并附带构建产物"
           echo "### 🚀 Release [${TAG}](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}) 已发布（含 macOS / Windows 产物）" >> "$GITHUB_STEP_SUMMARY"
+
+      # -----------------------------------------------------------------------
+      # ⑥ 更新渠道源：按 tag 形态分流（v*-* → beta，v* → stable），
+      #    生成 latest-*.json 并刷新 rolling release（固定 tag `beta`/`stable`，
+      #    资产 URL 恒定，应用按渠道取这份 JSON）。
+      # -----------------------------------------------------------------------
+      - name: 记录发布时间
+        id: pubdate
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          echo "iso=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: 更新渠道源（latest-*.json + rolling release）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          UPDATE_PUB_DATE: ${{ steps.pubdate.outputs.iso }}
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          version="${TAG#v}"
+          if [[ "$TAG" == *-* ]]; then
+            channel="beta"
+          else
+            channel="stable"
+          fi
+          json_name="latest-${channel}.json"
+          echo "渠道：${channel}（${TAG} → ${json_name}）"
+
+          ./scripts/make-updater-json.sh "$version" "$TAG" release-notes.md artifacts > "$json_name"
+          echo "=== ${json_name} ==="
+          cat "$json_name"
+
+          # rolling release：删旧（连 tag）再建新，保持固定下载 URL 不变。
+          if gh release view "$channel" >/dev/null 2>&1; then
+            gh release delete "$channel" --yes --cleanup-tag
+          fi
+          gh release create "$channel" "$json_name" \
+            --target "$GITHUB_SHA" \
+            --title "${channel} 渠道更新源" \
+            --notes "这是 ${channel} 渠道的自动更新源（固定资产 latest-${channel}.json），由 ${TAG} 的发布刷新。请勿手动下载这里的文件。"
+          echo "✅ ${channel} 渠道更新源已刷新"
+          echo "### 🔄 更新渠道 ${channel} 的更新源已刷新" >> "$GITHUB_STEP_SUMMARY"

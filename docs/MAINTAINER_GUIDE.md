@@ -23,7 +23,35 @@ Security，不自创分类。
 [`.trellis/spec/guides/release-notes.md`](../.trellis/spec/guides/release-notes.md)，
 **权威位置在那里，这里只做引用**。
 
-## 发布流程
+## 双渠道发布（beta 全自动 / 稳定一键晋升）
+
+应用内置自动更新，分两个渠道：
+
+- **beta 渠道**：AI 维护者每轮功能合并后发一版 `vX.Y.Z-beta.N`。发布动作
+  = 把三处版本号改成 `X.Y.Z-beta.N`（合并进当轮收尾 PR）→ 推 tag。
+  `release.yml` 会构建三平台、签名、发 prerelease、并刷新
+  `beta` rolling release 上的 `latest-beta.json`——beta 用户随即收到更新。
+- **稳定渠道**：维护者觉得某个 beta 用得舒服了，把它晋升：
+  1. 打开 <https://github.com/liang-zhenxiang/cc-analyzer/actions/workflows/promote-stable.yml>
+  2. **Run workflow** → 填 `beta_tag`（如 `v0.9.0-beta.3`），可选担一句主题
+  3. 完成。工作流会：在该 beta 提交上跑全量门禁 → 版本收敛为 `X.Y.Z` →
+     CHANGELOG 归档 → 打 `vX.Y.Z` tag 触发正式发布 → 刷新 stable 更新源 →
+     自动开一个「版本同步」PR 回 main（合并不急，tag 已发布）。
+
+  命令行等价：`gh workflow run promote-stable.yml -f beta_tag=v0.9.0-beta.3`
+
+两条硬规则：
+- 稳定版的代码**就是**你试用的那个 beta 的代码（工作流 checkout 该 tag 构建，
+  不会夹带 main 上更新的未验证提交）。
+- 晋升门禁不绿不发布；门禁与 PR CI 同源（前端测试/构建 + Rust 全家桶）。
+
+签名密钥：私钥在 GitHub Secrets（`TAURI_SIGNING_PRIVATE_KEY` /
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`），公钥在 `tauri.conf.json`。
+**私钥丢失 = 更新渠道永久失效**，请自行备份（本机生成时若未留副本，
+需要重新生成并连带发一个大版本让旧客户端换公钥——代价很高）。
+
+## 发布流程（手动兜底）
+
 
 1. 从最新 `main` 切 `chore/release-vX.Y.Z` 分支。
 2. **版本号三处同步**（缺一不可，见仓库配置清单）：

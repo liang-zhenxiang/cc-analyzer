@@ -68,7 +68,8 @@ function createBridges(files: Record<string, string>): Bridges {
     clipboard: {} as Bridges["clipboard"],
     dialog: {} as Bridges["dialog"],
     events: { onSessionImport: vi.fn(async () => () => undefined) },
-    monitor: {} as Bridges["monitor"]
+    monitor: {} as Bridges["monitor"],
+    updater: {} as Bridges["updater"]
   };
 }
 

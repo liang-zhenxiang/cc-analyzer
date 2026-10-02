@@ -12,6 +12,16 @@ import {
   type ThresholdKey
 } from "./thresholds";
 import { PLAN_PRESETS, setPlan, usePlan, type PlanId } from "../usage/planLimits";
+import { useBridges } from "../../api/bridges";
+import {
+  CHANNEL_LABELS,
+  loadAutoCheck,
+  loadChannel,
+  storeAutoCheck,
+  storeChannel,
+  type UpdateChannel
+} from "./updateChannel";
+import type { UpdateCheck } from "../../api/types";
 import styles from "./ThresholdsPanel.module.css";
 
 function ThresholdField({ thresholdKey }: { thresholdKey: ThresholdKey }) {
@@ -67,6 +77,43 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (!customFocused) setCustomDraft(String(plan.limitTokens ?? ""));
   }, [customFocused, plan.limitTokens]);
+  const bridges = useBridges();
+  const [channel, setChannel] = useState<UpdateChannel>(() => loadChannel());
+  const [autoCheck, setAutoCheck] = useState(() => loadAutoCheck());
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [checkResult, setCheckResult] = useState<UpdateCheck | null>(null);
+  const [checkError, setCheckError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [installing, setInstalling] = useState(false);
+
+  useEffect(() => {
+    void bridges.updater?.appVersion().then(setAppVersion, () => setAppVersion("未知"));
+  }, [bridges]);
+
+  async function runCheck() {
+    setChecking(true);
+    setCheckError(null);
+    try {
+      setCheckResult(await bridges.updater.checkUpdates(channel));
+    } catch (cause) {
+      setCheckResult(null);
+      setCheckError(`检查失败：${String(cause)}`);
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  async function installAndRelaunch() {
+    if (!checkResult?.available) return;
+    setInstalling(true);
+    try {
+      await checkResult.install();
+      await bridges.updater.relaunch();
+    } catch (cause) {
+      setCheckError(`安装失败：${String(cause)}`);
+      setInstalling(false);
+    }
+  }
 
   return (
     <section className={styles.panel} aria-label="阈值设置">
@@ -140,6 +187,71 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
             </span>
             <span className={styles.hint}>四舍五入到整数；留空表示不设上限。</span>
           </label>
+        ) : null}
+      </div>
+      <h3 className={styles.sectionTitle}>软件更新</h3>
+      <p className={styles.note}>
+        更新检查只是读取 GitHub 发布页的一次下载请求，不上传任何数据。稳定版
+        由维护者人工验证后发布；Beta 是每轮功能自动构建的先行版。
+      </p>
+      <div className={styles.grid}>
+        <label className={styles.field}>
+          <span className={styles.label}>更新渠道</span>
+          <span className={styles.control}>
+            <select
+              aria-label="更新渠道"
+              className={styles.select}
+              value={channel}
+              onChange={(event) => {
+                const next = event.target.value as UpdateChannel;
+                setChannel(next);
+                storeChannel(next);
+              }}
+            >
+              <option value="stable">{CHANNEL_LABELS.stable}</option>
+              <option value="beta">{CHANNEL_LABELS.beta}</option>
+            </select>
+          </span>
+          <span className={styles.hint}>当前版本 {appVersion ?? "…"}</span>
+        </label>
+        <label className={styles.field}>
+          <span className={styles.label}>启动时自动检查</span>
+          <span className={styles.control}>
+            <input
+              type="checkbox"
+              aria-label="启动时自动检查更新"
+              checked={autoCheck}
+              onChange={(event) => {
+                setAutoCheck(event.target.checked);
+                storeAutoCheck(event.target.checked);
+              }}
+            />
+          </span>
+          <span className={styles.hint}>关闭后仍可随时手动检查。</span>
+        </label>
+      </div>
+      <div className={styles.updateRow}>
+        <Button type="button" onClick={() => void runCheck()} disabled={checking}>
+          {checking ? "检查中…" : "立即检查更新"}
+        </Button>
+        {checkResult ? (
+          checkResult.available ? (
+            <span className={styles.updateResult}>
+              发现新版本 {checkResult.version}{" "}
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => void installAndRelaunch()}
+                disabled={installing}
+              >
+                {installing ? "安装中…" : "安装并重启"}
+              </Button>
+            </span>
+          ) : (
+            <span className={styles.updateResult}>已是最新（{checkResult.currentVersion}）</span>
+          )
+        ) : checkError ? (
+          <span className={styles.updateError}>{checkError}</span>
         ) : null}
       </div>
       <footer className={styles.footer}>

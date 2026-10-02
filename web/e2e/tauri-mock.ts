@@ -27,6 +27,8 @@ export type MockScenario = {
   claudeResult?: { ok: boolean; error?: string; stderr?: string };
   /** `plugin:dialog|save` 返回的路径；null 表示用户取消 */
   savePath?: string | null;
+  /** 更新检查：缺省「已是最新」；给版本号则报有更新 */
+  updater?: { currentVersion?: string; version?: string; notes?: string | null };
 };
 
 /** 这个函数体在浏览器里运行，因此必须自包含（不能引用外部作用域） */
@@ -153,6 +155,27 @@ export function installTauriMock(scenario: MockScenario): void {
         case "exec_text":
           return { ok: true, out: "" };
         case "spawn_detached":
+          return null;
+        case "app_version":
+          return scenario.updater?.currentVersion ?? "0.0.0-mock";
+        case "check_updates": {
+          const u = scenario.updater;
+          if (u?.version) {
+            return {
+              available: true,
+              currentVersion: u.currentVersion ?? "0.0.0-mock",
+              version: u.version,
+              notes: u.notes ?? null
+            };
+          }
+          return {
+            available: false,
+            currentVersion: u?.currentVersion ?? "0.0.0-mock"
+          };
+        }
+        case "install_update":
+          return null;
+        case "relaunch_app":
           return null;
         case "monitor_port":
           return scenario.monitor?.port ?? 0;

@@ -107,6 +107,30 @@ export function installTauriBridges(): Bridges {
       monitorPort: () => invoke<number>("monitor_port"),
       pingMonitor: () => invoke<boolean>("monitor_ping")
     },
+    updater: {
+      appVersion: () => invoke<string>("app_version"),
+      // install 句柄由 Rust 侧 PendingUpdate 保存：check 与 install 命令
+      // 共享状态，前端不需要也不应该持有原生对象。
+      checkUpdates: async (channel: string) => {
+        const info = await invoke<{
+          available: boolean;
+          currentVersion: string;
+          version?: string;
+          notes?: string | null;
+        }>("check_updates", { channel });
+        if (!info.available) {
+          return { available: false as const, currentVersion: info.currentVersion };
+        }
+        return {
+          available: true as const,
+          currentVersion: info.currentVersion,
+          version: info.version ?? "",
+          notes: info.notes ?? null,
+          install: () => invoke<void>("install_update", { channel })
+        };
+      },
+      relaunch: () => invoke<void>("relaunch_app")
+    },
     custom: {
       enterFloatMode: async () => {
         await invoke<void>("plugin:float|enter");

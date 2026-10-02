@@ -18,7 +18,12 @@ const bridges = {
     stat: vi.fn(async () => ({ is_file: true, size: 1, mtime_ms: 1 }))
   },
   events: { onSessionImport: vi.fn(async () => () => undefined) },
-  monitor: { monitorPort: vi.fn(async () => 8090), pingMonitor: vi.fn(async () => true) }
+  monitor: { monitorPort: vi.fn(async () => 8090), pingMonitor: vi.fn(async () => true) },
+  updater: {
+    appVersion: vi.fn(async () => "0.0.0-test"),
+    checkUpdates: vi.fn(async () => ({ available: false, currentVersion: "0.0.0-test" })),
+    relaunch: vi.fn(async () => undefined)
+  }
 } as unknown as Bridges;
 
 /**

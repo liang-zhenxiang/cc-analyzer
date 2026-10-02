@@ -104,3 +104,23 @@
   font-family: inherit;
   font-size: var(--fs-base);
 }
+
+.updateRow {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  margin-top: var(--sp-1);
+}
+
+.updateResult {
+  display: inline-flex;
+  gap: var(--sp-2);
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
+.updateError {
+  color: var(--danger);
+  font-size: var(--fs-sm);
+}

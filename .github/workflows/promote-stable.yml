@@ -1,0 +1,178 @@
+# 维护者把一个 beta 版本晋升为稳定版的一键流水线。
+#
+# 用法（唯一的动作）：
+#   Actions → Promote Stable → Run workflow → 填 beta_tag（如 v0.9.0-beta.3）
+#   或命令行：
+#     gh workflow run promote-stable.yml -f beta_tag=v0.9.0-beta.3
+#
+# 它做什么：
+#   1. 校验该 beta tag 存在
+#   2. 在「该 beta 的确切提交」上跑全量功能门禁（前端测试/构建、Rust
+#      fmt/clippy/check/test）——晋升的代码就是维护者试用过的代码，
+#      门禁绿才继续
+#   3. 版本号从 X.Y.Z-beta.N 改为 X.Y.Z（三处同步 + Cargo.lock），
+#      CHANGELOG 的 [Unreleased] 归档为 [X.Y.Z]
+#   4. 提交到 chore/promote-vX.Y.Z 分支并打 vX.Y.Z tag → 触发
+#      release.yml：三平台构建、发稳定版、刷新 stable 渠道更新源
+#   5. 开一个 PR 把版本同步回 main（tag 已发布，PR 只是记账，合并不急）
+#
+# 为什么敢在 main 之外直接发版：这次运行本身就是维护者的人工批准，
+# 且步骤 2 的门禁与 PR CI 同源；tag 指向的提交即晋升提交，PR 合并后
+# main 与 tag 内容一致。
+
+name: Promote Stable
+run-name: 晋升 ${{ inputs.beta_tag }} → 稳定版
+
+on:
+  workflow_dispatch:
+    inputs:
+      beta_tag:
+        description: '要晋升的 beta tag（如 v0.9.0-beta.3）'
+        required: true
+        type: string
+      theme:
+        description: '本版主题一句话（可选，进 CHANGELOG 头部）'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 门禁：在被晋升的提交上重跑功能检查（lint 系检查在产出该提交的 PR
+  # 上已经跑过，这里补的是「此刻这份代码仍然全绿」的直接证据）。
+  # ---------------------------------------------------------------------------
+  gates:
+    name: 晋升门禁（功能全量检查）
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.beta_tag }}
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: '22'
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+
+      # 门禁跑「检查」不跑「发布构建」：缓存只影响速度，不影响产物
+      # （产物由 release.yml 在干净环境构建，红线不受影响）。
+      - name: 安装依赖
+        run: npm install --no-audit --no-fund && npm --prefix web install --no-audit --no-fund
+
+      - name: 前端测试
+        run: npm --prefix web test
+
+      - name: 前端构建（含 tsc 类型检查）
+        run: npm --prefix web run build
+
+      - name: Rust fmt / clippy / check / test
+        run: |
+          cargo fmt --manifest-path src-tauri/Cargo.toml --check
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+          cargo check --manifest-path src-tauri/Cargo.toml
+          cargo test --manifest-path src-tauri/Cargo.toml
+
+  # ---------------------------------------------------------------------------
+  # 晋升：版本收敛 + CHANGELOG 归档 + 打 tag 触发发布 + 开同步 PR。
+  # ---------------------------------------------------------------------------
+  promote:
+    name: 版本收敛与打 tag
+    needs: gates
+    runs-on: ubuntu-latest
+    permissions:
+      # 推分支/tag 与开 PR 需要写权限；发布本身交给 release.yml
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.beta_tag }}
+
+      - name: 校验 beta tag 与版本收敛
+        env:
+          BETA_TAG: ${{ inputs.beta_tag }}
+          THEME: ${{ inputs.theme }}
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          # v0.9.0-beta.3 → 稳定版 0.9.0；格式不合规则当场失败
+          if [[ ! "$BETA_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]]; then
+            echo "::error::beta_tag 必须形如 v0.9.0-beta.3，收到：${BETA_TAG}" >&2
+            exit 1
+          fi
+          stable="${BETA_TAG#v}"
+          stable="${stable%%-*}"
+          echo "STABLE_VERSION=${stable}" >> "$GITHUB_ENV"
+          echo "STABLE_TAG=v${stable}" >> "$GITHUB_ENV"
+
+          # 三处版本号同步（与人工发布流程同一套动作）
+          sed -i "s/\"version\": \".*\"/\"version\": \"${stable}\"/" web/package.json src-tauri/tauri.conf.json
+          sed -i "s/^version = \".*\"/version = \"${stable}\"/" src-tauri/Cargo.toml
+          grep -q "\"version\": \"${stable}\"" web/package.json
+          grep -q "^version = \"${stable}\"" src-tauri/Cargo.toml
+
+          # CHANGELOG：[Unreleased] 归档为 [X.Y.Z] - 今天，可带主题句
+          today="$(date +%Y-%m-%d)"
+          python3 - "$stable" "$today" "$THEME" <<'PY'
+          import sys
+
+          stable, today, theme = sys.argv[1], sys.argv[2], sys.argv[3]
+          text = open("CHANGELOG.md").read()
+          marker = "## [Unreleased]\n"
+          assert marker in text, "CHANGELOG 缺少 [Unreleased] 段"
+          heading = f"\n## [{stable}] - {today}\n"
+          if theme:
+              heading += f"\n本轮主题：{theme}\n"
+          # 归档：在 Unreleased 段后插入新版本标题，Unreleased 保留为空壳
+          text = text.replace(marker, marker + heading, 1)
+          open("CHANGELOG.md", "w").write(text)
+          PY
+
+      - name: 安装 Rust 工具链（刷新 Cargo.lock）
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+
+      - name: 刷新 Cargo.lock
+        run: cargo check --manifest-path src-tauri/Cargo.toml --quiet
+
+      - name: 提交并打 tag
+        env:
+          BETA_TAG: ${{ inputs.beta_tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          branch="chore/promote-${STABLE_TAG}"
+          git config user.name "cc-analyzer-promote"
+          git config user.email "actions@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add web/package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock CHANGELOG.md
+          git commit -m "chore(release): 发布 ${STABLE_TAG}（晋升自 ${BETA_TAG}）"
+
+          # git push 需要凭证：用 GH_TOKEN 换一个短期 app token（checkout
+          # 已 persist-credentials: false，这里显式一次性提供，不落盘）
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push "$remote" "$branch"
+          git tag -a "${STABLE_TAG}" -m "${STABLE_TAG}"
+          git push "$remote" "${STABLE_TAG}"
+
+          # 同步 PR：main 的版本号追平（tag 已发布，PR 只是记账）
+          gh pr create \
+            --title "chore(release): 发布 ${STABLE_TAG}（晋升自 ${BETA_TAG}）" \
+            --body "由 promote-stable 工作流自动创建：把 ${STABLE_TAG} 的版本号与 CHANGELOG 同步回 main。稳定版已由该工作流打 tag 发布。" \
+            --base main \
+            --head "$branch" || echo "::warning::PR 创建失败（可能已存在），tag 已发布不受影响"
+
+          echo "### ✅ ${STABLE_TAG} 已打 tag，release.yml 正在构建发布（含 stable 渠道更新源）" >> "$GITHUB_STEP_SUMMARY"

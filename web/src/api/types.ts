@@ -80,6 +80,24 @@ export interface MonitorBridge {
   pingMonitor(): Promise<boolean>;
 }
 
+/** One update check's outcome; `install` only exists when an update is pending. */
+export type UpdateCheck =
+  | { available: false; currentVersion: string }
+  | {
+      available: true;
+      currentVersion: string;
+      version: string;
+      notes: string | null;
+      /** 下载并安装（含签名校验）；完成后再由 relaunch 重启。 */
+      install: () => Promise<void>;
+    };
+
+export interface UpdaterBridge {
+  appVersion(): Promise<string>;
+  checkUpdates(channel: string): Promise<UpdateCheck>;
+  relaunch(): Promise<void>;
+}
+
 export interface CustomBridge {
   enterFloatMode(): Promise<void>;
   exitFloatMode?(): Promise<void>;
@@ -93,5 +111,6 @@ export type Bridges = {
   dialog: DialogBridge;
   events: EventsBridge;
   monitor: MonitorBridge;
+  updater: UpdaterBridge;
   custom?: CustomBridge;
 };
