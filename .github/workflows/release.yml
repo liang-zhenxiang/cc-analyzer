@@ -449,8 +449,17 @@ jobs:
               --title "$TAG" \
               --notes-file release-notes.md \
               ${prerelease_flag}
+            # 清掉本地不再产出的旧资产（重推 tag 的场景：旧 release 还挂着
+            # 上一次失败运行的残留——只补传不清旧会新旧并存，v0.9.0-beta.1
+            # 三跑的无版本名残留就是这么来的）。
+            for existing in $(gh release view "$TAG" --json assets --jq '.[].name'); do
+              if [[ ! -f "artifacts/$existing" ]]; then
+                echo "清理旧资产：$existing"
+                gh release delete-asset "$TAG" "$existing" --yes
+              fi
+            done
             gh release upload "$TAG" artifacts/* --clobber
-            echo "✅ Release ${TAG} 说明已更新、产物已补传"
+            echo "✅ Release ${TAG} 说明已更新、产物已补传（旧残留已清理）"
             echo "### 🔁 Release [${TAG}](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}) 已存在，说明与产物已更新" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
