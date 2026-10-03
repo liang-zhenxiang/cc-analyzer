@@ -19,7 +19,8 @@
 
 .container th,
 .container td {
-  padding: 7px 9px;
+  /* 行密度令牌：三张数据表共用一套（见 tokens.css 的 --row-pad-*）。 */
+  padding: var(--row-pad-y) var(--row-pad-x);
   border-bottom: 1px solid var(--border);
   color: var(--text);
   text-align: left;
@@ -78,8 +79,34 @@
   white-space: pre-wrap;
 }
 
+/* 状态列：失败保留 --danger 且在 600 字重下（灰度截图里仍能浮出来），
+   其余降一档到 --text-tertiary，让「只有失败在亮」。**不用 --text-faint**——
+   那是 2.6:1 的装饰位，「这条没失败」是需要读的状态信息。 */
 .error {
   color: var(--danger);
+  font-weight: 600;
+}
+
+.statusMuted {
+  color: var(--text-tertiary);
+}
+
+/* 行内展开器：与 TreeView / LogView 的折角画法逐字一致（无边框字形，
+   命中区 24px）。▼/▶ 本身携带展开/折叠状态，取代原来恒定的描边文字按钮。 */
+.toggle {
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  cursor: pointer;
+}
+
+.toggle:hover {
+  color: var(--text);
 }
 
 

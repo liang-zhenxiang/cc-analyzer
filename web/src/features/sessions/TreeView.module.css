@@ -18,7 +18,8 @@
   gap: var(--sp-3);
   align-items: center;
   min-height: var(--row-h);
-  padding: 0 10px;
+  /* 表头与数据行共用同一水平内距（--row-pad-x），左右边距因此对齐。 */
+  padding: 0 var(--row-pad-x);
   border-bottom: 1px solid var(--border-strong);
   background: var(--bg-inset);
   color: var(--text-tertiary);
@@ -51,7 +52,9 @@
   grid-template-columns: var(--control-h-sm) 8px minmax(120px, 1.4fr) 52px 68px 44px minmax(90px, 1fr) auto;
   gap: var(--sp-2);
   align-items: center;
-  padding: 4px 9px 4px 8px;
+  /* 树行内含 24px 展开按钮与进度条，用更紧的垂直档（--row-pad-y-tight）；
+     左值被 TSX 的 `paddingLeft: depth * 16 + 8` 覆盖，这里只贡献右侧 10px。 */
+  padding: var(--row-pad-y-tight) var(--row-pad-x);
   border-bottom: 1px solid var(--border);
   color: var(--text);
   font-variant-numeric: tabular-nums;
@@ -82,6 +85,11 @@
   font-size: var(--fs-xs);
   line-height: var(--lh-xs);
   cursor: pointer;
+}
+
+/* 折角字形此前缺 hover 反馈（本轮补齐，并与两张数据表的展开器统一）。 */
+.toggle:hover {
+  color: var(--text);
 }
 
 .togglePlaceholder {

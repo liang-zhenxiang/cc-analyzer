@@ -107,7 +107,9 @@ describe("LogView", () => {
     await user1.click(within(toolRow).getByText("Read"));
     expect(onSelect).toHaveBeenCalledWith(read);
 
-    await user1.click(within(toolRow).getByRole("button", { name: "在树视图定位" }));
+    // 「在树视图定位」已移入展开区顶部：先展开该行，再点展开区里的动作条。
+    await user1.click(within(toolRow).getByRole("button", { name: "展开" }));
+    await user1.click(screen.getByRole("button", { name: "在树视图定位" }));
     expect(onLocateInTree).toHaveBeenCalledWith("read-1");
   });
 

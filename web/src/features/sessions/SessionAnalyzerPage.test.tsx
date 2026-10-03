@@ -569,7 +569,9 @@ test("locates a log row in the tree view and back", async () => {
     expect(screen.getByRole("status", { name: "会话图状态" })).toHaveTextContent("会话图已加载")
   );
 
-  await user.click(screen.getAllByRole("button", { name: "在树视图定位" })[0]);
+  // 「在树视图定位」移入展开区顶部：先展开首行，再点展开区里的动作条。
+  await user.click(screen.getAllByRole("button", { name: "展开" })[0]);
+  await user.click(screen.getByRole("button", { name: "在树视图定位" }));
   expect(await screen.findByRole("tree", { name: "耗时树" })).toBeInTheDocument();
 
   await user.click(screen.getAllByRole("button", { name: "定位日志" })[0]);

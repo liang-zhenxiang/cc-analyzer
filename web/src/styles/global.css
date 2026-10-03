@@ -61,13 +61,3 @@ body {
   overflow: auto;
   color: var(--danger);
 }
-
-.error-boundary button {
-  justify-self: center;
-  min-height: var(--control-h);
-  padding: 0 10px;
-  border: 1px solid var(--danger);
-  border-radius: var(--r-sm);
-  background: var(--bg-elevated);
-  color: var(--danger);
-}
