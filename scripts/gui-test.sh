@@ -34,6 +34,12 @@
 # **隔离**：通过把 HOME 指向临时目录，应用只会看到我们放进去的夹具，
 # 不会去读使用者真实的 ~/.claude 会话数据。这是有意的——会话内容属于敏感数据。
 #
+# **失败时要能一次定位**：探针缺失算失败（不是跳过），但失败信息不止说「没有产出」——
+# 它会打印探针**路径与最后修改时间**、脚本等待了多久，以及应用日志里与这份探针**相关
+# 的行**（应用侧每条探针日志都带文件名），据此直接区分「应用没写出来」与「脚本等太短」。
+# 想连整个现场一起留下（应用日志、PDF、探针 JSON）就设 `CCA_GUI_KEEP_WORK=1`，
+# 此时临时工作目录不会被删，路径会打印出来。门禁是间歇性失败过的，缺了现场就无法归因。
+#
 # **前提**：产物必须带 `gui-capture` feature。没有它，应用不会渲染自身 webview，
 # 取图那步必然失败——而发布产物**不带**该 feature（见 src-tauri/Cargo.toml），
 # 所以 `npm run build:macos:*` 产出的常规产物不能直接拿来跑。
@@ -96,10 +102,16 @@ gui-test.sh —— 真机 GUI 冒烟测试
   CCA_GUI_CAPTURE_TAB=用量总览 ./scripts/gui-test.sh
                                        # 覆盖「视图清单」：逗号分隔的目标，应用依次点击
                                        # 各取一张图。单个值沿用旧文件名 -tab.pdf。
+  CCA_GUI_KEEP_WORK=1 ./scripts/gui-test.sh
+                                       # 失败时留下整个现场（应用日志、PDF、探针 JSON），
+                                       # 不删临时工作目录，并把路径打印出来。
   -h, --help                           # 显示帮助
 
 默认视图清单：会话分析 → 打开首个会话 → 日志视图 → 用量总览 → 实时监控。每张图都配一份
 几何探针 JSON，脚本据它判定布局不变量（无横向溢出 / 表盘有界且含于卡片 / 记录表末列可达）。
+
+探针缺失算失败（不是跳过）。失败时会打印探针路径、最后修改时间、脚本等待时长，以及应用
+日志里与这份探针相关的行，用来区分「应用没写出来」还是「脚本等太短」。
 
 前提：产物必须带 `gui-capture` feature，否则取图那步必然失败。发布产物**不带**
 它，所以 `npm run build:macos:*` 产出的常规产物不能直接拿来跑——请用 --build。
@@ -142,6 +154,10 @@ readonly CAPTURE_PDF="${WORK_DIR}/app-capture.pdf"
 # 几何探针落点（第一张图的）。多视图的探针文件名规则与取图一致，见下面「截图」段。
 readonly CAPTURE_PROBE="${WORK_DIR}/app-probe.json"
 readonly APP_LOG="${WORK_DIR}/app.log"
+# 逐份等几何探针落盘的上限（秒）。探针是异步写出的，「PDF 到了」不等于「JSON 也到了」。
+# 要盖过应用侧的重试预算（PROBE_ATTEMPTS × (PROBE_EVAL_TIMEOUT_MS + PROBE_RETRY_MS)，
+# 见 src-tauri/src/lib.rs），否则应用还在重试、脚本已经判失败。
+readonly PROBE_TIMEOUT_SECS=25
 
 APP_PID=""
 PASSED=0
@@ -161,7 +177,13 @@ cleanup() {
     sleep 1
     kill -9 "$APP_PID" 2>/dev/null || true
   fi
-  rm -rf "$WORK_DIR"
+  # 默认删掉工作目录；`CCA_GUI_KEEP_WORK=1` 时留下**整个现场**（应用日志、PDF、探针
+  # JSON），供事后定位。门禁是间歇性失败过的，缺了应用日志就无法归因（实测踩过）。
+  if [[ -z "${CCA_GUI_KEEP_WORK:-}" ]]; then
+    rm -rf "$WORK_DIR"
+  else
+    printf '  %s现场已保留（CCA_GUI_KEEP_WORK=1）：%s%s\n' "$C_YELLOW" "$WORK_DIR" "$C_RESET"
+  fi
 }
 # 任何退出路径都要清理：正常结束（EXIT）、Ctrl-C（INT）、被调用方/agent 中断
 # （TERM/HUP）。**信号处理器只 `exit`**，让清理统一由 EXIT trap 走一遍——只挂 EXIT
@@ -297,6 +319,50 @@ PY
         fi ;;
     esac
   fi
+}
+
+# 等一份探针 JSON 落盘。与 capture_one 里等 PDF 同一纪律：带超时，超时即失败，
+# 绝不把「等不到」算成通过或跳过。返回 0 表示已落盘。
+wait_for_probe() {
+  local path="$1" i
+  for ((i = 0; i < PROBE_TIMEOUT_SECS; i++)); do
+    [[ -f "$path" ]] && return 0
+    sleep 1
+  done
+  [[ -f "$path" ]]
+}
+
+# 探针缺失时的归因：**区分「应用没写出来」与「脚本等太短」**，并给出探针路径与最后
+# 修改时间。依据是应用日志里**带文件名**的 `gui-probe:` / `gui-capture:` 行——应用侧
+# 每条探针日志都带文件名，脚本才能精确归因，而不是笼统地说「没有产出」。
+diagnose_missing_probe() {
+  local label="$1" path="$2" name probe_lines
+  name="$(basename "$path")"
+  printf '  %s  探针缺失诊断 · %s（%s）%s\n' "$C_YELLOW" "$label" "$name" "$C_RESET"
+  if [[ -e "$path" ]]; then
+    printf '    文件存在但脚本判定为缺失，最后修改：%s\n' "$(stat -f '%Sm' "$path" 2>/dev/null)"
+  else
+    printf '    文件不存在；脚本已等待 %s 秒（超时 %s 秒）仍未见\n' \
+      "$PROBE_TIMEOUT_SECS" "$PROBE_TIMEOUT_SECS"
+  fi
+  probe_lines="$(grep -F -- "gui-probe: " "$APP_LOG" 2>/dev/null | grep -F -- "$name" || true)"
+  if [[ -n "$probe_lines" ]]; then
+    printf '    应用日志（与 %s 相关）：\n' "$name"
+    printf '%s\n' "$probe_lines" | sed 's/^/      /'
+    if grep -qF -- "$name 已写出" <<<"$probe_lines"; then
+      printf '    %s→ 归因：应用已写出该探针，脚本仍未在路径上等到 —— 脚本侧（路径 / 时序）%s\n' \
+        "$C_YELLOW" "$C_RESET"
+    else
+      printf '    %s→ 归因：应用侧求值 / 写盘失败（重试已用尽），文件从未写出%s\n' \
+        "$C_YELLOW" "$C_RESET"
+    fi
+  else
+    printf '    应用日志里没有 gui-probe: %s 的任何行 —— 应用没走到取这份探针这一步\n' "$name"
+    grep -F -- "gui-capture: " "$APP_LOG" 2>/dev/null | tail -20 | sed 's/^/      /' || true
+    printf '    %s→ 归因：应用侧没有产出（取图 / 线程可能提前停了），见上面 gui-capture 行%s\n' \
+      "$C_YELLOW" "$C_RESET"
+  fi
+  printf '    现场（应用日志等）：%s\n' "$APP_LOG"
 }
 
 printf '%s' "$C_BOLD"
@@ -648,14 +714,19 @@ step "断言：界面布局不变量（真机几何探针）"
 # 判定在这里——事实在应用、断言在脚本。判据取几何关系（是否溢出、是否包含、是否
 # 可达），与渲染引擎差异无关，绝不断言具体像素坐标或颜色。
 #
-# 先等探针落盘：探针与取图都是异步回调，「PDF 到了」不等于「JSON 也到了」。
-for _ in {1..30}; do
-  _all=1
-  for _p in "${CAPTURE_PROBES[@]}"; do
-    [[ -f "$_p" ]] || { _all=0; break; }
-  done
-  [[ "$_all" == "1" ]] && break
-  sleep 0.5
+# 先**逐份**等探针落盘：探针与取图都是异步回调，「PDF 到了」不等于「JSON 也到了」。
+# 等不到的，在断言前先打一段归因诊断（路径 / 最后修改时间 / 应用日志里与这份探针相关
+# 的行），把「应用没写出来」和「脚本等太短」直接分开——门禁要能一次定位，而不是只说
+# 「没有产出」。缺失本身仍由下面的断言记为**失败**，这里只是把现场说清楚。
+declare -a PROBE_MISSING=()
+for _i in "${!CAPTURE_PROBES[@]}"; do
+  if ! wait_for_probe "${CAPTURE_PROBES[$_i]}"; then
+    PROBE_MISSING+=("${CAPTURE_LABELS[$_i]}::${CAPTURE_PROBES[$_i]}")
+  fi
+done
+for _entry in "${PROBE_MISSING[@]:-}"; do
+  [[ -n "$_entry" ]] || continue
+  diagnose_missing_probe "${_entry%%::*}" "${_entry#*::}"
 done
 
 declare -a PROBE_ENTRIES=()
@@ -679,7 +750,7 @@ for arg in sys.argv[1:]:
     label, _, path = arg.partition("::")
     probe = pathlib.Path(path)
     if not probe.is_file():
-        print(f"BAD|{label}：几何探针没有产出（{probe.name}）")
+        print(f"BAD|{label}：几何探针没有产出（{probe}）")
         continue
     try:
         data = json.loads(probe.read_text(encoding="utf-8"))
