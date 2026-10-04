@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 import { test, expect } from "./fixtures";
 
 /**
@@ -9,12 +10,28 @@ import { test, expect } from "./fixtures";
 const DETAIL_ROLE = "complementary";
 const DETAIL_NAME = "记录详情";
 
+/**
+ * 打开全局搜索面板。
+ *
+ * **不能 `goto` 完就按 ⌘K**：快捷键的监听挂在 `AppShell` 的 effect 里，而
+ * `page.goto` 只等到 `load`——实测 WebKit 下偶发抢在挂载前按键，这一次按键就此
+ * 丢失，用例只能等到超时（本地跑完整套件时复现过一次）。真人按不到这么快，所以
+ * 这是测试的健壮性问题，不是产品缺陷。这里用 `toPass` 重试按键，把「可能丢一次键」
+ * 变成确定通过。
+ */
+async function openPalette(page: Page) {
+  await page.goto("/");
+  const dialog = page.getByRole("dialog", { name: "全局搜索" });
+  await expect(async () => {
+    await page.keyboard.press("Meta+K");
+    await expect(dialog).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 10_000 });
+  return dialog;
+}
+
 test.describe("全局搜索", () => {
   test("⌘K 唤起与关闭；顶栏按钮亦可唤起", async ({ page }) => {
-    await page.goto("/");
-    await page.keyboard.press("Meta+K");
-    const dialog = page.getByRole("dialog", { name: "全局搜索" });
-    await expect(dialog).toBeVisible();
+    const dialog = await openPalette(page);
     await expect(page.getByLabel("搜索消息")).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
@@ -24,8 +41,7 @@ test.describe("全局搜索", () => {
   });
 
   test("搜索命中跨项目消息并按项目分组", async ({ page }) => {
-    await page.goto("/");
-    await page.keyboard.press("Meta+K");
+    await openPalette(page);
     await page.getByLabel("搜索消息").fill("解析");
     // 夹具里 -repo-enhanced（“分析解析器”）与 -repo-usage-days（“先把数据面摸清楚”不含）——
     // 用「解析」至少命中 enhanced；宽松断言组标题出现且命中数可见。
@@ -34,8 +50,7 @@ test.describe("全局搜索", () => {
   });
 
   test("Enter 跳转：会话打开、记录高亮、详情面板可见", async ({ page }) => {
-    await page.goto("/");
-    await page.keyboard.press("Meta+K");
+    await openPalette(page);
     await page.getByLabel("搜索消息").fill("分析解析器");
     const firstItem = page.locator("[data-item-index='0']");
     await expect(firstItem).toBeVisible({ timeout: 15_000 });
@@ -54,8 +69,7 @@ test.describe("全局搜索", () => {
   });
 
   test("无匹配时的明确空态", async ({ page }) => {
-    await page.goto("/");
-    await page.keyboard.press("Meta+K");
+    await openPalette(page);
     await page.getByLabel("搜索消息").fill("绝对不存在的词xyz");
     await expect(page.getByText("没有匹配的消息")).toBeVisible({ timeout: 15_000 });
   });

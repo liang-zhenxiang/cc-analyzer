@@ -4,6 +4,7 @@ import { SessionHeader } from "./SessionHeader";
 import { NotificationProvider } from "../../app/NotificationProvider";
 import type { ClipboardService } from "../../api/types";
 import type { SessionMeta } from "./metadataCache";
+import type { ParsedSession } from "./types";
 
 const ID = "3d2a5442-9c65-4b28-9c30-bb3d1a1b1a11";
 
@@ -20,20 +21,61 @@ function meta(overrides: Partial<SessionMeta> = {}): SessionMeta {
   };
 }
 
-function renderHeader(session: SessionMeta, clipboard: ClipboardService) {
+function renderHeader(
+  session: SessionMeta,
+  clipboard: ClipboardService,
+  parsed: ParsedSession | null = null
+) {
   return render(
     <NotificationProvider>
       <SessionHeader
         session={session}
-        parsed={null}
+        parsed={parsed}
         tokenPanelOpen={false}
         onToggleTokenPanel={() => undefined}
         onOpenFolder={() => undefined}
+        onExport={() => undefined}
         clipboard={clipboard}
       />
     </NotificationProvider>
   );
 }
+
+const PARSED: ParsedSession = {
+  sessionId: ID,
+  path: `/home/me/.claude/projects/-repo-demo/${ID}.jsonl`,
+  startedAt: 0,
+  endedAt: 1_000,
+  records: [],
+  turns: [],
+  unmatchedToolUses: [],
+  warnings: [],
+  systemTurnDurations: [],
+  skippedCounts: {},
+  sidechainMessages: []
+};
+
+test("offers export only once the session has parsed", () => {
+  const clipboard = { writeText: vi.fn(async () => undefined) };
+  const { rerender } = renderHeader(meta(), clipboard);
+  // 解析中没有数据可导，摆一个禁用按钮只是噪音。
+  expect(screen.queryByRole("button", { name: "导出" })).toBeNull();
+
+  rerender(
+    <NotificationProvider>
+      <SessionHeader
+        session={meta()}
+        parsed={PARSED}
+        tokenPanelOpen={false}
+        onToggleTokenPanel={() => undefined}
+        onOpenFolder={() => undefined}
+        onExport={() => undefined}
+        clipboard={clipboard}
+      />
+    </NotificationProvider>
+  );
+  expect(screen.getByRole("button", { name: "导出" })).toBeInTheDocument();
+});
 
 test("copies the exact resume command and confirms it", async () => {
   const user = userEvent.setup();

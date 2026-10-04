@@ -84,7 +84,8 @@ child is reaped — so this is a check, not "I tried it once".
    **every entry path starts with the isolated `HOME`** (`OUTSIDE 0`).
 5. **The app renders its own window to a PDF** within 15 seconds of launch — for the
    default view **and** for every target in `CCA_GUI_CAPTURE_TAB`. The default list is
-   `会话分析 → 打开首个会话 → 日志视图 → 用量总览 → 实时监控`; a session is opened by
+   `会话分析 → 打开首个会话 → 日志视图 → /repo/ansi → 日志视图 → 导出 → 关闭导出窗口
+   → 用量总览 → 实时监控`; a session is opened by
    clicking its `title` (i.e. its `cwd`), because session rows have no stable accessible
    name. Comma-separated; a **single** target keeps the legacy filename `-tab.pdf`.
    The first two targets are deliberate: the app persists the active workspace tab **and**
@@ -177,6 +178,36 @@ The invariants the script asserts (each prints the measured numbers, so a failur
    scroll container's right edge, **or** the container is genuinely scrollable
    (`overflow-x` is `auto`/`scroll`, `scrollWidth > clientWidth`, and the hint rendered).
    A wide table that is clipped without being scrollable fails.
+4. **Export dialog bounded** — on the `导出` view the modal (`[role="dialog"][aria-modal]`)
+   must be present, no wider than 480px, and its rectangle fully inside the viewport.
+   Absence is a failure, not a skip: the view exists to prove the dialog opens on a real
+   window and does not run off the edge.
+5. **No escape bytes in rendered text** — `document.body.innerText` must contain zero
+   `U+001B`. The `session-ansi.jsonl` fixture carries real SGR colours, a carriage-return
+   progress line and an OSC title, so a regression that prints escape sequences as text
+   (or that stops stripping them in the log table) fails on the real window instead of
+   looking like slightly odd colouring in a screenshot.
+
+### `position: fixed` overlays never reach the PDF (measured)
+
+**A modal cannot be evidenced by a screenshot here.** Measured on macOS 15.4 with the
+`gui-capture` build: with the export dialog open (480×424, and the probe confirms it),
+the PDF for that step is 237,914 bytes against 237,797 for the step before it — a
+480×424 panel plus a full-window dim overlay cannot cost 117 bytes. The same holds for
+the settings panel (`ThresholdsPanel`, also `position: fixed`): clicking 设置 leaves it
+absent from the image while its geometry checks pass. `WKWebView.createPDF` renders the
+page's *print* layout, and fixed overlays are not painted into it.
+
+Consequences for anyone extending the gate:
+
+- **A modal's evidence is its geometry probe**, not its picture. `导出` is in the
+  default target list for exactly that reason: the invariant (`bounded`, `inside the
+  viewport`, `present at all`) runs on the real window, and `gui-test.sh` prints a
+  `NOTE` saying the screenshot shows what is *behind* the dialog.
+- **Do not read a missing overlay in a screenshot as "it did not open"** — check the
+  probe JSON for the element first (`app-probe-<label>.json`).
+- Pixel-level appearance of an overlay is covered by the end-to-end suite
+  (`web/e2e/`, real Chromium + WebKit against the built bundle), not by this gate.
 
 These judge **geometry relationships** (overflow, containment, reachability), never
 pixel coordinates or colours — so they survive re-theming and engine differences. If a

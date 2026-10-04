@@ -7,6 +7,24 @@ function randomId() {
 }
 
 export function installTauriBridges(): Bridges {
+  // 保存走同一条原生命令：会话导出与 Markdown 报告只差标题与扩展名，
+  // 各写一份就多一处会漂移的对话框参数。
+  async function saveText(
+    defaultName: string,
+    contents: string,
+    options: { title: string; filterName: string; extensions: string[] }
+  ): Promise<string | null> {
+    const path = await invoke<string | null>("plugin:dialog|save", {
+      options: {
+        title: options.title,
+        defaultPath: defaultName,
+        filters: [{ name: options.filterName, extensions: options.extensions }]
+      }
+    });
+    if (path) await invoke<void>("write_text", { path, contents });
+    return path;
+  }
+
   return {
     fs: {
       readDir: (path) => invoke<DirEntry[]>("read_dir", { path }),
@@ -87,17 +105,13 @@ export function installTauriBridges(): Bridges {
       writeText: (text) => navigator.clipboard.writeText(text)
     },
     dialog: {
-      saveMarkdown: async (defaultName, contents) => {
-        const path = await invoke<string | null>("plugin:dialog|save", {
-          options: {
-            title: "导出会话分析报告",
-            defaultPath: defaultName,
-            filters: [{ name: "Markdown", extensions: ["md"] }]
-          }
-        });
-        if (path) await invoke<void>("write_text", { path, contents });
-        return path;
-      }
+      saveText,
+      saveMarkdown: (defaultName, contents) =>
+        saveText(defaultName, contents, {
+          title: "导出会话分析报告",
+          filterName: "Markdown",
+          extensions: ["md"]
+        })
     },
     events: {
       onSessionImport: (handler) =>

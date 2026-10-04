@@ -35,7 +35,10 @@ function createBridges(): Bridges {
     events: { onSessionImport: vi.fn(async () => () => undefined) },
     clipboard: { writeText: vi.fn(async () => undefined) },
     system: { openFolder: vi.fn(async () => undefined), openClaudeTerminal: vi.fn(async () => undefined) },
-    dialog: { saveMarkdown: vi.fn(async () => "/tmp/report.md") }
+    dialog: {
+      saveMarkdown: vi.fn(async () => "/tmp/report.md"),
+      saveText: vi.fn(async () => "/tmp/export.out")
+    }
   } as unknown as Bridges;
 }
 
@@ -586,6 +589,39 @@ test("shows the session header and opens the session folder", async () => {
   expect(bridges.system.openFolder).toHaveBeenCalledWith(
     "/home/tester/.claude/projects/project-a"
   );
+});
+
+test("exports the session from the header, then closes and confirms", async () => {
+  window.localStorage.clear();
+  const user = userEvent.setup();
+  const bridges = createBridges();
+  render(
+    <BridgesProvider bridges={bridges}>
+      <NotificationProvider>
+        <SessionAnalyzerPage />
+      </NotificationProvider>
+    </BridgesProvider>
+  );
+
+  await user.click(await screen.findByRole("button", { name: /project-a/ }));
+  expect(await screen.findByRole("application", { name: "时间轨道" })).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "导出" }));
+  const dialog = await screen.findByRole("dialog");
+  expect(within(dialog).getByRole("heading", { name: "导出会话报告" })).toBeInTheDocument();
+  expect(within(dialog).getByText(/将导出 \d+ 条记录/)).toBeInTheDocument();
+
+  await user.click(within(dialog).getByRole("button", { name: "保存…" }));
+
+  await waitFor(() => expect(bridges.dialog.saveText).toHaveBeenCalledTimes(1));
+  const [name, contents] = vi.mocked(bridges.dialog.saveText).mock.calls[0];
+  expect(name).toMatch(/^cc-analyzer-[a-z0-9]{1,8}-filtered\.html$/);
+  expect(name).not.toMatch(/[^A-Za-z0-9._-]/);
+  expect(contents.startsWith("<!doctype html>")).toBe(true);
+
+  // 保存成功后浮层关闭，反馈交给全局 toast（浮层开着时它会被遮罩压住）。
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(await screen.findByText(/已导出 HTML 报告/)).toBeInTheDocument();
 });
 
 test("folds the token panel behind the session header chip", async () => {

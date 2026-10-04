@@ -10,6 +10,7 @@ import {
 } from "react";
 import { Button } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
+import { AnsiText } from "../../components/AnsiText";
 import type { SessionRecord } from "./types";
 import type { LogRow } from "./logRows";
 import { formatInputValue, structuredResultLines } from "./structuredResultLines";
@@ -382,7 +383,11 @@ function Fragment({
                   {panel.label}
                   {panel.meta ? <span className={styles.panelMeta}>{panel.meta}</span> : null}
                 </h4>
-                <pre>{panel.body}</pre>
+                {/* 终端输出按原色渲染：`panel.body` 里可能就是 Claude Code 抓到的
+                    带 SGR 序列的 stdout，原样打印只会得到 `[31m` 乱码。 */}
+                <pre>
+                  <AnsiText text={panel.body} />
+                </pre>
               </section>
             ))}
           </td>

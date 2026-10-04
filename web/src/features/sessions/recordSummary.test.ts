@@ -88,4 +88,30 @@ describe("recordSummary", () => {
   test("什么都取不到时返回空串——由调用方据此禁用按钮", () => {
     expect(recordSummary(makeRecord())).toBe("");
   });
+
+  test("终端转义序列在进剪贴板/CSV 之前被剥掉", () => {
+    // 这段文本的去处是剪贴板、CSV 与报告，粘进终端或表格里带 `\u001b[31m`
+    // 就是乱码；屏幕上的颜色由 AnsiText 直接读原文渲染。
+    expect(recordSummary(makeRecord({ text: "\u001b[31m红色错误\u001b[0m" }))).toBe("红色错误");
+    expect(
+      recordSummary(
+        makeRecord({ text: "", toolResult: "\u001b[1m粗体输出\u001b[0m" })
+      )
+    ).toBe("粗体输出");
+    // 结构化结果（Bash 的 stdout/stderr）同样是原样抓取的转义序列。
+    expect(
+      recordSummary(
+        makeRecord({
+          text: "",
+          structuredResult: {
+            toolName: "Bash",
+            stdout: "\u001b[32m✓ 12 passed\u001b[0m",
+            stderr: "",
+            interrupted: false,
+            timedOutAfterMs: null
+          }
+        })
+      )
+    ).toBe("stdout 11 字符");
+  });
 });

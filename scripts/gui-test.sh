@@ -54,7 +54,8 @@
 #                                        # 点击并在每步取一张图，各走相同的转 PNG + 非空白
 #                                        # 与几何判定。**单个值沿用旧文件名 -tab.pdf**。
 #
-# 默认的视图清单是「会话分析 → 打开首个会话 → 日志视图 → 用量总览 → 实时监控」；每张图
+# 默认的视图清单是「会话分析 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
+# 日志视图 → 导出 → 关闭导出窗口 → 用量总览 → 实时监控」；每张图
 # 都配一份几何探针 JSON（`CCA_GUI_PROBE`），脚本据它判定**布局不变量**：无横向溢出、表盘
 # 有界且含于卡片、记录表末列可达。目标既可写可访问名/可见文本（标签页），也可写会话 cwd
 # （会匹配按钮的 `title`）。**前两步显式切回「会话分析」与「日志视图」**——应用会把当前
@@ -107,8 +108,9 @@ gui-test.sh —— 真机 GUI 冒烟测试
                                        # 不删临时工作目录，并把路径打印出来。
   -h, --help                           # 显示帮助
 
-默认视图清单：会话分析 → 打开首个会话 → 日志视图 → 用量总览 → 实时监控。每张图都配一份
-几何探针 JSON，脚本据它判定布局不变量（无横向溢出 / 表盘有界且含于卡片 / 记录表末列可达）。
+默认视图清单：会话分析 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
+日志视图 → 导出 → 关闭导出窗口 → 用量总览 → 实时监控。每张图都配一份
+几何探针 JSON，脚本据它判定布局不变量（无横向溢出 / 表盘有界且含于卡片 / 记录表末列可达 / 文字里无 ESC 转义字节）。
 
 探针缺失算失败（不是跳过）。失败时会打印探针路径、最后修改时间、脚本等待时长，以及应用
 日志里与这份探针相关的行，用来区分「应用没写出来」还是「脚本等太短」。
@@ -507,8 +509,10 @@ install_fixture "${FIXTURE_SRC}/session-basic.jsonl" "-repo-demo" "${SESSION_UUI
 install_fixture "${FIXTURE_SRC}/session-subagent.jsonl" "-repo-demo" "3d2a5442-9c65-4b28-9c30-bb3d1a1b2a22"
 install_fixture "${FIXTURE_SRC}/usage-dashboard-days.jsonl" "-repo-usage-days" "dash-days-0001"
 install_fixture "${FIXTURE_SRC}/usage-dashboard-models.jsonl" "-repo-usage-models" "dash-models-0002"
+# 终端转义夹具：日志表里若把 `\u001b[31m` 当文本渲染，探针的 escaped_text 会立刻非零。
+install_fixture "${FIXTURE_SRC}/session-ansi.jsonl" "-repo-ansi" "3d2a5442-9c65-4b28-9c30-bb3d1a1b8a88"
 printf '  隔离家目录：%s\n' "$HOME_DIR"
-printf '  夹具会话：4 个\n'
+printf '  夹具会话：5 个\n'
 
 CACHE_PATH="${HOME_DIR}/Library/Application Support/${BUNDLE_ID}/meta-cache-v2.json"
 
@@ -535,7 +539,11 @@ else
   COVERAGE=1
   # 「日志视图」单独点名：分析器子视图也被记进那份 localStorage，不显式切回日志视图，
   # 打开会话后可能停在树视图——树视图没有记录表，末列可达那条就无从判定。
-  CAPTURE_TARGETS=("会话分析" "/repo/demo" "日志视图" "用量总览" "实时监控")
+  # 「导出」紧跟日志视图：它只在会话打开且解析完成时才渲染，离开会话页就没了；
+  # 后面立刻点「关闭导出窗口」，否则浮层的遮罩会挡住余下三个视图的点击。
+  # `/repo/ansi` 必须在「日志视图」之后再点一次：上一步已经把子视图切成日志，
+  # 但换会话不会自动回到日志视图，而终端转义那条不变量只在日志表里才有内容。
+  CAPTURE_TARGETS=("会话分析" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "用量总览" "实时监控")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
@@ -647,10 +655,10 @@ PY
   COUNT="$(printf '%s\n' "$CACHE_REPORT" | grep '^COUNT ' | awk '{print $2}')"
   OUTSIDE="$(printf '%s\n' "$CACHE_REPORT" | grep '^OUTSIDE ' | awk '{print $2}')"
 
-  if [[ "${COUNT:-}" == "4" ]]; then
-    ok "缓存条目数 = 4，与夹具一致"
+  if [[ "${COUNT:-}" == "5" ]]; then
+    ok "缓存条目数 = 5，与夹具一致"
   else
-    bad "缓存条目数 = ${COUNT:-解析失败}，期望 4"
+    bad "缓存条目数 = ${COUNT:-解析失败}，期望 5"
     printf '  %s  %s%s\n' "$C_YELLOW" "$CACHE_REPORT" "$C_RESET"
   fi
 
@@ -742,6 +750,10 @@ import pathlib
 import sys
 
 GAUGE_MAX_WIDTH = 200
+# 导出浮层的宽度上限来自设计规格（`min(480px, 100%)`）；真机窗口更窄时它自己
+# 会收缩，所以只判「不超过上限且完整落在窗口内」，不判具体像素。
+EXPORT_DIALOG_MAX_WIDTH = 480
+EXPORT_DIALOG_LABEL = "导出"
 coverage = os.environ.get("COVERAGE") == "1"
 seen_gauge = 0
 seen_table = 0
@@ -776,6 +788,16 @@ for arg in sys.argv[1:]:
             print(f"OK|{label}：主内容区无横向溢出（main scrollWidth {msw} ≤ clientWidth {mcw}）")
         else:
             print(f"BAD|{label}：主内容区横向溢出（main scrollWidth {msw} > clientWidth {mcw}，overflowX={main.get('overflowX')}）")
+
+    # 终端转义序列被当文本渲染 = 用户看到乱码（ANSI 保真的真机判据）。
+    escaped = data.get("escaped_text")
+    if isinstance(escaped, int):
+        if escaped == 0:
+            print(f"OK|{label}：渲染出来的文字里没有终端转义字节")
+        else:
+            print(f"BAD|{label}：界面上出现了 {escaped} 个 ESC 控制字节——终端转义没被解析，用户看到的是乱码")
+    else:
+        print(f"NOTE|{label}：探针缺少 escaped_text，跳过终端转义判定")
 
     for el in data.get("elements") or []:
         if el.get("name") != "gauge":
@@ -822,6 +844,40 @@ for arg in sys.argv[1:]:
             print(f"OK|{label}：记录表末列可横向滚达（scrollWidth {csw} > clientWidth {ccw}，有滚动提示）")
         else:
             print(f"BAD|{label}：记录表末列被裁切（末列右边界 {last}，容器右边界 {right}，overflowX={overflow_x}，可滚动={scrollable}，提示={tbl.get('hasScrollHint')}）")
+
+    export_seen = 0
+    viewport = data.get("viewport") or {}
+    for el in data.get("elements") or []:
+        if el.get("name") != "export-dialog":
+            continue
+        export_seen += 1
+        rect = el.get("rect") or {}
+        width, height = rect.get("width"), rect.get("height")
+        if not isinstance(width, (int, float)) or not isinstance(height, (int, float)):
+            print(f"BAD|{label}：导出浮层矩形缺失")
+            continue
+        inside = (
+            isinstance(viewport.get("width"), (int, float))
+            and isinstance(viewport.get("height"), (int, float))
+            and rect.get("x", 0) >= -1
+            and rect.get("y", 0) >= -1
+            and rect.get("x", 0) + width <= viewport["width"] + 1
+            and rect.get("y", 0) + height <= viewport["height"] + 1
+        )
+        if width <= EXPORT_DIALOG_MAX_WIDTH + 1 and inside:
+            print(f"OK|{label}：导出浮层有界且完整在窗口内（{width:.0f}×{height:.0f}px ≤ {EXPORT_DIALOG_MAX_WIDTH}px）")
+        else:
+            print(f"BAD|{label}：导出浮层失界（宽 {width:.0f}px，上限 {EXPORT_DIALOG_MAX_WIDTH}px，在窗口内={inside}）")
+
+    # 目标就是「导出」时，浮层出现是这一步的全部意义——没出现比尺寸错了更严重。
+    if label == EXPORT_DIALOG_LABEL and export_seen == 0:
+        print(f"BAD|{label}：探针里没有导出浮层——点击没有打开它，或面板整个没渲染出来")
+    # 浮层是 `position: fixed`，而 `WKWebView.createPDF` **不会把它画进 PDF**：
+    # 实测「导出」这一步的 PDF 只比前一张多 117 字节（480×424 的浮层若入图不可能
+    # 只差这么点），设置面板同样不入图。所以这张截图的证据价值是「它背后的视图」，
+    # 浮层本身由上面的几何不变量与端到端断言负责——别对着截图找浮层。
+    if export_seen > 0:
+        print(f"NOTE|{label}：浮层是 position: fixed，createPDF 不渲染它——这张截图看的是背后的视图，浮层证据是上面的几何不变量")
 
 if coverage and seen_gauge == 0:
     print("BAD|视图覆盖：没有任何视图产出表盘几何——用量总览没被覆盖")

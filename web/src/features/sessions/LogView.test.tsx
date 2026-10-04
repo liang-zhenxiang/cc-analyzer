@@ -251,3 +251,51 @@ describe("LogView", () => {
     expect(within(minutesRow).getByText("1m10s").className).toContain("durationM");
   });
 });
+
+describe("终端输出保真", () => {
+  it("展开行里的工具输出按原色渲染，且不留转义字节", async () => {
+    const ESC = "\u001b";
+    const bash = base("bash-1", {
+      toolName: "Bash",
+      toolCategory: "direct",
+      timestamp: 700,
+      durationMs: 20,
+      toolInput: { command: "npm run build" },
+      toolResult: `${ESC}[2K${ESC}[31m✗ build failed${ESC}[0m\nprogress 10%\rprogress 100%`,
+      structuredResult: {
+        toolName: "Bash",
+        stdout: `${ESC}[32m✓ 12 passed${ESC}[0m`,
+        stderr: "",
+        interrupted: false,
+        timedOutAfterMs: null
+      }
+    });
+    const ownTurns: Turn[] = [
+      { index: 0, startedAt: 100, endedAt: 800, records: [user, assistant, bash] }
+    ];
+    render(
+      <LogView
+        rows={buildLogRows([user, assistant, bash], ownTurns)}
+        selectedId={null}
+        highlightId={null}
+        onSelect={vi.fn()}
+        onLocateInTree={vi.fn()}
+      />
+    );
+
+    const bashRow = screen.getByText("Bash").closest("tr") as HTMLElement;
+    await userEvent.click(within(bashRow).getByRole("button", { name: "展开" }));
+
+    const panel = screen.getByRole("region", { name: "工具输出" });
+    expect(panel.textContent).not.toContain(ESC);
+    expect(panel.textContent).toContain("✗ build failed");
+    // 回车重写按终端语义收敛到最终那一段。
+    expect(panel.textContent).toContain("progress 100%");
+    expect(panel.textContent).not.toContain("progress 10%");
+
+    const colored = Array.from(panel.querySelectorAll("span")).find(
+      (node) => node.style.color.length > 0
+    );
+    expect(colored?.style.color).toBe("var(--ansi-1)");
+  });
+});
