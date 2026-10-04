@@ -36,7 +36,10 @@ Security，不自创分类。
   2. **Run workflow** → 填 `beta_tag`（如 `v0.9.0-beta.3`），可选担一句主题
   3. 完成。工作流会：在该 beta 提交上跑全量门禁 → 版本收敛为 `X.Y.Z` →
      CHANGELOG 归档 → 打 `vX.Y.Z` tag 触发正式发布 → 刷新 stable 更新源 →
-     自动开一个「版本同步」PR 回 main（合并不急，tag 已发布）。
+     开一个「版本同步」PR 回 main（合并不急，tag 已发布）。**这一步可能降级**：
+     仓库若未开启 *Allow GitHub Actions to create and approve pull requests*，
+     `gh pr create` 会被拒（工作流只打警告、发布不受影响），需要维护者手动补建
+     同一个 head 分支的 PR——v0.11.0 就是这么补的（#114）。
 
   命令行等价：`gh workflow run promote-stable.yml -f beta_tag=v0.9.0-beta.3`
 
@@ -60,7 +63,9 @@ Security，不自创分类。
 
 **发一个稳定版（你的唯一动作）**：见上面的 Promote Stable 用法。注意：
 - 选哪个 beta 晋升是你的决策（建议日常装 beta 渠道亲自用几天再晋升）
-- 晋升完成后会自动出现一个「版本同步」PR——合并它，main 即与 tag 一致
+- 晋升完成后会尝试开一个「版本同步」PR（head 为 `chore/promote-vX.Y.Z`）——
+  合并它，main 即与 tag 一致；若仓库未开启 Actions 建 PR 的权限，这一步会降级成
+  警告，需自己用 `gh pr create --head chore/promote-vX.Y.Z` 补建（v0.11.0 的实际经历）
 - 首跑踩坑已修：门禁需 Tauri Linux 系统库（apt）、macOS 更新包收集时规范命名、
   命令须裸名注册（`::` 在 Windows 文件名非法）——改构建/发布脚本后**必须**
   实跑一次 beta tag 验证，本地全绿不代表发布能成

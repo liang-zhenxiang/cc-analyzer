@@ -449,7 +449,12 @@ jobs:
             # 清掉本地不再产出的旧资产（重推 tag 的场景：旧 release 还挂着
             # 上一次失败运行的残留——只补传不清旧会新旧并存，v0.9.0-beta.1
             # 三跑的无版本名残留就是这么来的）。
-            for existing in $(gh release view "$TAG" --json assets --jq '.[].name'); do
+            # 注意 `--jq` 的过滤器是 `.assets[].name`：`gh release view --json assets`
+            # 把这一个字段**展开成数组**再交给 jq，写成 `.[].name` 会直接报
+            # `expected an object but got: array`——而 `for x in $(失败命令)` 在
+            # `set -e` 下只是跳过循环（实测），于是这段清理会**静默不生效**：
+            # 既不报错也不删资产，正是它要修的那个现象。
+            for existing in $(gh release view "$TAG" --json assets --jq '.assets[].name'); do
               if [[ ! -f "artifacts/$existing" ]]; then
                 echo "清理旧资产：$existing"
                 gh release delete-asset "$TAG" "$existing" --yes
