@@ -1,6 +1,7 @@
 import type { SessionRecord } from "./types";
 import { formatDuration } from "../../lib/format";
 import { safeStringify } from "../../lib/json";
+import { stripAnsi } from "../../lib/ansi";
 
 export function formatInputValue(value: unknown): string {
   if (value == null) return "（无输入）";
@@ -13,13 +14,19 @@ export function structuredResultLines(record: SessionRecord): string[] {
   if (!structured) return [];
   switch (structured.toolName) {
     case "Bash":
+      // 字符数按**可见文本**算：stdout 里的 SGR 序列（`\u001b[31m`）不是用户看到
+      // 的字符，把它算进去会得到「stdout 200 字符」而屏幕上只有 12 个。
       return [
         structured.interrupted ? "已中断" : "",
         structured.timedOutAfterMs == null
           ? ""
           : `超时上限 ${formatDuration(structured.timedOutAfterMs)}`,
-        structured.stdout.length > 0 ? `stdout ${structured.stdout.length} 字符` : "",
-        structured.stderr.length > 0 ? `stderr ${structured.stderr.length} 字符` : ""
+        stripAnsi(structured.stdout).length > 0
+          ? `stdout ${stripAnsi(structured.stdout).length} 字符`
+          : "",
+        stripAnsi(structured.stderr).length > 0
+          ? `stderr ${stripAnsi(structured.stderr).length} 字符`
+          : ""
       ].filter(Boolean);
     case "Edit":
       return [

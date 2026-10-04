@@ -1,0 +1,28 @@
+/* 终端属性位。颜色不进这里——它是每个 span 的内联值（来自解析结果）。
+   这里只做「形」：粗细、倾斜、下划线，都是纯 CSS 能表达且不涉及取值的。 */
+
+.bold {
+  font-weight: 600;
+}
+
+.dim {
+  opacity: 0.65;
+}
+
+.italic {
+  font-style: italic;
+}
+
+/* 下划线与删除线可以同时出现（SGR 4 与 9），所以用一条组合规则收口：
+   两条单类规则同权重，谁在后谁赢，同时命中时反而会丢掉一个。 */
+.underline {
+  text-decoration: underline;
+}
+
+.strike {
+  text-decoration: line-through;
+}
+
+.underline.strike {
+  text-decoration: underline line-through;
+}

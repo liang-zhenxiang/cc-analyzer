@@ -5,6 +5,7 @@ import { isPathInsideAny, parentDirectory, sessionDirectory } from "../../lib/pa
 import type { SessionRecord } from "./types";
 import { RecordTable } from "./RecordTable";
 import { Button, IconButton } from "../../components/Button";
+import { AnsiText } from "../../components/AnsiText";
 import { Icon } from "../../components/Icon";
 import { formatDateTime, formatDuration } from "../../lib/format";
 import { tokensOf } from "./logRows";
@@ -115,19 +116,26 @@ export function RecordDetailPanel({
       {record.toolInput != null ? (
         <section aria-label="工具输入">
           <h4>工具输入</h4>
-          <pre>{formatInputValue(record.toolInput)}</pre>
+          {/* 工具输入里也可能是终端文本（Edit 写入的片段、脚本正文），
+              同样按转义语义渲染，免得整块面板里混着 `[31m` 乱码。 */}
+          <pre>
+            <AnsiText text={formatInputValue(record.toolInput)} />
+          </pre>
         </section>
       ) : null}
       {record.toolResult != null ? (
         <section aria-label="工具输出">
           <h4>工具输出</h4>
-          <pre>{record.toolResult || "（无输出）"}</pre>
+          {/* 终端输出带色渲染：这是全应用里最像「终端」的一块面板。 */}
+          <pre>{record.toolResult ? <AnsiText text={record.toolResult} /> : "（无输出）"}</pre>
         </section>
       ) : null}
       {structuredLines.length > 0 ? (
         <section aria-label="结构化结果">
           <h4>{record.structuredResult?.toolName ?? "结构化结果"}</h4>
-          <pre>{structuredLines.join("\n")}</pre>
+          <pre>
+            <AnsiText text={structuredLines.join("\n")} />
+          </pre>
         </section>
       ) : null}
       <section aria-label="记录原文">
@@ -156,16 +164,24 @@ export function RecordDetailPanel({
             <dt>工具调用</dt><dd>{record.workflowRun.totalToolCalls ?? "—"}</dd>
             <dt>阶段</dt><dd>{record.workflowRun.phases.join(" → ") || "—"}</dd>
           </dl>
-          {record.workflowRun.summary ? <p>{record.workflowRun.summary}</p> : null}
+          {record.workflowRun.summary ? (
+            <p>
+              <AnsiText text={record.workflowRun.summary} />
+            </p>
+          ) : null}
           {record.workflowRun.logs.length ? (
-            <pre aria-label="Workflow 日志">{record.workflowRun.logs.join("\n")}</pre>
+            <pre aria-label="Workflow 日志">
+              <AnsiText text={record.workflowRun.logs.join("\n")} />
+            </pre>
           ) : null}
           {record.workflowRun.resultText ? (
             <>
               {record.workflowRun.resultTruncated ? (
                 <p role="note">结果已截断，只保留前 4000 字符。</p>
               ) : null}
-              <pre aria-label="Workflow 结果">{record.workflowRun.resultText}</pre>
+              <pre aria-label="Workflow 结果">
+                <AnsiText text={record.workflowRun.resultText} />
+              </pre>
             </>
           ) : null}
         </section>

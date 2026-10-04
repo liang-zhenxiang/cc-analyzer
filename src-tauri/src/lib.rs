@@ -643,6 +643,9 @@ mod gui_capture {
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth
     },
+    /* 终端转义序列（ESC）不该出现在**任何**渲染出来的文字里：它是控制字节，
+       不是文本。计数是事实，阈值与判定留给脚本。 */
+    escaped_text: (document.body.innerText.match(/\u001b/g) || []).length,
     main: boxOf(document.querySelector('main')),
     elements: [],
     tables: []
@@ -651,6 +654,12 @@ mod gui_capture {
   if (gauge) {
     var card = gauge.closest("[aria-label='计费窗口']");
     facts.elements.push({ name: 'gauge', rect: rectOf(gauge), card: card ? rectOf(card) : null });
+  }
+  // 导出浮层：模态是它的稳定标记（`aria-modal`），不靠样式类名匹配——
+  // CSS Module 的类名带哈希，改了会静默失配。只收集几何，判定留在脚本里。
+  var exportDialog = document.querySelector('[role="dialog"][aria-modal="true"]');
+  if (exportDialog) {
+    facts.elements.push({ name: 'export-dialog', rect: rectOf(exportDialog) });
   }
   var table = document.querySelector('table');
   if (table) {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from "react";
 import { Button } from "../../components/Button";
+import { stripAnsi } from "../../lib/ansi";
 import { EmptyState } from "../../components/EmptyState";
 import { ScrollArea } from "../../components/ScrollArea";
 import type { SessionRecord } from "./types";
@@ -191,7 +192,8 @@ function FragmentRow({
         <td>
           {record.toolName ? <strong>{record.toolName}</strong> : null}
           {record.toolName && record.text ? " · " : ""}
-          {record.text || "-"}
+          {/* 表格单元里放纯文本：转义序列在 <td> 里既占宽度又不可读。 */}
+          {stripAnsi(record.text) || "-"}
         </td>
         <td>{formatDuration(record.durationMs)}</td>
         <td className={record.isError ? styles.error : undefined}>

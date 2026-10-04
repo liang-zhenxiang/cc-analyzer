@@ -56,13 +56,21 @@ badge. Every screen, in both light and dark themes, is archived in
   scanned titles and relative times.
 - **Log view with one row model** — user / LLM / tool / agent / workflow /
   wait rows, with duration, share and waterfall columns; filter by row kind,
-  success/failure, duration range, or free text.
+  success/failure, duration range, or free text. Tool output keeps the terminal
+  colours it was written with (ANSI SGR, 256-colour and true-colour, carriage
+  returns resolved) while every table cell, copy action and export stays plain
+  text.
 - **Duration tree** — agent and workflow sub-sessions resolved into a graph
   with graph-backed durations; drill into any node or analyse a selected
   time block only.
 - **AI analysis reports** — structured prompts sent to your local `claude`
   CLI, rendered as Markdown with syntax highlighting; cancellable at any
   time, with per-node and per-time-block scoping.
+- **Export & share** — turn a session into a **single-file HTML report**
+  (self-contained: no scripts, no CDN, no fonts to fetch; everything escaped)
+  or a **CSV** for Excel and scripts, over the current filter or the whole
+  session. Save it through the native dialog or copy it to the clipboard; the
+  report carries the project's directory name, never a full path.
 - **Session readouts, ruler and keyboard navigation** — the session header
   opens with a readout row (total duration / input / cache read / output /
   records), clicked to expand the token panel; the timeline gained tick marks,
