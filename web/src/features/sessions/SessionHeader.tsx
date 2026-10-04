@@ -25,6 +25,7 @@ export function SessionHeader({
   tokenPanelOpen,
   onToggleTokenPanel,
   onOpenFolder,
+  onExport,
   clipboard
 }: {
   session: SessionMeta;
@@ -32,6 +33,8 @@ export function SessionHeader({
   tokenPanelOpen: boolean;
   onToggleTokenPanel: () => void;
   onOpenFolder: (path: string) => void;
+  /** Opens the export dialog. Absent while the session is still parsing. */
+  onExport: (trigger: HTMLElement) => void;
   clipboard: ClipboardService;
 }) {
   const { notify } = useNotifications();
@@ -104,6 +107,17 @@ export function SessionHeader({
               onClick={() => onOpenFolder(directory)}
             >
               打开位置
+            </Button>
+          ) : null}
+          {/* 会话级动作之一，与上面两个同级。解析中不渲染：没有数据可导，
+              摆一个禁用按钮只是噪音。 */}
+          {parsed ? (
+            <Button
+              type="button"
+              title="导出该会话的报告或记录数据"
+              onClick={(event) => onExport(event.currentTarget)}
+            >
+              导出
             </Button>
           ) : null}
           {resumeHint ? <span className={styles.hint}>{resumeHint}</span> : null}

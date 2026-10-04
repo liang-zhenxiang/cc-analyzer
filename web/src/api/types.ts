@@ -68,6 +68,16 @@ export interface ClipboardService {
 }
 
 export interface DialogBridge {
+  /**
+   * Generic "save text to a file the user picks". Markdown reports and session
+   * exports are the same operation with a different title and extension, so
+   * they share one path instead of each growing a copy of the dialog call.
+   */
+  saveText(
+    defaultName: string,
+    contents: string,
+    options: { title: string; filterName: string; extensions: string[] }
+  ): Promise<string | null>;
   saveMarkdown(defaultName: string, contents: string): Promise<string | null>;
 }
 

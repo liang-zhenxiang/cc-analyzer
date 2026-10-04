@@ -12,6 +12,8 @@ import { TimelineTrack } from "./TimelineTrack";
 import { TokenPanel } from "./TokenPanel";
 import { RecordDetailPanel } from "./RecordDetailPanel";
 import { ReportPanel } from "./ReportPanel";
+import { ExportDialog } from "./ExportDialog";
+import { formatLabel, projectNameOf, type ExportBase, type ExportFormat } from "./exportTypes";
 import { TreeView } from "./TreeView";
 import { LogView } from "./LogView";
 import { emptyFilter, type RecordFilter, type TimeRange } from "./filters";
@@ -27,7 +29,7 @@ import {
   ReportCancelledError,
   type ReportMode
 } from "./report";
-import type { SessionMeta } from "./metadataCache";
+import { sessionTitle, type SessionMeta } from "./metadataCache";
 import type { ParsedSession, ParsedSessionGraph, SessionRecord } from "./types";
 import styles from "./SessionAnalyzerPage.module.css";
 
@@ -72,6 +74,12 @@ export function SessionAnalyzerPage({
   const [view, setView] = useState<AnalyzerView>(readStoredView);
   // 折叠是默认：面板是会话级明细，不是主流程的一部分。
   const [tokenPanelOpen, setTokenPanelOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  // WebKit 点按钮不给焦点（Safari 的默认行为），所以触发元素要显式记下来，
+  // 关浮层时才有地方把焦点还回去。
+  const exportTriggerRef = useRef<HTMLElement | null>(null);
+  // 报告落款要写版本号；取不到就留空（宁可少一行信息，也不写一个假版本）。
+  const [appVersion, setAppVersion] = useState("");
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [reportNode, setReportNode] = useState<DurationNode | null>(null);
   const [windowOnly, setWindowOnly] = useState(false);
@@ -99,6 +107,43 @@ export function SessionAnalyzerPage({
   const records = useMemo(() => recordsOfRows(logRows), [logRows]);
   const signature = parsed ? reportSignature(parsed, mode, filter, graph) : null;
   const stale = report.signature !== null && report.signature !== signature;
+
+  /**
+   * Everything the export needs except the two choices the dialog owns. Built
+   * from the page's own state, so the export can never disagree with the screen:
+   * `records` is the filtered set the tables are showing.
+   */
+  const exportBase = useMemo<ExportBase | null>(() => {
+    if (!selectedSession || !parsed) return null;
+    return {
+      title: sessionTitle(selectedSession),
+      sessionId: selectedSession.sessionId ?? parsed.sessionId,
+      projectName: projectNameOf(selectedSession.cwd, selectedSession.projectLabel),
+      startedAt: parsed.startedAt,
+      endedAt: parsed.endedAt,
+      records,
+      allRecords: parsed.records,
+      appVersion
+    };
+  }, [selectedSession, parsed, records, appVersion]);
+
+  function handleExportSaved(format: ExportFormat) {
+    setExportOpen(false);
+    notify(`已导出 ${formatLabel(format)}`, "success");
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    const pending = bridges.updater?.appVersion();
+    pending
+      ?.then((value) => {
+        if (!cancelled) setAppVersion(value);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [bridges]);
 
   useEffect(() => {
     function markStale() {
@@ -340,6 +385,10 @@ export function SessionAnalyzerPage({
           tokenPanelOpen={tokenPanelOpen}
           onToggleTokenPanel={() => setTokenPanelOpen((open) => !open)}
           onOpenFolder={(path) => void bridges.system.openFolder(path)}
+          onExport={(trigger) => {
+            exportTriggerRef.current = trigger;
+            setExportOpen(true);
+          }}
           clipboard={bridges.clipboard}
         />
       ) : null}
@@ -473,6 +522,18 @@ export function SessionAnalyzerPage({
           />
         ) : null}
       </div>
+      {/* 浮层挂在页面根部：position: fixed 让它脱离文档流，而 .page → .body →
+          .workspace 链路上没有 transform/filter，不会被拉进某个包含块。 */}
+      {exportOpen && exportBase ? (
+        <ExportDialog
+          input={exportBase}
+          clipboard={bridges.clipboard}
+          dialog={bridges.dialog}
+          opener={exportTriggerRef.current}
+          onClose={() => setExportOpen(false)}
+          onSaved={handleExportSaved}
+        />
+      ) : null}
     </div>
   );
 }
