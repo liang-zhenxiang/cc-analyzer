@@ -1,0 +1,6 @@
+{"file": ".trellis/tasks/10-03-h3-design-polish/design.md", "reason": "本任务唯一权威设计规格（含逐条视觉规格、无障碍、风险与验收清单）"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端分层入口"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "组件与 CSS Module 约定"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端质量门与 tokens 纪律"}
+{"file": ".trellis/spec/testing/index.md", "reason": "三层分工与「改了什么补哪层」"}
+{"file": ".trellis/spec/testing/pitfalls.md", "reason": "踩坑史：CSS 特异性等"}

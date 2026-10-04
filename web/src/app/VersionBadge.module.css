@@ -1,0 +1,41 @@
+/* 徽章是元信息不是操作按钮：低对比、发丝描边、等宽数字——
+   读起来像仪器铭牌，不抢顶栏的视觉预算。 */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  color: var(--text-tertiary);
+  font-family: inherit;
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-hover) var(--ease-in-out),
+    color var(--dur-hover) var(--ease-in-out);
+}
+
+.badge:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+/* 先行版：警示色系点出「这不是稳定版」。只染文字与描边，不做整块底色——
+   仪器面板的规矩是颜色上数据，徽章本身是铭牌不是告警条。 */
+.prerelease {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.tag {
+  margin-left: var(--sp-1);
+  padding: 0 4px;
+  border-radius: var(--r-xs);
+  background: var(--warning-soft, color-mix(in srgb, var(--warning) 14%, transparent));
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}

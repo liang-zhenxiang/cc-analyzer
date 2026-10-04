@@ -1,5 +1,6 @@
 import type { SessionRecord, Turn } from "./types";
 import type { RecordFilter } from "./filters";
+import { stripAnsi } from "../../lib/ansi";
 
 export type LogRowKind = "user" | "llm" | "tool" | "subagent" | "workflow" | "wait";
 export type LogRowStatus = "ok" | "error" | "na";
@@ -35,7 +36,12 @@ export type LogRow = {
   records: SessionRecord[];
 };
 
-const KIND_LABELS: Record<LogRowKind, string> = {
+/**
+ * One label per row kind, shared by the table, the export dialog and the HTML
+ * report. Exported (rather than copied) because a second copy drifts: the
+ * report and the page must call the same row the same thing.
+ */
+export const ROW_KIND_LABELS: Record<LogRowKind, string> = {
   user: "用户",
   llm: "LLM",
   tool: "工具",
@@ -47,11 +53,18 @@ const KIND_LABELS: Record<LogRowKind, string> = {
 const SUMMARY_LIMIT = 72;
 
 function truncate(text: string): string {
-  const flat = text.replace(/\s+/g, " ").trim();
+  // 表格里的一行摘要必须是纯文本：终端转义序列（`\u001b[31m`）既占宽度，
+  // 又让「按我看到的字搜」匹配不上。颜色属于详情面板，不属于这张表。
+  const flat = stripAnsi(text).replace(/\s+/g, " ").trim();
   return flat.length > SUMMARY_LIMIT ? `${flat.slice(0, SUMMARY_LIMIT)}…` : flat;
 }
 
-function rowKind(record: SessionRecord): LogRowKind {
+/**
+ * The row kind one record lands in. Exported so the export renderers classify
+ * records exactly the way the table does — a different rule here would make
+ * the exported row count disagree with the on-screen row count.
+ */
+export function rowKind(record: SessionRecord): LogRowKind {
   if (record.kind === "user") return "user";
   if (record.kind === "assistant") return "llm";
   if (record.toolCategory === "delegated") return "subagent";
@@ -78,7 +91,8 @@ function statusOf(record: SessionRecord, kind: LogRowKind): LogRowStatus {
 
 function firstLine(text: string | undefined): string {
   if (!text) return "";
-  return truncate(text.split("\n").find((line) => line.trim().length > 0) ?? text);
+  const clean = stripAnsi(text);
+  return truncate(clean.split("\n").find((line) => line.trim().length > 0) ?? clean);
 }
 
 function toolAction(record: SessionRecord): string {
@@ -152,7 +166,7 @@ function toRow(record: SessionRecord): LogRow {
   return {
     id: record.fullId,
     kind,
-    label: KIND_LABELS[kind],
+    label: ROW_KIND_LABELS[kind],
     action,
     summary,
     timestamp: record.timestamp,
@@ -235,7 +249,7 @@ function mergeLlmAndTool(llm: LogRow, tool: LogRow): LogRow {
   };
   merged.label =
     merged.kind === "subagent" || merged.kind === "workflow"
-      ? KIND_LABELS[merged.kind]
+      ? ROW_KIND_LABELS[merged.kind]
       : "LLM+工具";
   merged.action = `tool_use + ${tool.action}`;
   merged.records = [...llm.records, ...tool.records];
@@ -298,7 +312,7 @@ export function buildGapRows(turns: Turn[]): LogRow[] {
     rows.push({
       id: `gap#${rows.length + 1}`,
       kind: "wait",
-      label: KIND_LABELS.wait,
+      label: ROW_KIND_LABELS.wait,
       action: "—",
       summary: "等待用户输入（轮间间隙）",
       timestamp: last,

@@ -42,16 +42,21 @@ const SESSION_SEEDS: SessionSeed[] = [
   { cwd: "/repo/errors", id: "3d2a5442-9c65-4b28-9c30-bb3d1a1b4a44", content: fixture("session-errors.jsonl") },
   { cwd: "/repo/duration", id: "3d2a5442-9c65-4b28-9c30-bb3d1a1b5a55", content: fixture("session-duration-model.jsonl") },
   { cwd: "/repo/usage-days", id: "3d2a5442-9c65-4b28-9c30-bb3d1a1b6a66", content: fixture("usage-dashboard-days.jsonl") },
-  { cwd: "/repo/usage-models", id: "3d2a5442-9c65-4b28-9c30-bb3d1a1b7a77", content: fixture("usage-dashboard-models.jsonl") }
+  { cwd: "/repo/usage-models", id: "3d2a5442-9c65-4b28-9c30-bb3d1a1b7a77", content: fixture("usage-dashboard-models.jsonl") },
+  // 终端转义序列（颜色、进度回车、OSC 标题）的真身：ANSI 渲染的端到端与真机
+  // 断言都靠它，没有它那几条断言会变成「空场景下恒真」。
+  { cwd: "/repo/ansi", id: "3d2a5442-9c65-4b28-9c30-bb3d1a1b8a88", content: fixture("session-ansi.jsonl") }
 ];
 
-/** 默认场景：七个项目、七份会话——正常、子 agent、解析增强、错误、时长模型，加两个用量仪表盘夹具 */
+/** 默认场景：八个项目、八份会话——正常、子 agent、解析增强、错误、时长模型、两个用量仪表盘夹具，加一份终端转义夹具 */
 export function defaultScenario(overrides: Partial<MockScenario> = {}): MockScenario {
   return {
     home: HOME,
     appData: APP_DATA,
     files: sessionsToFiles(SESSION_SEEDS),
     monitor: { port: 8090, alive: false },
+    // 顶栏版本徽章读它；截图与断言都该看到一个正常的版本号
+    updater: { currentVersion: "0.10.0" },
     claudeStdout: [
       "## 会话概览",
       "",

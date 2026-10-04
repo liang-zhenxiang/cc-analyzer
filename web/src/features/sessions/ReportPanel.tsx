@@ -3,6 +3,7 @@ import type { Bridges } from "../../api/types";
 import type { ReportMode } from "./report";
 import { Button } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
+import { SegmentedControl, type SegmentedItem } from "../../components/SegmentedControl";
 import { ReportMarkdown } from "./ReportMarkdown";
 import styles from "./ReportPanel.module.css";
 
@@ -61,25 +62,23 @@ export function ReportPanel({
     ["node", "节点分析"]
   ];
 
+  const modeItems: SegmentedItem<ReportMode>[] = modes.map(([value, label]) => ({
+    value,
+    label: value === "node" && nodeLabel ? `${label}：${nodeLabel}` : label,
+    disabled: value === "node" && !nodeLabel,
+    title: value === "node" && !nodeLabel ? "先在树视图选择一个节点" : undefined
+  }));
+
   return (
     <section className={styles.panel} aria-label="会话分析报告">
       <header>
         <h2>会话分析报告</h2>
-        <div role="tablist" aria-label="报告范围">
-          {modes.map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              role="tab"
-              aria-selected={mode === value}
-              disabled={value === "node" && !nodeLabel}
-              title={value === "node" && !nodeLabel ? "先在树视图选择一个节点" : undefined}
-              onClick={() => onModeChange(value)}
-            >
-              {value === "node" && nodeLabel ? `${label}：${nodeLabel}` : label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          items={modeItems}
+          value={mode}
+          onChange={onModeChange}
+          ariaLabel="报告范围"
+        />
         <Button type="button" variant="primary" onClick={onGenerate} disabled={loading}>
           {loading
             ? "正在分析中…"

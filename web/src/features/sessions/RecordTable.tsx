@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from "react";
 import { Button } from "../../components/Button";
+import { stripAnsi } from "../../lib/ansi";
 import { EmptyState } from "../../components/EmptyState";
+import { ScrollArea } from "../../components/ScrollArea";
 import type { SessionRecord } from "./types";
 import { useMeasuredRowHeights } from "./measuredRows";
 import { buildRowOffsets, computeSizedWindow } from "./virtualWindow";
@@ -110,7 +112,7 @@ export function RecordTable({
   }, [records]);
 
   return (
-    <div className={styles.container} ref={containerRef} onScroll={onScroll}>
+    <ScrollArea scrollerRef={containerRef} className={styles.container} onScroll={onScroll}>
       <table>
         <thead>
           <tr>
@@ -147,7 +149,7 @@ export function RecordTable({
       {records.length === 0 ? (
         <EmptyState size="inline" title="没有符合筛选条件的记录" />
       ) : null}
-    </div>
+    </ScrollArea>
   );
 }
 
@@ -190,7 +192,8 @@ function FragmentRow({
         <td>
           {record.toolName ? <strong>{record.toolName}</strong> : null}
           {record.toolName && record.text ? " · " : ""}
-          {record.text || "-"}
+          {/* 表格单元里放纯文本：转义序列在 <td> 里既占宽度又不可读。 */}
+          {stripAnsi(record.text) || "-"}
         </td>
         <td>{formatDuration(record.durationMs)}</td>
         <td className={record.isError ? styles.error : undefined}>

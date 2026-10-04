@@ -1,0 +1,61 @@
+@import "../styles/animations.css";
+
+/* 加载骨架：「正在取数」由内容的**形状**表达，而不是一句话请求用户等待。
+   用户扫一眼就知道这里将会出现一列会话 / 一张表 / 一排读数，视线不必读文字、
+   布局也不会在数据到达时塌缩重排。
+
+   条的基色 --bg-hover 本身就是静止可见的形态，动画只把它压暗再放开——
+   这是刻意设计：prefers-reduced-motion 归零动画后，留下的是稳定实心条，
+   而不是空白。**禁止**把基色设成透明再靠动画点亮。 */
+.bar {
+  display: block;
+  height: var(--lh-md);
+  border-radius: var(--r-sm);
+  background: var(--bg-hover);
+  animation: cca-breathe var(--dur-pulse) var(--ease-in-out) infinite alternate;
+}
+
+/* 宽度档：一律相对单位，避免 px 字面量。 */
+.short {
+  width: 30%;
+}
+
+.mid {
+  width: 55%;
+}
+
+.wide {
+  width: 100%;
+}
+
+/* 读数位的宽度：与 .readoutValue 的 3em 同级，读数到达时宽度不跳。 */
+.value {
+  width: 3em;
+}
+
+/* 高度档：按所替代的文本级。.bar 默认 --lh-md，即读数位的高度。 */
+.heightXs {
+  height: var(--lh-xs);
+}
+
+.heightSm {
+  height: var(--lh-sm);
+}
+
+.heightBase {
+  height: var(--lh-base);
+}
+
+/* 列表剪影：一行 = 标题位（mid）+ 元信息位（short）。
+   行内间距与行内边距走行密度令牌，使列表出现时的节奏与真实会话行一致。 */
+.listRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--row-pad-y) var(--row-pad-x);
+}
+
+/* 表格剪影：每行一条通栏条，行高与数据行同档。 */
+.tableRow {
+  padding: var(--row-pad-y) var(--row-pad-x);
+}

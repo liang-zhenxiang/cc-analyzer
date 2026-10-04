@@ -15,6 +15,11 @@
 #      Rust 读文件系统 → 会话解析 → 写缓存，整条链路真的走通了
 #   3. **应用把自己的 webview 渲染成了一张不空白的图**
 #      —— 这一条直接证明 webview 加载 → React 挂载 → 渲染完成
+#   4. **界面布局满足几何不变量**（无横向溢出 / 表盘有界且含于卡片 / 记录表末列可达）
+#      —— 应用侧只收集「原始几何事实」（`CCA_GUI_PROBE`，用
+#      `evaluateJavaScript:completionHandler:` 取回，双向拿得到返回值），
+#      阈值与判定留在这里；事实在应用、断言在脚本。这条把「人眼看截图找布局回归」
+#      变成了「自动失败并指出是哪条不变量破了」。
 #
 # 内存占用只**记录**、不判定。这里曾经写的是「RSS > 20MB 即 webview 已加载」，
 # 那是过度声称：实测一个只装了空白 WKWebView 的最小窗口进程，RSS 就有
@@ -29,6 +34,12 @@
 # **隔离**：通过把 HOME 指向临时目录，应用只会看到我们放进去的夹具，
 # 不会去读使用者真实的 ~/.claude 会话数据。这是有意的——会话内容属于敏感数据。
 #
+# **失败时要能一次定位**：探针缺失算失败（不是跳过），但失败信息不止说「没有产出」——
+# 它会打印探针**路径与最后修改时间**、脚本等待了多久，以及应用日志里与这份探针**相关
+# 的行**（应用侧每条探针日志都带文件名），据此直接区分「应用没写出来」与「脚本等太短」。
+# 想连整个现场一起留下（应用日志、PDF、探针 JSON）就设 `CCA_GUI_KEEP_WORK=1`，
+# 此时临时工作目录不会被删，路径会打印出来。门禁是间歇性失败过的，缺了现场就无法归因。
+#
 # **前提**：产物必须带 `gui-capture` feature。没有它，应用不会渲染自身 webview，
 # 取图那步必然失败——而发布产物**不带**该 feature（见 src-tauri/Cargo.toml），
 # 所以 `npm run build:macos:*` 产出的常规产物不能直接拿来跑。
@@ -39,11 +50,19 @@
 #   ./scripts/gui-test.sh --build        # 先构建（自动带 gui-capture）再跑
 #   ./scripts/gui-test.sh --app <path>   # 指定 .app
 #   CCA_GUI_CAPTURE_TAB=用量总览 ./scripts/gui-test.sh
-#                                        # 追加第二张取图：应用点击该可访问名的
-#                                        # 标签页、等一轮渲染后再截一张，走与第一张
-#                                        # 完全相同的转 PNG + 非空白判定
+#                                        # 覆盖「视图清单」：逗号分隔的目标，应用依次
+#                                        # 点击并在每步取一张图，各走相同的转 PNG + 非空白
+#                                        # 与几何判定。**单个值沿用旧文件名 -tab.pdf**。
 #
-# 退出码：0 没有失败项／1 有检查项失败（取不到图计失败，不是跳过）
+# 默认的视图清单是「会话分析 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
+# 日志视图 → 导出 → 关闭导出窗口 → 用量总览 → 实时监控」；每张图
+# 都配一份几何探针 JSON（`CCA_GUI_PROBE`），脚本据它判定**布局不变量**：无横向溢出、表盘
+# 有界且含于卡片、记录表末列可达。目标既可写可访问名/可见文本（标签页），也可写会话 cwd
+# （会匹配按钮的 `title`）。**前两步显式切回「会话分析」与「日志视图」**——应用会把当前
+# 标签页与分析器子视图记进 WebKit 的 localStorage（位于真实 ~/Library/WebKit，不受 HOME
+# 隔离），不先切回去，会话点击会落空、树视图也没有记录表。
+#
+# 退出码：0 没有失败项／1 有检查项失败（取不到图、探针缺失、布局不变量破坏都计失败）
 
 set -euo pipefail
 
@@ -82,15 +101,26 @@ gui-test.sh —— 真机 GUI 冒烟测试
   ./scripts/gui-test.sh --build        # 先构建（自动带 gui-capture）再跑
   ./scripts/gui-test.sh --app <path>   # 指定 .app
   CCA_GUI_CAPTURE_TAB=用量总览 ./scripts/gui-test.sh
-                                       # 额外截一张「点击该可访问名标签页后」的图
+                                       # 覆盖「视图清单」：逗号分隔的目标，应用依次点击
+                                       # 各取一张图。单个值沿用旧文件名 -tab.pdf。
+  CCA_GUI_KEEP_WORK=1 ./scripts/gui-test.sh
+                                       # 失败时留下整个现场（应用日志、PDF、探针 JSON），
+                                       # 不删临时工作目录，并把路径打印出来。
   -h, --help                           # 显示帮助
+
+默认视图清单：会话分析 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
+日志视图 → 导出 → 关闭导出窗口 → 用量总览 → 实时监控。每张图都配一份
+几何探针 JSON，脚本据它判定布局不变量（无横向溢出 / 表盘有界且含于卡片 / 记录表末列可达 / 文字里无 ESC 转义字节）。
+
+探针缺失算失败（不是跳过）。失败时会打印探针路径、最后修改时间、脚本等待时长，以及应用
+日志里与这份探针相关的行，用来区分「应用没写出来」还是「脚本等太短」。
 
 前提：产物必须带 `gui-capture` feature，否则取图那步必然失败。发布产物**不带**
 它，所以 `npm run build:macos:*` 产出的常规产物不能直接拿来跑——请用 --build。
 
 隔离：HOME 指向临时目录，应用只看得见我们放进去的夹具，不会读使用者的真实会话。
 
-退出码：0 没有失败项；1 有检查项失败（取不到图计失败，不是跳过）。
+退出码：0 没有失败项；1 有检查项失败（取不到图、探针缺失、布局不变量破坏都计失败）。
 
 设计取舍与判定依据见本脚本头部注释。
 EOF
@@ -123,10 +153,13 @@ readonly WORK_DIR
 readonly HOME_DIR="${WORK_DIR}/home"
 readonly ARTIFACT_DIR="${PROJECT_ROOT}/gui-artifacts"
 readonly CAPTURE_PDF="${WORK_DIR}/app-capture.pdf"
-# 第二张取图（CCA_GUI_CAPTURE_TAB）的落点：应用侧的规则是「第一张去 .pdf
-# 后缀加 -tab.pdf」，两边必须一致——路径对不上时脚本会一直等不到文件。
-readonly CAPTURE_TAB_PDF="${WORK_DIR}/app-capture-tab.pdf"
+# 几何探针落点（第一张图的）。多视图的探针文件名规则与取图一致，见下面「截图」段。
+readonly CAPTURE_PROBE="${WORK_DIR}/app-probe.json"
 readonly APP_LOG="${WORK_DIR}/app.log"
+# 逐份等几何探针落盘的上限（秒）。探针是异步写出的，「PDF 到了」不等于「JSON 也到了」。
+# 要盖过应用侧的重试预算（PROBE_ATTEMPTS × (PROBE_EVAL_TIMEOUT_MS + PROBE_RETRY_MS)，
+# 见 src-tauri/src/lib.rs），否则应用还在重试、脚本已经判失败。
+readonly PROBE_TIMEOUT_SECS=25
 
 APP_PID=""
 PASSED=0
@@ -136,6 +169,8 @@ declare -a FAILED_NAMES=()
 declare -a SKIPPED_NAMES=()
 
 cleanup() {
+  # 只杀**本轮记录的** PID。绝不 `pkill -f "CC Analyzer"` 这类宽匹配：使用者可能正从
+  # /Applications 打开着同名应用，误杀是真实伤害。APP_PID 只在「启动应用」那一步被填。
   if [[ -n "$APP_PID" ]] && kill -0 "$APP_PID" 2>/dev/null; then
     # 先 disown 再 kill：否则 bash 会在回收这个后台作业时往 stderr 打一行
     # "Terminated: 15 <完整命令行>"。那不是失败，但混在测试输出里极像失败。
@@ -144,9 +179,22 @@ cleanup() {
     sleep 1
     kill -9 "$APP_PID" 2>/dev/null || true
   fi
-  rm -rf "$WORK_DIR"
+  # 默认删掉工作目录；`CCA_GUI_KEEP_WORK=1` 时留下**整个现场**（应用日志、PDF、探针
+  # JSON），供事后定位。门禁是间歇性失败过的，缺了应用日志就无法归因（实测踩过）。
+  if [[ -z "${CCA_GUI_KEEP_WORK:-}" ]]; then
+    rm -rf "$WORK_DIR"
+  else
+    printf '  %s现场已保留（CCA_GUI_KEEP_WORK=1）：%s%s\n' "$C_YELLOW" "$WORK_DIR" "$C_RESET"
+  fi
 }
+# 任何退出路径都要清理：正常结束（EXIT）、Ctrl-C（INT）、被调用方/agent 中断
+# （TERM/HUP）。**信号处理器只 `exit`**，让清理统一由 EXIT trap 走一遍——只挂 EXIT
+# 时，被信号打断的脚本不会走到它，后台 app 会泄漏成 PPID=1 的孤儿实例（实测过 6 个），
+# 累积污染后续运行的环境与内存基线。自测见 scripts/gui-test-shutdown-test.sh。
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
 
 ok()   { printf '  %s✓%s %s\n' "$C_GREEN" "$C_RESET" "$1"; PASSED=$((PASSED + 1)); }
 bad()  { printf '  %s✗%s %s\n' "$C_RED" "$C_RESET" "$1"; FAILED=$((FAILED + 1)); FAILED_NAMES+=("$1"); }
@@ -155,6 +203,26 @@ bad()  { printf '  %s✗%s %s\n' "$C_RED" "$C_RESET" "$1"; FAILED=$((FAILED + 1)
 note() { printf '  %s·%s %s\n' "$C_BLUE" "$C_RESET" "$1"; }
 skip() { printf '  %s⚠ 跳过：%s%s\n' "$C_YELLOW" "$1" "$C_RESET"; SKIPPED=$((SKIPPED + 1)); SKIPPED_NAMES+=("$1"); }
 step() { printf '\n%s▶ %s%s\n' "$C_BOLD" "$1" "$C_RESET"; }
+
+# 目标名 → 文件名片段，必须与 src-tauri/src/lib.rs 里 `gui_capture::slug_of` **逐字一致**：
+# 保留字母数字（含中文），其余折叠成单个 `-`，空结果回退 `tab`。两边不一致会表现为
+# 「脚本一直等不到取图文件」——看起来像取图失败，其实是名字对不上。
+slug_of() {
+  python3 -c '
+import sys
+out = []
+pending = False
+for ch in sys.argv[-1]:
+    if ch.isalnum():
+        if pending and out:
+            out.append("-")
+        pending = False
+        out.append(ch)
+    else:
+        pending = True
+print("".join(out) or "tab")
+' -- "$1"
+}
 
 # 把取图 PDF 转成 PNG 并做非空白判定。两个取图检查（首屏、指定标签页的第二张）
 # 共用同一份判定——「与第一张完全相同的检查」要靠同一份代码，不能靠复制粘贴
@@ -253,6 +321,50 @@ PY
         fi ;;
     esac
   fi
+}
+
+# 等一份探针 JSON 落盘。与 capture_one 里等 PDF 同一纪律：带超时，超时即失败，
+# 绝不把「等不到」算成通过或跳过。返回 0 表示已落盘。
+wait_for_probe() {
+  local path="$1" i
+  for ((i = 0; i < PROBE_TIMEOUT_SECS; i++)); do
+    [[ -f "$path" ]] && return 0
+    sleep 1
+  done
+  [[ -f "$path" ]]
+}
+
+# 探针缺失时的归因：**区分「应用没写出来」与「脚本等太短」**，并给出探针路径与最后
+# 修改时间。依据是应用日志里**带文件名**的 `gui-probe:` / `gui-capture:` 行——应用侧
+# 每条探针日志都带文件名，脚本才能精确归因，而不是笼统地说「没有产出」。
+diagnose_missing_probe() {
+  local label="$1" path="$2" name probe_lines
+  name="$(basename "$path")"
+  printf '  %s  探针缺失诊断 · %s（%s）%s\n' "$C_YELLOW" "$label" "$name" "$C_RESET"
+  if [[ -e "$path" ]]; then
+    printf '    文件存在但脚本判定为缺失，最后修改：%s\n' "$(stat -f '%Sm' "$path" 2>/dev/null)"
+  else
+    printf '    文件不存在；脚本已等待 %s 秒（超时 %s 秒）仍未见\n' \
+      "$PROBE_TIMEOUT_SECS" "$PROBE_TIMEOUT_SECS"
+  fi
+  probe_lines="$(grep -F -- "gui-probe: " "$APP_LOG" 2>/dev/null | grep -F -- "$name" || true)"
+  if [[ -n "$probe_lines" ]]; then
+    printf '    应用日志（与 %s 相关）：\n' "$name"
+    printf '%s\n' "$probe_lines" | sed 's/^/      /'
+    if grep -qF -- "$name 已写出" <<<"$probe_lines"; then
+      printf '    %s→ 归因：应用已写出该探针，脚本仍未在路径上等到 —— 脚本侧（路径 / 时序）%s\n' \
+        "$C_YELLOW" "$C_RESET"
+    else
+      printf '    %s→ 归因：应用侧求值 / 写盘失败（重试已用尽），文件从未写出%s\n' \
+        "$C_YELLOW" "$C_RESET"
+    fi
+  else
+    printf '    应用日志里没有 gui-probe: %s 的任何行 —— 应用没走到取这份探针这一步\n' "$name"
+    grep -F -- "gui-capture: " "$APP_LOG" 2>/dev/null | tail -20 | sed 's/^/      /' || true
+    printf '    %s→ 归因：应用侧没有产出（取图 / 线程可能提前停了），见上面 gui-capture 行%s\n' \
+      "$C_YELLOW" "$C_RESET"
+  fi
+  printf '    现场（应用日志等）：%s\n' "$APP_LOG"
 }
 
 printf '%s' "$C_BOLD"
@@ -397,8 +509,10 @@ install_fixture "${FIXTURE_SRC}/session-basic.jsonl" "-repo-demo" "${SESSION_UUI
 install_fixture "${FIXTURE_SRC}/session-subagent.jsonl" "-repo-demo" "3d2a5442-9c65-4b28-9c30-bb3d1a1b2a22"
 install_fixture "${FIXTURE_SRC}/usage-dashboard-days.jsonl" "-repo-usage-days" "dash-days-0001"
 install_fixture "${FIXTURE_SRC}/usage-dashboard-models.jsonl" "-repo-usage-models" "dash-models-0002"
+# 终端转义夹具：日志表里若把 `\u001b[31m` 当文本渲染，探针的 escaped_text 会立刻非零。
+install_fixture "${FIXTURE_SRC}/session-ansi.jsonl" "-repo-ansi" "3d2a5442-9c65-4b28-9c30-bb3d1a1b8a88"
 printf '  隔离家目录：%s\n' "$HOME_DIR"
-printf '  夹具会话：4 个\n'
+printf '  夹具会话：5 个\n'
 
 CACHE_PATH="${HOME_DIR}/Library/Application Support/${BUNDLE_ID}/meta-cache-v2.json"
 
@@ -409,17 +523,61 @@ step "启动应用"
 # 不会把自定义的 HOME 传进去，隔离就失效了。
 # CCA_GUI_CAPTURE 让应用在渲染完成后把自己的 webview 渲染成 PDF（见 lib.rs 的
 # gui_capture 模块）。这是**唯一**一条不需要「屏幕录制」权限的真机取图途径。
-# CCA_GUI_CAPTURE_TAB（可选）再让应用点开该可访问名的标签页、截第二张——
-# 默认不设，行为与从前完全一致。
-GUI_TAB="${CCA_GUI_CAPTURE_TAB:-}"
-if [[ -n "$GUI_TAB" ]]; then
-  HOME="$HOME_DIR" CCA_GUI_CAPTURE="$CAPTURE_PDF" CCA_GUI_CAPTURE_TAB="$GUI_TAB" \
+# CCA_GUI_PROBE 让应用在每张图之后额外取回一份几何事实。
+#
+# 采集计划（视图清单）：默认视图先取一张，然后按顺序点击每个目标各取一张。
+# **第一个目标固定是「会话分析」**：应用会把上次所在的标签页记进 WebKit 的
+# localStorage，而那份存储落在使用者真实的 ~/Library/WebKit（不受 HOME 隔离影响），
+# 于是应用未必从「会话分析」启动——不先显式切回去，后面的会话点击会落空。
+# 会话条目没有稳定的可访问名，靠它的 `title`（即 cwd）匹配；夹具会话的 cwd 固定为
+# /repo/demo（见 web/tests/fixtures/session-basic.jsonl）；改夹具要同步改这里。
+# 可用环境变量 CCA_GUI_CAPTURE_TAB 覆盖（逗号分隔），此时不做「视图覆盖」判定。
+if [[ -n "${CCA_GUI_CAPTURE_TAB:-}" ]]; then
+  COVERAGE=0
+  IFS=',' read -r -a CAPTURE_TARGETS <<< "$CCA_GUI_CAPTURE_TAB"
+else
+  COVERAGE=1
+  # 「日志视图」单独点名：分析器子视图也被记进那份 localStorage，不显式切回日志视图，
+  # 打开会话后可能停在树视图——树视图没有记录表，末列可达那条就无从判定。
+  # 「导出」紧跟日志视图：它只在会话打开且解析完成时才渲染，离开会话页就没了；
+  # 后面立刻点「关闭导出窗口」，否则浮层的遮罩会挡住余下三个视图的点击。
+  # `/repo/ansi` 必须在「日志视图」之后再点一次：上一步已经把子视图切成日志，
+  # 但换会话不会自动回到日志视图，而终端转义那条不变量只在日志表里才有内容。
+  CAPTURE_TARGETS=("会话分析" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "用量总览" "实时监控")
+fi
+
+# 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
+# 多个目标各用 `app-capture-<slug>.pdf`。探针 JSON 同规则、后缀换 .json。
+# 这套规则与 src-tauri/src/lib.rs 的 tab_output_path / probe_output_path 一一对应。
+declare -a CAPTURE_LABELS=("默认视图")
+declare -a CAPTURE_PDFS=("$CAPTURE_PDF")
+declare -a CAPTURE_SHOTS=("${ARTIFACT_DIR}/app-window.png")
+declare -a CAPTURE_PROBES=("$CAPTURE_PROBE")
+for _target in "${CAPTURE_TARGETS[@]}"; do
+  [[ -n "$_target" ]] || continue
+  if [[ ${#CAPTURE_TARGETS[@]} -eq 1 ]]; then
+    _suffix="-tab"
+  else
+    _suffix="-$(slug_of "$_target")"
+  fi
+  CAPTURE_LABELS+=("$_target")
+  CAPTURE_PDFS+=("${WORK_DIR}/app-capture${_suffix}.pdf")
+  CAPTURE_SHOTS+=("${ARTIFACT_DIR}/app-window${_suffix}.png")
+  CAPTURE_PROBES+=("${WORK_DIR}/app-probe${_suffix}.json")
+done
+GUI_TAB_LIST="$(IFS=,; echo "${CAPTURE_TARGETS[*]}")"
+
+if [[ -n "$GUI_TAB_LIST" ]]; then
+  HOME="$HOME_DIR" CCA_GUI_CAPTURE="$CAPTURE_PDF" \
+    CCA_GUI_CAPTURE_TAB="$GUI_TAB_LIST" CCA_GUI_PROBE="$CAPTURE_PROBE" \
     "$BIN" >"$APP_LOG" 2>&1 &
 else
-  HOME="$HOME_DIR" CCA_GUI_CAPTURE="$CAPTURE_PDF" "$BIN" >"$APP_LOG" 2>&1 &
+  HOME="$HOME_DIR" CCA_GUI_CAPTURE="$CAPTURE_PDF" CCA_GUI_PROBE="$CAPTURE_PROBE" \
+    "$BIN" >"$APP_LOG" 2>&1 &
 fi
 APP_PID=$!
 printf '  PID %s\n' "$APP_PID"
+printf '  视图清单：%s\n' "${CAPTURE_LABELS[*]}"
 
 # ---------------------------------------------------------------------------
 step "断言：进程存活且没有崩溃"
@@ -497,10 +655,10 @@ PY
   COUNT="$(printf '%s\n' "$CACHE_REPORT" | grep '^COUNT ' | awk '{print $2}')"
   OUTSIDE="$(printf '%s\n' "$CACHE_REPORT" | grep '^OUTSIDE ' | awk '{print $2}')"
 
-  if [[ "${COUNT:-}" == "4" ]]; then
-    ok "缓存条目数 = 4，与夹具一致"
+  if [[ "${COUNT:-}" == "5" ]]; then
+    ok "缓存条目数 = 5，与夹具一致"
   else
-    bad "缓存条目数 = ${COUNT:-解析失败}，期望 4"
+    bad "缓存条目数 = ${COUNT:-解析失败}，期望 5"
     printf '  %s  %s%s\n' "$C_YELLOW" "$CACHE_REPORT" "$C_RESET"
   fi
 
@@ -516,55 +674,232 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-step "截图：应用真实窗口"
-# ---------------------------------------------------------------------------
+# 逐视图取图：每张都走同一份「转 PNG + 非空白」判定（check_capture_pdf）。
+# 取不到任何一张都计失败而不是跳过。
+#
 # 应用在渲染完成后会把**自己的 webview** 渲染成 PDF（`gui_capture` 模块）。
 # 这条路走的是 WebKit 自身的渲染，**不经过截屏通道**，所以不需要「屏幕录制」权限。
 #
 # 早先这里用的是 `screencapture`，它必然失败——实测过，连「进程截自己的窗口」
 # 都只能拿到一张尺寸正确但像素全透明的图。详见 .trellis/spec/testing/gui-tests.md。
+# ---------------------------------------------------------------------------
 mkdir -p "$ARTIFACT_DIR"
-SHOT="${ARTIFACT_DIR}/app-window.png"
-rm -f "$SHOT"
 
-CAPTURED=0
-for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-  [[ -f "$CAPTURE_PDF" ]] && { CAPTURED=1; break; }
-  sleep 1
-done
+capture_one() {
+  local label="$1" pdf="$2" shot="$3" title="$4"
+  step "$title"
+  rm -f "$shot"
 
-if [[ "$CAPTURED" != "1" ]]; then
-  bad "应用没有产出取图 PDF——gui_capture 没跑起来（是不是构建时漏了 gui-capture feature？）"
-  sed -n '1,20p' "$APP_LOG" | sed 's/^/    /'
-else
-  ok "应用已渲染自身窗口：$(wc -c < "$CAPTURE_PDF" | tr -d ' ') 字节"
-  check_capture_pdf "$CAPTURE_PDF" "$SHOT" ""
-fi
-
-# ---------------------------------------------------------------------------
-# 第二张取图（可选）：应用侧在第一张落盘后会点击 CCA_GUI_CAPTURE_TAB 指定的
-# 标签页、等一轮渲染再写第二张 PDF。判定与第一张走同一个函数；取不到图
-# 同样计失败而不是跳过。未设 TAB 时这一步整个不存在，输出与从前完全一致。
-# ---------------------------------------------------------------------------
-if [[ -n "$GUI_TAB" ]]; then
-  step "截图：切换到「${GUI_TAB}」标签页后"
-
-  SHOT_TAB="${ARTIFACT_DIR}/app-window-tab.png"
-  rm -f "$SHOT_TAB"
-
-  CAPTURED_TAB=0
-  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-    [[ -f "$CAPTURE_TAB_PDF" ]] && { CAPTURED_TAB=1; break; }
+  local waited=0
+  for _ in {1..15}; do
+    [[ -f "$pdf" ]] && { waited=1; break; }
     sleep 1
   done
 
-  if [[ "$CAPTURED_TAB" != "1" ]]; then
-    bad "「${GUI_TAB}」标签页：应用没有产出第二张取图 PDF——gui_capture 的 tab 流程没跑通"
+  if [[ "$waited" != "1" ]]; then
+    bad "${label}：应用没有产出取图 PDF——gui_capture 没跑起来或该视图没截到"
     sed -n '1,30p' "$APP_LOG" | sed 's/^/    /'
   else
-    ok "「${GUI_TAB}」标签页已渲染：$(wc -c < "$CAPTURE_TAB_PDF" | tr -d ' ') 字节"
-    check_capture_pdf "$CAPTURE_TAB_PDF" "$SHOT_TAB" "「${GUI_TAB}」标签页"
+    ok "${label}已渲染：$(wc -c < "$pdf" | tr -d ' ') 字节"
+    check_capture_pdf "$pdf" "$shot" "$label"
   fi
+}
+
+capture_one "${CAPTURE_LABELS[0]}" "${CAPTURE_PDFS[0]}" "${CAPTURE_SHOTS[0]}" \
+  "截图：应用真实窗口（默认视图）"
+
+for _i in "${!CAPTURE_TARGETS[@]}"; do
+  [[ -n "${CAPTURE_TARGETS[$_i]}" ]] || continue
+  _slot=$((_i + 1))
+  capture_one "「${CAPTURE_TARGETS[$_i]}」" "${CAPTURE_PDFS[$_slot]}" "${CAPTURE_SHOTS[$_slot]}" \
+    "截图：点击「${CAPTURE_TARGETS[$_i]}」后"
+done
+
+# ---------------------------------------------------------------------------
+step "断言：界面布局不变量（真机几何探针）"
+# ---------------------------------------------------------------------------
+# 应用侧只收集**原始几何事实**（`CCA_GUI_PROBE` 指向的 JSON，每张图一份），阈值与
+# 判定在这里——事实在应用、断言在脚本。判据取几何关系（是否溢出、是否包含、是否
+# 可达），与渲染引擎差异无关，绝不断言具体像素坐标或颜色。
+#
+# 先**逐份**等探针落盘：探针与取图都是异步回调，「PDF 到了」不等于「JSON 也到了」。
+# 等不到的，在断言前先打一段归因诊断（路径 / 最后修改时间 / 应用日志里与这份探针相关
+# 的行），把「应用没写出来」和「脚本等太短」直接分开——门禁要能一次定位，而不是只说
+# 「没有产出」。缺失本身仍由下面的断言记为**失败**，这里只是把现场说清楚。
+declare -a PROBE_MISSING=()
+for _i in "${!CAPTURE_PROBES[@]}"; do
+  if ! wait_for_probe "${CAPTURE_PROBES[$_i]}"; then
+    PROBE_MISSING+=("${CAPTURE_LABELS[$_i]}::${CAPTURE_PROBES[$_i]}")
+  fi
+done
+for _entry in "${PROBE_MISSING[@]:-}"; do
+  [[ -n "$_entry" ]] || continue
+  diagnose_missing_probe "${_entry%%::*}" "${_entry#*::}"
+done
+
+declare -a PROBE_ENTRIES=()
+for _i in "${!CAPTURE_PROBES[@]}"; do
+  PROBE_ENTRIES+=("${CAPTURE_LABELS[$_i]}::${CAPTURE_PROBES[$_i]}")
+done
+
+PROBE_STATUS=0
+PROBE_REPORT="$(COVERAGE="$COVERAGE" python3 - "${PROBE_ENTRIES[@]}" <<'PY' 2>&1
+import json
+import os
+import pathlib
+import sys
+
+GAUGE_MAX_WIDTH = 200
+# 导出浮层的宽度上限来自设计规格（`min(480px, 100%)`）；真机窗口更窄时它自己
+# 会收缩，所以只判「不超过上限且完整落在窗口内」，不判具体像素。
+EXPORT_DIALOG_MAX_WIDTH = 480
+EXPORT_DIALOG_LABEL = "导出"
+coverage = os.environ.get("COVERAGE") == "1"
+seen_gauge = 0
+seen_table = 0
+
+for arg in sys.argv[1:]:
+    label, _, path = arg.partition("::")
+    probe = pathlib.Path(path)
+    if not probe.is_file():
+        print(f"BAD|{label}：几何探针没有产出（{probe}）")
+        continue
+    try:
+        data = json.loads(probe.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001 - 解析失败就是失败
+        print(f"BAD|{label}：探针 JSON 解析失败（{exc}）")
+        continue
+
+    doc = data.get("document") or {}
+    sw, cw = doc.get("scrollWidth"), doc.get("clientWidth")
+    if isinstance(sw, int) and isinstance(cw, int):
+        if sw <= cw + 1:
+            print(f"OK|{label}：文档无横向溢出（scrollWidth {sw} ≤ clientWidth {cw}）")
+        else:
+            print(f"BAD|{label}：文档横向溢出（scrollWidth {sw} > clientWidth {cw}）")
+    else:
+        print(f"NOTE|{label}：探针缺少文档宽度，跳过横向溢出判定")
+
+    main = data.get("main")
+    if isinstance(main, dict) and isinstance(main.get("scrollWidth"), int) \
+            and isinstance(main.get("clientWidth"), int):
+        msw, mcw = main["scrollWidth"], main["clientWidth"]
+        if msw <= mcw + 1:
+            print(f"OK|{label}：主内容区无横向溢出（main scrollWidth {msw} ≤ clientWidth {mcw}）")
+        else:
+            print(f"BAD|{label}：主内容区横向溢出（main scrollWidth {msw} > clientWidth {mcw}，overflowX={main.get('overflowX')}）")
+
+    # 终端转义序列被当文本渲染 = 用户看到乱码（ANSI 保真的真机判据）。
+    escaped = data.get("escaped_text")
+    if isinstance(escaped, int):
+        if escaped == 0:
+            print(f"OK|{label}：渲染出来的文字里没有终端转义字节")
+        else:
+            print(f"BAD|{label}：界面上出现了 {escaped} 个 ESC 控制字节——终端转义没被解析，用户看到的是乱码")
+    else:
+        print(f"NOTE|{label}：探针缺少 escaped_text，跳过终端转义判定")
+
+    for el in data.get("elements") or []:
+        if el.get("name") != "gauge":
+            continue
+        seen_gauge += 1
+        rect = el.get("rect") or {}
+        card = el.get("card") or {}
+        width, height = rect.get("width"), rect.get("height")
+        if not isinstance(width, (int, float)) or not isinstance(height, (int, float)):
+            print(f"BAD|{label}：表盘矩形缺失")
+            continue
+        inside = True
+        if isinstance(card.get("width"), (int, float)) and isinstance(card.get("height"), (int, float)):
+            inside = (
+                rect.get("x", 0) >= card.get("x", 0) - 1
+                and rect.get("y", 0) >= card.get("y", 0) - 1
+                and rect.get("x", 0) + width <= card.get("x", 0) + card["width"] + 1
+                and rect.get("y", 0) + height <= card.get("y", 0) + card["height"] + 1
+            )
+        if width <= GAUGE_MAX_WIDTH and inside:
+            print(f"OK|{label}：表盘有界且含于卡片（{width:.0f}×{height:.0f}px ≤ {GAUGE_MAX_WIDTH}px，卡片内）")
+        else:
+            print(f"BAD|{label}：表盘失界（宽度 {width:.0f}px，阈值 {GAUGE_MAX_WIDTH}px，含于卡片={inside}）")
+
+    for tbl in data.get("tables") or []:
+        seen_table += 1
+        container = tbl.get("container") or {}
+        ccw, csw = container.get("clientWidth"), container.get("scrollWidth")
+        overflow_x = container.get("overflowX")
+        right = container.get("right")
+        last = tbl.get("lastColumnRight")
+        if not isinstance(ccw, int) or not isinstance(csw, int):
+            print(f"BAD|{label}：记录表容器几何缺失")
+            continue
+        reachable = (
+            isinstance(last, (int, float))
+            and isinstance(right, (int, float))
+            and last <= right + 1
+        )
+        scrollable = overflow_x in ("auto", "scroll") and csw > ccw + 1
+        if reachable:
+            print(f"OK|{label}：记录表末列未越界（末列右边界 {last:.0f} ≤ 容器右边界 {right:.0f}）")
+        elif scrollable and tbl.get("hasScrollHint"):
+            print(f"OK|{label}：记录表末列可横向滚达（scrollWidth {csw} > clientWidth {ccw}，有滚动提示）")
+        else:
+            print(f"BAD|{label}：记录表末列被裁切（末列右边界 {last}，容器右边界 {right}，overflowX={overflow_x}，可滚动={scrollable}，提示={tbl.get('hasScrollHint')}）")
+
+    export_seen = 0
+    viewport = data.get("viewport") or {}
+    for el in data.get("elements") or []:
+        if el.get("name") != "export-dialog":
+            continue
+        export_seen += 1
+        rect = el.get("rect") or {}
+        width, height = rect.get("width"), rect.get("height")
+        if not isinstance(width, (int, float)) or not isinstance(height, (int, float)):
+            print(f"BAD|{label}：导出浮层矩形缺失")
+            continue
+        inside = (
+            isinstance(viewport.get("width"), (int, float))
+            and isinstance(viewport.get("height"), (int, float))
+            and rect.get("x", 0) >= -1
+            and rect.get("y", 0) >= -1
+            and rect.get("x", 0) + width <= viewport["width"] + 1
+            and rect.get("y", 0) + height <= viewport["height"] + 1
+        )
+        if width <= EXPORT_DIALOG_MAX_WIDTH + 1 and inside:
+            print(f"OK|{label}：导出浮层有界且完整在窗口内（{width:.0f}×{height:.0f}px ≤ {EXPORT_DIALOG_MAX_WIDTH}px）")
+        else:
+            print(f"BAD|{label}：导出浮层失界（宽 {width:.0f}px，上限 {EXPORT_DIALOG_MAX_WIDTH}px，在窗口内={inside}）")
+
+    # 目标就是「导出」时，浮层出现是这一步的全部意义——没出现比尺寸错了更严重。
+    if label == EXPORT_DIALOG_LABEL and export_seen == 0:
+        print(f"BAD|{label}：探针里没有导出浮层——点击没有打开它，或面板整个没渲染出来")
+    # 浮层是 `position: fixed`，而 `WKWebView.createPDF` **不会把它画进 PDF**：
+    # 实测「导出」这一步的 PDF 只比前一张多 117 字节（480×424 的浮层若入图不可能
+    # 只差这么点），设置面板同样不入图。所以这张截图的证据价值是「它背后的视图」，
+    # 浮层本身由上面的几何不变量与端到端断言负责——别对着截图找浮层。
+    if export_seen > 0:
+        print(f"NOTE|{label}：浮层是 position: fixed，createPDF 不渲染它——这张截图看的是背后的视图，浮层证据是上面的几何不变量")
+
+if coverage and seen_gauge == 0:
+    print("BAD|视图覆盖：没有任何视图产出表盘几何——用量总览没被覆盖")
+if coverage and seen_table == 0:
+    print("BAD|视图覆盖：没有任何视图产出记录表几何——日志表没被覆盖")
+PY
+)" || PROBE_STATUS=$?
+
+if [[ "$PROBE_STATUS" != "0" ]]; then
+  bad "几何探针解析脚本异常退出（码 ${PROBE_STATUS}）"
+  printf '%s\n' "$PROBE_REPORT" | sed 's/^/    /'
+elif [[ -z "$PROBE_REPORT" ]]; then
+  bad "几何探针没有任何输出——应用没写探针 JSON，布局不变量无从判定"
+else
+  while IFS='|' read -r _kind _message; do
+    case "$_kind" in
+      OK)   [[ -n "$_message" ]] && ok "$_message" ;;
+      BAD)  [[ -n "$_message" ]] && bad "$_message" ;;
+      NOTE) [[ -n "$_message" ]] && note "$_message" ;;
+      *)    [[ -n "$_kind" ]] && note "$_kind" ;;
+    esac
+  done <<< "$PROBE_REPORT"
 fi
 
 # ---------------------------------------------------------------------------

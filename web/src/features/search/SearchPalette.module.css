@@ -7,7 +7,7 @@
   justify-content: center;
   align-items: flex-start;
   padding: 12vh var(--sp-4) var(--sp-4);
-  background: rgb(0 0 0 / 0.32);
+  background: var(--overlay);
 }
 
 .palette {

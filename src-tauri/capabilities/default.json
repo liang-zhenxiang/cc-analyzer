@@ -23,6 +23,10 @@
     "allow-monitor-ping",
     "float:allow-enter",
     "float:allow-exit",
-    "updater:default"
+    "updater:default",
+    "allow-app-version",
+    "allow-check-updates",
+    "allow-install-update",
+    "allow-relaunch-app"
   ]
 }

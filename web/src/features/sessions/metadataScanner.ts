@@ -17,7 +17,11 @@ const COMMAND_TAGS = [/<command-\w+>[\s\S]*?<\/command-\w+>/g];
 const NOISE_TAGS = [
   /<local-command-\w+>[\s\S]*?<\/local-command-\w+>/g,
   /<system-reminder>[\s\S]*?<\/system-reminder>/g,
-  /<task-notification>[\s\S]*?<\/task-notification>/g
+  /<task-notification>[\s\S]*?<\/task-notification>/g,
+  // IDE 集成（VS Code / JetBrains）会在首条消息前面塞 <ide_opened_file> /
+  // <ide_selection> / <ide_diagnostics> 提示；不清掉的话，用 IDE 的人看到的
+  // 标题就是这一整段标签，而它恰恰不是用户想问的东西。
+  /<ide_\w+>[\s\S]*?<\/ide_\w+>/g
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -38,17 +42,16 @@ function textOf(value: unknown): string {
     .join("\n");
 }
 
+function stripTags(text: string, patterns: RegExp[]): string {
+  return patterns.reduce((current, pattern) => current.replace(pattern, ""), text);
+}
+
 function userPrompt(event: Record<string, unknown>): string | null {
   if (event.isMeta === true) return null;
 
   const message = isRecord(event.message) ? event.message : {};
   const rawText = textOf(message.content ?? event.content);
-  const withoutCommands = rawText.replace(COMMAND_TAGS[0], "");
-  const text = withoutCommands
-    .replace(NOISE_TAGS[0], "")
-    .replace(NOISE_TAGS[1], "")
-    .replace(NOISE_TAGS[2], "")
-    .trim();
+  const text = stripTags(rawText, [...COMMAND_TAGS, ...NOISE_TAGS]).trim();
 
   return text || null;
 }

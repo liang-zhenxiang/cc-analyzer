@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from 
 import { IconButton } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
 import { Icon } from "../../components/Icon";
+import { SegmentedControl, type SegmentedItem } from "../../components/SegmentedControl";
+import { Skeleton } from "../../components/Skeleton";
 import { TextInput } from "../../components/TextInput";
 import { sessionTitle, type SessionMeta } from "./metadataCache";
 import { dateBucketLabel, formatBytes, formatRelativeTime } from "../../lib/format";
@@ -10,6 +12,11 @@ import { useThresholds } from "../settings/thresholds";
 import styles from "./SessionList.module.css";
 
 type ViewMode = "timeline" | "project";
+
+const VIEW_ITEMS: SegmentedItem<ViewMode>[] = [
+  { value: "timeline", label: "时间线" },
+  { value: "project", label: "项目" }
+];
 
 /** Row heights for the virtualised list; keep in sync with the CSS. */
 const GROUP_ROW_HEIGHT = 32;
@@ -233,12 +240,19 @@ export function SessionList({
           <Icon name="refresh" size={14} />
         </IconButton>
       </div>
-      <div role="tablist" aria-label="列表视图">
-        <button role="tab" aria-selected={view === "timeline"} onClick={() => setView("timeline")}>时间线</button>
-        <button role="tab" aria-selected={view === "project"} onClick={() => setView("project")}>项目</button>
-      </div>
+      <SegmentedControl
+        items={VIEW_ITEMS}
+        value={view}
+        onChange={setView}
+        ariaLabel="列表视图"
+        variant="equal"
+        className={styles.viewTabs}
+      />
       {error ? <div role="alert" className={styles.error}>{error}</div> : null}
-      {loading ? <div>加载中…</div> : null}
+      {/* 列表还没到 → 骨架（形状说明一切，不留可见文案）。
+          这与下方「标题补全进度」是两件事：那个是列表已有、标题在补的**确定型**进度；
+          两者可同时出现，互不冲突。 */}
+      {loading ? <Skeleton variant="list" rows={6} label="正在加载会话列表" /> : null}
       {progress && progress.total > 0 ? (
         <div className={styles.progress} role="status" aria-label="标题补全进度">
           <span>

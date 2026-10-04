@@ -65,7 +65,7 @@
   min-width: 0;
   align-items: center;
   gap: var(--sp-1);
-  padding: 2px var(--sp-2);
+  padding: var(--sp-05) var(--sp-2);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   background: var(--bg-inset);
@@ -88,10 +88,24 @@
   white-space: nowrap;
 }
 
-/* 「打开位置」独占行尾。 */
-.titleRow > button {
+/* 动作区（复制 resume 命令 / 打开位置）独占行尾；降级提示跟在按钮后面同档显示。 */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
   margin-left: auto;
+}
+
+.actions button {
   white-space: nowrap;
+}
+
+/* 降级 / 禁用说明：可见的一行小字，不把「这条命令会失败」藏在 tooltip 里。 */
+.hint {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
 }
 
 /* 读数行：本页最大的数字都在这里（15px/600 + tabular-nums）。
@@ -105,7 +119,7 @@
   flex-wrap: nowrap;
   gap: var(--sp-1) var(--sp-4);
   align-items: baseline;
-  padding: 2px var(--sp-2);
+  padding: var(--sp-05) var(--sp-2);
   border: 1px solid transparent;
   border-radius: var(--r-sm);
   background: var(--bg-inset);

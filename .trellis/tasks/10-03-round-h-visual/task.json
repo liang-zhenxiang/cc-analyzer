@@ -1,0 +1,33 @@
+{
+  "id": "round-h-visual",
+  "name": "round-h-visual",
+  "title": "Round H · 视觉门面与体验升级",
+  "description": "以「界面美观第一、好用想用」为目标的迭代轮次：修复已确认的门面视觉缺陷、把真机截图升级为自动化视觉门禁、由 UI/UX 设计师主导一轮精修，并落地竞品调研得来的新功能。",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P0",
+  "creator": "liangyuxiang",
+  "assignee": "liangyuxiang",
+  "createdAt": "2026-10-03",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "10-03-h1-facade-fixes",
+    "10-03-h2-gui-visual-gate",
+    "10-03-h3-design-polish",
+    "10-03-h4-session-titles",
+    "10-03-h5-readme-facade",
+    "10-03-h6-probe-flake"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

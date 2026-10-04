@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { buildLogRows, tokensOf } from "./logRows";
+import { parseJsonlText } from "./parseJsonl";
 import type { SessionRecord, Turn } from "./types";
+import ansiFixture from "../../../tests/fixtures/session-ansi.jsonl?raw";
+
+const ESC = "\u001b";
 
 function base(id: string, extra: Partial<SessionRecord>): SessionRecord {
   return {
@@ -264,5 +268,33 @@ describe("buildLogRows", () => {
 
     expect(rows.map((row) => row.label)).toEqual(["用户+LLM", "LLM"]);
     expect(rows[1].durationMs).toBe(500);
+  });
+
+  it("keeps terminal escape sequences out of the table's one-line summaries", () => {
+    // 夹具里的模型回复是 `\u001b[33m构建失败\u001b[0m：先修 …`：表格里必须只剩文字，
+    // 否则用户看到的是一串控制字符，按可见文字搜也搜不到。
+    const parsed = parseJsonlText(ansiFixture, "/repo/ansi/session.jsonl");
+    const rows = buildLogRows(parsed.records, parsed.turns);
+
+    const summaries = rows.map((row) => row.summary).join("\n");
+    expect(summaries).not.toContain(ESC);
+    // 颜色码被剥掉，但文字必须一字不少地留下——「按屏幕上的字搜」靠的就是它。
+    expect(summaries).toContain("✓ 12 passed");
+    expect(summaries).toContain("构建失败");
+    expect(summaries).toContain("跑一下构建脚本");
+  });
+
+  it("does not blank a summary whose output ends with CRLF", () => {
+    // 回归：把 `\r\n` 当「回到行首重写」会把整行清成空串——表格里那行会消失，
+    // 搜索也搜不到。CRLF 是行尾，不是重写。
+    const record = base("bash-crlf", {
+      toolName: "Bash",
+      toolCategory: "direct",
+      text: "",
+      toolResult: "line1\r\nline2\r\n"
+    });
+    const rows = buildLogRows([record], []);
+    expect(rows[0].summary).toBe("line1");
+    expect(rows[0].summary.length).toBeGreaterThan(0);
   });
 });

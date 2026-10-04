@@ -518,3 +518,39 @@ test("复制摘要：有内容的记录不显示「无可复制内容」", () =>
   expect(screen.getByRole("button", { name: "复制摘要" })).toBeEnabled();
   expect(screen.queryByText(/无可复制内容/)).toBeNull();
 });
+
+test("工具输出按终端原色渲染，且 DOM 里不留转义字节", () => {
+  const ESC = "\u001b";
+  const { container } = renderWithNotifications(
+    <RecordDetailPanel
+      record={{
+        ...record,
+        toolName: "Bash",
+        toolResult:
+          `${ESC}[2K${ESC}[31m✗ build failed${ESC}[0m\n` +
+          `${ESC}]0;window title\u0007progress 10%\rprogress 100%`,
+        structuredResult: undefined
+      }}
+      clipboard={{ writeText: vi.fn() } as never}
+      system={{ openFolder: vi.fn() } as never}
+      onLocate={() => undefined}
+    />
+  );
+
+  const output = screen.getByRole("region", { name: "工具输出" });
+  // 文本里不能有 ESC；回车重写按终端语义收敛到最后一段。
+  expect(output.textContent).not.toContain(ESC);
+  expect(output.textContent).toContain("✗ build failed");
+  expect(output.textContent).toContain("progress 100%");
+
+  // 颜色是主题变量（深浅两套值），不是写死的十六进制。
+  const colored = Array.from(output.querySelectorAll("span")).find(
+    (node) => node.style.color.length > 0
+  );
+  expect(colored?.style.color).toBe("var(--ansi-1)");
+
+  // 会话内容不可信：样式只能来自解析器，不能带出任何原始字符串片段。
+  for (const node of Array.from(container.querySelectorAll("[style]"))) {
+    expect(node.getAttribute("style")).not.toMatch(/url\(|expression/i);
+  }
+});

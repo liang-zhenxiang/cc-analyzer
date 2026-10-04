@@ -25,8 +25,8 @@ test.describe("会话分析", () => {
     const list = page.getByLabel("会话列表", { exact: true });
     await expect(list).toBeVisible();
 
-    // 七个夹具项目 → 七条会话
-    await expect(sessionItems(page)).toHaveCount(7);
+    // 八个夹具项目 → 八条会话
+    await expect(sessionItems(page)).toHaveCount(8);
     // 列表不该出现错误提示
     await expect(page.getByRole("alert")).toHaveCount(0);
   });
@@ -96,7 +96,7 @@ test.describe("会话分析", () => {
 
   test("搜索可以筛掉不匹配的会话", async ({ page }) => {
     await page.goto("/");
-    await expect(sessionItems(page)).toHaveCount(7);
+    await expect(sessionItems(page)).toHaveCount(8);
 
     // 夹具里有一个项目叫 -repo-subagent
     await page.getByPlaceholder("搜会话 ID 或目录…").fill("subagent");
@@ -215,7 +215,7 @@ test.describe("夹具健全性", () => {
   test("默认场景装载了预期数量的会话", ({ scenario }) => {
     // 防止夹具被改坏后，上面那些计数断言静默变成「断言 0 等于 0」
     const jsonl = Object.keys(scenario.files).filter((f) => f.endsWith(".jsonl"));
-    expect(jsonl).toHaveLength(7);
+    expect(jsonl).toHaveLength(8);
     for (const file of jsonl) {
       expect(file).toContain("/.claude/projects/");
     }

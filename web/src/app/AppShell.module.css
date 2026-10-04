@@ -52,40 +52,8 @@
   overflow: auto;
 }
 
-/* 分段控件：凹陷的槽 + 抬起的滑块。滑块是脱离文档流的浮层，
-   用法定的 --shadow-sm，而不是靠加边框。 */
+/* 顶栏中列：分段控件的视觉一律由 SegmentedControl 组件负责，
+   这里只标记它在顶栏网格中的位置（中列自动居中，显式写出意图）。 */
 .workspaceTabs {
-  display: inline-flex;
-  gap: 2px;
-  padding: 2px;
-  border-radius: var(--r-sm);
-  background: var(--bg-inset);
-}
-
-.workspaceTabs button {
-  min-width: 88px;
-  min-height: var(--control-h-sm);
-  padding: 0 var(--sp-3);
-  border: 0;
-  border-radius: var(--r-xs);
-  background: transparent;
-  color: var(--text-tertiary);
-  font: inherit;
-  font-size: var(--fs-sm);
-  line-height: var(--lh-sm);
-  cursor: pointer;
-  transition:
-    background-color var(--dur-hover) var(--ease-in-out),
-    color var(--dur-hover) var(--ease-in-out);
-}
-
-.workspaceTabs button:hover {
-  color: var(--text);
-}
-
-.workspaceTabs button[aria-selected="true"] {
-  background: var(--bg-subtle);
-  box-shadow: var(--shadow-sm);
-  color: var(--text);
-  font-weight: 600;
+  justify-self: center;
 }

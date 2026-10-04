@@ -1,5 +1,4 @@
 import { formatTokenCount } from "../../../lib/format";
-import primitiveStyles from "./chartPrimitives.module.css";
 import styles from "./Gauge.module.css";
 
 /**
@@ -27,12 +26,15 @@ export function Gauge({
   const clamped = progress === null ? null : Math.min(1, Math.max(0, progress));
   const dash = clamped === null ? 0 : clamped * circumference;
 
+  // `data-probe` 仅为真机几何探针提供稳定锚点：`aria-label` 是随读数变化的
+  // 文案，靠它匹配会在文案改动后静默失配。见 src-tauri/src/lib.rs 的 gui_capture。
   return (
     <svg
       viewBox={`0 0 ${size} ${size}`}
       role="img"
       aria-label={ariaLabel}
-      className={primitiveStyles.chart}
+      className={styles.gauge}
+      data-probe="gauge"
     >
       {/* 底环中性灰；进度弧走 chart-1 软硬两档：弧是窄描边（实色允许），
           环心留给大号读数。 */}

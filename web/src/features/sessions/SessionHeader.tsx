@@ -1,11 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { parentDirectory } from "../../lib/path";
 import { formatDuration, formatRelativeTime, formatTokenCount } from "../../lib/format";
 import { sessionTitle, type SessionMeta } from "./metadataCache";
 import type { ParsedSession } from "./types";
+import type { ClipboardService } from "../../api/types";
 import { tokenTotalsOf } from "./tokenTotals";
 import { sessionHealth, sessionHealthText } from "./sessionHealth";
+import { resumeCommand } from "./resumeCommand";
+import { useNotifications } from "../../app/NotificationProvider";
 import { Button } from "../../components/Button";
+import { SkeletonBar } from "../../components/Skeleton";
 import styles from "./SessionHeader.module.css";
 
 /**
@@ -20,18 +24,52 @@ export function SessionHeader({
   parsed,
   tokenPanelOpen,
   onToggleTokenPanel,
-  onOpenFolder
+  onOpenFolder,
+  onExport,
+  clipboard
 }: {
   session: SessionMeta;
   parsed: ParsedSession | null;
   tokenPanelOpen: boolean;
   onToggleTokenPanel: () => void;
   onOpenFolder: (path: string) => void;
+  /** Opens the export dialog. Absent while the session is still parsing. */
+  onExport: (trigger: HTMLElement) => void;
+  clipboard: ClipboardService;
 }) {
+  const { notify } = useNotifications();
+  const [actionError, setActionError] = useState<string | null>(null);
   const directory = parentDirectory(session.path);
   const total = parsed ? Math.max(0, parsed.endedAt - parsed.startedAt) : null;
   const totals = useMemo(() => (parsed ? tokenTotalsOf(parsed.records) : null), [parsed]);
   const health = useMemo(() => (parsed ? sessionHealth(parsed.records) : "idle"), [parsed]);
+  const command = useMemo(() => resumeCommand(session), [session]);
+
+  /**
+   * 反馈沿用 `runAction(...)` 的语言：成功只弹一条 toast；失败既弹 error toast，
+   * 也写就地可见的 `actionError`（toast 3.2 秒后会消失，错误不该跟着走）。
+   *
+   * **命令内容不进任何日志**——它含用户路径与会话 ID，属敏感数据（AGENTS.md 红线）。
+   */
+  async function copyResumeCommand() {
+    if (!command) return;
+    setActionError(null);
+    try {
+      await clipboard.writeText(command.text);
+      notify("已复制 resume 命令", "success");
+    } catch (cause) {
+      const message = `复制 resume 命令失败: ${cause instanceof Error ? cause.message : String(cause)}`;
+      setActionError(message);
+      notify(message, "error");
+    }
+  }
+
+  // 降级必须可见：缺 cwd 时明说要在项目目录下执行，缺 ID 时说明按钮为何禁用。
+  const resumeHint = command
+    ? command.degraded
+      ? "需在该会话的项目目录下执行"
+      : null
+    : "该会话缺少可用的会话 ID，无法生成 resume 命令";
 
   return (
     <header className={styles.header} aria-label="会话信息">
@@ -49,32 +87,62 @@ export function SessionHeader({
           </span>
         ) : null}
         <span className={styles.chip}>{formatRelativeTime(session.mtimeMs)}</span>
-        {directory ? (
+        <div className={styles.actions}>
           <Button
             type="button"
-            title="在文件管理器中打开该会话所在的文件夹"
-            onClick={() => onOpenFolder(directory)}
+            disabled={!command}
+            title={
+              command
+                ? "复制 claude --resume 命令"
+                : "该会话缺少可用的会话 ID，无法生成 resume 命令"
+            }
+            onClick={() => void copyResumeCommand()}
           >
-            打开位置
+            复制 resume 命令
           </Button>
-        ) : null}
+          {directory ? (
+            <Button
+              type="button"
+              title="在文件管理器中打开该会话所在的文件夹"
+              onClick={() => onOpenFolder(directory)}
+            >
+              打开位置
+            </Button>
+          ) : null}
+          {/* 会话级动作之一，与上面两个同级。解析中不渲染：没有数据可导，
+              摆一个禁用按钮只是噪音。 */}
+          {parsed ? (
+            <Button
+              type="button"
+              title="导出该会话的报告或记录数据"
+              onClick={(event) => onExport(event.currentTarget)}
+            >
+              导出
+            </Button>
+          ) : null}
+          {resumeHint ? <span className={styles.hint}>{resumeHint}</span> : null}
+        </div>
       </div>
+      {actionError ? <div role="alert">{actionError}</div> : null}
       <button
         type="button"
         className={styles.readouts}
         aria-label="会话读数"
         aria-expanded={tokenPanelOpen}
+        aria-busy={!parsed}
         disabled={!parsed}
         onClick={onToggleTokenPanel}
       >
         <span className={styles.readout}>
           <span className={styles.readoutLabel}>总耗时</span>
-          <b className={styles.readoutValue}>{total === null ? "…" : formatDuration(total)}</b>
+          <b className={styles.readoutValue}>
+            {total === null ? <SkeletonBar width="value" /> : formatDuration(total)}
+          </b>
         </span>
         <span className={styles.readout}>
           <span className={styles.readoutLabel}>输入</span>
           <b className={styles.readoutValue}>
-            {totals ? formatTokenCount(totals.input) : "…"}
+            {totals ? formatTokenCount(totals.input) : <SkeletonBar width="value" />}
           </b>
         </span>
         {/* 缓存读取往往比输入高一个数量级（tokenTotals.ts 的立场），
@@ -82,19 +150,19 @@ export function SessionHeader({
         <span className={styles.readout}>
           <span className={styles.readoutLabel}>缓存读取</span>
           <b className={styles.readoutValue}>
-            {totals ? formatTokenCount(totals.cacheRead) : "…"}
+            {totals ? formatTokenCount(totals.cacheRead) : <SkeletonBar width="value" />}
           </b>
         </span>
         <span className={styles.readout}>
           <span className={styles.readoutLabel}>输出</span>
           <b className={styles.readoutValue}>
-            {totals ? formatTokenCount(totals.output) : "…"}
+            {totals ? formatTokenCount(totals.output) : <SkeletonBar width="value" />}
           </b>
         </span>
         <span className={styles.readout}>
           <span className={styles.readoutLabel}>记录数</span>
           <b className={styles.readoutValue}>
-            {parsed ? parsed.records.length.toLocaleString("en-US") : "…"}
+            {parsed ? parsed.records.length.toLocaleString("en-US") : <SkeletonBar width="value" />}
           </b>
         </span>
       </button>

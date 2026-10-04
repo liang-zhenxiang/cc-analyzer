@@ -575,48 +575,184 @@ use updater::{app_version, check_updates, install_update, relaunch_app};
 #[cfg(all(target_os = "macos", feature = "gui-capture"))]
 mod gui_capture {
     use block2::RcBlock;
-    use objc2_foundation::{NSData, NSError};
+    use objc2::runtime::AnyObject;
+    use objc2_foundation::{NSData, NSError, NSString};
     use objc2_web_kit::WKWebView;
     use std::path::{Path, PathBuf};
-    use std::time::Duration;
+    use std::sync::mpsc;
+    use std::time::{Duration, Instant};
     use tauri::Manager;
 
     /// 应用启动后等这么久再取图：要留出 webview 完成首次渲染的时间。
     /// 截早了会拿到半张白屏，而那种失败是**静默**的（能生成文件，内容却是空的）。
     const SETTLE_MS: u64 = 6_000;
 
-    /// 点击标签页后等这么久再取第二张图：新标签页要先完成一轮渲染。
-    const TAB_SETTLE_MS: u64 = 2_000;
+    /// 点击目标后等这么久再取图：新视图要先完成一轮渲染（打开会话还要先读文件
+    /// 并解析）。探针与取图都排在这之后。
+    const TAB_SETTLE_MS: u64 = 3_000;
 
-    /// 等第一张 PDF 落盘的上限：createPDF 的 completion handler 是异步回调，
-    /// 「已发起取图」不等于「文件已写出」，点击动作必须排在实际落盘之后，
-    /// 否则第二张截到的还是旧标签页。
-    const FIRST_PDF_TIMEOUT_MS: u64 = 10_000;
+    /// 等一张图落盘的上限。createPDF 的 completion handler 是异步回调，而且它的
+    /// 渲染是**延后**发生的：实测过「探针先于快照求值」——同一张图对应的探针读到的
+    /// 却是点击生效前、快照还没跟上的旧视图。所以探针要等到 PDF 落盘后再求值，
+    /// 落盘即代表快照已完成，两者描述同一视图。点击下一步前也要等，
+    /// 否则下一张截到的还是旧视图。
+    ///
+    /// **但这个上限不再是「探针的开关」**：等超时了也照样取探针（见 `spawn` 的注释）。
+    /// 取 15s 与 `scripts/gui-test.sh` 里每个视图等取图 PDF 的秒数一致——它只决定
+    /// 「正常路径下探针是否等到快照之后」，定大一点只是让正常的对齐更稳，
+    /// 不会因为定大了就把失败藏起来。
+    const PDF_TIMEOUT_MS: u64 = 15_000;
 
-    pub fn spawn(webview: tauri::Webview, out: PathBuf, tab: Option<String>) {
+    /// 几何探针求值遇到瞬时失败时的重试次数与间隔。
+    ///
+    /// **只重试「求值本身失败」**（`evaluateJavaScript` 报错、回调没回、写文件失败）。
+    /// 探针一旦**成功写出** JSON 就立刻返回——哪怕那份 JSON 描述的是一个坏布局
+    /// （表盘被撑爆、记录表被裁切），也照样返回、由脚本判定失败。所以重试**不会**
+    /// 掩盖真回归，它只把「页面过渡态 / 主线程忙导致的偶发求值失败」抹平。
+    const PROBE_ATTEMPTS: u32 = 5;
+    const PROBE_RETRY_MS: u64 = 300;
+
+    /// 单次等待求值回调的上限。`with_webview` 是异步投递，回调何时回来由主线程决定；
+    /// 给个上限，主线程若长时间不回来，重试不会被永久卡死。
+    /// 5 × (3s + 0.3s) ≈ 17s 是最坏情况，脚本等探针的超时要盖过它（见 gui-test.sh）。
+    const PROBE_EVAL_TIMEOUT_MS: u64 = 3_000;
+
+    /// 几何探针脚本：**只收集事实，不含任何断言或阈值**——判定属于测试脚本，
+    /// 应用不该携带测试策略。返回一个 JSON 字符串。
+    ///
+    /// 锚点：`data-probe="gauge"`（仅用于探测的稳定属性；Gauge 的 `aria-label`
+    /// 是随读数变化的文案，靠它匹配会在文案改动后**静默失配**），卡片复用既有的
+    /// `aria-label="计费窗口"`，记录表复用 `table` / `[data-scroll-hint]` 结构。
+    const PROBE_JS: &str = r##"(function () {
+  function rectOf(el) {
+    var r = el.getBoundingClientRect();
+    return { x: r.left, y: r.top, width: r.width, height: r.height };
+  }
+  function boxOf(el) {
+    if (!el) return null;
+    return {
+      clientWidth: el.clientWidth,
+      scrollWidth: el.scrollWidth,
+      overflowX: getComputedStyle(el).overflowX,
+      right: el.getBoundingClientRect().right
+    };
+  }
+  var facts = {
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    document: {
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth
+    },
+    /* 终端转义序列（ESC）不该出现在**任何**渲染出来的文字里：它是控制字节，
+       不是文本。计数是事实，阈值与判定留给脚本。 */
+    escaped_text: (document.body.innerText.match(/\u001b/g) || []).length,
+    main: boxOf(document.querySelector('main')),
+    elements: [],
+    tables: []
+  };
+  var gauge = document.querySelector("[data-probe='gauge']");
+  if (gauge) {
+    var card = gauge.closest("[aria-label='计费窗口']");
+    facts.elements.push({ name: 'gauge', rect: rectOf(gauge), card: card ? rectOf(card) : null });
+  }
+  // 导出浮层：模态是它的稳定标记（`aria-modal`），不靠样式类名匹配——
+  // CSS Module 的类名带哈希，改了会静默失配。只收集几何，判定留在脚本里。
+  var exportDialog = document.querySelector('[role="dialog"][aria-modal="true"]');
+  if (exportDialog) {
+    facts.elements.push({ name: 'export-dialog', rect: rectOf(exportDialog) });
+  }
+  var table = document.querySelector('table');
+  if (table) {
+    var container = table.parentElement;
+    var headers = table.querySelectorAll('thead th');
+    var lastHeader = headers.length ? headers[headers.length - 1] : null;
+    var wrap = container ? container.parentElement : null;
+    var hint = wrap ? wrap.querySelector('[data-scroll-hint]') : null;
+    facts.tables.push({
+      name: 'records',
+      container: boxOf(container),
+      hasLastColumn: !!lastHeader,
+      lastColumnRight: lastHeader ? lastHeader.getBoundingClientRect().right : null,
+      hasScrollHint: !!hint
+    });
+  }
+  return JSON.stringify(facts);
+})();"##;
+
+    /// 取图线程：默认视图先取一张，然后按 `tabs` 依次点击、每步再取一张。
+    /// 每张图都配一份几何探针（若设了 `CCA_GUI_PROBE`），供测试脚本判定布局。
+    pub fn spawn(webview: tauri::Webview, out: PathBuf, tabs: Vec<String>, probe: Option<PathBuf>) {
         std::thread::spawn(move || {
+            let start = Instant::now();
             std::thread::sleep(Duration::from_millis(SETTLE_MS));
-            capture(&webview, &out);
+            capture(&webview, &out, start);
+            // 默认视图的探针**不拿 PDF 当开关**：等图落盘只是为了让它和快照描述同一
+            // 视图，等到等不到都照常求值。之前这里写的是「等不到就跳过探针」，于是存在
+            // 这样一个窗口：应用这边等超时、把探针整个跳过，而脚本那边同一张图还在等、
+            // 最终算作「截图通过」——表现为「截图过、探针缺」的假红。默认视图是启动后
+            // 第一张，正赶上应用最忙的时刻，最慢、也最先撞上。默认视图之前没有任何
+            // 点击/切换，「探针读到快照前旧视图」这个风险对它并不成立。
+            if wait_for_file(&out, PDF_TIMEOUT_MS) {
+                println!(
+                    "gui-capture: [+{}ms] 默认视图的图已落盘",
+                    start.elapsed().as_millis()
+                );
+            } else {
+                eprintln!(
+                    "gui-capture: [+{}ms] 默认视图的图没有落盘（等 {}ms），探针仍照常取",
+                    start.elapsed().as_millis(),
+                    PDF_TIMEOUT_MS
+                );
+            }
+            if let Some(probe) = &probe {
+                probe_at(&webview, probe, start);
+            }
 
-            let Some(tab) = tab else { return };
-            if !wait_for_file(&out, FIRST_PDF_TIMEOUT_MS) {
-                eprintln!("gui-capture: 第一张图迟迟没有落盘，跳过「{tab}」标签页的取图");
-                return;
+            // 每一步都要等**上一步**的 PDF 落盘再点下一个，否则截到的还是旧视图。
+            // 探针同样不拿本步 PDF 当开关：等到了就等它落盘后再求值（与快照对齐），
+            // 等不到也照常求值——宁可探针早一点，也不要「截图过、探针缺」。
+            let mut previous = out.clone();
+            let mut previous_label = "默认视图".to_string();
+            for tab in tabs.iter() {
+                if !wait_for_file(&previous, PDF_TIMEOUT_MS) {
+                    eprintln!(
+                        "gui-capture: [+{}ms] {previous_label}的图迟迟没有落盘（等 {}ms），停在「{tab}」之前",
+                        start.elapsed().as_millis(),
+                        PDF_TIMEOUT_MS
+                    );
+                    return;
+                }
+                if let Err(err) = webview.eval(click_target_js(tab).as_str()) {
+                    eprintln!("gui-capture: 执行点击「{tab}」的脚本失败 {err}");
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(TAB_SETTLE_MS));
+                let pdf = tab_output_path(&out, tabs.len(), tab);
+                capture(&webview, &pdf, start);
+                if !wait_for_file(&pdf, PDF_TIMEOUT_MS) {
+                    eprintln!(
+                        "gui-capture: [+{}ms] 「{}」的图没有落盘（等 {}ms），探针仍照常取",
+                        start.elapsed().as_millis(),
+                        tab,
+                        PDF_TIMEOUT_MS
+                    );
+                }
+                if let Some(probe) = &probe {
+                    probe_at(&webview, &probe_output_path(probe, tabs.len(), tab), start);
+                }
+                previous = pdf;
+                previous_label = format!("「{tab}」");
             }
-            if let Err(err) = webview.eval(click_tab_js(&tab).as_str()) {
-                eprintln!("gui-capture: 执行点击「{tab}」的脚本失败 {err}");
-                return;
-            }
-            std::thread::sleep(Duration::from_millis(TAB_SETTLE_MS));
-            capture(&webview, &tab_output_path(&out));
         });
     }
 
     /// 把 webview 当前渲染结果写成一份 PDF。只发起、不等完成——落盘由
     /// createPDF 的 completion handler 异步负责。所有失败路径只打日志、
     /// 绝不 panic：这个线程挂在渲染循环里会连带整个应用，而它只是取证旁路。
-    fn capture(webview: &tauri::Webview, out: &Path) {
+    fn capture(webview: &tauri::Webview, out: &Path, start: Instant) {
         let target = out.to_path_buf();
+        let name = file_label(out);
+        let name_in_handler = name.clone();
         let result = webview.with_webview(move |platform| {
             // `inner()` 在 macOS 上返回底层 WKWebView 的裸指针。
             let ptr = platform.inner().cast::<WKWebView>();
@@ -630,8 +766,15 @@ mod gui_capture {
                 if !data.is_null() {
                     let bytes = unsafe { (*data).to_vec() };
                     match std::fs::write(&target, &bytes) {
-                        Ok(()) => println!("gui-capture: 已写出 {} 字节", bytes.len()),
-                        Err(err) => eprintln!("gui-capture: 写文件失败 {err}"),
+                        Ok(()) => println!(
+                            "gui-capture: [+{}ms] {name_in_handler} 已写出 {} 字节",
+                            start.elapsed().as_millis(),
+                            bytes.len()
+                        ),
+                        Err(err) => eprintln!(
+                            "gui-capture: [+{}ms] {name_in_handler} 写文件失败 {err}",
+                            start.elapsed().as_millis()
+                        ),
                     }
                 } else {
                     let msg = if error.is_null() {
@@ -639,7 +782,10 @@ mod gui_capture {
                     } else {
                         unsafe { (*error).localizedDescription().to_string() }
                     };
-                    eprintln!("gui-capture: 取图失败 {msg}");
+                    eprintln!(
+                        "gui-capture: [+{}ms] {name_in_handler} 取图失败 {msg}",
+                        start.elapsed().as_millis()
+                    );
                 }
                 // 刻意不退出：应用由测试脚本统一管理生命周期，
                 // 这样同一次启动里还能跑「存活 / 内存 / 缓存 / 正常退出」那些断言。
@@ -650,8 +796,106 @@ mod gui_capture {
             unsafe { wk.createPDFWithConfiguration_completionHandler(None, &handler) };
         });
         if let Err(err) = result {
-            eprintln!("gui-capture: with_webview 失败 {err}");
+            eprintln!(
+                "gui-capture: [+{}ms] {name} with_webview 失败 {err}",
+                start.elapsed().as_millis()
+            );
         }
+    }
+
+    /// 求值几何探针并把返回的 JSON 写入 `out`，遇到瞬时失败重试有限次。
+    ///
+    /// 走 `evaluateJavaScript:completionHandler:`——它是**双向**的，能拿回脚本的返回值；
+    /// `webview.eval` 是单向的、拿不到。与 `capture` 同一条纪律：失败只打日志、绝不 panic。
+    ///
+    /// **重试只针对「求值 / 写盘失败」**：探针一旦成功写出 JSON 就立刻返回，哪怕那份
+    /// JSON 描述的是坏布局，也照样返回、由脚本判失败——重试不会把它吞掉（见
+    /// `PROBE_ATTEMPTS` 的注释）。
+    fn probe_at(webview: &tauri::Webview, out: &Path, start: Instant) {
+        let name = file_label(out);
+        for attempt in 1..=PROBE_ATTEMPTS {
+            match probe_once(webview, out) {
+                Ok(bytes) => {
+                    println!(
+                        "gui-probe: [+{}ms] {name} 已写出 {bytes} 字节",
+                        start.elapsed().as_millis()
+                    );
+                    return;
+                }
+                Err(msg) if attempt < PROBE_ATTEMPTS => {
+                    eprintln!(
+                        "gui-probe: [+{}ms] {name} 第 {attempt}/{PROBE_ATTEMPTS} 次求值失败（{msg}），{PROBE_RETRY_MS}ms 后重试",
+                        start.elapsed().as_millis()
+                    );
+                    std::thread::sleep(Duration::from_millis(PROBE_RETRY_MS));
+                }
+                Err(msg) => {
+                    eprintln!(
+                        "gui-probe: [+{}ms] {name} 求值重试 {PROBE_ATTEMPTS} 次仍失败（{msg}），放弃写出",
+                        start.elapsed().as_millis()
+                    );
+                    return;
+                }
+            }
+        }
+    }
+
+    /// 单次求值：把结果（写出字节数或错误信息）经通道送回调用线程。
+    ///
+    /// `with_webview` 是**异步投递**（把闭包塞进主线程事件队列后立刻返回），所以这里要等
+    /// 回调，并给一个上限——主线程若长时间不回来，重试不会被永久卡死。回调里 `value`
+    /// 为空即求值失败（`error` 带原因），此时不写任何文件。
+    fn probe_once(webview: &tauri::Webview, out: &Path) -> Result<usize, String> {
+        let target = out.to_path_buf();
+        let (tx, rx) = mpsc::channel::<Result<usize, String>>();
+        let result = webview.with_webview(move |platform| {
+            let ptr = platform.inner().cast::<WKWebView>();
+            if ptr.is_null() {
+                let _ = tx.send(Err("拿不到 WKWebView 指针".to_string()));
+                return;
+            }
+            let wk: &WKWebView = unsafe { &*ptr };
+
+            let handler = RcBlock::new(move |value: *mut AnyObject, error: *mut NSError| {
+                if value.is_null() {
+                    let msg = if error.is_null() {
+                        "未知错误".to_string()
+                    } else {
+                        unsafe { (*error).localizedDescription().to_string() }
+                    };
+                    let _ = tx.send(Err(msg));
+                    return;
+                }
+                // 探针脚本返回 JSON 字符串，桥接过来就是 NSString。
+                let text = unsafe { (*value.cast::<NSString>()).to_string() };
+                match std::fs::write(&target, text.as_bytes()) {
+                    Ok(()) => {
+                        let _ = tx.send(Ok(text.len()));
+                    }
+                    Err(err) => {
+                        let _ = tx.send(Err(format!("写文件失败 {err}")));
+                    }
+                }
+            });
+
+            let source = NSString::from_str(PROBE_JS);
+            unsafe { wk.evaluateJavaScript_completionHandler(&source, Some(&handler)) };
+        });
+        if let Err(err) = result {
+            return Err(format!("with_webview 失败 {err}"));
+        }
+        match rx.recv_timeout(Duration::from_millis(PROBE_EVAL_TIMEOUT_MS)) {
+            Ok(outcome) => outcome,
+            Err(mpsc::RecvTimeoutError::Timeout) => Err("等待求值回调超时".to_string()),
+            Err(mpsc::RecvTimeoutError::Disconnected) => Err("求值回调通道断开".to_string()),
+        }
+    }
+
+    /// 日志里用来指认是哪张图 / 哪份探针：只取文件名，脚本按名 grep 定位。
+    fn file_label(path: &Path) -> String {
+        path.file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.display().to_string())
     }
 
     /// 轮询等文件出现。completion handler 跑在主线程，这里不能回调式串联
@@ -667,19 +911,64 @@ mod gui_capture {
         path.is_file()
     }
 
-    /// 第二张图的输出路径：第一张去掉 `.pdf` 后缀再加 `-tab.pdf`。
-    fn tab_output_path(first: &Path) -> PathBuf {
-        let mut second = first.to_path_buf();
-        second.set_extension("");
-        second.as_mut_os_string().push("-tab.pdf");
-        second
+    /// 把目标名安全化成文件名片段：保留字母数字（含中文），其余折叠成单个 `-`。
+    /// 与 `scripts/gui-test.sh` 里的 `slug_of` **必须逐字一致**——文件名对不上时
+    /// 脚本会一直等不到文件，而那看起来像「取图失败」。
+    fn slug_of(value: &str) -> String {
+        let mut out = String::new();
+        let mut pending_dash = false;
+        for ch in value.chars() {
+            if ch.is_alphanumeric() {
+                if pending_dash && !out.is_empty() {
+                    out.push('-');
+                }
+                pending_dash = false;
+                out.push(ch);
+            } else {
+                pending_dash = true;
+            }
+        }
+        if out.is_empty() {
+            "tab".to_string()
+        } else {
+            out
+        }
     }
 
-    /// 找到可访问名匹配的标签页并点击。`eval` 是单向的（拿不到脚本返回值），
-    /// 所以点击结果写进 console：成功与失败各一条，都能在测试脚本收集的
-    /// 应用日志里追查。脚本只做这一次点击，不做任何别的事。
-    fn click_tab_js(tab: &str) -> String {
-        let escaped = tab
+    /// 文件名后缀：**单个**目标沿用旧名 `-tab`（既有文档与脚本依赖它）；
+    /// 多个目标各用 `-<slug>`，文件名能看出是哪张图。
+    fn tab_suffix(count: usize, tab: &str) -> String {
+        if count == 1 {
+            "-tab".to_string()
+        } else {
+            format!("-{}", slug_of(tab))
+        }
+    }
+
+    /// 第 N 张图的输出路径：第一张去掉 `.pdf` 后缀再加 `-tab.pdf` / `-<slug>.pdf`。
+    fn tab_output_path(first: &Path, count: usize, tab: &str) -> PathBuf {
+        let mut path = first.to_path_buf();
+        path.set_extension("");
+        path.as_mut_os_string()
+            .push(format!("{}.pdf", tab_suffix(count, tab)));
+        path
+    }
+
+    /// 探针 JSON 的输出路径：文件名规则与取图一致，只是后缀换成 `.json`。
+    fn probe_output_path(first: &Path, count: usize, tab: &str) -> PathBuf {
+        let mut path = first.to_path_buf();
+        path.set_extension("");
+        path.as_mut_os_string()
+            .push(format!("{}.json", tab_suffix(count, tab)));
+        path
+    }
+
+    /// 找到目标并点击：优先标签页，其次任意按钮。匹配可取访问名的三种来源——
+    /// `aria-label`、`title`、可见文本——所以既能点标签页（文本 / aria-label），
+    /// 也能点会话条目（它的 `title` 是 cwd）。`eval` 是单向的（拿不到脚本返回值），
+    /// 所以点击结果写进 console：成功与失败各一条，都能在测试脚本收集的应用日志里追查。
+    fn click_target_js(target: &str) -> String {
+        let escaped = target
             .replace('\\', "\\\\")
             .replace('"', "\\\"")
             .replace('\n', "\\n")
@@ -687,25 +976,35 @@ mod gui_capture {
         format!(
             r#"(function () {{
   var wanted = "{escaped}";
-  var tabs = document.querySelectorAll('[role="tablist"] button[role="tab"]');
-  for (var i = 0; i < tabs.length; i++) {{
-    var el = tabs[i];
-    var name = (el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, ' ').trim();
-    if (name === wanted) {{
-      el.click();
-      console.log('gui-capture: 已点击标签页 ' + wanted);
-      return;
+  var scopes = [
+    document.querySelectorAll('[role="tablist"] button'),
+    document.querySelectorAll('button')
+  ];
+  for (var s = 0; s < scopes.length; s++) {{
+    var buttons = scopes[s];
+    for (var i = 0; i < buttons.length; i++) {{
+      var el = buttons[i];
+      var candidates = [
+        el.getAttribute('aria-label'),
+        el.getAttribute('title'),
+        (el.textContent || '').replace(/\s+/g, ' ').trim()
+      ];
+      if (candidates.indexOf(wanted) >= 0) {{
+        el.click();
+        console.log('gui-capture: 已点击 ' + wanted);
+        return;
+      }}
     }}
   }}
-  console.warn('gui-capture: 没有可访问名为 ' + wanted + ' 的标签页');
+  console.warn('gui-capture: 找不到目标 ' + wanted);
 }})();"#
         )
     }
 
     /// 由 `setup` 调用：只有设了 `CCA_GUI_CAPTURE` 才生效，否则完全惰性。
-    /// 可选的 `CCA_GUI_CAPTURE_TAB` 是「第二张图」指令：值为某个标签页的
-    /// 可访问名（如「用量总览」），应用会在第一张取图落盘后点击该标签页，
-    /// 等一轮渲染再取第二张，用于真机验证非默认标签页的内容。
+    /// - `CCA_GUI_CAPTURE_TAB`：逗号分隔的目标列表（可取访问名或会话 cwd），
+    ///   应用依次点击并在每步取一张图；**单个值沿用旧文件名 `-tab.pdf`**。
+    /// - `CCA_GUI_PROBE`：几何探针输出路径；每张图对应一份 JSON 事实。
     pub fn maybe_spawn(app: &tauri::App) {
         let Ok(target) = std::env::var("CCA_GUI_CAPTURE") else {
             return;
@@ -713,12 +1012,22 @@ mod gui_capture {
         if target.trim().is_empty() {
             return;
         }
-        let tab = std::env::var("CCA_GUI_CAPTURE_TAB")
+        let tabs: Vec<String> = std::env::var("CCA_GUI_CAPTURE_TAB")
+            .map(|value| {
+                value
+                    .split(',')
+                    .map(|item| item.trim().to_string())
+                    .filter(|item| !item.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let probe = std::env::var("CCA_GUI_PROBE")
             .ok()
             .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty());
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from);
         if let Some(webview) = app.get_webview_window("main") {
-            spawn(webview.as_ref().clone(), PathBuf::from(target), tab);
+            spawn(webview.as_ref().clone(), PathBuf::from(target), tabs, probe);
         }
     }
 }
@@ -796,6 +1105,7 @@ mod tests {
 
     const LIB_RS: &str = include_str!("lib.rs");
     const BUILD_RS: &str = include_str!("../build.rs");
+    const CAPABILITY: &str = include_str!("../capabilities/default.json");
 
     /// 取出 `text` 里每一处 `marker` 之后、到最近的 `]` 为止的标识符（去引号、去空白）。
     ///
@@ -857,6 +1167,33 @@ mod tests {
             "build.rs 的 app_manifest 与 lib.rs 的 generate_handler! 不一致：\n  \
              只有 lib.rs 注册（build.rs 漏声明，权限不会被生成）: {missing:?}\n  \
              只有 build.rs 声明（注册不存在的命令）: {extra:?}"
+        );
+    }
+
+    #[test]
+    fn every_app_command_is_allowed_in_the_capability() {
+        // 缺 `allow-<命令>` 的后果是静默的：命令注册得好好的、build 全绿，
+        // 但前端 invoke 一律被拒——用户侧表现为「版本未知」「检查更新一直失败」。
+        // v0.9.0-beta.1 就是这么把整个更新功能发出去的，这条测试专门堵它。
+        let manifest = BUILD_RS
+            .find(APP_MANIFEST_MARKER)
+            .expect("build.rs 里找不到 app_manifest(");
+        let declared = bracketed_items_after(&BUILD_RS[manifest..], concat!(".commands(&", "["))
+            .into_iter()
+            .next()
+            .expect("app_manifest 里找不到 .commands(&[...])");
+
+        let missing: Vec<String> = declared
+            .iter()
+            .filter_map(|command| {
+                let permission = format!("allow-{}", command.replace('_', "-"));
+                (!CAPABILITY.contains(&format!("\"{permission}\""))).then_some(permission)
+            })
+            .collect();
+
+        assert!(
+            missing.is_empty(),
+            "capabilities/default.json 缺少这些命令的授权（前端 invoke 会被拒）：{missing:?}"
         );
     }
 

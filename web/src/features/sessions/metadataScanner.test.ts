@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fixture from "../../../tests/fixtures/session-metadata.jsonl?raw";
+import ideFixture from "../../../tests/fixtures/session-ide-noise.jsonl?raw";
 import { extractSessionMetadata } from "./metadataScanner";
 
 function line(value: unknown) {
@@ -45,6 +46,24 @@ describe("extractSessionMetadata", () => {
     const metadata = extractSessionMetadata(fixture, "repo-demo");
 
     expect(metadata.userPrompt).toBe("Fix the login bug");
+  });
+
+  it("strips the IDE-injected tags so the title is the user's own words", () => {
+    // 用 IDE 的人首条消息前会挂 <ide_opened_file>；不清掉的话标题就是这一整段标签。
+    const metadata = extractSessionMetadata(ideFixture, "repo-ide");
+
+    expect(metadata.userPrompt).toBe("重构这个函数，去掉重复分支");
+  });
+
+  it("strips system-reminder noise around the first prompt", () => {
+    const head = line({
+      type: "user",
+      message: {
+        content: "<system-reminder>context</system-reminder>\n\n修复登录 bug"
+      }
+    });
+
+    expect(extractSessionMetadata(head, "repo-demo").userPrompt).toBe("修复登录 bug");
   });
 
   it("ignores a command-only prompt", () => {

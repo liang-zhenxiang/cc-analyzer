@@ -1,0 +1,124 @@
+@import "../../styles/animations.css";
+
+/* 浮层语言：遮罩压暗 + 面板用 --shadow-md 与最大圆角台阶 --r-lg。
+   与 SearchPalette 是同一类东西，用户学一次就够——遮罩浓度也共用 --overlay。 */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-5);
+  background: var(--overlay);
+}
+
+.panel {
+  display: flex;
+  width: min(480px, 100%);
+  flex-direction: column;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+  animation: cca-enter var(--dur-enter) var(--ease-out);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border);
+}
+
+/* 面板标题 13px/600：与 ReportPanel 同级，页面标题才是 15px。 */
+.header h2 {
+  margin: 0;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  line-height: var(--lh-base);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.label {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.hint {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 浮层里唯一的「读数」：数字用与会话头读数同一档（15px/600 + tabular），
+   底座用 --bg-inset 台阶而不是强调色——颜色预算留给数据。 */
+.count {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-05);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+}
+
+.countValue {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: var(--lh-md);
+  font-variant-numeric: tabular-nums;
+}
+
+.countSource {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.fileName {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.fileName code {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+.status {
+  color: var(--success);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.error {
+  color: var(--danger);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--border);
+}

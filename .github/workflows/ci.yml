@@ -579,6 +579,82 @@ jobs:
         run: ./scripts/format-release-notes-test.sh
 
   # ---------------------------------------------------------------------------
+  # 视觉基线一致性检查
+  #
+  # docs/screenshots/ 是 README 的门面，但更新全凭「人记得重出图」——上一轮
+  # 目录里混着相隔一天的两代截图，同一批里 usage-dark 甚至还没有计费卡片，
+  # 而 README 引的正是这批图。这一步用截图套清单把「README 引用断图」与
+  # 「截图套缺视图」变成可判定的失败：
+  #   1. 跑真实基线检查（README 引用 ↔ 清单 ↔ 磁盘文件三方对齐）
+  #   2. 跑自测——检查脚本自己也要能被验证，一个永远通过的检查比没有更危险
+  # ---------------------------------------------------------------------------
+  screenshots-baseline:
+    name: 视觉基线一致性
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: 校验截图基线
+        run: ./scripts/check-screenshots.sh
+
+      - name: 运行检查脚本自测
+        run: ./scripts/check-screenshots-test.sh
+
+  # ---------------------------------------------------------------------------
+  # 中英 README 结构一致性检查
+  #
+  # 仓库声明「两份 README 结构一致」，但在此之前没有任何检查——一侧补了一节、
+  # 另一侧忘了同步，两份都「渲染正常」，没有谁会去逐节比对。这一步把
+  # 「标题层级序列不一致 / 文档索引顺序不同 / 相对链接指向断图」变成可判定的失败：
+  #   1. 跑真实检查（标题层级序列 + docs/ 链接顺序 + 全部相对链接可达）
+  #   2. 跑自测——检查脚本自己也要能被验证，一个永远通过的检查比没有更危险
+  # ---------------------------------------------------------------------------
+  readme-parity:
+    name: README 结构一致性
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: 校验中英 README 结构
+        run: ./scripts/check-readme-parity.sh
+
+      - name: 运行检查脚本自测
+        run: ./scripts/check-readme-parity-test.sh
+
+  # ---------------------------------------------------------------------------
+  # 真机测试中断清理自测
+  #
+  # `gui-test.sh` 会后台启动打包好的应用，靠 trap 收尾。只挂 EXIT 时，脚本被 Ctrl-C
+  # 或调用方 / agent 中断（INT/TERM）不会走到清理，后台 app 会泄漏成 PPID=1 的孤儿
+  # 实例，累积污染后续运行。这一步用假产物真启动 gui-test.sh，给它发 TERM / INT 后
+  # 断言子进程确实被收掉——把「中断后一定收掉本轮 app」变成可判定的失败。
+  # 详见 scripts/gui-test-shutdown-test.sh。
+  # ---------------------------------------------------------------------------
+  gui-test-shutdown:
+    name: 真机测试中断清理自测
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: 运行脚本自测
+        run: ./scripts/gui-test-shutdown-test.sh
+
+  # ---------------------------------------------------------------------------
   # CI 总览
   # 把所有检查汇总成一个结果，分支保护规则只需要盯这一个 check 即可。
   # 汇总表从 needs 派生并自证完整：新增检查漏改任何一处都会在这里红，
@@ -587,7 +663,7 @@ jobs:
   ci-summary:
     name: CI 总览
     runs-on: ubuntu-latest
-    needs: [actionlint, yamllint, shellcheck, web-test, web-e2e, web-build, rust-fmt, rust-clippy, rust-check, rust-test, commit-messages, zizmor, lint-selftest, release-notes-test]
+    needs: [actionlint, yamllint, shellcheck, web-test, web-e2e, web-build, rust-fmt, rust-clippy, rust-check, rust-test, commit-messages, zizmor, lint-selftest, release-notes-test, screenshots-baseline, readme-parity, gui-test-shutdown]
     if: always()
     steps:
       - name: Checkout Repos
@@ -612,6 +688,9 @@ jobs:
           R_ZIZMOR: ${{ needs.zizmor.result }}
           R_LINT_SELFTEST: ${{ needs.lint-selftest.result }}
           R_RELEASE_NOTES_TEST: ${{ needs.release-notes-test.result }}
+          R_SCREENSHOTS_BASELINE: ${{ needs.screenshots-baseline.result }}
+          R_README_PARITY: ${{ needs.readme-parity.result }}
+          R_GUI_TEST_SHUTDOWN: ${{ needs.gui-test-shutdown.result }}
         run: |
           #!/usr/bin/env bash
           set -euo pipefail
@@ -637,6 +716,9 @@ jobs:
             "zizmor:工作流安全扫描"
             "lint-selftest:lint.sh 自测"
             "release-notes-test:发布说明转换自测"
+            "screenshots-baseline:视觉基线一致性"
+            "readme-parity:README 结构一致性"
+            "gui-test-shutdown:真机测试中断清理自测"
           )
 
           # 断言 1：needs 集合与数组一致。只取本 job 那行数组式 needs

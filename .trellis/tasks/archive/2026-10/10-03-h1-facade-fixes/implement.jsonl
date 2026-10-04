@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端分层与目录约定的入口"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "组件与 CSS Module 约定，本轮改的是组件与样式"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端质量门与风格纪律（含 tokens 纪律）"}
+{"file": ".trellis/spec/testing/index.md", "reason": "三层测试分工与「改了什么补哪层」对照表"}
+{"file": ".trellis/spec/testing/e2e-tests.md", "reason": "Playwright 结构与选择器约定，本轮要改 e2e"}
+{"file": ".trellis/spec/testing/pitfalls.md", "reason": "踩坑史：CSS 特异性与夹具健全性等"}
+{"file": ".trellis/workspace/liangyuxiang/design-critique.md", "reason": "上一轮 UI/UX 评审：既有视觉语言与「仪器面板」方向的依据"}

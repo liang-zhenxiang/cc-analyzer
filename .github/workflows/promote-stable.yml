@@ -65,6 +65,19 @@ jobs:
 
       # 门禁跑「检查」不跑「发布构建」：缓存只影响速度，不影响产物
       # （产物由 release.yml 在干净环境构建，红线不受影响）。
+      - name: 安装 Tauri Linux 依赖
+        # cargo 检查要过 glib/gobject 的 pkg-config（首跑没装，gobject-2.0
+        # 缺失当场失败）——与 ci.yml 的 Rust 作业同一套系统库。
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
       - name: 安装依赖
         run: npm install --no-audit --no-fund && npm --prefix web install --no-audit --no-fund
 
@@ -92,6 +105,8 @@ jobs:
       # 推分支/tag 与开 PR 需要写权限；发布本身交给 release.yml
       contents: write
       pull-requests: write
+      # dispatch 触发 release.yml 需要 actions:write（四跑 403 的原因）
+      actions: write
     steps:
       - name: Checkout Repos
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -123,6 +138,21 @@ jobs:
           grep -q "\"version\": \"${stable}\"" web/package.json
           grep -q "^version = \"${stable}\"" src-tauri/Cargo.toml
 
+          # Cargo.lock 就地改版本条目而不是跑 cargo check 刷锁——cargo
+          # 编译依赖需要 Tauri 的 Linux 系统库（二跑挂在这），而锁文件里
+          # cc-analyzer 的版本只是纯文本条目。
+          python3 - "$stable" <<'PYLOCK'
+          import re
+          import sys
+
+          stable = sys.argv[1]
+          text = open("src-tauri/Cargo.lock").read()
+          pattern = r'(name = "cc-analyzer"\nversion = ")[^"]+(")'
+          updated, count = re.subn(pattern, r"\g<1>" + stable + r"\g<2>", text, count=1)
+          assert count == 1, "Cargo.lock 里没找到 cc-analyzer 的版本条目"
+          open("src-tauri/Cargo.lock", "w").write(updated)
+          PYLOCK
+
           # CHANGELOG：[Unreleased] 归档为 [X.Y.Z] - 今天，可带主题句
           today="$(date +%Y-%m-%d)"
           python3 - "$stable" "$today" "$THEME" <<'PY'
@@ -139,12 +169,6 @@ jobs:
           text = text.replace(marker, marker + heading, 1)
           open("CHANGELOG.md", "w").write(text)
           PY
-
-      - name: 安装 Rust 工具链（刷新 Cargo.lock）
-        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
-
-      - name: 刷新 Cargo.lock
-        run: cargo check --manifest-path src-tauri/Cargo.toml --quiet
 
       - name: 提交并打 tag
         env:
@@ -167,6 +191,10 @@ jobs:
           git push "$remote" "$branch"
           git tag -a "${STABLE_TAG}" -m "${STABLE_TAG}"
           git push "$remote" "${STABLE_TAG}"
+
+          # GITHUB_TOKEN 推的 tag 不会触发 release.yml 的 push 事件
+          # （GitHub 防递归规则）——显式 dispatch 到该 tag 跑发布。
+          gh workflow run release.yml --ref "${STABLE_TAG}"
 
           # 同步 PR：main 的版本号追平（tag 已发布，PR 只是记账）
           gh pr create \
