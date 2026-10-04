@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-04
+
+本轮主题：把分析结果带出去：会话导出与终端输出保真
+
 ### Changed
 
 - **版本徽章标出先行版**：版本号带 `-`（如 `0.10.0-beta.2`）时徽章显式加「Beta」标记并用警示色描边——装的是稳定版还是先行版应当一眼可辨，而不是让人去比对版本号里有没有 `-beta`。
