@@ -413,3 +413,83 @@ test("keeps the row heights in sync with the virtualised CSS", () => {
   expect(constant("SESSION_ROW_HEIGHT")).toBe(ruleHeight("sessionRow"));
   expect(constant("SESSION_ROW_HEIGHT_WITH_STATUS")).toBe(ruleHeight("sessionRowWithStatus"));
 });
+
+test("marks an archived session with an inline badge in the title line", () => {
+  const archived: SessionMeta = {
+    path: "/app-data/archive/-repo-old/gone.jsonl",
+    projectLabel: "repo-old",
+    customTitle: "归档会话",
+    mtimeMs: 10,
+    sizeBytes: 5,
+    hasRecords: true,
+    archived: true
+  };
+  const live: SessionMeta = {
+    path: "/repo/live.jsonl",
+    projectLabel: "repo",
+    customTitle: "在源会话",
+    mtimeMs: 20,
+    sizeBytes: 5,
+    hasRecords: true
+  };
+  const { container } = render(
+    <SessionList
+      sessions={[archived, live]}
+      selected={null}
+      loading={false}
+      error={null}
+      onSelect={() => undefined}
+      onRefresh={() => undefined}
+    />
+  );
+
+  const badges = container.querySelectorAll(`.${styles.archiveTag}`);
+  expect(badges).toHaveLength(1);
+
+  const badge = badges[0];
+  // 徽标内联在标题行里：button > .titleLine > strong + .archiveTag。
+  const titleLine = badge.parentElement!;
+  expect(titleLine.classList.contains(styles.titleLine)).toBe(true);
+  expect(titleLine.querySelector("strong")?.textContent).toBe("归档会话");
+
+  const button = titleLine.parentElement!;
+  expect(button.tagName).toBe("BUTTON");
+  expect(button.children[0]).toBe(titleLine);
+  // 不是行的直接 grid 子元素 —— 那会多出一行 grid row，把 54px 的行高撑坏。
+  expect(Array.from(button.children)).not.toContain(badge);
+
+  // 非归档会话不显示徽标。
+  expect(
+    screen.getByRole("button", { name: /在源会话/ }).querySelector(`.${styles.archiveTag}`)
+  ).toBeNull();
+});
+
+/**
+ * SessionList.module.css 里有一条把行内所有 span 染成灰色小字的通配规则。
+ * 标题行现在多了一层 `.titleLine` 包装 span，通配会把标题也连带染灰；
+ * 这条用例把「着色规则已收窄到 .meta」和「徽标自带中性牌样式」一起锁住。
+ */
+test("keeps the archive badge out of the inline-span colour rule", () => {
+  const css = readFileSync(resolve(process.cwd(), "src/features/sessions/SessionList.module.css"), "utf8");
+
+  const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)];
+  const broadSpanRules = rules.filter(
+    ([, selector]) => /\bbutton span\b/.test(selector) && !/\.meta|\.archiveTag/.test(selector)
+  );
+  expect(
+    broadSpanRules.every(([, , body]) => !/color:\s*var\(--text-tertiary\)/.test(body))
+  ).toBe(true);
+
+  const metaRule = css.match(
+    /\.groups \.sessionRow button \.meta,\s*\.groups \.sessionRowWithStatus button \.meta\s*\{([^}]*)\}/s
+  );
+  expect(metaRule?.[1]).toContain("color: var(--text-tertiary)");
+
+  const badgeRule = css.match(
+    /\.archiveTag,\s*\.groups \.sessionRowWithStatus button \.archiveTag\s*\{([^}]*)\}/s
+  );
+  expect(badgeRule?.[1]).toContain("color: var(--text-secondary)");
+  expect(badgeRule?.[1]).toContain("border: 1px solid var(--border)");
+  expect(badgeRule?.[1]).toContain("height: var(--lh-xs)");
+  expect(css).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+});

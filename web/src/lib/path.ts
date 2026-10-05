@@ -29,6 +29,16 @@ export function joinPath(base: string, ...segments: string[]): string {
 }
 
 /**
+ * The last segment of a path, with trailing separators ignored. Used where a
+ * file name is what matters (archiving a session, naming an export): callers
+ * were each open-coding `split(/[\\/]/)` and drifting on trailing slashes.
+ */
+export function basename(path: string): string {
+  const segments = pathSegments(path);
+  return segments.length > 0 ? segments[segments.length - 1] : "";
+}
+
+/**
  * Claude Code stores a session as `<project>/<sessionId>.jsonl` with its
  * subagents under `<project>/<sessionId>/subagents`, so the session's own
  * directory is the file path without the `.jsonl` suffix.

@@ -511,8 +511,33 @@ install_fixture "${FIXTURE_SRC}/usage-dashboard-days.jsonl" "-repo-usage-days" "
 install_fixture "${FIXTURE_SRC}/usage-dashboard-models.jsonl" "-repo-usage-models" "dash-models-0002"
 # 终端转义夹具：日志表里若把 `\u001b[31m` 当文本渲染，探针的 escaped_text 会立刻非零。
 install_fixture "${FIXTURE_SRC}/session-ansi.jsonl" "-repo-ansi" "3d2a5442-9c65-4b28-9c30-bb3d1a1b8a88"
+# 归档夹具：源文件**不在**隔离家目录里（模拟 Claude Code 已清理），只有副本与索引。
+# 应用若真的把副本并回列表并解析，元数据缓存里会出现一条**键为副本路径**的条目——
+# 这是「归档 → 发现 → 解析 → 缓存」整条真机链路的直接证据。
+ARCHIVE_ROOT="${HOME_DIR}/Library/Application Support/${BUNDLE_ID}/archive"
+mkdir -p "${ARCHIVE_ROOT}/-repo-gone"
+cat >"${ARCHIVE_ROOT}/-repo-gone/cleaned-up-0001.jsonl" <<'JSONL'
+{"type":"user","sessionId":"cleaned-up-0001","cwd":"/repo/gone","timestamp":"2026-01-05T09:00:00.000Z","uuid":"gone-user-1","parentUuid":null,"isSidechain":false,"message":{"role":"user","content":"三个月前的那次重构"}}
+{"type":"assistant","sessionId":"cleaned-up-0001","timestamp":"2026-01-05T09:00:05.000Z","uuid":"gone-llm-1","parentUuid":"gone-user-1","isSidechain":false,"message":{"id":"gone-msg-1","role":"assistant","model":"claude-sonnet-4","content":[{"type":"text","text":"那次我们把解析器拆成了两层。"}],"usage":{"input_tokens":30,"output_tokens":20}}}
+JSONL
+cat >"${ARCHIVE_ROOT}/archive-index.json" <<JSON
+{
+  "version": 1,
+  "entries": {
+    "${HOME_DIR}/.claude/projects/-repo-gone/cleaned-up-0001.jsonl": {
+      "sourcePath": "${HOME_DIR}/.claude/projects/-repo-gone/cleaned-up-0001.jsonl",
+      "archivePath": "${ARCHIVE_ROOT}/-repo-gone/cleaned-up-0001.jsonl",
+      "projectLabel": "-repo-gone",
+      "sessionId": "cleaned-up-0001",
+      "sizeBytes": 512,
+      "mtimeMs": 1767603605000,
+      "archivedAt": 1790000000000
+    }
+  }
+}
+JSON
 printf '  隔离家目录：%s\n' "$HOME_DIR"
-printf '  夹具会话：5 个\n'
+printf '  夹具会话：5 个（另有 1 个只剩归档副本的会话）\n'
 
 CACHE_PATH="${HOME_DIR}/Library/Application Support/${BUNDLE_ID}/meta-cache-v2.json"
 
@@ -648,17 +673,30 @@ except Exception as exc:
 entries = data.get("entries") or {}
 paths = list(entries)
 outside = [p for p in paths if not p.startswith(home)]
+archive_prefix = home + "/Library/Application Support/io.github.liang-zhenxiang.cc-analyzer/archive/"
+archived = [p for p in paths if p.startswith(archive_prefix)]
 print(f"COUNT {len(paths)}")
 print(f"OUTSIDE {len(outside)}")
+print(f"ARCHIVED {len(archived)}")
 PY
 )"
   COUNT="$(printf '%s\n' "$CACHE_REPORT" | grep '^COUNT ' | awk '{print $2}')"
   OUTSIDE="$(printf '%s\n' "$CACHE_REPORT" | grep '^OUTSIDE ' | awk '{print $2}')"
 
-  if [[ "${COUNT:-}" == "5" ]]; then
-    ok "缓存条目数 = 5，与夹具一致"
+  if [[ "${COUNT:-}" == "6" ]]; then
+    ok "缓存条目数 = 6（5 个夹具 + 1 个归档副本）"
   else
-    bad "缓存条目数 = ${COUNT:-解析失败}，期望 5"
+    bad "缓存条目数 = ${COUNT:-解析失败}，期望 6"
+    printf '  %s  %s%s\n' "$C_YELLOW" "$CACHE_REPORT" "$C_RESET"
+  fi
+
+  # 归档链路的真机证据：应用必须把「源已被清理、只剩副本」的会话也发现并解析掉，
+  # 缓存里因此会出现一条**键为归档副本路径**的条目。
+  ARCHIVED="$(printf '%s\n' "$CACHE_REPORT" | grep '^ARCHIVED ' | awk '{print $2}')"
+  if [[ "${ARCHIVED:-0}" == "1" ]]; then
+    ok "归档副本被当作会话发现并解析（缓存里有一条副本路径的条目）"
+  else
+    bad "归档副本没有被发现（缓存里副本路径的条目数 = ${ARCHIVED:-解析失败}，期望 1）"
     printf '  %s  %s%s\n' "$C_YELLOW" "$CACHE_REPORT" "$C_RESET"
   fi
 

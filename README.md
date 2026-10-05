@@ -54,6 +54,11 @@ badge. Every screen, in both light and dark themes, is archived in
 - **Session explorer** — sessions grouped by timeline (today / yesterday /
   this week / this month / earlier) and by project, with incrementally
   scanned titles and relative times.
+- **Local archive** — copy sessions into the app's own data directory before
+  Claude Code prunes them (~30 days), then keep browsing and analysing them
+  across months and years. Incremental by mtime/size, raw timestamps preserved,
+  originals untouched, nothing uploaded. Archived sessions carry a badge and a
+  session whose original is already gone still shows up.
 - **Log view with one row model** — user / LLM / tool / agent / workflow /
   wait rows, with duration, share and waterfall columns; filter by row kind,
   success/failure, duration range, or free text. Tool output keeps the terminal
@@ -191,7 +196,7 @@ The roadmap tracks open issues; each item links to the issue that owns it.
 - [ ] Local archive repo — keep sessions past Claude Code's own cleanup, and
   analyse across months and years
   ([#70](https://github.com/liang-zhenxiang/cc-analyzer/issues/70))
-- [ ] Structured export — CSV and single-file HTML
+- [x] Structured export — CSV and single-file HTML (shipped in v0.11.0)
   ([#71](https://github.com/liang-zhenxiang/cc-analyzer/issues/71))
 - [ ] Accessibility & performance pack — ANSI rendering, virtual scrolling,
   font scaling

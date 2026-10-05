@@ -45,6 +45,9 @@ token 消耗趋势与分布，每个数字带来源徽章。每个界面的浅�
   离线定价快照逐模型计价并标注快照日期，全部本地聚合、零上传。
 - **会话浏览** —— 按 时间线（今天 / 昨天 / 本周 / 本月 / 更早）与项目分组，
   标题增量扫描、相对时间显示。
+- **本地归档** —— 在 Claude Code 清理（约 30 天）之前把会话复制进应用自己的
+  数据目录，跨月/跨年继续浏览与统计。按 mtime / 大小增量、保留原始时间戳、
+  不动原始文件、零上传；归档会话带标记，源已被清理的会话也照样看得见。
 - **统一行模型的日志视图** —— 用户 / LLM / 工具 / Agent / workflow /
   等待行，带耗时、占比与瀑布列；按行类型、成败、时长区间与自由文本筛选。
   工具输出保留它原本的终端颜色（ANSI 转义、256 色与真彩色、回车覆盖写的
@@ -167,7 +170,7 @@ package.json   构建工具链（Tauri CLI）与打包入口
 路线图跟踪开放 Issue，每条都链到对应的 Issue。
 
 - [ ] **本地归档仓库** —— 越过 Claude Code 的自动清理保存会话，支持跨月 / 跨年分析（[#70](https://github.com/liang-zhenxiang/cc-analyzer/issues/70)）
-- [ ] **结构化导出** —— CSV 与单文件 HTML（[#71](https://github.com/liang-zhenxiang/cc-analyzer/issues/71)）
+- [x] **结构化导出** —— CSV 与单文件 HTML（v0.11.0 已发布）（[#71](https://github.com/liang-zhenxiang/cc-analyzer/issues/71)）
 - [ ] **无障碍与性能细节包** —— ANSI 渲染、虚拟滚动、字号缩放（[#73](https://github.com/liang-zhenxiang/cc-analyzer/issues/73)）
 - [ ] **前端升级到 React 19** —— 需与 `@types/react` / `@types/react-dom` 成套迁移（[#19](https://github.com/liang-zhenxiang/cc-analyzer/issues/19)）
 

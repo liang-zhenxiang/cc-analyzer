@@ -316,10 +316,20 @@ function SessionButton({
       title={session.cwd ?? session.path}
       onClick={() => onSelect(session)}
     >
-      <strong>{sessionTitle(session)}</strong>
+      {/* 标题与归档徽标内联在一行，不新增 grid 行——行高 54px 由虚拟滚动镜像。 */}
+      <span className={styles.titleLine}>
+        <strong>{sessionTitle(session)}</strong>
+        {session.archived ? (
+          /* `data-archive-badge` 是给真机探针的稳定锚点：徽标文案会改，
+             CSS Module 的类名带哈希，只有数据属性两头都不动。 */
+          <span className={styles.archiveTag} data-archive-badge title="来自本地归档副本">
+            归档<span className={styles.srOnly}>，来自本地归档副本</span>
+          </span>
+        ) : null}
+      </span>
       {session.metadataStatus === "pending" ? <small>补全标题中</small> : null}
       {session.metadataStatus === "failed" ? <small>标题提取失败</small> : null}
-      <span>
+      <span className={styles.meta}>
         {formatRelativeTime(session.mtimeMs)} · {formatBytes(session.sizeBytes)} ·{" "}
         {session.projectLabel}
       </span>

@@ -1,37 +1,80 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ThresholdsPanel } from "./ThresholdsPanel";
 import { BridgesProvider } from "../../api/bridges";
+import { NotificationProvider } from "../../app/NotificationProvider";
 import type { Bridges } from "../../api/types";
+import { getArchiveTask, resetArchiveTask } from "../archive/archiveTask";
+import { getThresholds, resetThresholds, setThreshold } from "./thresholds";
 
-/** 面板现在读 updater 桥（版本与检查），测试给个最简桩。 */
-const stubBridges = {
-  updater: {
-    appVersion: async () => "0.0.0-test",
-    checkUpdates: async () => ({ available: false, currentVersion: "0.0.0-test" }),
-    relaunch: async () => undefined
-  }
-} as unknown as Bridges;
+type BridgeOptions = {
+  /** Source transcripts keyed by file name, as the fake ~/.claude scan sees them. */
+  sourceFiles?: Record<string, string>;
+  /** Optional gate so a test can observe the run while it is in flight. */
+  holdSourceRead?: () => Promise<void>;
+  writeFails?: Error;
+};
 
-function renderPanel() {
+/** 归档要用的 fs 面：会话扫描 + 备份副本 + 索引读写，全部走假桥。 */
+function createBridges(options: BridgeOptions = {}) {
+  const sourceFiles = options.sourceFiles ?? {};
+  const written: Record<string, string> = {};
+  const fs = {
+    appDataDir: vi.fn(async () => "/app-data"),
+    homeDir: vi.fn(async () => "/home/tester"),
+    readDir: vi.fn(async (path: string) =>
+      path.endsWith("projects")
+        ? [{ name: "-repo-demo", is_dir: true, is_file: false }]
+        : Object.keys(sourceFiles).map((name) => ({ name, is_dir: false, is_file: true }))
+    ),
+    readHead: vi.fn(async () => ""),
+    stat: vi.fn(async () => ({ is_file: true, size: 5, mtime_ms: 1000 })),
+    readText: vi.fn(async (path: string) => {
+      const name = path.split("/").pop() ?? "";
+      if (name in sourceFiles) {
+        if (options.holdSourceRead) await options.holdSourceRead();
+        return sourceFiles[name];
+      }
+      if (path in written) return written[path];
+      throw new Error(`no such file or directory: ${path}`);
+    }),
+    writeText: vi.fn(async (path: string, contents: string) => {
+      if (options.writeFails) throw options.writeFails;
+      written[path] = contents;
+    })
+  };
+  const bridges = {
+    fs,
+    updater: {
+      appVersion: async () => "0.0.0-test",
+      checkUpdates: async () => ({ available: false, currentVersion: "0.0.0-test" }),
+      relaunch: async () => undefined
+    }
+  } as unknown as Bridges;
+  return { bridges, written };
+}
+
+function renderPanel(bridges: Bridges) {
   return render(
-    <BridgesProvider bridges={stubBridges}>
-      <ThresholdsPanel onClose={() => undefined} />
-    </BridgesProvider>
+    <NotificationProvider>
+      <BridgesProvider bridges={bridges}>
+        <ThresholdsPanel onClose={() => undefined} />
+      </BridgesProvider>
+    </NotificationProvider>
   );
 }
-import { getThresholds, resetThresholds, setThreshold } from "./thresholds";
 
 beforeEach(() => {
   localStorage.clear();
   resetThresholds();
+  resetArchiveTask();
   localStorage.clear();
 });
 
 describe("ThresholdsPanel", () => {
   test("shows every budget with its current value and unit", () => {
-    renderPanel();
+    renderPanel(createBridges().bridges);
 
     expect(screen.getByRole("heading", { name: "阈值设置" })).toBeInTheDocument();
     expect(screen.getByLabelText("Prompt 上限")).toHaveValue(96);
@@ -44,7 +87,7 @@ describe("ThresholdsPanel", () => {
 
   test("writes edits through to the store and to storage", async () => {
     const user = userEvent.setup();
-    renderPanel();
+    renderPanel(createBridges().bridges);
 
     const rows = screen.getByLabelText("记录明细行数");
     await user.clear(rows);
@@ -58,7 +101,7 @@ describe("ThresholdsPanel", () => {
 
   test("converts the prompt budget between KB and bytes", async () => {
     const user = userEvent.setup();
-    renderPanel();
+    renderPanel(createBridges().bridges);
 
     const prompt = screen.getByLabelText("Prompt 上限");
     await user.clear(prompt);
@@ -70,7 +113,7 @@ describe("ThresholdsPanel", () => {
   test("restores the defaults and disables the reset button afterwards", async () => {
     const user = userEvent.setup();
     setThreshold("slowTools", 25);
-    renderPanel();
+    renderPanel(createBridges().bridges);
 
     const reset = screen.getByRole("button", { name: "恢复默认" });
     await user.click(reset);
@@ -82,7 +125,7 @@ describe("ThresholdsPanel", () => {
 
   test("keeps the value when the input is cleared", async () => {
     const user = userEvent.setup();
-    renderPanel();
+    renderPanel(createBridges().bridges);
 
     await user.clear(screen.getByLabelText("子 agent 条数"));
 
@@ -93,12 +136,106 @@ describe("ThresholdsPanel", () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     render(
-      <BridgesProvider bridges={stubBridges}>
-        <ThresholdsPanel onClose={onClose} />
-      </BridgesProvider>
+      <NotificationProvider>
+        <BridgesProvider bridges={createBridges().bridges}>
+          <ThresholdsPanel onClose={onClose} />
+        </BridgesProvider>
+      </NotificationProvider>
     );
 
     await user.click(screen.getByRole("button", { name: "关闭" }));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("本地归档 section", () => {
+  test("defaults to off: disabled button, empty readout, and the trust copy", () => {
+    renderPanel(createBridges().bridges);
+
+    const toggle = screen.getByRole("checkbox", { name: "启用本地归档" });
+    expect(toggle).not.toBeChecked();
+
+    const button = screen.getByRole("button", { name: "立即归档" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("title", "先开启本地归档");
+
+    expect(screen.getByText("尚未归档任何会话")).toBeInTheDocument();
+
+    const label = screen.getByText("启用本地归档").closest("label");
+    expect(label?.textContent).toContain("在本机复制，不联网，不改动 ~/.claude 的原始文件。");
+    expect(label?.textContent).toContain("关闭只停止后续归档，已归档的副本会保留。");
+    // 开关是 checkbox，不是自定义 switch 控件。
+    expect(screen.queryByRole("switch")).toBeNull();
+  });
+
+  test("enabling runs a full archive and reports the completion summary", async () => {
+    const user = userEvent.setup();
+    const { bridges, written } = createBridges({ sourceFiles: { "session.jsonl": "hello" } });
+    renderPanel(bridges);
+
+    await user.click(screen.getByRole("checkbox", { name: "启用本地归档" }));
+
+    expect(localStorage.getItem("cca-archive-enabled")).toBe("on");
+    expect(written["/app-data/archive/-repo-demo/session.jsonl"]).toBe("hello");
+    expect(await screen.findByText("本次归档 1 个会话")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "立即归档" })).toBeEnabled();
+  });
+
+  test("shows done/total progress while the run is in flight", async () => {
+    const user = userEvent.setup();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { bridges } = createBridges({
+      sourceFiles: { "session.jsonl": "hello" },
+      holdSourceRead: () => gate
+    });
+    renderPanel(bridges);
+
+    await user.click(screen.getByRole("checkbox", { name: "启用本地归档" }));
+
+    const readout = await screen.findByText(
+      (_, el) => el?.tagName === "P" && /正在归档 \d+\/\d+ …/.test(el.textContent ?? "")
+    );
+    expect(readout.textContent).toBe("正在归档 0/1 …");
+    expect(screen.getByRole("progressbar")).toHaveAttribute("value", "0");
+    expect(screen.getByRole("progressbar")).toHaveAttribute("max", "1");
+    const inFlight = screen.getByRole("button", { name: "正在归档…" });
+    expect(inFlight).toBeDisabled();
+    expect(inFlight).toHaveAttribute("aria-busy", "true");
+
+    release();
+    expect(await screen.findByText("本次归档 1 个会话")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("progressbar")).toBeNull());
+  });
+
+  test("flashes 已是最新 when a run has nothing left to copy", async () => {
+    const user = userEvent.setup();
+    renderPanel(createBridges().bridges);
+
+    await user.click(screen.getByRole("checkbox", { name: "启用本地归档" }));
+
+    expect(await screen.findByText("已是最新，无需归档")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "已是最新" })).toBeInTheDocument();
+  });
+
+  test("surfaces a disk-full failure in place and as an error toast", async () => {
+    const user = userEvent.setup();
+    const { bridges } = createBridges({
+      sourceFiles: { "session.jsonl": "hello" },
+      writeFails: new Error("no space left on device")
+    });
+    renderPanel(bridges);
+
+    await user.click(screen.getByRole("checkbox", { name: "启用本地归档" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/^归档失败：/);
+    expect(alert.textContent).toContain("请清理磁盘空间后重试。");
+    // 开关保持 ON（环境问题，不是用户改了偏好），按钮可重试。
+    expect(screen.getByRole("checkbox", { name: "启用本地归档" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "立即归档" })).toBeEnabled();
+    expect(getArchiveTask().status).toBe("error");
   });
 });

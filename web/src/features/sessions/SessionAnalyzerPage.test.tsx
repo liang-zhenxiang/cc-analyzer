@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SessionAnalyzerPage } from "./SessionAnalyzerPage";
+import { enable, resetArchiveTask, runNow } from "../archive/archiveTask";
 import { BridgesProvider } from "../../api/bridges";
 import { NotificationProvider } from "../../app/NotificationProvider";
 import type { Bridges } from "../../api/types";
@@ -139,6 +140,11 @@ test("ignores a stale session read after rapid switching", async () => {
     if (path.endsWith("meta-cache-v2.json")) {
       return Promise.resolve(JSON.stringify({ version: 1, entries: {} }));
     }
+    // 归档索引：首次运行不存在，真实桥接是抛错；这里照做，免得它被当成
+    // 会话文件挂进 resolvers —— 那会让会话列表永远等不到内容。
+    if (path.endsWith("archive-index.json")) {
+      return Promise.reject(new Error(`no such file or directory: ${path}`));
+    }
     return new Promise<string>((resolve) => resolvers.set(path, resolve));
   }) as Bridges["fs"]["readText"];
 
@@ -192,6 +198,7 @@ test("shows graph warnings when a child session cannot be resolved", async () =>
       return JSON.stringify({ version: 1, entries: {} });
     }
     if (path.endsWith("session.jsonl")) return parentText;
+    if (path.endsWith("archive-index.json")) throw new Error(`no such file: ${path}`);
     throw new Error("子会话不可读");
   }) as Bridges["fs"]["readText"];
 
@@ -260,6 +267,9 @@ test("ignores a stale graph resolution after rapid session switching", async () 
   bridges.fs.readText = vi.fn((path: string) => {
     if (path.endsWith("meta-cache-v2.json")) {
       return Promise.resolve(JSON.stringify({ version: 1, entries: {} }));
+    }
+    if (path.endsWith("archive-index.json")) {
+      return Promise.reject(new Error(`no such file or directory: ${path}`));
     }
     return deferRead(path);
   }) as Bridges["fs"]["readText"];
@@ -658,4 +668,29 @@ test("folds the token panel behind the session header chip", async () => {
 
   await user.click(chip);
   expect(screen.queryByRole("region", { name: "Token 计数" })).not.toBeInTheDocument();
+});
+
+test("归档完成后自动刷新会话列表", async () => {
+  window.localStorage.clear();
+  resetArchiveTask();
+  const bridges = createBridges();
+  render(
+    <BridgesProvider bridges={bridges}>
+      <NotificationProvider>
+        <SessionAnalyzerPage />
+      </NotificationProvider>
+    </BridgesProvider>
+  );
+
+  // 先等首屏扫描落地，再数 readDir 的调用次数作为「有没有重扫」的判据。
+  await screen.findByRole("button", { name: /project-a/ });
+  const before = vi.mocked(bridges.fs.readDir).mock.calls.length;
+
+  enable(bridges);
+  await runNow(bridges);
+
+  // 归档完成 → 列表必须自己重扫一次（否则用户点完「立即归档」看不到任何变化）。
+  await waitFor(() =>
+    expect(vi.mocked(bridges.fs.readDir).mock.calls.length).toBeGreaterThan(before)
+  );
 });
