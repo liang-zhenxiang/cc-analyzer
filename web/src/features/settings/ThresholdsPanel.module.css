@@ -49,7 +49,7 @@
 .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--sp-1);
 }
 
 .label {
@@ -123,4 +123,43 @@
 .updateError {
   color: var(--danger);
   font-size: var(--fs-sm);
+}
+
+/* 归档读数行：面板底色上读数用 --text-tertiary 已达标，不另套 --bg-inset 底。
+   这是本节的唯一 live region，进行中 / 完成 / 空闲三种形态都走这里。 */
+.readout {
+  margin: var(--sp-2) 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 三个数值是数据，给正文墨色和等宽数字，别混进周围的说明字。 */
+.number {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 失败就地一行，不新开浮层。 */
+.alert {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+/* 按钮行：与读数行用发丝线分开，左对齐——它随时可点，不是右对齐的 footer。 */
+.archiveRow {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  margin-top: var(--sp-2);
+  border-top: 1px solid var(--border);
+  padding-top: var(--sp-2);
+}
+
+.archiveProgress {
+  width: 100%;
+  height: 4px;
 }

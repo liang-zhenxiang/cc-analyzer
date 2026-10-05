@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Button, IconButton } from "../../components/Button";
 import { Icon } from "../../components/Icon";
 import { TextInput } from "../../components/TextInput";
@@ -21,8 +21,170 @@ import {
   storeChannel,
   type UpdateChannel
 } from "./updateChannel";
-import type { UpdateCheck } from "../../api/types";
+import { useNotifications } from "../../app/NotificationProvider";
+import {
+  disable as disableArchive,
+  enable as enableArchive,
+  refreshStatus as refreshArchiveStatus,
+  runNow as runArchiveNow,
+  useArchiveTask,
+  type ArchiveTaskState
+} from "../archive/archiveTask";
+import { formatBytes, formatDateTime, formatRelativeTime } from "../../lib/format";
+import type { Bridges, UpdateCheck } from "../../api/types";
 import styles from "./ThresholdsPanel.module.css";
+
+/** Disk-full / permission failures get one actionable sentence; others stay verbatim. */
+function failureText(reason: string): string {
+  if (/no space|space left|磁盘|空间/i.test(reason)) {
+    return `${reason} 请清理磁盘空间后重试。`;
+  }
+  if (/permission|denied|eacces|e?perm|权限/i.test(reason)) {
+    return `${reason} 请检查归档目录的读写权限后重试。`;
+  }
+  return reason;
+}
+
+function readoutTitle(state: ArchiveTaskState): string | undefined {
+  const parts: string[] = [];
+  if (state.footprint.lastArchivedAt) parts.push(formatDateTime(state.footprint.lastArchivedAt));
+  if (state.archiveDir) parts.push(state.archiveDir);
+  return parts.length > 0 ? parts.join(" · ") : undefined;
+}
+
+function ArchiveSection({ bridges }: { bridges: Bridges }) {
+  const archive = useArchiveTask();
+  const { notify } = useNotifications();
+  const titleId = useId();
+  const [flash, setFlash] = useState<"copied" | "uptodate" | null>(null);
+  const previousStatus = useRef(archive.status);
+  const notifiedError = useRef(archive.status === "error" ? archive.error : null);
+
+  // Show what is already on disk as soon as the panel is opened.
+  useEffect(() => {
+    void refreshArchiveStatus(bridges);
+  }, [bridges]);
+
+  // The button lingers on「已是最新」for a beat after a no-op run, then resets.
+  useEffect(() => {
+    const previous = previousStatus.current;
+    previousStatus.current = archive.status;
+    if (archive.status !== "done" || previous === "done") return undefined;
+    const run = archive.lastRun;
+    setFlash(run && run.copied === 0 && run.failures.length === 0 ? "uptodate" : "copied");
+    const timer = window.setTimeout(() => setFlash(null), 2000);
+    return () => window.clearTimeout(timer);
+  }, [archive.status, archive.lastRun]);
+
+  // Failure is surfaced in place (below) and once as a toast; the panel has no
+  // modal. The ref keeps reopening the panel from re-announcing an old failure.
+  useEffect(() => {
+    if (archive.status === "error" && archive.error) {
+      if (notifiedError.current !== archive.error) {
+        notifiedError.current = archive.error;
+        notify(`归档失败：${failureText(archive.error)}`, "error");
+      }
+    } else if (archive.status !== "error") {
+      notifiedError.current = null;
+    }
+  }, [archive.status, archive.error, notify]);
+
+  const running = archive.status === "running";
+  const progress = archive.progress;
+  const footprint = archive.footprint;
+
+  let readout: ReactNode;
+  if (running && progress) {
+    readout = (
+      <>
+        正在归档 <span className={styles.number}>{progress.done}</span>/
+        <span className={styles.number}>{progress.total}</span> …
+      </>
+    );
+  } else if (flash === "uptodate") {
+    readout = <>已是最新，无需归档</>;
+  } else if (flash === "copied" && archive.lastRun) {
+    readout = <>本次归档 {archive.lastRun.copied} 个会话</>;
+  } else if (footprint.count === 0) {
+    readout = <>尚未归档任何会话</>;
+  } else {
+    readout = (
+      <>
+        已归档 <span className={styles.number}>{footprint.count.toLocaleString("en-US")}</span> 个会话 ·{" "}
+        上次归档{" "}
+        <span className={styles.number}>
+          {footprint.lastArchivedAt ? formatRelativeTime(footprint.lastArchivedAt) : "-"}
+        </span>{" "}
+        · 占用 <span className={styles.number}>{formatBytes(footprint.bytes)}</span>
+      </>
+    );
+  }
+
+  const disabled = !archive.enabled || running;
+  const buttonLabel = running ? "正在归档…" : flash === "uptodate" ? "已是最新" : "立即归档";
+
+  return (
+    <>
+      <h3 className={styles.sectionTitle}>本地归档</h3>
+      <p className={styles.note}>
+        Claude Code 会清理约 30 天前的会话；归档把副本留在本机，让更早的记录仍能统计。
+      </p>
+      <div className={styles.grid}>
+        {/* aria-labelledby keeps the checkbox's name exactly the visible title,
+            even though the trust hints sit inside the same label. */}
+        <label className={styles.field}>
+          <span className={styles.label} id={titleId}>
+            启用本地归档
+          </span>
+          <span className={styles.control}>
+            <input
+              type="checkbox"
+              aria-labelledby={titleId}
+              checked={archive.enabled}
+              onChange={(event) => {
+                if (event.target.checked) enableArchive(bridges);
+                else disableArchive();
+              }}
+            />
+          </span>
+          <span className={styles.hint}>在本机复制，不联网，不改动 ~/.claude 的原始文件。</span>
+          {archive.enabled ? null : (
+            <span className={styles.hint}>关闭只停止后续归档，已归档的副本会保留。</span>
+          )}
+        </label>
+      </div>
+      <p className={styles.readout} role="status" aria-live="polite" title={readoutTitle(archive)}>
+        {readout}
+      </p>
+      {archive.indexCorrupt ? (
+        <p className={styles.hint}>归档索引已损坏，下次归档会重建。</p>
+      ) : null}
+      {archive.status === "error" && archive.error ? (
+        <p className={styles.alert} role="alert">
+          归档失败：{failureText(archive.error)}
+        </p>
+      ) : null}
+      <div className={styles.archiveRow}>
+        <Button
+          type="button"
+          onClick={() => void runArchiveNow(bridges)}
+          disabled={disabled}
+          aria-busy={running || undefined}
+          title={archive.enabled ? undefined : "先开启本地归档"}
+        >
+          {buttonLabel}
+        </Button>
+        {running && progress && progress.total > 0 ? (
+          <progress
+            className={styles.archiveProgress}
+            value={progress.done}
+            max={progress.total}
+          />
+        ) : null}
+      </div>
+    </>
+  );
+}
 
 function ThresholdField({ thresholdKey }: { thresholdKey: ThresholdKey }) {
   const thresholds = useThresholds();
@@ -254,6 +416,7 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
           <span className={styles.updateError}>{checkError}</span>
         ) : null}
       </div>
+      <ArchiveSection bridges={bridges} />
       <footer className={styles.footer}>
         <Button type="button" onClick={() => resetThresholds()} disabled={isDefault}>
           恢复默认

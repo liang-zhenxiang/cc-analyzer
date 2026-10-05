@@ -172,13 +172,58 @@
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
-/* 同上：限定在会话行内，否则 `.groupCount` 想要的 --text-tertiary 会被它盖掉。 */
-.groups .sessionRow button span,
-.groups .sessionRowWithStatus button span {
+/* 只染元信息行。早先这条是 `.groups .sessionRow button span`（通配所有行内 span），
+   现在标题行多了一层 `.titleLine` 包装 span，通配会把标题也连带染成灰色小字；
+   收窄到 `.meta` 后，标题、归档徽标各自决定自己的颜色。 */
+.groups .sessionRow button .meta,
+.groups .sessionRowWithStatus button .meta {
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
   line-height: var(--lh-xs);
+}
+
+/* 标题行：标题 + 归档徽标内联，是会话行的第一个（也是唯一新增的）grid 子元素。
+   0 高差：--lh-base(20) 装得下 16px 徽标，行高 54px 不变。 */
+.titleLine {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.titleLine > strong {
+  min-width: 0;
+}
+
+/* 归档来源徽标：中性文字牌（细描边 + 小字 + --r-xs + --bg-inset），
+   与 ProvenanceBadge 同一语言。高度取 --lh-xs(16)，不撑高标题行。
+   选择器比 `.groups .sessionRow button span`（0,2,2）更具体：即便通配规则
+   日后回潮，这里的 --text-secondary 也不会被染成灰色的元信息小字。 */
+.groups .sessionRow button .archiveTag,
+.groups .sessionRowWithStatus button .archiveTag {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: var(--lh-xs);
+  padding: 0 var(--sp-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* 只看不读的补充文字（徽标的完整含义）。 */
+.srOnly {
+  position: absolute;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  width: 1px;
+  height: 1px;
+  white-space: nowrap;
 }
 
 .groups small {

@@ -14,6 +14,7 @@ import { RecordDetailPanel } from "./RecordDetailPanel";
 import { ReportPanel } from "./ReportPanel";
 import { ExportDialog } from "./ExportDialog";
 import { formatLabel, projectNameOf, type ExportBase, type ExportFormat } from "./exportTypes";
+import { useArchiveTask } from "../archive/archiveTask";
 import { TreeView } from "./TreeView";
 import { LogView } from "./LogView";
 import { emptyFilter, type RecordFilter, type TimeRange } from "./filters";
@@ -62,6 +63,7 @@ export function SessionAnalyzerPage({
   const { notify } = useNotifications();
   const { sessions, loading, error, progress, refresh } = useSessions();
   const { detailRows: reportRowLimit } = useThresholds();
+  const archiveStatus = useArchiveTask().status;
   const [selectedSession, setSelectedSession] = useState<SessionMeta | null>(null);
   const [parsed, setParsed] = useState<ParsedSession | null>(null);
   const sessionRequestRef = useRef(0);
@@ -131,6 +133,14 @@ export function SessionAnalyzerPage({
     setExportOpen(false);
     notify(`已导出 ${formatLabel(format)}`, "success");
   }
+
+  // 归档跑完把会话发现重跑一次：这一轮新写进索引的会话（或刚变成「已归档」
+  // 的那些）要立刻出现在列表里，否则用户点完「立即归档」看不到任何变化。
+  // 状态只在 running → done 的跃迁上变，所以这里不会随每次渲染重复刷新。
+  useEffect(() => {
+    if (archiveStatus !== "done") return;
+    void refresh();
+  }, [archiveStatus, refresh]);
 
   useEffect(() => {
     let cancelled = false;
