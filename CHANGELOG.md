@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **先行版 v0.12.0-beta.1（本轮主题）**：本地归档——在 Claude Code 清理（约 30 天）之前把会话复制进应用自己的数据目录，跨月/跨年继续浏览与统计；按 mtime/size 增量、保留原始时间戳、不动原始文件、纯本地零上传。稳定版会在维护者试用后从它晋升。
+
 
 - **本地归档仓库**：Claude Code 会清理约 30 天前的会话，跨月/跨年分析必须先自己留档。设置里新增「本地归档」——显式开启（**默认关闭**）后点「立即归档」：首次全量、之后按 mtime/size 增量，可重复点（幂等）。
   - **副本 + 记账**：会话 JSONL 复制到应用数据目录的 `archive/<项目>/<会话>.jsonl`，索引 `archive-index.json` 记录原路径、大小、**原始 mtime** 与归档时刻。原始文件既不移走也不改写，全程纯本地、不联网、不内置遥测。
