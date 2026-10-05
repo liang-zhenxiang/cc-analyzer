@@ -320,7 +320,9 @@ function SessionButton({
       <span className={styles.titleLine}>
         <strong>{sessionTitle(session)}</strong>
         {session.archived ? (
-          <span className={styles.archiveTag} title="来自本地归档副本">
+          /* `data-archive-badge` 是给真机探针的稳定锚点：徽标文案会改，
+             CSS Module 的类名带哈希，只有数据属性两头都不动。 */
+          <span className={styles.archiveTag} data-archive-badge title="来自本地归档副本">
             归档<span className={styles.srOnly}>，来自本地归档副本</span>
           </span>
         ) : null}
