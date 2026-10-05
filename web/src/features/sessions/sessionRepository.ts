@@ -132,7 +132,11 @@ export class SessionRepository {
             meta
           };
           cache.entries[session.path] = entry;
-          result[index] = toSessionMeta(session.path, entry);
+          // `archived` 是**出处**不是元数据（元数据缓存里不存它），但补全这一步
+          // 会拿缓存里的字段重建对象，得把它带过去——否则会话在列表里丢掉
+          // 「来自归档副本」的标记（端到端抓到的回归）。
+          const completed = toSessionMeta(session.path, entry);
+          result[index] = session.archived ? { ...completed, archived: true } : completed;
         } catch {
           result[index] = { ...session, metadataStatus: "failed" };
         }

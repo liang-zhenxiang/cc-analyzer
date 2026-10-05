@@ -321,7 +321,8 @@ describe("SessionRepository", () => {
       )
     });
 
-    const sessions = await new SessionRepository(bridges).listSessions();
+    const repository = new SessionRepository(bridges);
+    const sessions = await repository.listSessions();
     const archived = sessions.find((session) => session.path === archivePath);
 
     expect(archived).toBeDefined();
@@ -333,5 +334,12 @@ describe("SessionRepository", () => {
     expect(archived?.projectLabel).toBe("-repo-old");
     // 仍存在于 ~/.claude 的会话只有一份：归档不产生第二个条目。
     expect(sessions.filter((session) => !session.archived)).toHaveLength(1);
+
+    // 补全元数据会拿缓存字段重建对象——这一步必须把 `archived` 带过去，
+    // 否则列表里的「已归档」标记会在这里静默消失（端到端抓到的回归）。
+    const completed = await repository.completeMetadata(sessions);
+    const archivedAfterComplete = completed.find((session) => session.path === archivePath);
+    expect(archivedAfterComplete?.archived).toBe(true);
+    expect(archivedAfterComplete?.metadataStatus).toBe("complete");
   });
 });
