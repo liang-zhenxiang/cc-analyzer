@@ -191,7 +191,7 @@ The roadmap tracks open issues; each item links to the issue that owns it.
 - [ ] Local archive repo — keep sessions past Claude Code's own cleanup, and
   analyse across months and years
   ([#70](https://github.com/liang-zhenxiang/cc-analyzer/issues/70))
-- [ ] Structured export — CSV and single-file HTML
+- [x] Structured export — CSV and single-file HTML (shipped in v0.11.0)
   ([#71](https://github.com/liang-zhenxiang/cc-analyzer/issues/71))
 - [ ] Accessibility & performance pack — ANSI rendering, virtual scrolling,
   font scaling

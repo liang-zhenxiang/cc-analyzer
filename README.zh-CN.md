@@ -167,7 +167,7 @@ package.json   构建工具链（Tauri CLI）与打包入口
 路线图跟踪开放 Issue，每条都链到对应的 Issue。
 
 - [ ] **本地归档仓库** —— 越过 Claude Code 的自动清理保存会话，支持跨月 / 跨年分析（[#70](https://github.com/liang-zhenxiang/cc-analyzer/issues/70)）
-- [ ] **结构化导出** —— CSV 与单文件 HTML（[#71](https://github.com/liang-zhenxiang/cc-analyzer/issues/71)）
+- [x] **结构化导出** —— CSV 与单文件 HTML（v0.11.0 已发布）（[#71](https://github.com/liang-zhenxiang/cc-analyzer/issues/71)）
 - [ ] **无障碍与性能细节包** —— ANSI 渲染、虚拟滚动、字号缩放（[#73](https://github.com/liang-zhenxiang/cc-analyzer/issues/73)）
 - [ ] **前端升级到 React 19** —— 需与 `@types/react` / `@types/react-dom` 成套迁移（[#19](https://github.com/liang-zhenxiang/cc-analyzer/issues/19)）
 
