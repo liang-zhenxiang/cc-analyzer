@@ -25,7 +25,9 @@ function createBridges(fs: FsBridgeStub): Bridges {
       ),
       stat: vi.fn(async () => ({ is_file: true, size: 10, mtime_ms: 42 })),
       readHead: vi.fn(async () => JSON.stringify({ sessionId: "session-1", cwd: "/repo" })),
-      readText: vi.fn(async () => JSON.stringify({ version: 2, generatedAt: 1, entries: {} })),
+      readText: vi.fn(async (_path: string) =>
+        JSON.stringify({ version: 2, generatedAt: 1, entries: {} })
+      ),
       writeText: vi.fn(async () => undefined),
       ...fs
     } as Bridges["fs"]
@@ -243,7 +245,9 @@ describe("SessionRepository", () => {
   });
 
   it("uses only the v2 metadata cache", async () => {
-    const readText = vi.fn(async () => JSON.stringify({ version: 2, generatedAt: 1, entries: {} }));
+    const readText = vi.fn(async (_path: string) =>
+      JSON.stringify({ version: 2, generatedAt: 1, entries: {} })
+    );
     const writeText = vi.fn(async () => undefined);
     bridges = createBridges({ readText, writeText });
     const repository = new SessionRepository(bridges);
@@ -261,10 +265,12 @@ describe("SessionRepository", () => {
     ]);
     await repository.importSession("/imported.jsonl");
 
-    expect(readText).toHaveBeenCalledTimes(3);
-    expect(readText).toHaveBeenNthCalledWith(1, "/app-data/meta-cache-v2.json");
-    expect(readText).toHaveBeenNthCalledWith(2, "/app-data/meta-cache-v2.json");
-    expect(readText).toHaveBeenNthCalledWith(3, "/app-data/meta-cache-v2.json");
+    // 只断言**读的是哪个文件**，不断言调用次数：会话发现现在还会读一次归档索引
+    // （`/app-data/archive/archive-index.json`），次数会随功能增长而漂移，
+    // 而这条用例真正要守住的是「不碰 v1 的老缓存」。
+    const readPaths = readText.mock.calls.map((call) => call[0]);
+    expect(readPaths.filter((path) => path === "/app-data/meta-cache-v2.json")).toHaveLength(3);
+    expect(readPaths).not.toContain("/app-data/meta-cache.json");
     expect(writeText).toHaveBeenCalledTimes(2);
     expect(writeText).toHaveBeenNthCalledWith(1, "/app-data/meta-cache-v2.json", expect.any(String));
     expect(writeText).toHaveBeenNthCalledWith(2, "/app-data/meta-cache-v2.json", expect.any(String));
@@ -286,5 +292,46 @@ describe("SessionRepository", () => {
       "C:\\Users\\tester\\AppData\\Roaming\\cc-analyzer\\meta-cache-v2.json",
       expect.any(String)
     );
+  });
+
+  it("serves archived sessions whose original Claude Code already cleaned up", async () => {
+    // 源文件（/home/tester/.claude/.../session.jsonl）已经不在磁盘上了——
+    // 它在 ~/.claude 里被清理，但归档副本还在，列表必须仍然看得见它。
+    const gone = "/home/tester/.claude/projects/-repo-old/gone.jsonl";
+    const archivePath = "/app-data/archive/-repo-old/gone.jsonl";
+    const index = {
+      version: 1,
+      entries: {
+        [gone]: {
+          sourcePath: gone,
+          archivePath,
+          projectLabel: "-repo-old",
+          sessionId: "gone",
+          sizeBytes: 4096,
+          mtimeMs: 1_600_000_000_000,
+          archivedAt: 1_800_000_000_000
+        }
+      }
+    };
+    bridges = createBridges({
+      readText: vi.fn(async (path: string) =>
+        path.endsWith("archive-index.json")
+          ? JSON.stringify(index)
+          : JSON.stringify({ version: 2, generatedAt: 1, entries: {} })
+      )
+    });
+
+    const sessions = await new SessionRepository(bridges).listSessions();
+    const archived = sessions.find((session) => session.path === archivePath);
+
+    expect(archived).toBeDefined();
+    // 归档标记：列表据此显示「已归档」，而不是把它当成一份普通会话。
+    expect(archived?.archived).toBe(true);
+    // **原始** mtime：时间线分组、相对时间、用量趋势都要说那次会话发生在什么时候，
+    // 而不是「我什么时候备份的」。
+    expect(archived?.mtimeMs).toBe(1_600_000_000_000);
+    expect(archived?.projectLabel).toBe("-repo-old");
+    // 仍存在于 ~/.claude 的会话只有一份：归档不产生第二个条目。
+    expect(sessions.filter((session) => !session.archived)).toHaveLength(1);
   });
 });

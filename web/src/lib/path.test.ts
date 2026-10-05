@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  basename,
   isPathInside,
   isPathInsideAny,
   joinPath,
@@ -9,6 +10,14 @@ import {
 } from "./path";
 
 describe("path utilities", () => {
+  it("takes the last segment, ignoring trailing separators", () => {
+    expect(basename("/repo/project/session.jsonl")).toBe("session.jsonl");
+    expect(basename("/repo/project/")).toBe("project");
+    expect(basename("C:\\repo\\project\\session.jsonl")).toBe("session.jsonl");
+    expect(basename("/")).toBe("");
+    expect(basename("")).toBe("");
+  });
+
   it("handles POSIX parent directories and segments", () => {
     expect(parentDirectory("/repo/project/session.jsonl")).toBe("/repo/project");
     expect(pathSegments("/repo/project/session.jsonl")).toEqual([

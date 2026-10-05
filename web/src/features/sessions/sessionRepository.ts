@@ -8,6 +8,8 @@ import {
   type SessionMeta
 } from "./metadataCache";
 import { extractSessionMetadata, METADATA_HEAD_BYTES } from "./metadataScanner";
+import { archivedSessions, type ArchiveIndex } from "../archive/archiveIndex";
+import { readArchiveIndex } from "../archive/archiveStore";
 
 const CACHE_NAME = "meta-cache-v2.json";
 const METADATA_BATCH_SIZE = 16;
@@ -89,7 +91,20 @@ export class SessionRepository {
         }
       }
 
-      return result.sort((a, b) => b.mtimeMs - a.mtimeMs);
+      // 归档里的会话：Claude Code 已经清理掉的那些，从副本里补回来。
+      // 仍存在于 ~/.claude 的会话以源文件为准（归档只是备份，不是第二份真相）。
+      // 索引损坏时这里按空处理——它不会让扫描失败，而「归档在不在」由设置面板
+      // 的就地状态行负责说清楚（readArchiveIndex 会把 corrupt 标志交回去）。
+      let index: ArchiveIndex;
+      try {
+        index = (await readArchiveIndex(this.bridges)).index;
+      } catch {
+        index = { version: 1, entries: {} };
+      }
+      const livePaths = new Set(result.map((session) => session.path));
+      const archived = archivedSessions(index, livePaths);
+
+      return [...result, ...archived].sort((a, b) => b.mtimeMs - a.mtimeMs);
     });
   }
 

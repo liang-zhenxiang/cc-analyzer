@@ -27,6 +27,12 @@ export type SessionMeta = SessionMetadata & {
   mtimeMs: number;
   sizeBytes: number;
   metadataStatus?: "complete" | "pending" | "failed";
+  /**
+   * True when this session is served from the local archive because Claude Code
+   * has already cleaned the original up. `mtimeMs` then carries the **original**
+   * timestamp, so grouping and trends still describe when it happened.
+   */
+  archived?: boolean;
 };
 
 export type SessionSummary = SessionMeta;
