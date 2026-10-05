@@ -617,6 +617,19 @@ mod gui_capture {
     /// 5 × (3s + 0.3s) ≈ 17s 是最坏情况，脚本等探针的超时要盖过它（见 gui-test.sh）。
     const PROBE_EVAL_TIMEOUT_MS: u64 = 3_000;
 
+    /// 取图前等「视图就绪」的上限与轮询间隔。
+    ///
+    /// `TAB_SETTLE_MS` 是**下限**（给一次渲染的时间），这里补的是**内容就绪**：
+    /// 用量总览要先把本机会话扫一遍才有表盘，扫描期间页面上是进度行。等到页面上
+    /// 没有 `[data-probe-pending]` 再取图，才不会拍到「还没算完」的那一帧。
+    /// 等不到也照常取图（超时不阻断取证），只在日志里说清楚——这是取证旁路，
+    /// 不是断言。
+    const READY_TIMEOUT_MS: u64 = 10_000;
+    const READY_POLL_MS: u64 = 250;
+    /// 必须以**字符串**返回：`evaluateJavaScript` 对数字回的是 NSNumber，
+    /// 而回调侧按 NSString 读——照数字比会永远等不到（第一版就栽在这）。
+    const READY_JS: &str = "String(document.querySelectorAll('[data-probe-pending]').length)";
+
     /// 几何探针脚本：**只收集事实，不含任何断言或阈值**——判定属于测试脚本，
     /// 应用不该携带测试策略。返回一个 JSON 字符串。
     ///
@@ -685,6 +698,7 @@ mod gui_capture {
         std::thread::spawn(move || {
             let start = Instant::now();
             std::thread::sleep(Duration::from_millis(SETTLE_MS));
+            wait_until_ready(&webview, start, "默认视图");
             capture(&webview, &out, start);
             // 默认视图的探针**不拿 PDF 当开关**：等图落盘只是为了让它和快照描述同一
             // 视图，等到等不到都照常求值。之前这里写的是「等不到就跳过探针」，于是存在
@@ -727,6 +741,7 @@ mod gui_capture {
                     return;
                 }
                 std::thread::sleep(Duration::from_millis(TAB_SETTLE_MS));
+                wait_until_ready(&webview, start, &format!("「{tab}」"));
                 let pdf = tab_output_path(&out, tabs.len(), tab);
                 capture(&webview, &pdf, start);
                 if !wait_for_file(&pdf, PDF_TIMEOUT_MS) {
@@ -889,6 +904,64 @@ mod gui_capture {
             Err(mpsc::RecvTimeoutError::Timeout) => Err("等待求值回调超时".to_string()),
             Err(mpsc::RecvTimeoutError::Disconnected) => Err("求值回调通道断开".to_string()),
         }
+    }
+
+    /// 取图前等视图「内容就绪」：页面上没有 `[data-probe-pending]`（骨架条、
+    /// 扫描进度行）就立刻返回；超时也只打日志、照常取图——这是取证旁路，
+    /// 不能因为等不到就把整轮测试停掉。
+    fn wait_until_ready(webview: &tauri::Webview, start: Instant, label: &str) {
+        let deadline = Instant::now() + Duration::from_millis(READY_TIMEOUT_MS);
+        loop {
+            if let Some(value) = evaluate_string(webview, READY_JS) {
+                if value.trim() == "0" {
+                    println!(
+                        "gui-capture: [+{}ms] {label} 内容已就绪，开始取图",
+                        start.elapsed().as_millis()
+                    );
+                    return;
+                }
+            }
+            if Instant::now() >= deadline {
+                eprintln!(
+                    "gui-capture: [+{}ms] {label} 等视图就绪超过 {}ms（页面上仍有进行中标记），照常取图",
+                    start.elapsed().as_millis(),
+                    READY_TIMEOUT_MS
+                );
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(READY_POLL_MS));
+        }
+    }
+
+    /// 一次同步求值：把 JS 结果按字符串取回；超时或失败返回 `None`。
+    /// `with_webview` 是异步投递，所以照旧走通道 + 上限，避免主线程不回来时卡死。
+    fn evaluate_string(webview: &tauri::Webview, js: &str) -> Option<String> {
+        let (tx, rx) = mpsc::channel::<Option<String>>();
+        let source = js.to_string();
+        let result = webview.with_webview(move |platform| {
+            let ptr = platform.inner().cast::<WKWebView>();
+            if ptr.is_null() {
+                let _ = tx.send(None);
+                return;
+            }
+            let wk: &WKWebView = unsafe { &*ptr };
+            let handler = RcBlock::new(move |value: *mut AnyObject, _error: *mut NSError| {
+                if value.is_null() {
+                    let _ = tx.send(None);
+                    return;
+                }
+                let text = unsafe { (*value.cast::<NSString>()).to_string() };
+                let _ = tx.send(Some(text));
+            });
+            let source = NSString::from_str(&source);
+            unsafe { wk.evaluateJavaScript_completionHandler(&source, Some(&handler)) };
+        });
+        if result.is_err() {
+            return None;
+        }
+        rx.recv_timeout(Duration::from_millis(PROBE_EVAL_TIMEOUT_MS))
+            .ok()
+            .flatten()
     }
 
     /// 日志里用来指认是哪张图 / 哪份探针：只取文件名，脚本按名 grep 定位。

@@ -27,6 +27,9 @@ function Bar({ width, height }: { width: WidthTier; height: HeightTier }) {
     <span
       className={[styles.bar, WIDTH_CLASS[width], HEIGHT_CLASS[height]].filter(Boolean).join(" ")}
       aria-hidden="true"
+      /* 真机取证用它判断「这个视图还在取数」：取图前若还有 `data-probe-pending`，
+         应用会先等到它消失再截图（否则会拍到还没算完的那一帧）。 */
+      data-probe-pending
     />
   );
 }
@@ -54,7 +57,7 @@ export function Skeleton({
   label: string;
 }) {
   return (
-    <div role="status" aria-label={label}>
+    <div role="status" aria-label={label} data-probe-pending>
       {Array.from({ length: rows }, (_, index) =>
         variant === "list" ? (
           <div key={index} className={styles.listRow}>

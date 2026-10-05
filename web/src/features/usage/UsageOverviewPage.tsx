@@ -131,7 +131,8 @@ export function UsageOverviewPage() {
 
   if (scanning && progress.total === 0) {
     return (
-      <div className={styles.page}>
+      /* data-probe-pending：真机取图前会等这个标记消失，免得拍到「还没算完」的一帧。 */
+      <div className={styles.page} data-probe-pending>
         <EmptyState size="page" title="正在扫描会话列表…" />
       </div>
     );
@@ -146,7 +147,7 @@ export function UsageOverviewPage() {
           onChange={(next) => setDays(toRange(next))}
           ariaLabel="时间范围"
         />
-        <span className={styles.progress}>
+        <span className={styles.progress} {...(scanning ? { "data-probe-pending": true } : {})}>
           {scanning
             ? `已分析 ${progress.done} / ${progress.total} 个会话`
             : `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计`}

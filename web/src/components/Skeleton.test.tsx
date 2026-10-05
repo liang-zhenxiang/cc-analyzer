@@ -38,3 +38,16 @@ test("skeleton bars stay visible, not animation-lit, under reduced motion", () =
   expect(rule![1]).not.toMatch(/animation-fill-mode/);
   expect(rule![1]).toContain("animation: cca-breathe var(--dur-pulse)");
 });
+
+test("骨架带 data-probe-pending，真机取图据此等到内容就绪", () => {
+  // 真机取证会在截图前等这个标记消失：它一旦被改名或漏加，用量总览就会
+  // 偶发拍到「还在扫描」的那一帧（Issue #118）。
+  const { container } = render(<Skeleton variant="table" rows={2} label="正在解析会话" />);
+  expect(container.querySelector("[data-probe-pending]")).toBeTruthy();
+  expect(screen.getByRole("status", { name: "正在解析会话" })).toHaveAttribute(
+    "data-probe-pending"
+  );
+
+  const bar = render(<SkeletonBar width="mid" />);
+  expect(bar.container.querySelector("[data-probe-pending]")).toBeTruthy();
+});
