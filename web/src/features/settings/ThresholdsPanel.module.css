@@ -93,6 +93,43 @@
   font-weight: 600;
 }
 
+/* 「界面字号」一节：标题 / 说明 / 五档控件 / 预览行 依次排开。
+   gap 用 --sp-15，让控件与预览贴得比面板默认的 --sp-2 更紧一点。 */
+.fontScaleSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-15);
+}
+
+/* 预览行：数据墨色 + 等宽数字，上边线照 .archiveRow 的画法把示例读数与控件分开。 */
+.preview {
+  margin: 0;
+  border-top: 1px solid var(--border);
+  padding-top: var(--sp-1);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.previewSub {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 只给屏幕阅读器的文字：与 SessionList.module.css 的 .srOnly 同一写法。 */
+.srOnly {
+  position: absolute;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  width: 1px;
+  height: 1px;
+  white-space: nowrap;
+}
+
 /* 原生 select 在两端引擎里最稳；描边与内边距对齐 TextInput 的画法。 */
 .select {
   width: 100%;

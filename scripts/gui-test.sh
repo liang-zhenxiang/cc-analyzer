@@ -54,10 +54,10 @@
 #                                        # 点击并在每步取一张图，各走相同的转 PNG + 非空白
 #                                        # 与几何判定。**单个值沿用旧文件名 -tab.pdf**。
 #
-# 默认的视图清单是「会话分析 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
-# 日志视图 → 导出 → 关闭导出窗口 → 用量总览 → 实时监控」；每张图
+# 默认的视图清单是「会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
+# 日志视图 → 导出 → 关闭导出窗口 → 用量总览 → 实时监控 → 字号恢复 100%」；每张图
 # 都配一份几何探针 JSON（`CCA_GUI_PROBE`），脚本据它判定**布局不变量**：无横向溢出、表盘
-# 有界且含于卡片、记录表末列可达。目标既可写可访问名/可见文本（标签页），也可写会话 cwd
+# 有界且含于卡片、记录表末列可达、会话行不裁字。目标既可写可访问名/可见文本（标签页），也可写会话 cwd
 # （会匹配按钮的 `title`）。**前两步显式切回「会话分析」与「日志视图」**——应用会把当前
 # 标签页与分析器子视图记进 WebKit 的 localStorage（位于真实 ~/Library/WebKit，不受 HOME
 # 隔离），不先切回去，会话点击会落空、树视图也没有记录表。
@@ -108,9 +108,13 @@ gui-test.sh —— 真机 GUI 冒烟测试
                                        # 不删临时工作目录，并把路径打印出来。
   -h, --help                           # 显示帮助
 
-默认视图清单：会话分析 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
-日志视图 → 导出 → 关闭导出窗口 → 用量总览 → 实时监控。每张图都配一份
+默认视图清单：会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
+日志视图 → 导出 → 关闭导出窗口 → 用量总览 → 实时监控 → 字号恢复 100%。每张图都配一份
 几何探针 JSON，脚本据它判定布局不变量（无横向溢出 / 表盘有界且含于卡片 / 记录表末列可达 / 文字里无 ESC 转义字节）。
+
+`字号=<档位>`（如 `字号=130%`）是一个动作目标：先在设置浮层里把界面字号切到该档，
+再取图与探针——用它验证「放大字号后布局仍然成立」。默认清单末尾会切回 100%，
+因为 WebKit 的 localStorage 不受 HOME 隔离，不恢复会把这个偏好留给下一次运行与使用者。
 
 探针缺失算失败（不是跳过）。失败时会打印探针路径、最后修改时间、脚本等待时长，以及应用
 日志里与这份探针相关的行，用来区分「应用没写出来」还是「脚本等太短」。
@@ -568,7 +572,12 @@ else
   # 后面立刻点「关闭导出窗口」，否则浮层的遮罩会挡住余下三个视图的点击。
   # `/repo/ansi` 必须在「日志视图」之后再点一次：上一步已经把子视图切成日志，
   # 但换会话不会自动回到日志视图，而终端转义那条不变量只在日志表里才有内容。
-  CAPTURE_TARGETS=("会话分析" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "用量总览" "实时监控")
+  #
+  # `字号=130%` 紧跟第一张之后：此后**每一个视图都在 130% 下重新验一遍**，
+  # 而它自己那一步停在会话列表上，正好拿到「放大后会话行不裁字」的几何事实。
+  # 末尾的 `字号=100%` 是**清理**：WebKit 的 localStorage 不受 HOME 隔离，不切回来
+  # 就把 130% 留给了使用者的真实应用与下一次运行。
+  CAPTURE_TARGETS=("会话分析" "字号=130%" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "用量总览" "实时监控" "字号=100%")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
@@ -795,6 +804,7 @@ EXPORT_DIALOG_LABEL = "导出"
 coverage = os.environ.get("COVERAGE") == "1"
 seen_gauge = 0
 seen_table = 0
+seen_rows = 0
 
 for arg in sys.argv[1:]:
     label, _, path = arg.partition("::")
@@ -917,10 +927,47 @@ for arg in sys.argv[1:]:
     if export_seen > 0:
         print(f"NOTE|{label}：浮层是 position: fixed，createPDF 不渲染它——这张截图看的是背后的视图，浮层证据是上面的几何不变量")
 
+    # 界面字号：动作目标（`字号=<档位>`）必须真的把根元素变量切过去。
+    font_scale_raw = data.get("font_scale")
+    font_scale = None
+    if isinstance(font_scale_raw, str):
+        try:
+            font_scale = float(font_scale_raw)
+        except ValueError:
+            font_scale = None
+    if label.startswith("字号="):
+        expected = label.split("=", 1)[1]
+        want = {"90%": "0.9", "100%": "1", "110%": "1.1", "120%": "1.2", "130%": "1.3"}.get(expected)
+        if want is not None and font_scale_raw == want:
+            print(f"OK|{label}：界面字号已切到 {expected}（根元素 --font-scale={font_scale_raw}）")
+        else:
+            print(f"BAD|{label}：字号没切过去（根元素 --font-scale={font_scale_raw!r}，期望 {want!r}）")
+
+    # 会话行是 `overflow: hidden` 的固定盒：字号放大最先在这里裁字。行高本身
+    # 随档位走（`round(54 × --font-scale)`），所以判据是**相对当前档位**的。
+    for row in data.get("session_rows") or []:
+        seen_rows += 1
+        height = row.get("height")
+        ch, sh = row.get("clientHeight"), row.get("scrollHeight")
+        if not all(isinstance(v, (int, float)) for v in (height, ch, sh)):
+            print(f"BAD|{label}：会话行几何缺失")
+            continue
+        if sh > ch + 1:
+            print(f"BAD|{label}：会话行裁字（内容 {sh}px > 行盒 {ch}px）——字号放大后行盒没跟上")
+        elif font_scale is not None and abs(height - round(54 * font_scale)) > 1:
+            print(
+                f"BAD|{label}：会话行高与档位不符（实测 {height}px，"
+                f"期望 round(54×{font_scale})={round(54 * font_scale)}px）"
+            )
+        else:
+            print(f"OK|{label}：会话行不裁字且行高随档位（{height}px，内容 {sh} ≤ {ch}）")
+
 if coverage and seen_gauge == 0:
     print("BAD|视图覆盖：没有任何视图产出表盘几何——用量总览没被覆盖")
 if coverage and seen_table == 0:
     print("BAD|视图覆盖：没有任何视图产出记录表几何——日志表没被覆盖")
+if coverage and seen_rows == 0:
+    print("BAD|视图覆盖：没有任何视图产出会话行几何——会话列表没被覆盖")
 PY
 )" || PROBE_STATUS=$?
 

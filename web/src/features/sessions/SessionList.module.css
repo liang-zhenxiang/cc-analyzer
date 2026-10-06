@@ -62,7 +62,7 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  height: 32px;
+  height: calc(32px * var(--font-scale));
   /* 负外边距抵消 .groups 的左右内边距：滚动时分组头的底色铺满整宽，
      文字仍与下面的会话行对齐。 */
   margin: 0 calc(var(--sp-2) * -1);
@@ -71,12 +71,12 @@
 }
 
 .sessionRow {
-  height: 54px;
+  height: calc(54px * var(--font-scale));
   overflow: hidden;
 }
 
 .sessionRowWithStatus {
-  height: 72px;
+  height: calc(72px * var(--font-scale));
   overflow: hidden;
 }
 

@@ -20,6 +20,19 @@
         }
       })();
     </script>
+    <script>
+      // 预绘制界面字号：在模块脚本之前写好 --font-scale，避免先按 100% 画一帧再跳。
+      // 命中白名单才采用，其余（含 localStorage 不可用）一律回落 "1"。
+      (() => {
+        try {
+          const saved = localStorage.getItem("cca-font-scale");
+          const scale = ["0.9", "1", "1.1", "1.2", "1.3"].includes(saved) ? saved : "1";
+          document.documentElement.style.setProperty("--font-scale", scale);
+        } catch {
+          document.documentElement.style.setProperty("--font-scale", "1");
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

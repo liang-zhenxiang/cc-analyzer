@@ -9,6 +9,7 @@ import { sessionTitle, type SessionMeta } from "./metadataCache";
 import { dateBucketLabel, formatBytes, formatRelativeTime } from "../../lib/format";
 import { buildRowOffsets, computeSizedWindow } from "./virtualWindow";
 import { useThresholds } from "../settings/thresholds";
+import { useFontScale } from "../settings/fontScale";
 import styles from "./SessionList.module.css";
 
 type ViewMode = "timeline" | "project";
@@ -18,7 +19,7 @@ const VIEW_ITEMS: SegmentedItem<ViewMode>[] = [
   { value: "project", label: "项目" }
 ];
 
-/** Row heights for the virtualised list; keep in sync with the CSS. */
+/** Row heights for the virtualised list at 100%; the CSS scales them by --font-scale. */
 const GROUP_ROW_HEIGHT = 32;
 const SESSION_ROW_HEIGHT = 54;
 const SESSION_ROW_HEIGHT_WITH_STATUS = 72;
@@ -106,6 +107,11 @@ export function SessionList({
   const [viewportHeight, setViewportHeight] = useState(480);
   const containerRef = useRef<HTMLDivElement>(null);
   const { logWindowRows } = useThresholds();
+  // 行高按界面字号缩放；CSS 侧同乘 --font-scale，两边必须逐档一致。
+  const fontScale = useFontScale();
+  const groupRowHeight = Math.round(GROUP_ROW_HEIGHT * fontScale);
+  const sessionRowHeight = Math.round(SESSION_ROW_HEIGHT * fontScale);
+  const sessionRowHeightWithStatus = Math.round(SESSION_ROW_HEIGHT_WITH_STATUS * fontScale);
 
   useEffect(() => {
     try {
@@ -197,11 +203,11 @@ export function SessionList({
     () =>
       buildRowOffsets(
         rows.map((row) => {
-          if (row.kind === "group") return GROUP_ROW_HEIGHT;
-          return hasStatusLine(row.session) ? SESSION_ROW_HEIGHT_WITH_STATUS : SESSION_ROW_HEIGHT;
+          if (row.kind === "group") return groupRowHeight;
+          return hasStatusLine(row.session) ? sessionRowHeightWithStatus : sessionRowHeight;
         })
       ),
-    [rows]
+    [rows, groupRowHeight, sessionRowHeight, sessionRowHeightWithStatus]
   );
   const window = useMemo(
     () =>

@@ -659,9 +659,16 @@ mod gui_capture {
     /* 终端转义序列（ESC）不该出现在**任何**渲染出来的文字里：它是控制字节，
        不是文本。计数是事实，阈值与判定留给脚本。 */
     escaped_text: (document.body.innerText.match(/\u001b/g) || []).length,
+    /* 界面字号当前档位（"1" / "1.3"）。缩放是否真的落到根元素上，这是唯一的事实
+       来源；阈值与判定留给脚本。 */
+    font_scale: getComputedStyle(document.documentElement).getPropertyValue('--font-scale').trim(),
     main: boxOf(document.querySelector('main')),
     elements: [],
-    tables: []
+    tables: [],
+    /* 会话列表的可见行。字号放大最先把这里撑破——行高是 `overflow: hidden` 的
+       固定盒（`height: calc(54px * var(--font-scale))`）。锚点是列表自己的
+       `aria-label` 与会话按钮的 `title`（cwd），不碰 CSS Module 的哈希类名。 */
+    session_rows: []
   };
   var gauge = document.querySelector("[data-probe='gauge']");
   if (gauge) {
@@ -687,6 +694,17 @@ mod gui_capture {
       hasLastColumn: !!lastHeader,
       lastColumnRight: lastHeader ? lastHeader.getBoundingClientRect().right : null,
       hasScrollHint: !!hint
+    });
+  }
+  var titles = document.querySelectorAll('[aria-label="会话列表"] button[title] strong');
+  for (var i = 0; i < titles.length && facts.session_rows.length < 3; i++) {
+    var button = titles[i].closest('button');
+    var row = button ? button.parentElement : null;
+    if (!row) continue;
+    facts.session_rows.push({
+      clientHeight: row.clientHeight,
+      scrollHeight: row.scrollHeight,
+      height: Math.round(row.getBoundingClientRect().height)
     });
   }
   return JSON.stringify(facts);
@@ -1036,16 +1054,72 @@ mod gui_capture {
         path
     }
 
+    /// 把字符串安全地嵌进 JavaScript 的双引号字面量里。
+    fn js_string(value: &str) -> String {
+        value
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r")
+    }
+
+    /// 目标是不是「切界面字号」的动作形式 `字号=<档位>`（如 `字号=130%`）。
+    ///
+    /// 字号档位没有稳定的可访问名（按钮里带着视觉隐藏的「（默认）」），而且要先开
+    /// 设置浮层才够得着——所以它不适用通用的「找一个按钮点下去」，单独走一条动作。
+    fn font_scale_target(target: &str) -> Option<&str> {
+        target
+            .strip_prefix("字号=")
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    }
+
+    /// 在真机上把界面字号切到指定档位：先点顶栏的「设置」打开浮层，再点「界面字号」
+    /// 里对应的一项。**点的是真实控件**，不是直接改 localStorage——要证的正是
+    /// 「设置里的控件真的接上了根变量」。`eval` 是单向的（拿不到返回值），所以结果
+    /// 写进 console，与其它目标一样可在应用日志里追查。
+    ///
+    /// 开浮层与点档位之间隔一帧：React 渲染完那一项才存在于 DOM 里。
+    fn font_scale_js(label: &str) -> String {
+        let escaped = js_string(label);
+        format!(
+            r#"(function () {{
+  var wanted = "{escaped}";
+  function clickRadio() {{
+    var items = document.querySelectorAll('[role="radiogroup"] [role="radio"]');
+    for (var i = 0; i < items.length; i++) {{
+      var text = (items[i].textContent || '').replace(/\s+/g, ' ').trim();
+      if (text.indexOf(wanted) === 0) {{
+        items[i].click();
+        console.log('gui-capture: 已切界面字号 ' + wanted);
+        return true;
+      }}
+    }}
+    return false;
+  }}
+  if (clickRadio()) return;
+  var buttons = document.querySelectorAll('button');
+  for (var i = 0; i < buttons.length; i++) {{
+    if (buttons[i].getAttribute('aria-label') === '设置') {{ buttons[i].click(); break; }}
+  }}
+  setTimeout(function () {{
+    if (!clickRadio()) console.warn('gui-capture: 找不到界面字号档位 ' + wanted);
+  }}, 200);
+}})();"#
+        )
+    }
+
     /// 找到目标并点击：优先标签页，其次任意按钮。匹配可取访问名的三种来源——
     /// `aria-label`、`title`、可见文本——所以既能点标签页（文本 / aria-label），
     /// 也能点会话条目（它的 `title` 是 cwd）。`eval` 是单向的（拿不到脚本返回值），
     /// 所以点击结果写进 console：成功与失败各一条，都能在测试脚本收集的应用日志里追查。
+    ///
+    /// `字号=<档位>` 不是「点一个已有按钮」，走 `font_scale_js` 那条动作。
     fn click_target_js(target: &str) -> String {
-        let escaped = target
-            .replace('\\', "\\\\")
-            .replace('"', "\\\"")
-            .replace('\n', "\\n")
-            .replace('\r', "\\r");
+        if let Some(label) = font_scale_target(target) {
+            return font_scale_js(label);
+        }
+        let escaped = js_string(target);
         format!(
             r#"(function () {{
   var wanted = "{escaped}";
@@ -1101,6 +1175,49 @@ mod gui_capture {
             .map(PathBuf::from);
         if let Some(webview) = app.get_webview_window("main") {
             spawn(webview.as_ref().clone(), PathBuf::from(target), tabs, probe);
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn font_scale_target_only_matches_the_action_form() {
+            assert_eq!(font_scale_target("字号=130%"), Some("130%"));
+            assert_eq!(font_scale_target("字号= 110% "), Some("110%"));
+            assert_eq!(font_scale_target("字号="), None);
+            // 普通目标（标签页、会话 cwd）不该被当成动作吞掉。
+            assert_eq!(font_scale_target("用量总览"), None);
+            assert_eq!(font_scale_target("/repo/demo"), None);
+        }
+
+        #[test]
+        fn the_font_scale_action_clicks_a_radio_and_opens_settings() {
+            let js = click_target_js("字号=130%");
+            // 动作走的是 radiogroup 里的真实控件，而不是通用按钮扫描。
+            assert!(js.contains("[role=\"radiogroup\"] [role=\"radio\"]"));
+            assert!(js.contains("aria-label') === '设置"));
+            assert!(js.contains("已切界面字号"));
+            // 档位文案进的是被转义过的字面量。
+            assert!(js.contains("var wanted = \"130%\""));
+        }
+
+        #[test]
+        fn an_ordinary_target_still_uses_the_generic_button_scan() {
+            let js = click_target_js("/repo/demo");
+            assert!(js.contains("已点击"));
+            assert!(!js.contains("已切界面字号"));
+            // 目标里的引号必须被转义，否则会提前结束字面量、整段脚本变成语法错误。
+            let quoted = click_target_js("say \"hi\"");
+            assert!(quoted.contains("var wanted = \"say \\\"hi\\\"\""));
+        }
+
+        #[test]
+        fn the_probe_reports_the_font_scale_and_session_rows() {
+            assert!(PROBE_JS.contains("font_scale:"));
+            assert!(PROBE_JS.contains("--font-scale"));
+            assert!(PROBE_JS.contains("session_rows"));
         }
     }
 }

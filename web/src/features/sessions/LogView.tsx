@@ -21,6 +21,7 @@ import type { TimeRange } from "./filters";
 import { formatDateTime, formatDuration } from "../../lib/format";
 import { safeStringify } from "../../lib/json";
 import { useThresholds } from "../settings/thresholds";
+import { useFontScale } from "../settings/fontScale";
 import { ScrollArea } from "../../components/ScrollArea";
 import styles from "./LogView.module.css";
 
@@ -128,7 +129,13 @@ export function LogView({
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(480);
   const { logWindowRows } = useThresholds();
-  const { extras, heights, estimate, measureRow, measureExtra, version } = useMeasuredRowHeights(ROW_HEIGHT);
+  // ROW_HEIGHT 是 100% 下的基准，回退估计随档位缩放；resetKey 用当前档位，
+  // 切档后清掉实测缓存，首屏无需滚动即按新行高重排。
+  const fontScale = useFontScale();
+  const { extras, heights, estimate, measureRow, measureExtra, version } = useMeasuredRowHeights(
+    Math.round(ROW_HEIGHT * fontScale),
+    fontScale
+  );
 
   const virtualize = rows.length > logWindowRows;
   const axis = useMemo(() => computeAxis(rows, timeRange ?? null), [rows, timeRange]);

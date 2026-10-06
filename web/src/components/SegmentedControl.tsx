@@ -27,7 +27,8 @@ export function SegmentedControl<T extends string>({
   onChange,
   ariaLabel,
   variant = "default",
-  className
+  className,
+  role = "tablist"
 }: {
   items: SegmentedItem<T>[];
   value: T;
@@ -36,11 +37,23 @@ export function SegmentedControl<T extends string>({
   variant?: "default" | "wide" | "equal";
   /** 只用于外层定位（如顶栏的 grid 居中），**不得**覆盖控件内部样式。 */
   className?: string;
+  /**
+   * 控件的语义角色。默认 `"tablist"`——同一容器里的视图切换（顶栏、用量页等六个
+   * 旧调用点）用这个；「在一组值里选一个」的场景传 `"radiogroup"`，此时每项是
+   * `role="radio"` + `aria-checked`，而不是 `aria-selected`（APG 里的正解）。
+   * 两种角色的键盘模型一致（roving tabindex + 方向键自动激活），所以这里只换语义。
+   */
+  role?: "tablist" | "radiogroup";
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  // 焦点定位要按当前角色取项：radiogroup 里没有 `[role="tab"]`，
+  // 写死 tab 会让方向键在 radiogroup 模式下找不到可聚焦项而失灵。
+  const itemRole = role === "radiogroup" ? "radio" : "tab";
 
   function focusAt(index: number) {
-    const buttons = containerRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+    const buttons = containerRef.current?.querySelectorAll<HTMLButtonElement>(
+      `[role="${itemRole}"]`
+    );
     buttons?.[index]?.focus();
   }
 
@@ -86,26 +99,32 @@ export function SegmentedControl<T extends string>({
   return (
     <div
       ref={containerRef}
-      role="tablist"
+      role={role}
       aria-label={ariaLabel}
       className={[styles.root, styles[variant], className].filter(Boolean).join(" ")}
       onKeyDown={onKeyDown}
     >
-      {items.map((item) => (
-        <button
-          key={item.value}
-          type="button"
-          role="tab"
-          aria-selected={item.value === value}
-          disabled={item.disabled}
-          title={item.title}
-          tabIndex={item.value === value ? 0 : -1}
-          className={styles.item}
-          onClick={() => onChange(item.value)}
-        >
-          {item.label}
-        </button>
-      ))}
+      {items.map((item) => {
+        // 选中态只走一套属性，二者不同时输出（见 §4.1）。
+        const selection =
+          role === "radiogroup"
+            ? { role: "radio" as const, "aria-checked": item.value === value }
+            : { role: "tab" as const, "aria-selected": item.value === value };
+        return (
+          <button
+            key={item.value}
+            type="button"
+            {...selection}
+            disabled={item.disabled}
+            title={item.title}
+            tabIndex={item.value === value ? 0 : -1}
+            className={styles.item}
+            onClick={() => onChange(item.value)}
+          >
+            {item.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

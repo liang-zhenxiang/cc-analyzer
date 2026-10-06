@@ -59,6 +59,11 @@ badge. Every screen, in both light and dark themes, is archived in
   across months and years. Incremental by mtime/size, raw timestamps preserved,
   originals untouched, nothing uploaded. Archived sessions carry a badge and a
   session whose original is already gone still shows up.
+- **Interface font scaling** — five steps (90 / 100 / 110 / 120 / 130%) in
+  settings, applied instantly and remembered on this machine. Font sizes and
+  line heights scale **together**, so tables, readout rows and chart labels
+  grow while spacing, icons and the gauge keep their size — legibility, not a
+  zoomed page. The chosen step survives a restart; pick 100% to go back.
 - **Log view with one row model** — user / LLM / tool / agent / workflow /
   wait rows, with duration, share and waterfall columns; filter by row kind,
   success/failure, duration range, or free text. Tool output keeps the terminal
