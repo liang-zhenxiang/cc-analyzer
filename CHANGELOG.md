@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **先行版 v0.12.0-beta.2**：真机门禁的两处修复——取图前先等视图内容就绪（骨架与扫描态带 `data-probe-pending`，用量总览不再偶发拍到「还没算完」的一帧），以及失败时逐视图打印探针事实（元素名 / 有无记录表 / ESC 字节数），下次出问题不必靠猜。
+
 - **先行版 v0.12.0-beta.1（本轮主题）**：本地归档——在 Claude Code 清理（约 30 天）之前把会话复制进应用自己的数据目录，跨月/跨年继续浏览与统计；按 mtime/size 增量、保留原始时间戳、不动原始文件、纯本地零上传。稳定版会在维护者试用后从它晋升。
 
 
