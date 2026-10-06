@@ -919,25 +919,6 @@ for arg in sys.argv[1:]:
 
 if coverage and seen_gauge == 0:
     print("BAD|视图覆盖：没有任何视图产出表盘几何——用量总览没被覆盖")
-    # 光说「没覆盖」不够定位：把每份探针里到底看到了什么打出来（哪一步没有元素、
-    # 有没有记录表），下次不必靠猜是「页面还在加载」还是「点击没生效」。
-    for arg in sys.argv[1:]:
-        label, _, path = arg.partition("::")
-        probe = pathlib.Path(path)
-        if not probe.is_file():
-            print(f"NOTE|  诊断：{label} 的探针文件不存在（{probe.name}）")
-            continue
-        try:
-            data = json.loads(probe.read_text(encoding="utf-8"))
-        except Exception:
-            print(f"NOTE|  诊断：{label} 的探针无法解析")
-            continue
-        names = [el.get("name") for el in (data.get("elements") or [])]
-        print(
-            f"NOTE|  诊断：{label} → 元素 {names or '无'}"
-            f"，记录表 {(data.get('tables') or []) and '有' or '无'}"
-            f"，escaped_text={data.get('escaped_text')}"
-        )
 if coverage and seen_table == 0:
     print("BAD|视图覆盖：没有任何视图产出记录表几何——日志表没被覆盖")
 PY
@@ -957,6 +938,37 @@ else
       *)    [[ -n "$_kind" ]] && note "$_kind" ;;
     esac
   done <<< "$PROBE_REPORT"
+
+  # 任何一项判失败，就把**每一步探针看到的事实**打出来：哪一步没有元素、有没有
+  # 记录表、escaped_text 是多少。光说「某条不变量破了」定位不了是「页面还在加载」
+  # 还是「点击没生效」——#118 排查时就是缺这份事实。
+  if printf '%s\n' "$PROBE_REPORT" | grep -q '^BAD|'; then
+    printf '  %s——失败项诊断：每一步探针看到的事实——%s\n' "$C_YELLOW" "$C_RESET"
+    while IFS='|' read -r _line; do
+      printf '    %s\n' "$_line"
+    done <<< "$(python3 - "${PROBE_ENTRIES[@]}" <<'PROBEDIAG'
+import json, pathlib, sys
+
+for arg in sys.argv[1:]:
+    label, _, path = arg.partition("::")
+    probe = pathlib.Path(path)
+    if not probe.is_file():
+        print(f"{label}：探针文件不存在（{probe.name}）")
+        continue
+    try:
+        data = json.loads(probe.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001 - 诊断，不判定
+        print(f"{label}：探针无法解析（{exc}）")
+        continue
+    names = [el.get("name") for el in (data.get("elements") or [])]
+    tables = data.get("tables") or []
+    print(
+        f"{label}：元素 {names or '无'}｜记录表 {'有' if tables else '无'}"
+        f"｜escaped_text {data.get('escaped_text')}"
+    )
+PROBEDIAG
+)"
+  fi
 fi
 
 # ---------------------------------------------------------------------------
