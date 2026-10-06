@@ -92,18 +92,26 @@
   --font-sans: system-ui, -apple-system, "Segoe UI", "PingFang SC", sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
+  /* 界面字号缩放：**唯一**的缩放旋钮，由设置里的档位（90%–130%）写入，
+     默认 1（100%）。 */
+  --font-scale: 1;
+
   /* 字号：4 级 + 1 保留级。任何 font-size 必须与同级的 line-height 成对出现，
-     不得依赖 body 上的全局 line-height。 */
-  --fs-xs: 11px;
-  --lh-xs: 16px;
-  --fs-sm: 12px;
-  --lh-sm: 18px;
-  --fs-base: 13px;
-  --lh-base: 20px;
-  --fs-md: 15px;
-  --lh-md: 22px;
-  --fs-lg: 20px;
-  --lh-lg: 28px;
+     不得依赖 body 上的全局 line-height。
+     **字号与行高必须成对乘同一个 `--font-scale`**：只缩字号会让行盒装不下降部
+     （130% 下 --lh-xs 会小于 --fs-base），密集表格的行会被裁、行间粘连。
+     间距、图标、表盘尺寸不跟着缩放——它们是「形」不是「字」，缩放会把密度语言
+     和仪器比例一起搞乱。 */
+  --fs-xs: calc(11px * var(--font-scale));
+  --lh-xs: calc(16px * var(--font-scale));
+  --fs-sm: calc(12px * var(--font-scale));
+  --lh-sm: calc(18px * var(--font-scale));
+  --fs-base: calc(13px * var(--font-scale));
+  --lh-base: calc(20px * var(--font-scale));
+  --fs-md: calc(15px * var(--font-scale));
+  --lh-md: calc(22px * var(--font-scale));
+  --fs-lg: calc(20px * var(--font-scale));
+  --lh-lg: calc(28px * var(--font-scale));
 
   --sp-05: 2px;
   --sp-1: 4px;
@@ -130,7 +138,8 @@
   --control-h-sm: 24px;
   --control-h: 28px;
   --control-h-lg: 32px;
-  --row-h: 30px;
+  /* 表头高度派生自行高令牌：表头 = 数据行这条硬约束不再人肉维护。 */
+  --row-h: calc(var(--row-pad-y) * 2 + var(--lh-sm));
   /* 数据表的行内边距：行密度是**视图级**属性——用户在日志/树/记录表之间切换
      看的是同一批记录的不同切面，不该换一套密度语言。
      --row-pad-x 与表头 `padding: 0 10px` 对齐；--row-pad-y + --lh-sm(18) = 30 = --row-h，

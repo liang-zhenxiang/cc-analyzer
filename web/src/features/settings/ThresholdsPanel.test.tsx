@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ThresholdsPanel } from "./ThresholdsPanel";
 import { BridgesProvider } from "../../api/bridges";
@@ -7,6 +7,7 @@ import { NotificationProvider } from "../../app/NotificationProvider";
 import type { Bridges } from "../../api/types";
 import { getArchiveTask, resetArchiveTask } from "../archive/archiveTask";
 import { getThresholds, resetThresholds, setThreshold } from "./thresholds";
+import { resetFontScaleForTest } from "./fontScale";
 
 type BridgeOptions = {
   /** Source transcripts keyed by file name, as the fake ~/.claude scan sees them. */
@@ -237,5 +238,82 @@ describe("本地归档 section", () => {
     expect(screen.getByRole("checkbox", { name: "启用本地归档" })).toBeChecked();
     expect(screen.getByRole("button", { name: "立即归档" })).toBeEnabled();
     expect(getArchiveTask().status).toBe("error");
+  });
+});
+
+describe("界面字号 section", () => {
+  /** 每个用例前把内存 store 拉回默认，避免用例之间互相污染。 */
+  function fontScaleGroup() {
+    return screen.getByRole("radiogroup", { name: "界面字号" });
+  }
+
+  test("是一个五档 radiogroup，默认只有 100% 选中", () => {
+    resetFontScaleForTest();
+    renderPanel(createBridges().bridges);
+
+    const radios = within(fontScaleGroup()).getAllByRole("radio");
+    expect(radios).toHaveLength(5);
+    // 100% 项额外带一段视觉隐藏的「（默认）」，所以用子串匹配可见百分比。
+    ["90%", "100%", "110%", "120%", "130%"].forEach((text, index) => {
+      expect(radios[index]).toHaveTextContent(text);
+    });
+
+    expect(radios[1]).toHaveAttribute("aria-checked", "true");
+    expect(radios.filter((radio) => radio.getAttribute("aria-checked") === "true")).toHaveLength(1);
+    // radiogroup 语义下不输出 tablist 的 aria-selected。
+    expect(screen.queryAllByRole("tab", { name: /%$/ })).toHaveLength(0);
+  });
+
+  test("100% 项的可访问名含「（默认）」，可见文字仍是 100%", () => {
+    resetFontScaleForTest();
+    renderPanel(createBridges().bridges);
+
+    const defaultItem = within(fontScaleGroup()).getAllByRole("radio")[1];
+    expect(defaultItem).toHaveAccessibleName(/（默认）/);
+    expect(defaultItem.textContent).toBe("100%（默认）");
+    // 可见文字仍是 100%：多出来的只有那个隐藏 span。
+    expect(defaultItem.querySelector("span")).toHaveTextContent("（默认）");
+  });
+
+  test("点 130% 后选中态、持久化与根变量一起更新", async () => {
+    const user = userEvent.setup();
+    resetFontScaleForTest();
+    localStorage.removeItem("cca-font-scale");
+    renderPanel(createBridges().bridges);
+
+    const radios = within(fontScaleGroup()).getAllByRole("radio");
+    await user.click(radios[4]);
+
+    expect(radios[4]).toHaveAttribute("aria-checked", "true");
+    expect(radios[1]).toHaveAttribute("aria-checked", "false");
+    expect(localStorage.getItem("cca-font-scale")).toBe("1.3");
+    expect(document.documentElement.style.getPropertyValue("--font-scale")).toBe("1.3");
+  });
+
+  test("切档前后控件是同一个 DOM 节点（焦点不丢）", async () => {
+    const user = userEvent.setup();
+    resetFontScaleForTest();
+    renderPanel(createBridges().bridges);
+
+    const before = fontScaleGroup();
+    await user.click(within(before).getAllByRole("radio")[4]);
+
+    const after = fontScaleGroup();
+    expect(after.isSameNode(before)).toBe(true);
+  });
+
+  test("是面板内的第一个分区标题，位于「Prompt 上限」之前", () => {
+    resetFontScaleForTest();
+    renderPanel(createBridges().bridges);
+
+    const panel = screen.getByLabelText("阈值设置");
+    const firstTitle = panel.querySelectorAll("h3")[0];
+    expect(firstTitle).toHaveTextContent("界面字号");
+
+    const promptField = screen.getByLabelText("Prompt 上限");
+    // DOCUMENT_POSITION_FOLLOWING：标题在字段之前。
+    expect(
+      firstTitle.compareDocumentPosition(promptField) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 });

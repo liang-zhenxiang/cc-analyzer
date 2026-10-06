@@ -391,6 +391,8 @@ test("groups the timeline by date and shows relative time, size and project", as
  * 行高是 CSS 与 TS 常量之间的一份隐式契约：虚拟滚动用常量算偏移，
  * 用 CSS 画盒子。两边一旦不一致，滚动位置会随列表变长而累积偏移，
  * 表现为「滚到底部时空一截」或「最后几条被吞掉」——都很难一眼归因。
+ * CSS 侧写成 `calc(<N>px * var(--font-scale))`，所以这里比对的是括号里的 N
+ * 与常量——常量仍是 100% 下的基准值。
  */
 test("keeps the row heights in sync with the virtualised CSS", () => {
   const source = readFileSync(resolve(process.cwd(), "src/features/sessions/SessionList.tsx"), "utf8");
@@ -404,8 +406,8 @@ test("keeps the row heights in sync with the virtualised CSS", () => {
   const ruleHeight = (selector: string) => {
     const match = new RegExp(`\\.${selector}\\s*\\{([^}]*)\\}`, "s").exec(css);
     expect(match, `规则 .${selector} 不存在`).not.toBeNull();
-    const height = /height:\s*(\d+)px/.exec(match![1]);
-    expect(height, `规则 .${selector} 没有字面量 height`).not.toBeNull();
+    const height = /height:\s*calc\((\d+)px\s*\*\s*var\(--font-scale\)\)/.exec(match![1]);
+    expect(height, `规则 .${selector} 没有 calc(<N>px * var(--font-scale)) 形式的 height`).not.toBeNull();
     return Number(height![1]);
   };
 

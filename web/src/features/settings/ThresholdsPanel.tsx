@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Button, IconButton } from "../../components/Button";
 import { Icon } from "../../components/Icon";
+import { SegmentedControl } from "../../components/SegmentedControl";
 import { TextInput } from "../../components/TextInput";
 import {
   DEFAULT_THRESHOLDS,
@@ -31,6 +32,14 @@ import {
   type ArchiveTaskState
 } from "../archive/archiveTask";
 import { formatBytes, formatDateTime, formatRelativeTime } from "../../lib/format";
+import {
+  DEFAULT_FONT_SCALE,
+  FONT_SCALES,
+  formatFontScale,
+  parseFontScale,
+  setFontScale,
+  useFontScale
+} from "./fontScale";
 import type { Bridges, UpdateCheck } from "../../api/types";
 import styles from "./ThresholdsPanel.module.css";
 
@@ -186,6 +195,49 @@ function ArchiveSection({ bridges }: { bridges: Bridges }) {
   );
 }
 
+/**
+ * 「界面字号」一节：五档 90–130%，即时生效并持久化。
+ *
+ * 放在面板最前面（第一节）：需要放大的是看不清屏幕的人，把开关埋在几段读不清的
+ * 说明之后是自相矛盾的。切档只改 `--font-scale`，预览行用同一批 token 自动跟着缩放，
+ * 所以这里不需要第二套样式，也不加 live region / 确认框 / 滑杆（见规格 §2、§4）。
+ */
+function FontScaleSection() {
+  const fontScale = useFontScale();
+  const items = FONT_SCALES.map((scale) => ({
+    value: String(scale),
+    // 100% 是默认档：给它一段视觉隐藏的「（默认）」，让屏幕阅读器也听得见默认位，
+    // 可见文字仍是「100%」，与其它档位的百分比同形。
+    label:
+      scale === DEFAULT_FONT_SCALE ? (
+        <>
+          {formatFontScale(scale)}
+          <span className={styles.srOnly}>（默认）</span>
+        </>
+      ) : (
+        formatFontScale(scale)
+      )
+  }));
+
+  return (
+    <div className={styles.fontScaleSection}>
+      <h3 className={styles.sectionTitle}>界面字号</h3>
+      <p className={styles.note}>默认 100%，随时可改回。</p>
+      <SegmentedControl
+        role="radiogroup"
+        ariaLabel="界面字号"
+        variant="equal"
+        items={items}
+        value={String(fontScale)}
+        onChange={(next) => setFontScale(parseFontScale(next))}
+      />
+      {/* 一行固定示例读数（真实字段形状，非真实数据）：给五档一个稳定的密度参照。 */}
+      <p className={styles.preview}>12:04:08 · LLM · claude-sonnet-4 · 3.00s</p>
+      <p className={styles.previewSub}>提示词 17 / 输出 34 · 2.7% · 正常</p>
+    </div>
+  );
+}
+
 function ThresholdField({ thresholdKey }: { thresholdKey: ThresholdKey }) {
   const thresholds = useThresholds();
   const spec = THRESHOLD_SPECS[thresholdKey];
@@ -288,6 +340,7 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
       <p className={styles.note}>
         控制报告与日志表的规模，改动立即生效并保存在本机。
       </p>
+      <FontScaleSection />
       <div className={styles.grid}>
         {THRESHOLD_KEYS.map((key) => (
           <ThresholdField key={key} thresholdKey={key} />

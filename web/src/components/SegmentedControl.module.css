@@ -37,8 +37,10 @@
 }
 
 /* 选中态：抬起面 + 阴影 + 字重 600。阴影（脱离文档流浮层唯一合法用途）与
-   字重在灰度截图下都还在，所以选中不只是一片颜色。 */
-.item[aria-selected="true"] {
+   字重在灰度截图下都还在，所以选中不只是一片颜色。
+   tablist 用 aria-selected，radiogroup 用 aria-checked——两者互斥，一次只命中一条。 */
+.item[aria-selected="true"],
+.item[aria-checked="true"] {
   background: var(--bg-subtle);
   box-shadow: var(--shadow-sm);
   color: var(--text);

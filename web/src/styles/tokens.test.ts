@@ -80,3 +80,33 @@ test("16 档终端基本色在各自主题的面板底色上都达到正文对�
     }
   }
 });
+
+/**
+ * 界面字号缩放全靠 `:root` 上的 `--font-scale` 写进 `calc()` 里。默认值必须
+ * 落在 CSS 里（脚本没跑、单测环境、错误边界下 `calc()` 仍要能解析），
+ * 而且**字号与行高必须成对**乘同一个系数——只缩字号会让行盒装不下降部。
+ */
+test(":root 定义了界面字号的默认缩放系数", () => {
+  const root = block(":root {");
+  expect(root).toMatch(/--font-scale:\s*1\s*;/);
+});
+
+test("五级字号与行高都乘同一个 --font-scale", () => {
+  const root = block(":root {");
+  const scaled = (name: string) => new RegExp(`--${name}:\\s*calc\\(\\d+px\\s*\\*\\s*var\\(--font-scale\\)\\)`);
+  for (const size of ["xs", "sm", "base", "md", "lg"]) {
+    expect(root, `--fs-${size} 未跟随 --font-scale`).toMatch(scaled(`fs-${size}`));
+    expect(root, `--lh-${size} 未跟随 --font-scale`).toMatch(scaled(`lh-${size}`));
+  }
+});
+
+/**
+ * 表头高度（`th { height: var(--row-h) }`）曾是被写死的 30px，与数据行等高靠
+ * 人肉维护。改成派生式后它跟着 `--lh-sm` 走：缩放字号时表头自动长高，
+ * 不会出现「表头裁字 + 与数据行不等高」。
+ */
+test("--row-h 是派生式而不是写死的字面量", () => {
+  const root = block(":root {");
+  expect(root).toMatch(/--row-h:\s*calc\(var\(--row-pad-y\)\s*\*\s*2\s*\+\s*var\(--lh-sm\)\)/);
+  expect(root).not.toMatch(/--row-h:\s*30px/);
+});

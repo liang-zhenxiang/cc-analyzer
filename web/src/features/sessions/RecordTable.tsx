@@ -7,6 +7,7 @@ import type { SessionRecord } from "./types";
 import { useMeasuredRowHeights } from "./measuredRows";
 import { buildRowOffsets, computeSizedWindow } from "./virtualWindow";
 import { useThresholds } from "../settings/thresholds";
+import { useFontScale } from "../settings/fontScale";
 import { focusRowIn, useRowNavigation } from "./useRowNavigation";
 import { formatDateTime, formatDuration } from "../../lib/format";
 import { safeStringify } from "../../lib/json";
@@ -42,8 +43,10 @@ export function RecordTable({
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(360);
   const containerRef = useRef<HTMLDivElement>(null);
+  // 基准行高按界面字号缩放；resetKey 用当前档位，切档后清缓存重新实测。
+  const fontScale = useFontScale();
   const { extras, heights, estimate, measureExtra, measureRow, version } =
-    useMeasuredRowHeights(ESTIMATED_ROW_HEIGHT);
+    useMeasuredRowHeights(Math.round(ESTIMATED_ROW_HEIGHT * fontScale), fontScale);
   const { logWindowRows } = useThresholds();
 
   const sorted = useMemo(
