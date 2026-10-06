@@ -1,28 +1,10 @@
-.panel {
+/* 卡片外壳（边界/圆角/表头）由 components/Panel 提供——这里只剩面板内容：
+   provenance 徽标、计数表、口径说明。 */
+.badges {
   display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: var(--sp-2);
-  padding: var(--sp-3);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--bg-subtle);
-}
-
-.panel header {
-  display: flex;
-  min-width: 0;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-2);
-}
-
-/* 面板标题 13px/600，与报告面板同级；页面标题才是 15px。 */
-.panel h2 {
-  margin: 0;
-  font-size: var(--fs-base);
-  font-weight: 600;
-  line-height: var(--lh-base);
 }
 
 /* provenance 徽标：来源用中性色——它只是标注，不是结论。 */
@@ -49,7 +31,7 @@
   color: var(--warning);
 }
 
-.panel table {
+.table {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--fs-sm);
@@ -57,33 +39,33 @@
   font-variant-numeric: tabular-nums;
 }
 
-.panel th,
-.panel td {
+.table th,
+.table td {
   padding: var(--sp-1) var(--sp-2);
   border-bottom: 1px solid var(--border);
   text-align: left;
   vertical-align: middle;
 }
 
-.panel thead th {
+.table thead th {
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
   font-weight: 600;
   line-height: var(--lh-xs);
 }
 
-.panel tbody th {
+.table tbody th {
   color: var(--text-secondary);
   font-weight: 500;
 }
 
-.panel tbody tr:last-child th,
-.panel tbody tr:last-child td {
+.table tbody tr:last-child th,
+.table tbody tr:last-child td {
   border-bottom: 0;
 }
 
 /* TTL 拆分是二级行：靠缩进挂到「缓存写入」下面，不另起一级。 */
-.panel tbody th:first-child {
+.table tbody th:first-child {
   width: 30%;
 }
 
@@ -115,7 +97,7 @@
 }
 
 .scope {
-  margin: 0;
+  margin: var(--sp-2) 0 0;
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
   line-height: var(--lh-xs);

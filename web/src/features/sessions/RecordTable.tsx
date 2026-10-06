@@ -196,20 +196,23 @@ function FragmentRow({
           {stripAnsi(record.text) || "-"}
         </td>
         <td>{formatDuration(record.durationMs)}</td>
-        <td className={record.isError ? styles.error : undefined}>
+        <td className={record.isError ? styles.error : styles.statusMuted}>
           {record.isError ? "失败" : "正常"}
         </td>
         <td>
-          <Button
+          <button
             type="button"
+            className={styles.toggle}
             aria-expanded={expanded}
+            aria-label={expanded ? "收起" : "展开"}
+            title={expanded ? "收起" : "展开"}
             onClick={(event) => {
               event.stopPropagation();
               onToggle();
             }}
           >
-            {expanded ? "收起" : "展开"}
-          </Button>
+            <span aria-hidden="true">{expanded ? "▼" : "▶"}</span>
+          </button>
         </td>
       </tr>
       {expanded ? (

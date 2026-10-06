@@ -17,7 +17,8 @@
 
 .container th,
 .container td {
-  padding: 6px 10px;
+  /* 行密度令牌：三张数据表共用一套（见 tokens.css 的 --row-pad-*）。 */
+  padding: var(--row-pad-y) var(--row-pad-x);
   border-bottom: 1px solid var(--border);
   color: var(--text);
   text-align: left;
@@ -94,10 +95,33 @@
   justify-content: flex-end;
 }
 
-.actions button {
-  min-height: var(--control-h-sm);
-  padding: 0 var(--sp-2);
-  white-space: nowrap;
+/* 行内展开器：与 TreeView / RecordTable 的折角画法逐字一致（无边框字形，
+   命中区 24px）。▼/▶ 本身携带展开/折叠状态，取代原来恒定的描边文字按钮。
+   **不写 `.actions button` 覆盖**：那个选择器（0,1,1）会盖掉这里（0,1,0）的
+   padding/width，正是 ReportPanel 注释里记过的那种特异性旧伤。 */
+.toggle {
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  cursor: pointer;
+}
+
+.toggle:hover {
+  color: var(--text);
+}
+
+/* 「在树视图定位」移入展开区顶部、右对齐：低频动作有承载上下文的常驻位置，
+   不再在折叠态的每一行重复一颗同样的按钮。 */
+.expandActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
 }
 
 /* 选中态：底色之外还有字重——灰度截图和色弱用户下，
@@ -148,8 +172,16 @@
   word-break: break-word;
 }
 
+/* 状态列：失败保留 --danger 且在 600 字重下（灰度截图里仍能浮出来），
+   其余降一档到 --text-tertiary，让「只有失败在亮」。**不用 --text-faint**——
+   那是 2.6:1 的装饰位，「这条没失败」是需要读的状态信息。 */
 .error {
   color: var(--danger);
+  font-weight: 600;
+}
+
+.statusMuted {
+  color: var(--text-tertiary);
 }
 
 .user {

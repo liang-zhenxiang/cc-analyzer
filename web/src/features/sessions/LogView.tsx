@@ -347,36 +347,37 @@ function Fragment({
         <td>
           <Waterfall row={row} axis={axis} />
         </td>
-        <td className={row.status === "error" ? styles.error : undefined}>
+        <td className={row.status === "error" ? styles.error : styles.statusMuted}>
           {statusLabel(row.status)}
         </td>
         <td className={styles.actions}>
-          <Button
+          <button
             type="button"
+            className={styles.toggle}
             aria-expanded={expanded}
+            aria-label={expanded ? "收起" : "展开"}
+            title={expanded ? "收起" : "展开"}
             onClick={(event) => {
               event.stopPropagation();
               onToggle();
             }}
           >
-            {expanded ? "收起" : "展开"}
-          </Button>
-          {primary ? (
-            <Button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onLocateInTree(primary.fullId);
-              }}
-            >
-              在树视图定位
-            </Button>
-          ) : null}
+            <span aria-hidden="true">{expanded ? "▼" : "▶"}</span>
+          </button>
         </td>
       </tr>
       {expanded ? (
         <tr className={styles.expanded} ref={panelMeasure}>
           <td colSpan={9}>
+            {/* 低频动作移入展开区顶部、右对齐：与右栏详情里那颗完全同款。
+                仅当该行有记录时渲染——「等用户」这类无记录行展开后不出现。 */}
+            {primary ? (
+              <div className={styles.expandActions}>
+                <Button type="button" onClick={() => onLocateInTree(primary.fullId)}>
+                  在树视图定位
+                </Button>
+              </div>
+            ) : null}
             {panels.map((panel, index) => (
               <section key={`${panel.label}-${index}`} aria-label={panel.label}>
                 <h4>

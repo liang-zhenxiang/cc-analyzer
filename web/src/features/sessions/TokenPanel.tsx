@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Panel } from "../../components/Panel";
 import type { SessionRecord } from "./types";
 import { shareOf, tokenTotalsOf, type TokenTotals } from "./tokenTotals";
 import { costProvenanceOf } from "./costProvenance";
@@ -83,15 +84,20 @@ export function TokenPanel({
   ];
 
   return (
-    <section className={styles.panel} aria-label="Token 计数">
-      <header>
-        <h2>Token 计数</h2>
-        <span className={styles.source}>来源：日志 message.usage（读取，非估算）</span>
-        <span className={styles.unknown}>
-          {cost.label} · {cost.reason}
-        </span>
-      </header>
-      <table>
+    <Panel
+      title="Token 计数"
+      titleAs="h2"
+      ariaLabel="Token 计数"
+      actions={
+        <div className={styles.badges}>
+          <span className={styles.source}>来源：日志 message.usage（读取，非估算）</span>
+          <span className={styles.unknown}>
+            {cost.label} · {cost.reason}
+          </span>
+        </div>
+      }
+    >
+      <table className={styles.table}>
         <thead>
           <tr>
             <th scope="col">计数</th>
@@ -125,6 +131,6 @@ export function TokenPanel({
           : "口径：本会话主线程；子 agent 会话的用量不计入。"}
         {"数字直接读自日志，未做任何估算。"}
       </p>
-    </section>
+    </Panel>
   );
 }

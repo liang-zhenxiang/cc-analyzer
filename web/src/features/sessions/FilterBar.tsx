@@ -79,30 +79,35 @@ export function FilterBar({
       />
       <fieldset>
         <legend>记录类型（可多选）</legend>
-        {kindLabels.map(([kind, label]) => (
-          <label key={kind}>
-            <input
-              type="checkbox"
-              checked={filter.kinds.has(kind)}
-              onChange={() => toggleKind(kind)}
-            />
-            {label}
-          </label>
-        ))}
+        <div className={styles.chips}>
+          {kindLabels.map(([kind, label]) => (
+            <button
+              key={kind}
+              type="button"
+              className={styles.chip}
+              aria-pressed={filter.kinds.has(kind)}
+              onClick={() => toggleKind(kind)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </fieldset>
       <fieldset>
         <legend>状态</legend>
-        {statusLabels.map(([status, label]) => (
-          <Button
-            key={status}
-            type="button"
-            variant="ghost"
-            aria-pressed={filter.statuses.has(status)}
-            onClick={() => toggleStatus(status)}
-          >
-            {label}
-          </Button>
-        ))}
+        <div className={styles.chips}>
+          {statusLabels.map(([status, label]) => (
+            <button
+              key={status}
+              type="button"
+              className={styles.chip}
+              aria-pressed={filter.statuses.has(status)}
+              onClick={() => toggleStatus(status)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </fieldset>
       <fieldset>
         <legend>耗时</legend>

@@ -9,7 +9,9 @@ test("changes search and toggles a row kind", async () => {
   render(<FilterBar filter={emptyFilter} onChange={onChange} />);
 
   await user.type(screen.getByPlaceholderText("搜索命令 / 路径 / 摘要…"), "Read");
-  await user.click(screen.getByLabelText("用户"));
+  // 记录类型从 checkbox 收敛为 chip-toggle（aria-pressed 按钮），label 包裹关系消失，
+  // 因此按可访问名找按钮（文案一字未改）。
+  await user.click(screen.getByRole("button", { name: "用户" }));
 
   expect(onChange).toHaveBeenCalled();
   expect(onChange).toHaveBeenLastCalledWith(
