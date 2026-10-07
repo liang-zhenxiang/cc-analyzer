@@ -97,6 +97,22 @@ describe("snippetOf", () => {
     const hit = { sessionPath: "/a", projectLabel: "-a", recordId: "r", timestamp: 0, haystack: "", text: "有关键字的短句", matchAt: 1, matchLength: 3 };
     expect(snippetOf(hit)).toBe("有关键字的短句");
   });
+
+  it("剥掉终端转义序列——用户不该读到 [33m 乱码", () => {
+    const ESC = "\u001b";
+    // 与 `session-ansi.jsonl` 里那条 assistant 记录同形：转义字节就夹在正文里。
+    const text = `${ESC}[33m构建失败${ESC}[0m：先修 src/app.ts:12。`;
+    const hit = {
+      sessionPath: "/a", projectLabel: "-a", recordId: "r", timestamp: 0,
+      haystack: "", text, matchAt: 5, matchLength: 4
+    };
+    const snippet = snippetOf(hit);
+    expect(snippet).toBe("构建失败：先修 src/app.ts:12。");
+    expect(snippet).not.toContain(ESC);
+    expect(snippet).not.toContain("[33m");
+    // 命中词本身留在摘要里——剥的是转义，不是正文。
+    expect(snippet).toContain("构建失败");
+  });
 });
 
 describe("GlobalSearchIndex（渐进构建）", () => {

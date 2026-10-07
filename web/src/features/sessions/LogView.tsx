@@ -30,7 +30,6 @@ type Axis = { lo: number; total: number };
 
 const ROW_HEIGHT = 30;
 const EXPANDED_PANEL_HEIGHT = 320;
-const MIN_MARKER_WIDTH = 6;
 
 /** Where a row sits on the session timeline. */
 function rowInterval(row: LogRow): { start: number; end: number } {
@@ -89,23 +88,21 @@ function durationClass(ms: number): "durationMs" | "durationS" | "durationM" {
   return "durationM";
 }
 
-function Waterfall({ row, axis }: { row: LogRow; axis: Axis }) {
+/**
+ * 占比单元格的悬停说明：把被删掉的 waterfall 列**唯一独占**的信息（这一行落在
+ * 时间轴的哪一段——位置，不只是跨度）落回零宽度的地方。
+ *
+ * 原来那 129px 换来的是一条 10px 高、无轴无标签的微缩图：位置信息读者拿不到，
+ * 宽度还与占比重复。现在摘要列多出这 129px，而「位置 + 跨度 + 占比」一条没丢；
+ * `占比` 那格只写数字，这里的「（占整会话）」把它标注的分母说清楚。
+ */
+function shareTitle(row: LogRow, axis: Axis): string {
   const interval = rowInterval(row);
-  const left = Math.min(1, Math.max(0, (interval.start - axis.lo) / axis.total));
-  const width = Math.max(0, (interval.end - interval.start) / axis.total);
-  const title = `${formatDateTime(interval.start)} → ${formatDateTime(interval.end)} · ${row.label} · ${formatDuration(row.durationMs)}`;
-  return (
-    <span className={styles.waterfall} title={title}>
-      <span
-        className={styles.waterfallBar}
-        style={
-          width > 0
-            ? { left: `${left * 100}%`, width: `${Math.max(width, 0.006) * 100}%` }
-            : { left: `calc(${left * 100}% - ${MIN_MARKER_WIDTH / 2}px)`, width: `${MIN_MARKER_WIDTH}px` }
-        }
-      />
-    </span>
-  );
+  return [
+    `${formatDateTime(interval.start)} → ${formatDateTime(interval.end)}`,
+    formatDuration(row.durationMs),
+    `${shareLabel(row.durationMs, axis)}（占整会话）`
+  ].join(" · ");
 }
 
 export function LogView({
@@ -204,6 +201,18 @@ export function LogView({
   return (
     <ScrollArea scrollerRef={containerRef} className={styles.container} onScroll={onScroll}>
       <table>
+        {/* 列预算（令牌见 tokens.css）：除「操作 / 摘要」外每一列都写死宽度，
+            筛选前后列位置因此不动。 */}
+        <colgroup>
+          <col className={styles.colTime} />
+          <col className={styles.colType} />
+          <col />
+          <col className={styles.colTokens} />
+          <col className={styles.colNum} />
+          <col className={styles.colShare} />
+          <col className={styles.colStatus} />
+          <col className={styles.colActions} />
+        </colgroup>
         <thead>
           <tr>
             <th>时间</th>
@@ -215,7 +224,6 @@ export function LogView({
             <th title="提示词 = input_tokens + 缓存写入 + 缓存读取">提示词 / 输出</th>
             <th>耗时</th>
             <th>占比</th>
-            <th>waterfall</th>
             <th>状态</th>
             <th aria-label="行操作" />
           </tr>
@@ -327,7 +335,9 @@ function Fragment({
       >
         <td>{formatDateTime(row.timestamp)}</td>
         <td><span className={styles.kind}>{row.label}</span></td>
-        <td className={styles.detail}>
+        <td>
+          {/* 摘要列是唯一没写宽度的列：它在固定布局里吸收剩余宽度（130% 档实测
+              ~404px）。截断交给这一行自己——列宽不再由内容决定。 */}
           <span
             className={styles.detailLine}
             title={row.summary ? `${row.action} · ${row.summary}` : row.action}
@@ -342,7 +352,7 @@ function Fragment({
         <td className={styles[durationClass(row.durationMs)]}>
           {row.durationMs > 0 ? formatDuration(row.durationMs) : "—"}
         </td>
-        <td className={styles.share}>
+        <td className={styles.share} title={shareTitle(row, axis)}>
           <span className={styles.shareTrack}>
             <span
               className={styles.shareFill}
@@ -350,9 +360,6 @@ function Fragment({
             />
           </span>
           <span className={styles.shareText}>{shareLabel(row.durationMs, axis)}</span>
-        </td>
-        <td>
-          <Waterfall row={row} axis={axis} />
         </td>
         <td className={row.status === "error" ? styles.error : styles.statusMuted}>
           {statusLabel(row.status)}
@@ -375,7 +382,7 @@ function Fragment({
       </tr>
       {expanded ? (
         <tr className={styles.expanded} ref={panelMeasure}>
-          <td colSpan={9}>
+          <td colSpan={8}>
             {/* 低频动作移入展开区顶部、右对齐：与右栏详情里那颗完全同款。
                 仅当该行有记录时渲染——「等用户」这类无记录行展开后不出现。 */}
             {primary ? (

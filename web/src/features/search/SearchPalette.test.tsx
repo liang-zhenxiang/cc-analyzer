@@ -75,7 +75,12 @@ function createBridges(files: Record<string, string>): Bridges {
 
 const FILES = {
   [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: messageJsonl("u1", "修复 parser 里的空指针"),
-  [`${PROJECTS_ROOT}/-repo-beta/bbb.jsonl`]: messageJsonl("u2", "parser 的测试也要补")
+  [`${PROJECTS_ROOT}/-repo-beta/bbb.jsonl`]: messageJsonl("u2", "parser 的测试也要补"),
+  // 带 SGR 序列的消息体：命中摘要必须把它剥成纯文本（`\u001b[33m` 是字节不是文字）。
+  [`${PROJECTS_ROOT}/-repo-ansi/ccc.jsonl`]: messageJsonl(
+    "u3",
+    "\u001b[33m构建失败\u001b[0m：先修 src/app.ts:12。"
+  )
 };
 
 function renderPalette(overrides: { onReveal?: (path: string, recordId: string) => void } = {}) {
@@ -140,5 +145,17 @@ describe("SearchPalette", () => {
     renderPalette();
     await userEvent.type(screen.getByLabelText("搜索消息"), "不存在的词");
     await waitFor(() => expect(screen.getByText("没有匹配的消息")).toBeInTheDocument());
+  });
+
+  it("命中摘要里没有转义字节，按屏幕上看到的字能读到正文", async () => {
+    renderPalette();
+    await userEvent.type(screen.getByLabelText("搜索消息"), "构建失败");
+    const item = await screen.findByRole("button", { name: /构建失败/ });
+    const snippet = item.textContent ?? "";
+    expect(snippet).toContain("构建失败");
+    expect(snippet).toContain("先修 src/app.ts:12。");
+    // 用户读到的是 `[33m` 还是红字，区别就在这两个断言上。
+    expect(snippet).not.toContain("\u001b");
+    expect(snippet).not.toContain("[33m");
   });
 });

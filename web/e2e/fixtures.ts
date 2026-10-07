@@ -139,6 +139,77 @@ export function brokenScanScenario(overrides: Partial<MockScenario> = {}): MockS
   };
 }
 
+/**
+ * 足够长的一份会话，用来把日志表**推过窗口化阈值**。
+ *
+ * 现有夹具最多 17 行，而窗口化的阈值下限是 20，所以「虚拟滚动 + 定宽列」这条
+ * 路径在别的场景里根本走不到：垫片行（`<tr aria-hidden>`）不出现，列宽也就没被
+ * 真正考验过。这里在内存里合成 60 轮对话（≈60 行），配合 `logWindowRows: 20`
+ * 就能让上下垫片真的出现。**不写进 `tests/fixtures/`**：它是给布局用的压力夹具，
+ * 不是解析夹具，混进共享夹具目录会让单测那边多出一份没人读的大文件。
+ */
+export function largeScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  const sessionId = "3d2a5442-9c65-4b28-9c30-bb3d1a1c1a99";
+  const cwd = "/repo/long";
+  const start = Date.UTC(2026, 0, 3, 10, 0, 0);
+  const lines: string[] = [];
+  for (let turn = 0; turn < 60; turn += 1) {
+    const userAt = new Date(start + turn * 60_000).toISOString();
+    const assistantAt = new Date(start + turn * 60_000 + 2_000).toISOString();
+    // 每 10 轮一条长消息，其余是「继续」这种短消息。
+    // 这条夹具是给**列宽**用的：内容驱动布局的毛病只在「有行宽到能顶开列预算」时
+    // 才显形（实测短夹具上 auto 与 fixed 量出来一模一样，那样的用例抓不住回归），
+    // 所以它必须同时含长短两种内容，让「筛掉长行」成为一次真的列宽压力。
+    const longTurn = turn % 10 === 0;
+    const userText = longTurn
+      ? `第 ${turn} 轮：${"把这段逻辑再往下拆一层，".repeat(12)}`
+      : `第 ${turn} 轮：继续`;
+    const assistantText = longTurn ? `第 ${turn} 轮回答` : `第 ${turn} 轮回答：继续`;
+    lines.push(
+      JSON.stringify({
+        type: "user",
+        sessionId,
+        cwd,
+        timestamp: userAt,
+        uuid: `long-${turn}-user`,
+        parentUuid: turn === 0 ? null : `long-${turn - 1}-assistant`,
+        isSidechain: false,
+        message: { role: "user", content: userText }
+      })
+    );
+    lines.push(
+      JSON.stringify({
+        type: "assistant",
+        sessionId,
+        cwd,
+        timestamp: assistantAt,
+        uuid: `long-${turn}-assistant`,
+        parentUuid: `long-${turn}-user`,
+        isSidechain: false,
+        message: {
+          id: `long-msg-${turn}`,
+          role: "assistant",
+          model: "claude-sonnet-4",
+          content: [{ type: "text", text: assistantText }],
+          usage: { input_tokens: 12, cache_read_input_tokens: 3, output_tokens: 34 }
+        }
+      })
+    );
+  }
+
+  const base = defaultScenario(overrides);
+  return {
+    ...base,
+    files: {
+      ...base.files,
+      [`${HOME}/.claude/projects/${projectDir(cwd)}/${sessionId}.jsonl`]: `${lines.join("\n")}\n`
+    }
+  };
+}
+
+/** 让窗口化在 20 行就生效——阈值下限，最小的夹具也能触发上下垫片。 */
+export const WINDOW_ROW_THRESHOLDS = JSON.stringify({ logWindowRows: 20 });
+
 type Fixtures = { scenario: MockScenario };
 
 export const test = base.extend<Fixtures>({

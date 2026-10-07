@@ -9,10 +9,48 @@
 
 .container table {
   width: 100%;
+  /* 列宽只认下面 colgroup 里的令牌：内容驱动的话，筛掉一行宽单元格整表就重排一次
+     （实测时间列 151→181、摘要列 305→188），用户的眼睛要重新找列位置。 */
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: var(--fs-sm);
   line-height: var(--lh-sm);
   font-variant-numeric: tabular-nums;
+  /* 文字基色挂在 table 上、由单元格**继承**，不写在 td 上：
+     `.container td`（0,1,1）会盖掉单元格自己的类（0,1,0）——`.error` / `.tokens` /
+     `.duration*` 这些语义色因此在 v0.11.0 之后一直没生效，失败行看起来和正常行同色。
+     继承永远输给直接规则，语义色这才落得到单元格上。 */
+  color: var(--text);
+}
+
+/* 列预算（令牌见 tokens.css）：没写宽度的只有「操作 / 摘要」，它在固定布局里
+   吸收剩余宽度，因此摘要列宽不随内容变，只随窗口变。 */
+.colTime {
+  width: var(--col-time);
+}
+
+.colType {
+  width: var(--col-type);
+}
+
+.colTokens {
+  width: var(--col-tokens);
+}
+
+.colNum {
+  width: var(--col-num);
+}
+
+.colShare {
+  width: var(--col-share);
+}
+
+.colStatus {
+  width: var(--col-status);
+}
+
+.colActions {
+  width: var(--col-actions);
 }
 
 .container th,
@@ -20,10 +58,16 @@
   /* 行密度令牌：三张数据表共用一套（见 tokens.css 的 --row-pad-*）。 */
   padding: var(--row-pad-y) var(--row-pad-x);
   border-bottom: 1px solid var(--border);
-  color: var(--text);
   text-align: left;
   vertical-align: top;
   white-space: nowrap;
+}
+
+/* 数据行与表头等高：行高垫到 --row-h，不再由「这一行里放的是 24px 展开器
+   还是纯文字」决定（实测同一张表里出现过 38/37/36 三种）。
+   写成 tr 的最小高而不是 td 的高：td 上写高会和下面 .actions 的内容盒高度打架。 */
+.container tbody tr {
+  height: var(--row-h);
 }
 
 /* 表头沉到 --bg-inset：在白色卡片上才有台阶可辨（--bg-elevated 和白卡同色）。
@@ -32,7 +76,10 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  height: var(--row-h);
+  /* 表头与数据行**逐像素**等高：--row-h 是「两倍行内距 + 行高」，而数据行的盒子
+     还要算上它那条 1px 下边框（折叠边框只在数据行里计），所以表头补同一条发丝。
+     少写这 1px，表头就比每一行矮一像素，滚动时能看出两套高度。 */
+  height: calc(var(--row-h) + 1px);
   border-bottom: 1px solid var(--border-strong);
   background: var(--bg-inset);
   color: var(--text-tertiary);
@@ -72,10 +119,6 @@
   white-space: nowrap;
 }
 
-.detail {
-  max-width: 260px;
-}
-
 .detailLine {
   display: block;
   overflow: hidden;
@@ -89,9 +132,14 @@
   white-space: nowrap;
 }
 
+/* 行操作列：24px 的展开器比一行文字高，让它照常参与行布局会把整行撑到 36px 以上
+   （行高于是不再等于表头）。这里把单元格自身的**内容盒**压到一行行高，展开器在
+   flex 容器里居中、上下各 3px 落到本行的垂直内距里——命中区仍是 24px，行高回到 --row-h。 */
 .actions {
   display: flex;
+  height: var(--lh-sm);
   gap: var(--sp-1);
+  align-items: center;
   justify-content: flex-end;
 }
 
@@ -174,7 +222,10 @@
 
 /* 状态列：失败保留 --danger 且在 600 字重下（灰度截图里仍能浮出来），
    其余降一档到 --text-tertiary，让「只有失败在亮」。**不用 --text-faint**——
-   那是 2.6:1 的装饰位，「这条没失败」是需要读的状态信息。 */
+   那是 2.6:1 的装饰位，「这条没失败」是需要读的状态信息。
+   成败**不借 --cat-***：类别色已被类型列占满，借去表达成败会让两个维度一起失效。
+   （这两条自 v0.11.0 就写在 CSS 里，却被 `.container td` 的基色盖住没生效——
+   基色已移到 table 上，见上。） */
 .error {
   color: var(--danger);
   font-weight: 600;
@@ -254,23 +305,6 @@
   line-height: var(--lh-xs);
   text-align: right;
   vertical-align: middle;
-}
-
-.waterfall {
-  position: relative;
-  display: block;
-  min-width: 90px;
-  height: 10px;
-  border-radius: var(--r-sm);
-  background: var(--bg-hover);
-}
-
-.waterfallBar {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  border-radius: var(--r-sm);
-  background: var(--row-color, var(--text-tertiary));
 }
 
 /* 键盘导航的焦点行：复用选中态的竖条语言，焦点可见性不依赖颜色以外的信号。 */

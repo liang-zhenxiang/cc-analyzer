@@ -1,5 +1,6 @@
 import type { ParsedSession } from "../sessions/types";
 import type { SessionMeta } from "../sessions/metadataCache";
+import { stripAnsi } from "../../lib/ansi";
 
 /**
  * In-memory, case-insensitive substring search over every parsed session's
@@ -59,13 +60,23 @@ export function entriesOfSession(session: SessionMeta, parsed: ParsedSession): S
 
 const SNIPPET_RADIUS = 32;
 
-/** A short window around the match, so the eye can verify why it hit. */
+/**
+ * A short window around the match, so the eye can verify why it hit.
+ *
+ * The window is **flattened before it is shown**: assistant text arrives with the
+ * tool's SGR bytes still in it (`\u001b[33m构建失败\u001b[0m`), and printing them
+ * verbatim made the user read `[33m构建失败[0m` — escape bytes are not text. It
+ * goes through the same `stripAnsi` the log table uses (the module already owns
+ * "one flat string" conversions), so a crafted transcript still has nowhere to
+ * put anything but plain text.
+ */
 export function snippetOf(hit: SearchHit): string {
   const start = Math.max(0, hit.matchAt - SNIPPET_RADIUS);
   const end = Math.min(hit.text.length, hit.matchAt + hit.matchLength + SNIPPET_RADIUS);
   const prefix = start > 0 ? "…" : "";
   const suffix = end < hit.text.length ? "…" : "";
-  return prefix + hit.text.slice(start, end).replace(/\s+/g, " ").trim() + suffix;
+  const body = stripAnsi(hit.text.slice(start, end)).replace(/\s+/g, " ").trim();
+  return prefix + body + suffix;
 }
 
 export type SearchGroup = {

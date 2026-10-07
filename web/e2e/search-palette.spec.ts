@@ -73,4 +73,21 @@ test.describe("全局搜索", () => {
     await page.getByLabel("搜索消息").fill("绝对不存在的词xyz");
     await expect(page.getByText("没有匹配的消息")).toBeVisible({ timeout: 15_000 });
   });
+
+  test("命中摘要剥掉终端转义序列：读到的是正文，不是 [33m", async ({ page }) => {
+    await openPalette(page);
+    await page.getByLabel("搜索消息").fill("构建失败");
+
+    // 夹具 session-ansi 的那条 assistant 记录正文就是 `\u001b[33m构建失败\u001b[0m：…`。
+    const first = page.locator("[data-item-index='0']");
+    await expect(first).toBeVisible({ timeout: 15_000 });
+
+    // 用 textContent 而不是 innerText：这里要断言的就是**字节**有没有进 DOM，
+    // 渲染近似值会把控制字符吃掉，那样这条断言就恒真了。
+    const snippet = await first.evaluate((node) => node.textContent ?? "");
+    expect(snippet).toContain("构建失败");
+    expect(snippet).toContain("先修 src/app.ts:12。");
+    expect(snippet).not.toContain("\u001b");
+    expect(snippet).not.toContain("[33m");
+  });
 });
