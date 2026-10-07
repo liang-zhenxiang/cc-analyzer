@@ -9,7 +9,8 @@ import { test, expect, largeScenario, WINDOW_ROW_THRESHOLDS } from "./fixtures";
  * 1. **列宽不随筛选重排**——内容驱动布局下筛一次整表就重排（实测时间列 151→181），
  *    用户的眼睛要重新找列位置；
  * 2. **摘要列真的变宽了**——删掉 129px 的 waterfall 列之后它该 ≥400px；
- * 3. **行高收敛成一种**——数据行彼此等高，且与表头一致；
+ * 3. **行高收敛成一种**——数据行彼此等高；表头则**吃到同一条 `--row-h` 地板**，
+ *    与数据行的差只允许是 border-collapse 的平台归属差异（判据见该用例的注释）；
  * 4. **失败是红的**——`.container td` 的基色曾经把失败语义色整个盖掉
  *    （v0.11.0 起失效），所以这条只能在浏览器里按**计算色**验。
  */
@@ -77,7 +78,7 @@ test.describe("日志表列预算", () => {
     expect(summary.width).toBeGreaterThanOrEqual(400);
   });
 
-  test("数据行彼此等高，且与表头一致", async ({ page }) => {
+  test("数据行彼此等高，且表头吃到同一条 --row-h 地板", async ({ page }) => {
     await openSession(page, "ansi");
 
     const measured = await page.evaluate(() => {
@@ -86,12 +87,21 @@ test.describe("日志表列预算", () => {
       const head = table.querySelector("thead tr") as HTMLElement;
       const rows = [...table.querySelectorAll("tbody tr[data-row-index]")] as HTMLElement[];
       const tops = rows.map((row) => row.getBoundingClientRect().top);
+
+      // `--row-h` 这条共用地板的**实际高度**：探针与表头读的是 :root 上的同一份令牌，
+      // 因此是「同一个引擎里量两次」，跨引擎的边框归属差异在这里被抵消掉。
+      const probe = document.createElement("div");
+      probe.style.cssText = "position:absolute;top:-9999px;left:0;width:0;height:var(--row-h)";
+      document.body.appendChild(probe);
+      const floorPixels = probe.offsetHeight;
+      probe.remove();
+
       // **整数量**：offsetHeight 按布局单位取整，是这一条唯一与亚像素无关的口径。
       const rowPixels = rows.map((row) => row.offsetHeight).sort((a, b) => a - b);
       return {
+        floorPixels,
         headerPixels: head.offsetHeight,
         medianPixels: rowPixels[Math.floor(rowPixels.length / 2)],
-        header: round(head.getBoundingClientRect().height),
         rowBoxes: rows.map((row) => round(row.getBoundingClientRect().height)),
         rowPixels,
         // 相邻数据行的行距：这才是「38/37/36 三种行高」那条老毛病的样子。
@@ -104,37 +114,60 @@ test.describe("日志表列预算", () => {
 
     // 失败信息打印**原始数值**：只有差值时看不出是谁比谁大，定位要一次到位。
     const detail =
-      `表头 ${measured.header}px（${measured.headerPixels} 个布局像素） · ` +
-      `数据行盒 ${JSON.stringify(measured.rowBoxes)}（${JSON.stringify(measured.rowPixels)} 个布局像素） · ` +
-      `行距 ${JSON.stringify(measured.pitches)}`;
+      `表头 ${measured.headerPixels} 个布局像素 · ` +
+      `数据行 ${measured.rowPixels.join("/")} · ` +
+      `行距 ${measured.pitches.join("/")}`;
 
     // 一、连续性：不许某一行因为内容不同就长高。行距是盒顶之间的距离，
     // 不受折叠边框与取整影响，所以这里用小数、容差 0.1 就够。
-    for (const pitch of measured.pitches) {
-      expect(Math.abs(pitch - measured.pitches[0]), `行距不均 —— ${detail}`).toBeLessThanOrEqual(0.1);
-    }
+    const spread = Math.max(...measured.pitches) - Math.min(...measured.pitches);
+    const pitchSpread = Math.round(spread * 100) / 100;
+    expect(pitchSpread, `行距不均 —— 极差 ${pitchSpread} · ${detail}`).toBeLessThanOrEqual(0.1);
 
-    // 二、表头与数据行等高。口径是**布局像素的整数**，不是 getBoundingClientRect 的小数：
-    // 同一次渲染里，两个引擎的小数量到的是两套数（实测表头 30 两边一致，数据行
-    // chromium 31 / webkit 31.38，末行 30.5 / 30.88），取整之后两个引擎给出**完全一致**
-    // 的整数（表头 30、每一条数据行 31）。也就是说，差的那点小数是引擎的度量噪声
-    // （末行 0.5 来自 :last-child 去掉下边框，另外 0.38 来自 WebKit 对
-    // vertical-align: middle 的行内块的行盒计算），而不是排版事实——让它进断言，
-    // 换来的就是一条只在一个引擎上绿的用例（这正是原来的失败）。
+    // 二、表头吃到同一条 `--row-h` 地板——**这一条的判据本体**。把 `thead tr` 从那条
+    // 共用地板里摘掉（CSS 只留 `.container tbody tr { height: var(--row-h) }`），表头就
+    // 只剩自己的内容盒（--fs-xs + --lh-xs + 两倍 --row-pad-y = 28px，量到 29），
+    // 立刻掉到地板以下；四个平台组合上都是 29 < 30，所以这条在哪都红。
+    expect(
+      measured.headerPixels,
+      `表头没吃到 --row-h 这条共用地板 —— 表头 ${measured.headerPixels} 个布局像素 ` +
+        `< 地板 ${measured.floorPixels} · ${detail}`
+    ).toBeGreaterThanOrEqual(measured.floorPixels);
+
+    // 三、表头与数据行的**整数量**之差落在一个有依据的带宽里。口径取整数而不是
+    // getBoundingClientRect 的小数：同一次渲染里两个引擎的小数量到的是两套数
+    // （实测表头 30 两边一致，数据行 chromium 31 / webkit 31.38，末行 30.5 / 30.88），
+    // 那点小数是引擎的度量噪声（末行 0.5 来自 :last-child 去掉下边框，另外 0.38 来自
+    // WebKit 对 vertical-align: middle 的行内块的行盒计算），不是排版事实。
     //
-    // 于是容差要落在 (1, 2) 这个窗口里：
-    //   · 必须 > 1：border-collapse: collapse 把 1px 分隔线劈成两半，数据行上下各摊到
-    //     半像素、表头行没有上一行可摊——数据行因此比表头多 1 个布局像素。这是布局事实，
-    //     不是缺陷，0.5 会把它判成失败。
-    //   · 必须 < 2：把 `thead tr` 从那条共用的行高地板里拿掉之后，表头只剩自己 28px
-    //     的内容高（--fs-xs + --lh-xs + 两倍 --row-pad-y），量到 29，与数据行差 2——
-    //     这条必须红，否则判据就是恒真的。
+    // 带宽是 2，**不要再收紧**：它已经被收紧两次、红了两次 CI
+    // （先是 `Expected <= 0.5, Received 1`，再是 `Expected <= 1.5, Received 2`）。
+    // 四次实测（同一份夹具，表头恒为 30）：
+    //
+    //   | 平台            | 表头 | 数据行（中位） | 差 |
+    //   | --------------- | ---- | -------------- | -- |
+    //   | macOS chromium  | 30   | 31             | 1  |
+    //   | macOS webkit    | 30   | 31             | 1  |
+    //   | Linux chromium  | 30   | 32             | 2  |
+    //   | Linux webkit    | 30   | 32（31/32/32） | 2  |
+    //
+    // 这 1~2px 的差是 `border-collapse: collapse` 对那条 1px 分隔线的**劈法**不同：
+    // 数据行上下各摊半像素、表头行没有上一行可摊，于是数据行总比表头高一点，Linux 比
+    // macOS 多摊 1px。**没有任何 CSS 能把它抹平**，所以带宽下界必须 ≥2（0.5 会把它判红）。
+    //
+    // 反面单独说清楚：地板被摘掉时表头是 29，与数据行相差 2（macOS）/ 3（Linux）。
+    // 也就是说「差 2」既是 Linux 的正常值、也是 macOS 的回归值——**任何单靠像素差的带宽
+    // 都无法同时容纳前者并抓住后者**，两个区间在 2 这个点上正好重叠。所以回归由上面
+    // 那条地板判据抓（与平台无关），这里的带宽只负责另一个方向：表头不许比数据行高太多。
+    // 两条合起来才覆盖全部方向；谁想把 2 收紧到 1，先看这张表。
+    //
     // 取中位数而不是首行/均值：末行因为 :last-child 去掉了下边框，恰好压在整数边界上
     // （小数量到 30.5 / 30.88），单看它会被那半像素带偏。
     expect(
       Math.abs(measured.headerPixels - measured.medianPixels),
-      `表头与数据行不等高 —— ${detail}`
-    ).toBeLessThanOrEqual(1.5);
+      `表头与数据行不等高 —— ${detail} · 地板 ${measured.floorPixels} · ` +
+        `数据行盒 ${measured.rowBoxes.join("/")}`
+    ).toBeLessThanOrEqual(2);
   });
 
   test("失败行的状态列取 --danger，正常行不取", async ({ page }) => {

@@ -15,6 +15,32 @@ const logStyles = readFileSync(
 ).replace(/\/\*[\s\S]*?\*\//g, "");
 const tokensStyles = readFileSync(resolve(process.cwd(), "src/styles/tokens.css"), "utf8");
 
+/**
+ * 把剥掉注释的样式表拆成 [选择器, 声明] 列表。够用即可：本项目没有 @media 嵌套，
+ * 一旦引入，内层规则会整块匹配不上——测试以「规则数对不上」的方式提醒人回来把它
+ * 写对，而不是悄悄放过。
+ */
+function cssRules(styles: string): { selector: string; declarations: Record<string, string> }[] {
+  return [...styles.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((match) => {
+    const declarations: Record<string, string> = {};
+    for (const piece of match[2].split(";")) {
+      const at = piece.indexOf(":");
+      if (at !== -1) declarations[piece.slice(0, at).trim()] = piece.slice(at + 1).trim();
+    }
+    return { selector: match[1].trim().replace(/\s+/g, " "), declarations };
+  });
+}
+
+/** 选择器里真的引用了 th / td 这两个标签——`width`、`thead` 里的子串都不算。 */
+const CELL_TAG = /(?:^|[\s,>+~])(?:th|td)(?:[\s,{:>+~.]|$)/;
+
+/** 把 `calc(16px * var(--font-scale))` / `18px` 这类值折算成 100% 字号下的像素数。 */
+function basePixels(token: string): number {
+  const match = new RegExp(`${token}:\\s*(?:calc\\()?(\\d+(?:\\.\\d+)?)px`).exec(tokensStyles);
+  expect(match, `${token} 没在 tokens.css 里定义`).not.toBeNull();
+  return Number(match![1]);
+}
+
 function base(id: string, extra: Partial<SessionRecord>): SessionRecord {
   return {
     id,
@@ -353,6 +379,54 @@ describe("表格列预算与语义（CSS 不变量）", () => {
     expect(logStyles).toMatch(/\.container th\s*\{[^}]*line-height:\s*var\(--lh-xs\)/s);
     // 会让整行高过 --row-h 的 24px 展开器不再撑行。
     expect(logStyles).toMatch(/\.actions\s*\{[^}]*height:\s*var\(--lh-sm\)/s);
+  });
+
+  /**
+   * 上面那条按正则验「某条规则还在」，看不见**后加的**第二条规则：`.container thead tr
+   * { height: 32px }` 会把共用地板整个改掉，而正则照样匹配。这一条改成逐条清点规则，
+   * 「表头与数据行同构」才算真的锁住——**这里是真正的保证，e2e 那条像素判据只是它的
+   * 实机回声**（折叠边框在不同引擎里劈法不同，像素差最多到 2，见 log-table.spec.ts）。
+   */
+  it("表头与数据行同构：共用一条地板、表头不自带高度、内距同源", () => {
+    const rules = cssRules(logStyles);
+    const cellRules = rules.filter((rule) => CELL_TAG.test(rule.selector));
+    const theadRules = rules.filter((rule) => rule.selector.includes("thead"));
+    // 夹具健全性：规则真的解析出来了，否则下面每条 toEqual 都在空转。
+    expect(cellRules.length).toBeGreaterThan(0);
+    expect(theadRules.length).toBeGreaterThan(0);
+
+    // 一、`thead` 只允许出现在那条共用的行高地板里，且只声明 `height: var(--row-h)`。
+    // 表头自己写一个字面量高度、或补一个 `calc(var(--row-h) + 1px)`，都会让这里的
+    // 数组多出一条，当场红。
+    expect(
+      theadRules.flatMap((rule) =>
+        "height" in rule.declarations ? [[rule.selector, rule.declarations.height]] : []
+      )
+    ).toEqual([[".container thead tr, .container tbody tr", "var(--row-h)"]]);
+
+    // 二、单元格（th / td）自己**一个 height 都不许有**——字面量、calc、别的令牌都不行。
+    // 表头的高度只有一个来源：上面那条共用地板。这也是 e2e 那条「把 thead tr 摘出地板，
+    // 表头掉到 29、低于地板」的变异能成立的前提。
+    expect(
+      cellRules.flatMap((rule) =>
+        "height" in rule.declarations ? [[rule.selector, rule.declarations.height]] : []
+      )
+    ).toEqual([]);
+
+    // 三、内距同源：表头单元格与数据行单元格的 padding 来自**同一条规则、同一组
+    // `--row-pad-*` 令牌**。表头单独再写一份内距（哪怕数值相同）就等于两份独立声明，
+    // 「改一处漏一处」的门就开了。
+    expect(
+      cellRules.flatMap((rule) =>
+        "padding" in rule.declarations ? [[rule.selector, rule.declarations.padding]] : []
+      )
+    ).toEqual([[".container th, .container td", "var(--row-pad-y) var(--row-pad-x)"]]);
+
+    // 四、地板真的比表头的内容盒高。内容盒 = --lh-xs + 两倍 --row-pad-y，
+    // 地板 = --row-h = 两倍 --row-pad-y + --lh-sm，两者共用同一个 padding，于是判据
+    // 化简为 `--lh-xs < --lh-sm`。同级配对（--fs-xs 配 --lh-xs）正是由此生效的：
+    // 跨级借 --lh-sm 会让两者相等，地板对表头就变成一句可有可无的声明。
+    expect(basePixels("--lh-xs")).toBeLessThan(basePixels("--lh-sm"));
   });
 
   it("失败态拿得到 --danger：基色不许写在 td 上盖住单元格自己的类", () => {
