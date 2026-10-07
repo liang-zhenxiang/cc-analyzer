@@ -118,6 +118,27 @@ export function emptyScenario(overrides: Partial<MockScenario> = {}): MockScenar
   };
 }
 
+/**
+ * 坏场景：`~/.claude/projects` **一个字节都没声明**。
+ *
+ * e2e 的虚拟文件系统对未声明的目录是**抛错**而不是返回空数组——静默的空列表
+ * 会把夹具错误伪装成功能缺陷。这里刻意留着那个尖角：它是唯一能稳定触发
+ * 「应用真的报错了」的路径，而错误态要测的正是这条路径。
+ *
+ * 空场景只需要多声明一行 `emptyDirs` 就是好场景，所以两者的差别是**故意的**：
+ * 前者验「真的没有会话」，后者验「真的出错了」。
+ */
+export function brokenScanScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  return {
+    home: HOME,
+    appData: APP_DATA,
+    files: {},
+    monitor: { port: 8090, alive: false },
+    updater: { currentVersion: "0.10.0" },
+    ...overrides
+  };
+}
+
 type Fixtures = { scenario: MockScenario };
 
 export const test = base.extend<Fixtures>({

@@ -495,3 +495,63 @@ test("keeps the archive badge out of the inline-span colour rule", () => {
   expect(badgeRule?.[1]).toContain("height: var(--lh-xs)");
   expect(css).not.toMatch(/#[0-9a-f]{3,8}\b/i);
 });
+
+/**
+ * 侧栏错误态。它过去把原始错误串直接当正文渲染，于是 `/Users/…` 这类绝对路径
+ * 与「夹具 / 静默返回空数组」这类写给维护者的话一起端到了用户面前——
+ * 前者是项目红线（用户路径视同敏感数据），后者是内部信息。
+ */
+const RAW_SCAN_ERROR =
+  "扫描会话列表失败: Error: E2E 虚拟文件系统: readDir 遇到未声明的路径 " +
+  "/Users/e2e/.claude/projects。请在夹具里声明它——静默返回空数组会把夹具错误伪装成成功缺陷。";
+
+function renderBrokenList(onRefresh = vi.fn()) {
+  return render(
+    <SessionList
+      sessions={[]}
+      selected={null}
+      loading={false}
+      error={RAW_SCAN_ERROR}
+      onSelect={() => undefined}
+      onRefresh={onRefresh}
+    />
+  );
+}
+
+test("扫描失败时只说失败，不再同时说「没有匹配的会话」", () => {
+  renderBrokenList();
+
+  expect(screen.getByRole("alert")).toHaveTextContent("会话列表读取失败");
+  // 扫描失败时列表本来就是空的，此时再说「调整搜索词后重试」是在给一个错的建议。
+  expect(screen.queryByText("没有匹配的会话")).toBeNull();
+});
+
+test("侧栏错误态的正文不含绝对路径，也不含写给维护者的话", async () => {
+  const user = userEvent.setup();
+  renderBrokenList();
+
+  const box = screen.getByRole("alert");
+  expect(box.textContent).not.toContain("/Users/");
+  expect(box.textContent).not.toContain("夹具");
+  expect(box.textContent).not.toContain("静默返回空数组");
+  expect(box.innerHTML).not.toContain("/Users/");
+
+  // 反向：原文仍然拿得到（存放在折叠的「详情」里），只是不再糊在脸上。
+  await user.click(screen.getByText("详情"));
+  expect(box.textContent).toContain("/Users/e2e/.claude/projects");
+});
+
+test("侧栏错误态的「重试」重新发起扫描", async () => {
+  const user = userEvent.setup();
+  const onRefresh = vi.fn();
+  renderBrokenList(onRefresh);
+
+  await user.click(screen.getByRole("button", { name: "重试" }));
+  expect(onRefresh).toHaveBeenCalledTimes(1);
+});
+
+test("没有错误时不出现错误态——它不该常驻在侧栏里", () => {
+  renderList();
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.queryByText("会话列表读取失败")).toBeNull();
+});

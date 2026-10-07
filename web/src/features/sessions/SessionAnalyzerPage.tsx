@@ -5,6 +5,7 @@ import { useSessions } from "./useSessions";
 import { SessionList } from "./SessionList";
 import { SessionHeader } from "./SessionHeader";
 import { EmptyState } from "../../components/EmptyState";
+import { ErrorState } from "../../components/ErrorState";
 import { SegmentedControl, type SegmentedItem } from "../../components/SegmentedControl";
 import { Skeleton } from "../../components/Skeleton";
 import { FilterBar } from "./FilterBar";
@@ -386,6 +387,15 @@ export function SessionAnalyzerPage({
 
   const parsing = parseProgress !== null && parseProgress < 1;
 
+  /**
+   * 扫描失败、主区又没别的东西可显示。
+   *
+   * 这时错误由**主区**整页说明（它才是眼下这块屏幕的主体），侧栏不再重复一遍——
+   * 一次失败只在一个地方说。反过来，已经有会话打开时主区在展示数据，
+   * 错误就该落在侧栏那条告警上：那里才是它发生的地方。
+   */
+  const scanFailedHere = error !== null && !parsed;
+
   return (
     <div className={`${styles.page} ${selectedRecord ? styles.withDetail : ""}`}>
       {selectedSession ? (
@@ -408,6 +418,7 @@ export function SessionAnalyzerPage({
           selected={selectedSession}
           loading={loading}
           error={error}
+          errorShownElsewhere={scanFailedHere}
           progress={progress}
           onSelect={(session) => void openSession(session)}
           onRefresh={() => void refresh()}
@@ -424,6 +435,16 @@ export function SessionAnalyzerPage({
                 </div>
                 <Skeleton variant="table" rows={8} label="正在解析会话" />
               </div>
+            ) : scanFailedHere ? (
+              // 扫描失败时主区不说「从左侧列表挑一个会话」——列表根本没读到，
+              // 那是一个做不到的建议，而且与侧栏的失败态同屏自相矛盾。
+              <ErrorState
+                size="page"
+                title="会话列表读取失败"
+                hint="本机 ~/.claude/projects 里的会话没能读出来。确认目录可读后重试。"
+                detail={error ?? undefined}
+                onRetry={() => void refresh()}
+              />
             ) : (
               <EmptyState
                 size="page"

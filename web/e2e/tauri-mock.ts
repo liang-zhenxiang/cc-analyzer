@@ -115,6 +115,15 @@ export function installTauriMock(scenario: MockScenario): void {
         }
         case "read_dir": {
           const dir = norm(String(a.path));
+          // 开关式故障注入：`window.__CCA_E2E_FAIL_SCAN__ = true` 之后，任何一次
+          // 目录读取都失败——用来复现「已经有一份列表、刷新却失败了」这条真实路径
+          // （首屏就失败是另一条路径，用 brokenScanScenario 的未声明目录触发）。
+          if ((window as unknown as Record<string, unknown>).__CCA_E2E_FAIL_SCAN__) {
+            throw new Error(
+              `E2E 虚拟文件系统：readDir 遇到未声明的路径 ${dir}。` +
+                `请在夹具里声明它——静默返回空数组会把夹具错误伪装成功能缺陷。`
+            );
+          }
           const prefix = dir === "/" ? "/" : `${dir}/`;
           const out: Array<{ name: string; is_dir: boolean; is_file: boolean }> = [];
           const seen = new Set<string>();

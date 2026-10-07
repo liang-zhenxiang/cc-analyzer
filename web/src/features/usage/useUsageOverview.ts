@@ -38,7 +38,7 @@ export type UsageScanProgress = { done: number; total: number };
  */
 export function useUsageOverview() {
   const bridges = useBridges();
-  const { sessions, loading, error } = useSessions();
+  const { sessions, loading, error, refresh } = useSessions();
   const [inputs, setInputs] = useState<UsageSessionInput[]>([]);
   const [aggregate, setAggregate] = useState<UsageAggregate>(emptyAggregate);
   const [progress, setProgress] = useState<UsageScanProgress>({ done: 0, total: 0 });
@@ -130,5 +130,7 @@ export function useUsageOverview() {
     void scan();
   }, [scanTarget, readSession]);
 
-  return { inputs, aggregate, progress, scanning, error, skipped };
+  // `refresh` 透出去只为一件事：错误态上的「重试」。不重试的错误提示
+  // 等于让用户自己去找刷新会话列表的按钮，而那个按钮在另一个标签里。
+  return { inputs, aggregate, progress, scanning, error, skipped, refresh };
 }

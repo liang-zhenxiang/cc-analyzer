@@ -65,21 +65,33 @@ describe("MonitorPage", () => {
 
     expect(screen.getByRole("button", { name: "打开监控" })).toBeInTheDocument();
     expect(screen.queryByTitle(FRAME_TITLE)).not.toBeInTheDocument();
-    // 「点进去不要马上打开」的机器化表达：挂载本身不产生任何探测。
-    expect(monitorPort).not.toHaveBeenCalled();
+    // 「点进去不要马上打开」的机器化表达：挂载本身不产生任何**探测**。
+    // monitorPort 会被读（它是用来把「连的是哪个地址」写在按钮上方的常量），
+    // 探测是 pingMonitor——它必须一次都没跑。
     expect(pingMonitor).not.toHaveBeenCalled();
   });
 
+  test("names the address it will connect to before the user opens it", async () => {
+    renderMonitor(createBridges({ port: 8090 }));
+
+    // 端口号是「下一步做什么」里唯一可执行的那半句，必须在点之前就看得见。
+    await waitFor(() =>
+      expect(screen.getByText(/本机 localhost:8090/)).toBeInTheDocument()
+    );
+    // 写给维护者的话不许再进 UI（红线）：仓库、夹具、内部服务名都不出现。
+    const box = screen.getByText("实时监控未打开").closest("div")!;
+    expect(box.textContent).not.toContain("不在本仓库内");
+    expect(box.textContent).not.toContain("夹具");
+  });
+
   test("embeds the dashboard once the user opens it", async () => {
-    const monitorPort = vi.fn(async () => 8090);
     const pingMonitor = vi.fn(async () => true);
 
-    renderMonitor(createBridges({ monitorPort, pingMonitor }));
+    renderMonitor(createBridges({ pingMonitor }));
     openMonitor();
 
     const frame = await screen.findByTitle(FRAME_TITLE);
     expect(frame).toHaveAttribute("src", "http://localhost:8090/?theme=light");
-    expect(monitorPort).toHaveBeenCalledTimes(1);
     expect(pingMonitor).toHaveBeenCalledTimes(1);
   });
 
@@ -165,9 +177,9 @@ describe("MonitorPage", () => {
 
   test("closes the dashboard and returns to the unopened state", async () => {
     const user = userEvent.setup();
-    const monitorPort = vi.fn(async () => 8090);
+    const pingMonitor = vi.fn(async () => true);
 
-    renderMonitor(createBridges({ monitorPort }));
+    renderMonitor(createBridges({ pingMonitor }));
     openMonitor();
     await screen.findByTitle(FRAME_TITLE);
 
@@ -176,25 +188,60 @@ describe("MonitorPage", () => {
     expect(screen.queryByTitle(FRAME_TITLE)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "打开监控" })).toBeInTheDocument();
     // 关闭只是回到未打开，不是悄悄再探测一轮。
-    expect(monitorPort).toHaveBeenCalledTimes(1);
+    expect(pingMonitor).toHaveBeenCalledTimes(1);
   });
 
   test("states the facts without naming a third-party service", async () => {
     vi.useFakeTimers();
     try {
-      renderMonitor(createBridges({ ping: false }));
+      const monitorPort = vi.fn(async () => 8090);
+      const pingMonitor = vi.fn(async () => false);
+      renderMonitor(createBridges({ monitorPort, pingMonitor }));
       openMonitor();
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(RETRY_DELAY_MS * 3);
       });
 
-      // 失败态整块文案：只说探测了哪个地址、这个服务在哪，
-      // 不出现外部仪表盘的产品名，也不猜「被谁占用」。
-      const box = screen.getByText("监控仪表盘未连接").closest("div")!;
+      // 失败态整块文案：只说探测了哪个地址、失败了几次、下一步做什么，
+      // 不出现外部仪表盘的产品名，不猜「被谁占用」，也不说「不在本仓库内」。
+      const box = screen.getByRole("alert");
       expect(box).toHaveTextContent("未在 localhost:8090 上检测到监控仪表盘（已尝试 3 次）");
-      expect(box).toHaveTextContent("该服务不在本仓库内，需要另行启动。");
+      expect(box).toHaveTextContent("确认该服务已在你自己的终端里启动，然后重试。");
+      expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
       expect(box.textContent).not.toContain("cc-monitor");
+      expect(box.textContent).not.toContain("不在本仓库内");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("keeps the raw failure string out of the visible copy", async () => {
+    vi.useFakeTimers();
+    try {
+      // 真实失败串可能带绝对路径（用户路径是敏感数据），
+      // 所以它只能待在折叠的「详情」里——默认连 DOM 都不进。
+      renderMonitor(
+        createBridges({
+          monitorPort: async () => {
+            throw new Error("connect /Users/tester/.config/monitor.sock 失败");
+          }
+        })
+      );
+      openMonitor();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(RETRY_DELAY_MS * 3);
+      });
+
+      const box = screen.getByRole("alert");
+      expect(box.textContent).not.toContain("/Users/");
+      expect(box.innerHTML).not.toContain("/Users/");
+
+      // 反向：展开「详情」后确实能看到原文——否则上面两条会因为
+      // 「什么都没渲染」而永远为真。
+      fireEvent.click(screen.getByText("详情"));
+      expect(box.textContent).toContain("/Users/tester/.config/monitor.sock");
     } finally {
       vi.useRealTimers();
     }

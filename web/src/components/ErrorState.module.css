@@ -1,0 +1,98 @@
+/* 「出错了」的三档，与 EmptyState 的三档一一对应：
+   用户在同一个容器里看到加载 / 空 / 出错时，垂直位置不该跟着语义跳。
+   边框与底色只在 inline 上加（它是挤在窄列里的告警条），page / panel 不加——
+   给整块主区画一个框，只会让「这里出错了」看起来像一个组件。 */
+.container {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  /* 容器比内容高时（page 的 min-height: 100%）把内容压在中线上。 */
+  align-content: center;
+  gap: var(--sp-2);
+  text-align: center;
+}
+
+/* 正文限宽：错误说明是一句话，不是一屏。640px ≈ 一行 40 余个汉字；
+   再长眼睛就要来回找行首，「一整行横跨 1000px 的灰字」就是这么来的。 */
+.page,
+.panel {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+/* page：整块主区被错误占满时用。min-height: 100% 与 EmptyState.page 同一机制——
+   父容器高度确定（<main> 是 flex: 1）时百分比高度才生效，这正是「顶部对齐」
+   那个缺陷的成因：外面多包一层 height: auto 的 div，百分比高度就塌了。 */
+.page {
+  min-height: 100%;
+  padding: var(--sp-5);
+}
+
+/* panel：面板内部出错时用。内容自身高度，不撑满，也不居中到面板之外。 */
+.panel {
+  padding: var(--sp-5) var(--sp-3);
+}
+
+/* 标题用确定的错误色：语义最强的位置必须有语义色，
+   否则「失败」和「正常」只差一个字重。 */
+.title {
+  color: var(--danger);
+}
+
+.page .title {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  line-height: var(--lh-lg);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+}
+
+/* inline：会话列表侧栏里的一条告警。左对齐、带底色——
+   它挤在搜索框与列表之间，居中的话会读成一块浮起来的空状态。 */
+.inline {
+  justify-items: start;
+  margin: 0 var(--sp-3);
+  padding: var(--sp-2);
+  border-radius: var(--r-sm);
+  background: var(--danger-soft);
+  color: var(--danger);
+  text-align: left;
+}
+
+.inline .title,
+.inline .hint {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+/* 原始错误串：只在用户主动展开后出现，所以是等宽、次级色、可换行的一块。 */
+.details {
+  max-width: 100%;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.summary {
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+/* 绝对路径与长哈希必须能断行，否则会把侧栏撑出横向滚动条。 */
+.detail {
+  margin: var(--sp-1) 0 0;
+  padding: var(--sp-2);
+  max-width: 100%;
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
