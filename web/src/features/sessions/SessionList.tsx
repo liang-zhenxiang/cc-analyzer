@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from "react";
 import { IconButton } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
+import { ErrorState } from "../../components/ErrorState";
 import { Icon } from "../../components/Icon";
 import { SegmentedControl, type SegmentedItem } from "../../components/SegmentedControl";
 import { Skeleton } from "../../components/Skeleton";
@@ -88,6 +89,7 @@ export function SessionList({
   selected,
   loading,
   error,
+  errorShownElsewhere = false,
   progress,
   onSelect,
   onRefresh
@@ -96,6 +98,13 @@ export function SessionList({
   selected: SessionMeta | null;
   loading: boolean;
   error: string | null;
+  /**
+   * 这次失败已经由调用方在别处（主区整页）说明过了。
+   *
+   * 只影响那一条告警条要不要画——`error` 仍然是事实，空态照样因此不出现。
+   * 一次失败只在一个地方说：两处同时报同一条错，用户会先问「为什么说两遍」。
+   */
+  errorShownElsewhere?: boolean;
   progress?: { done: number; total: number } | null;
   onSelect: (session: SessionMeta) => void;
   onRefresh: () => void;
@@ -254,7 +263,17 @@ export function SessionList({
         variant="equal"
         className={styles.viewTabs}
       />
-      {error ? <div role="alert" className={styles.error}>{error}</div> : null}
+      {/* 出错时只说「什么失败了 + 下一步」，原始错误串收进「详情」。
+          它过去被直接当成正文渲染，连同 `/Users/…` 与夹具说明一起端到用户面前。 */}
+      {error && !errorShownElsewhere ? (
+        <ErrorState
+          size="inline"
+          title="会话列表读取失败"
+          hint="确认本机 ~/.claude/projects 可读后重试。"
+          detail={error}
+          onRetry={onRefresh}
+        />
+      ) : null}
       {/* 列表还没到 → 骨架（形状说明一切，不留可见文案）。
           这与下方「标题补全进度」是两件事：那个是列表已有、标题在补的**确定型**进度；
           两者可同时出现，互不冲突。 */}
@@ -267,7 +286,9 @@ export function SessionList({
           <progress value={progress.done} max={progress.total} />
         </div>
       ) : null}
-      {!loading && filtered.length === 0 ? (
+      {/* 错误与「没有匹配」不能同屏：扫描失败时列表本来就是空的，
+          再说「调整搜索词后重试」是在给一个错的建议。 */}
+      {!loading && !error && filtered.length === 0 ? (
         <EmptyState title="没有匹配的会话" description="调整搜索词后重试。" />
       ) : null}
 

@@ -10,6 +10,13 @@
   padding: var(--sp-3);
 }
 
+/* 加载 / 空 / 出错三种「还没有数据」的语义共用这一块舞台，垂直居中。
+   只给子项 `min-height: 100%` 是不够的：外层高度是 auto 时百分比会塌掉，
+   内容就顶在主区上沿——三种语义于是有了三种位置。 */
+.stage {
+  justify-content: center;
+}
+
 .header {
   display: flex;
   flex-wrap: wrap;

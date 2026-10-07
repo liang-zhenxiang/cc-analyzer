@@ -235,16 +235,6 @@
   white-space: nowrap;
 }
 
-.error {
-  margin: 0 var(--sp-3);
-  padding: var(--sp-2);
-  border-radius: var(--r-sm);
-  background: var(--danger-soft);
-  color: var(--danger);
-  font-size: var(--fs-sm);
-  line-height: var(--lh-sm);
-}
-
 /* Rows are fixed height, so every line stays on one line and ends with an
    ellipsis instead of wrapping into the clipped area. */
 .sessionRow button strong,

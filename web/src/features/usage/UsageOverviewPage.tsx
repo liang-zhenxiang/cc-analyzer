@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "../../components/EmptyState";
+import { ErrorState } from "../../components/ErrorState";
 import { Panel } from "../../components/Panel";
 import { SegmentedControl, type SegmentedItem } from "../../components/SegmentedControl";
 import { formatTokenCount, formatUsd } from "../../lib/format";
@@ -70,7 +71,7 @@ function tokenClassValue(totals: UsageTotals, tokenClass: TokenClass): number {
 }
 
 export function UsageOverviewPage() {
-  const { inputs, progress, scanning, error, skipped } = useUsageOverview();
+  const { inputs, progress, scanning, error, skipped, refresh } = useUsageOverview();
   const [days, setDays] = useState<UsageRange>(readStoredRange);
   const [tokenClass, setTokenClass] = useState<TokenClass>("total");
 
@@ -109,17 +110,25 @@ export function UsageOverviewPage() {
     [range, tokenClass]
   );
 
+  // 加载 / 空 / 出错共用同一块舞台（`stage` 把内容压在主区中线上）：
+  // 三者是同一件事的三个阶段，位置不该跟着语义跳。
   if (error) {
     return (
-      <div className={styles.page}>
-        <EmptyState size="page" title="会话列表读取失败" description={error} />
+      <div className={`${styles.page} ${styles.stage}`}>
+        <ErrorState
+          size="page"
+          title="会话列表读取失败"
+          hint="本机 ~/.claude/projects 里的会话没能读出来。确认目录可读后重试。"
+          detail={error}
+          onRetry={() => void refresh()}
+        />
       </div>
     );
   }
 
   if (!scanning && inputs.length === 0 && progress.total === 0) {
     return (
-      <div className={styles.page}>
+      <div className={`${styles.page} ${styles.stage}`}>
         <EmptyState
           size="page"
           title="还没有可统计的会话"
@@ -132,7 +141,7 @@ export function UsageOverviewPage() {
   if (scanning && progress.total === 0) {
     return (
       /* data-probe-pending：真机取图前会等这个标记消失，免得拍到「还没算完」的一帧。 */
-      <div className={styles.page} data-probe-pending>
+      <div className={`${styles.page} ${styles.stage}`} data-probe-pending>
         <EmptyState size="page" title="正在扫描会话列表…" />
       </div>
     );

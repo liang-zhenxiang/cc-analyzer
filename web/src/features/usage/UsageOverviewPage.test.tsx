@@ -224,4 +224,50 @@ describe("UsageOverviewPage", () => {
     expect(await screen.findByText("还没有可统计的会话")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "用量总览" })).not.toBeInTheDocument();
   });
+
+  it("报错时给出可重试的错误态，而不是把原始错误串当正文", async () => {
+    const bridges = createUsageBridges({});
+    const raw =
+      "扫描会话列表失败: Error: E2E 虚拟文件系统: readDir 遇到未声明的路径 " +
+      "/Users/e2e/.claude/projects。请在夹具里声明它——静默返回空数组会把夹具错误伪装成成功缺陷。";
+    bridges.fs.readDir = vi.fn(async () => {
+      throw new Error(raw);
+    }) as typeof bridges.fs.readDir;
+
+    renderPage(bridges);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("会话列表读取失败");
+    // 正文里没有绝对路径，也没有写给维护者的话。
+    expect(alert.textContent).not.toContain("/Users/");
+    expect(alert.textContent).not.toContain("夹具");
+    expect(alert.innerHTML).not.toContain("/Users/");
+    // 无重试的错误提示等于让用户自己去找刷新按钮，而那个按钮在另一个标签里。
+    expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+  });
+
+  it("错误态的重试真的重新扫描一次", async () => {
+    const user = userEvent.setup();
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 3_600_000)
+    });
+    let fail = true;
+    const readDir = bridges.fs.readDir;
+    bridges.fs.readDir = vi.fn(async (path: string) => {
+      if (fail && path === PROJECTS_ROOT) throw new Error("扫描失败");
+      return readDir(path);
+    }) as typeof bridges.fs.readDir;
+
+    renderPage(bridges);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("会话列表读取失败");
+
+    fail = false;
+    await user.click(screen.getByRole("button", { name: "重试" }));
+
+    // 重试成功后回到仪表盘本体——错误态与数据不该同屏。
+    expect(await screen.findByRole("region", { name: "用量总览" })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
 });

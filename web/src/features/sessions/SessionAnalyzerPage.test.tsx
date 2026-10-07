@@ -696,3 +696,77 @@ test("归档完成后自动刷新会话列表", async () => {
     expect(vi.mocked(bridges.fs.readDir).mock.calls.length).toBeGreaterThan(before)
   );
 });
+
+/**
+ * 扫描失败时的整页行为。两条互斥规则：
+ *
+ * - 主区没别的东西可显示 → 由主区整页说明这次失败（侧栏不重复一遍）。
+ * - 已经有会话打开 → 错误落在侧栏那条告警上，主区继续显示数据。
+ *
+ * 一次失败只在一个地方说：两处同时报同一条错，用户会先问「为什么说两遍」。
+ */
+function createFailingScanBridges(rawError: string): Bridges {
+  const bridges = createBridges();
+  bridges.fs.readDir = vi.fn(async (path: string) => {
+    if (path.endsWith("projects")) throw new Error(rawError);
+    return [{ name: "session.jsonl", is_dir: false, is_file: true }];
+  }) as typeof bridges.fs.readDir;
+  return bridges;
+}
+
+function renderPage(bridges: Bridges) {
+  return render(
+    <BridgesProvider bridges={bridges}>
+      <NotificationProvider>
+        <SessionAnalyzerPage />
+      </NotificationProvider>
+    </BridgesProvider>
+  );
+}
+
+test("扫描失败且没有会话可显示时，主区说明失败而不是让人去挑一个会话", async () => {
+  const raw =
+    "扫描会话列表失败: Error: readDir 遇到未声明的路径 " +
+    "/home/tester/.claude/projects。请在夹具里声明它。";
+
+  renderPage(createFailingScanBridges(raw));
+
+  const alerts = await screen.findAllByRole("alert");
+  // 一次失败只在一个地方说。
+  expect(alerts).toHaveLength(1);
+  expect(alerts[0]).toHaveTextContent("会话列表读取失败");
+  // 正文里不许出现绝对路径与写给维护者的话。
+  expect(alerts[0].textContent).not.toContain("/home/");
+  expect(alerts[0].textContent).not.toContain("夹具");
+  expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+
+  // 「从左侧列表挑一个会话」在列表根本没读到时是一个做不到的建议；
+  // 「调整搜索词后重试」同理——扫描失败不是搜索词的问题。
+  expect(screen.queryByText("选择一个会话开始分析")).toBeNull();
+  expect(screen.queryByText("没有匹配的会话")).toBeNull();
+});
+
+test("已有会话打开时，失败落在侧栏那条告警上", async () => {
+  const user = userEvent.setup();
+  const raw = "扫描会话列表失败: Error: readDir 遇到未声明的路径 /home/tester/.claude/projects。";
+
+  const bridges = createBridges();
+  renderPage(bridges);
+
+  // 先正常打开一个会话。
+  await user.click(await screen.findByRole("button", { name: /project-a/ }));
+  expect(await screen.findByRole("application", { name: "时间轨道" })).toBeInTheDocument();
+
+  // 再让下一次扫描失败。
+  bridges.fs.readDir = vi.fn(async () => {
+    throw new Error(raw);
+  }) as typeof bridges.fs.readDir;
+  await user.click(screen.getByRole("button", { name: "刷新会话列表" }));
+
+  const alerts = await screen.findAllByRole("alert");
+  expect(alerts).toHaveLength(1);
+  expect(alerts[0]).toHaveTextContent("会话列表读取失败");
+  expect(alerts[0].textContent).not.toContain("/home/");
+  // 主区还在显示那个会话——错误不会把它顶掉。
+  expect(screen.getByRole("application", { name: "时间轨道" })).toBeInTheDocument();
+});

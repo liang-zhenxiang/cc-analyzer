@@ -3,6 +3,7 @@ import { useTheme } from "../../app/ThemeProvider";
 import { useBridges } from "../../api/bridges";
 import { Button } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
+import { ErrorState } from "../../components/ErrorState";
 import { Icon } from "../../components/Icon";
 import { isLocalMonitorOrigin } from "./monitorMessages";
 import styles from "./MonitorPage.module.css";
@@ -21,7 +22,13 @@ type MonitorState =
   | { status: "closed" }
   | { status: "probing"; attempt: number }
   | { status: "ready"; port: number }
-  | { status: "unavailable"; port: number | null; attempts: number };
+  | {
+      status: "unavailable";
+      port: number | null;
+      attempts: number;
+      /** 最后一次探测的原始失败串；只进「详情」，不进正文。 */
+      detail: string | null;
+    };
 
 function delay(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -35,9 +42,29 @@ export function MonitorPage({ onEnterFloat }: { onEnterFloat?: () => void } = {}
   const probeIdRef = useRef(0);
   const port = state.status === "ready" ? state.port : null;
 
+  // 端口号是「下一步该做什么」里唯一可执行的那半句，所以要写在**打开之前**
+  // 就能看见的地方。它是后端的一个常量，只能问后端要——在前端再写一个 8090
+  // 就是第二份事实，两边早晚会不一致。
+  const [knownPort, setKnownPort] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    monitor.monitorPort().then(
+      (value) => {
+        if (!cancelled) setKnownPort(value);
+      },
+      // 读不到就不说端口——不许编一个。
+      () => undefined
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [monitor]);
+
   const probe = useCallback(async () => {
     const probeId = ++probeIdRef.current;
     let lastPort: number | null = null;
+    let lastDetail: string | null = null;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
       if (probeIdRef.current !== probeId) return;
@@ -50,14 +77,15 @@ export function MonitorPage({ onEnterFloat }: { onEnterFloat?: () => void } = {}
           setState({ status: "ready", port });
           return;
         }
-      } catch {
+      } catch (cause) {
         lastPort = null;
+        lastDetail = String(cause);
       }
       if (attempt < MAX_ATTEMPTS) await delay(RETRY_DELAY_MS);
     }
 
     if (probeIdRef.current !== probeId) return;
-    setState({ status: "unavailable", port: lastPort, attempts: MAX_ATTEMPTS });
+    setState({ status: "unavailable", port: lastPort, attempts: MAX_ATTEMPTS, detail: lastDetail });
   }, [monitor]);
 
   const close = useCallback(() => {
@@ -88,11 +116,16 @@ export function MonitorPage({ onEnterFloat }: { onEnterFloat?: () => void } = {}
   }, [postTheme, state.status]);
 
   if (state.status === "closed") {
+    // 「该服务不在本仓库内」是写给维护者的话，用户读到「需要另行启动」就结束了。
+    // 这里给的是两样可执行的东西：它监听哪个地址、以及要做什么。
+    // 读不到端口（或读回一个非正数）就只说「本机 localhost」——不许编一个端口号出来。
+    const target =
+      knownPort !== null && knownPort > 0 ? `本机 localhost:${knownPort}` : "本机 localhost";
     return (
       <EmptyState
         size="page"
         title="实时监控未打开"
-        description="打开后会内嵌本机 localhost 上运行的监控仪表盘。该服务不在本仓库内，需要另行启动。"
+        description={`监控仪表盘是一个本机单独运行的服务，应用会连接 ${target}。先在你的终端里把它启动起来，再点「打开监控」。`}
         action={
           <Button type="button" variant="primary" onClick={() => void probe()}>
             打开监控
@@ -113,23 +146,20 @@ export function MonitorPage({ onEnterFloat }: { onEnterFloat?: () => void } = {}
   }
 
   if (state.status === "unavailable") {
-    // 只说发生了什么：探测了哪个地址、失败了几次、这个服务在哪。
+    // 只说发生了什么：探测了哪个地址、失败了几次。
     // 「可能被某个进程占用」这类猜测会把用户引向一个我们并不知道的原因。
     const failure =
       state.port === null
         ? "未在本机 localhost 上检测到监控仪表盘"
         : `未在 localhost:${state.port} 上检测到监控仪表盘`;
     return (
-      <EmptyState
+      <ErrorState
         size="page"
         title="监控仪表盘未连接"
-        description={`${failure}（已尝试 ${state.attempts} 次）。该服务不在本仓库内，需要另行启动。`}
-        action={
-          <Button type="button" variant="primary" onClick={() => void probe()}>
-            <Icon name="refresh" size={14} />
-            重试
-          </Button>
-        }
+        hint={`${failure}（已尝试 ${state.attempts} 次）。确认该服务已在你自己的终端里启动，然后重试。`}
+        // 原始失败串只进「详情」：它可能带绝对路径，而路径是敏感数据。
+        detail={state.detail ?? undefined}
+        onRetry={() => void probe()}
       />
     );
   }
