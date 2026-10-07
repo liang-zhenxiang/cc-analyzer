@@ -334,9 +334,23 @@ describe("表格列预算与语义（CSS 不变量）", () => {
     }
   });
 
-  it("行高收敛：数据行垫到 --row-h，表头补上数据行那条 1px 下边框", () => {
-    expect(logStyles).toMatch(/\.container tbody tr\s*\{[^}]*height:\s*var\(--row-h\)/s);
-    expect(logStyles).toMatch(/\.container th\s*\{[^}]*height:\s*calc\(var\(--row-h\) \+ 1px\)/s);
+  it("行高收敛：表头行与数据行共用一条行高地板，不许再用 1px 补偿", () => {
+    // 两行共用同一条行高地板——地板是两者共有的契约，不是给谁打的补丁。
+    expect(logStyles).toMatch(
+      /\.container thead tr,\s*\.container tbody tr\s*\{[^}]*height:\s*var\(--row-h\)/s
+    );
+    // 表头不得再靠 `calc(--row-h + 1px)` 补折叠边框：那是引擎相关的补偿，
+    // macOS 上抵消、Linux headless 上正好差一像素（CI 报过 |差| = 1）。
+    expect(logStyles).not.toMatch(/height:\s*calc\(var\(--row-h\)/);
+    // 表头自己也**不写 height**：它的高度只由上面那条共用地板给。这条是 e2e 那个
+    // 「把 thead tr 摘出地板 → 表头矮 2px」变异能成立的前提——表头一旦自带高度，
+    // 地板对它就变成可有可无的声明，那条 e2e 也就变成了恒真。
+    // 前置 `[\s;{]`：`line-height:` 里也含 `height:`，不加这个会把配对的行盒误判成补高。
+    expect(logStyles).not.toMatch(/\.container th\s*\{[^}]*[\s;{]height:/s);
+    // 行盒与字号**同级配对**（--fs-xs + --lh-xs）：跨级借 --lh-sm 会让表头内容
+    // 恰好等于 --row-h（18 + 12），地板便不再是表头高度的来源。
+    expect(logStyles).toMatch(/\.container th\s*\{[^}]*font-size:\s*var\(--fs-xs\)/s);
+    expect(logStyles).toMatch(/\.container th\s*\{[^}]*line-height:\s*var\(--lh-xs\)/s);
     // 会让整行高过 --row-h 的 24px 展开器不再撑行。
     expect(logStyles).toMatch(/\.actions\s*\{[^}]*height:\s*var\(--lh-sm\)/s);
   });

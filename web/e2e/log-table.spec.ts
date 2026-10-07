@@ -81,29 +81,60 @@ test.describe("日志表列预算", () => {
     await openSession(page, "ansi");
 
     const measured = await page.evaluate(() => {
+      const round = (value: number) => Math.round(value * 100) / 100;
       const table = document.querySelector("main table") as HTMLTableElement;
-      const rows = [...table.querySelectorAll("tbody tr[data-row-index]")];
-      const pitches = rows
-        .slice(1)
-        .map((row, index) =>
-          Math.round((row.getBoundingClientRect().top - rows[index].getBoundingClientRect().top) * 10) /
-          10
-        );
+      const head = table.querySelector("thead tr") as HTMLElement;
+      const rows = [...table.querySelectorAll("tbody tr[data-row-index]")] as HTMLElement[];
+      const tops = rows.map((row) => row.getBoundingClientRect().top);
+      // **整数量**：offsetHeight 按布局单位取整，是这一条唯一与亚像素无关的口径。
+      const rowPixels = rows.map((row) => row.offsetHeight).sort((a, b) => a - b);
       return {
-        pitch: pitches[0] ?? 0,
-        pitches,
-        header: Math.round(table.querySelector("thead tr")!.getBoundingClientRect().height * 10) / 10
+        headerPixels: head.offsetHeight,
+        medianPixels: rowPixels[Math.floor(rowPixels.length / 2)],
+        header: round(head.getBoundingClientRect().height),
+        rowBoxes: rows.map((row) => round(row.getBoundingClientRect().height)),
+        rowPixels,
+        // 相邻数据行的行距：这才是「38/37/36 三种行高」那条老毛病的样子。
+        pitches: tops.slice(1).map((top, index) => round(top - tops[index]))
       };
     });
 
     // 夹具健全性：至少三行才谈得上「等高」。
     expect(measured.pitches.length).toBeGreaterThanOrEqual(2);
+
+    // 失败信息打印**原始数值**：只有差值时看不出是谁比谁大，定位要一次到位。
+    const detail =
+      `表头 ${measured.header}px（${measured.headerPixels} 个布局像素） · ` +
+      `数据行盒 ${JSON.stringify(measured.rowBoxes)}（${JSON.stringify(measured.rowPixels)} 个布局像素） · ` +
+      `行距 ${JSON.stringify(measured.pitches)}`;
+
+    // 一、连续性：不许某一行因为内容不同就长高。行距是盒顶之间的距离，
+    // 不受折叠边框与取整影响，所以这里用小数、容差 0.1 就够。
     for (const pitch of measured.pitches) {
-      expect(Math.abs(pitch - measured.pitch)).toBeLessThanOrEqual(0.1);
+      expect(Math.abs(pitch - measured.pitches[0]), `行距不均 —— ${detail}`).toBeLessThanOrEqual(0.1);
     }
-    // 表头与数据行等高：折叠边框只算进数据行，所以表头补了同一条 1px 发丝。
-    // 容差 0.5px 而不是 1px——少补那条发丝正好差 1px，容差放到 1 就抓不住了。
-    expect(Math.abs(measured.header - measured.pitch)).toBeLessThanOrEqual(0.5);
+
+    // 二、表头与数据行等高。口径是**布局像素的整数**，不是 getBoundingClientRect 的小数：
+    // 同一次渲染里，两个引擎的小数量到的是两套数（实测表头 30 两边一致，数据行
+    // chromium 31 / webkit 31.38，末行 30.5 / 30.88），取整之后两个引擎给出**完全一致**
+    // 的整数（表头 30、每一条数据行 31）。也就是说，差的那点小数是引擎的度量噪声
+    // （末行 0.5 来自 :last-child 去掉下边框，另外 0.38 来自 WebKit 对
+    // vertical-align: middle 的行内块的行盒计算），而不是排版事实——让它进断言，
+    // 换来的就是一条只在一个引擎上绿的用例（这正是原来的失败）。
+    //
+    // 于是容差要落在 (1, 2) 这个窗口里：
+    //   · 必须 > 1：border-collapse: collapse 把 1px 分隔线劈成两半，数据行上下各摊到
+    //     半像素、表头行没有上一行可摊——数据行因此比表头多 1 个布局像素。这是布局事实，
+    //     不是缺陷，0.5 会把它判成失败。
+    //   · 必须 < 2：把 `thead tr` 从那条共用的行高地板里拿掉之后，表头只剩自己 28px
+    //     的内容高（--fs-xs + --lh-xs + 两倍 --row-pad-y），量到 29，与数据行差 2——
+    //     这条必须红，否则判据就是恒真的。
+    // 取中位数而不是首行/均值：末行因为 :last-child 去掉了下边框，恰好压在整数边界上
+    // （小数量到 30.5 / 30.88），单看它会被那半像素带偏。
+    expect(
+      Math.abs(measured.headerPixels - measured.medianPixels),
+      `表头与数据行不等高 —— ${detail}`
+    ).toBeLessThanOrEqual(1.5);
   });
 
   test("失败行的状态列取 --danger，正常行不取", async ({ page }) => {

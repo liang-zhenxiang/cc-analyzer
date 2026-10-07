@@ -63,23 +63,32 @@
   white-space: nowrap;
 }
 
-/* 数据行与表头等高：行高垫到 --row-h，不再由「这一行里放的是 24px 展开器
-   还是纯文字」决定（实测同一张表里出现过 38/37/36 三种）。
-   写成 tr 的最小高而不是 td 的高：td 上写高会和下面 .actions 的内容盒高度打架。 */
+/* 行高垫到 --row-h：行高不再由「这一行里放的是 24px 展开器还是纯文字」决定
+   （实测同一张表里出现过 38/37/36 三种）。
+   写成 tr 的最小高而不是 td 的高：td 上写高会和下面 .actions 的内容盒高度打架。
+   **表头行与数据行共用这一条地板**——地板是两者共有的契约，不是给谁打的补丁。 */
+.container thead tr,
 .container tbody tr {
   height: var(--row-h);
 }
 
 /* 表头沉到 --bg-inset：在白色卡片上才有台阶可辨（--bg-elevated 和白卡同色）。
-   底边比行分隔线强一档，滚动时表头和数据行分得开。 */
+   底边比行分隔线强一档，滚动时表头和数据行分得开。
+
+   **表头不再写 `height`**：它靠上面那条与数据行共用的地板撑到 --row-h，
+   而不再靠 `calc(var(--row-h) + 1px)` 补折叠边框的归属差。那个补偿在 macOS 上
+   刚好抵消、在 Linux headless 上正好差一像素（CI 抓到过 `Expected <= 0.5,
+   Received 1`）——「一行补一像素」本身就是把引擎差异写进声明。
+
+   行盒与字号同级配对（--fs-xs + --lh-xs）：表头文字 16px 行盒 + 12px 内距 = 28px
+   低于地板，所以**表头的高度真的由那条共用的地板决定**——把 `thead tr` 从地板里
+   拿掉，表头会立刻矮 2px，e2e 的整数量判据能看见（见 log-table.spec.ts）。
+   若把行盒写成 --lh-sm（跨级配对），表头内容恰好等于 --row-h，那条地板对表头就
+   变成可有可无的声明——「表头与数据行共用一条地板」这句话会失去可验证性。 */
 .container th {
   position: sticky;
   top: 0;
   z-index: 1;
-  /* 表头与数据行**逐像素**等高：--row-h 是「两倍行内距 + 行高」，而数据行的盒子
-     还要算上它那条 1px 下边框（折叠边框只在数据行里计），所以表头补同一条发丝。
-     少写这 1px，表头就比每一行矮一像素，滚动时能看出两套高度。 */
-  height: calc(var(--row-h) + 1px);
   border-bottom: 1px solid var(--border-strong);
   background: var(--bg-inset);
   color: var(--text-tertiary);
