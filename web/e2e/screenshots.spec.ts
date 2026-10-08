@@ -29,6 +29,25 @@ async function useTheme(page: Page, theme: "light" | "dark") {
   }, theme);
 }
 
+/**
+ * 把内容区（`main`，页面自己的滚动容器）滚到底，并等它**真的滚到位**。
+ *
+ * 用途是「下半屏」视图：用量页与报告页的溢出都发生在 main 内部，视口截图
+ * 默认只拍到前一段。判据是事实（scrollTop + clientHeight 追上 scrollHeight）
+ * 而不是 sleep——项目没有 `scroll-behavior: smooth`，赋值本应同步到位，
+ * 这个等待防的是「布局晚一拍才把高度撑开」的过渡态。
+ */
+async function scrollMainToBottom(page: Page) {
+  await page.locator("main").evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  await page.waitForFunction(() => {
+    const el = document.querySelector("main");
+    return el !== null && el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+  });
+  await page.waitForTimeout(150);
+}
+
 function sessionItems(page: Page) {
   return page.getByLabel("会话列表", { exact: true }).locator("button[title]:has(strong)");
 }
@@ -91,6 +110,11 @@ test.describe("截图归档", () => {
       await page.waitForTimeout(900);
       await shot("analyzer-report");
 
+      // 报告正文按内容走，视口装不下时从视口下沿起——再滚到页面底部截一张，
+      // 归档里才看得到报告本体（`analyzer-report` 拍的是生成后的首屏布局）。
+      await scrollMainToBottom(page);
+      await shot("analyzer-report-full");
+
       // 设置面板
       await page.getByRole("button", { name: "设置" }).click();
       await page.waitForTimeout(250);
@@ -133,6 +157,13 @@ test.describe("截图归档 · 用量总览", () => {
       await page.waitForTimeout(300);
       await settleImages(page);
       await page.screenshot({ path: path.join(OUT_DIR, `usage-${theme}${suffix}.png`) });
+
+      // 下半屏：三块面板（按项目分布 / 按模型分布 / 活跃时段）的内容与热力图
+      // 整块在折叠线以下——视口截图从不滚动，它们因此从未进入归档、从未进入
+      // 任何一次视觉验收（评审 §2 的方法论缺口，本视图存在的理由）。
+      await scrollMainToBottom(page);
+      await settleImages(page);
+      await page.screenshot({ path: path.join(OUT_DIR, `usage-below-${theme}${suffix}.png`) });
     });
   }
 });

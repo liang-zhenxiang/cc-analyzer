@@ -1,4 +1,4 @@
-import { test, expect, defaultScenario } from "./fixtures";
+import { test, expect, defaultScenario, APP_VERSION } from "./fixtures";
 import type { Page } from "@playwright/test";
 
 /**
@@ -18,7 +18,10 @@ async function openUpdateSection(page: Page) {
 test.describe("软件更新", () => {
   test("顶栏版本徽章显示当前版本（升级生效的第一眼证据）", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("button", { name: /当前版本 v0\.10\.0/ })).toBeVisible();
+    // 期望值与 web/package.json 同源（APP_VERSION）：断言写死版本号会跟着发版
+    // 悄悄漂移——桩换成真实版本后，写死的 v0.10.0 立刻就红了。
+    const expected = new RegExp(`当前版本 v${APP_VERSION.replace(/\./g, "\\.")}`);
+    await expect(page.getByRole("button", { name: expected })).toBeVisible();
   });
 
   test("更新区展示当前版本与渠道选择，默认稳定版", async ({ page }) => {
@@ -51,6 +54,9 @@ test.describe("软件更新", () => {
 
 test.describe("软件更新 · 有新版本", () => {
   test.use({
+    // 这里的版本号是**故意写死**的：该场景测的是「0.8.0 → 0.9.0」的相对
+    // 关系（有更新可用），与「当前版本」无关，跟着发版走反而没有意义。
+    // check-e2e-mock-version.sh 只禁场景工厂与版本徽章断言里的字面量。
     scenario: defaultScenario({
       updater: { currentVersion: "0.8.0", version: "0.9.0-beta.1", notes: "测试更新" }
     })

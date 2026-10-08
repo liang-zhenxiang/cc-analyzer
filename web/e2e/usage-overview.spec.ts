@@ -111,6 +111,32 @@ test.describe("用量总览", () => {
     }
   });
 
+  test("滚到下半屏后三块面板的标题仍然可达", async ({ page }) => {
+    // 截图脚本负责「把下半屏拍下来」（usage-below 视图），这条负责「有人断言过」：
+    // 标题滚一次就能进视口 = 面板内容离首屏不超过一屏。面板被懒加载吞掉、或
+    // 页面重新长过一屏（标题滚到底也回不来）都会在这里红。
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/");
+    await page.getByRole("tab", { name: DASHBOARD }).click();
+    await expect(page.getByText(/纳入统计/)).toBeVisible({ timeout: 15_000 });
+
+    const main = page.locator("main");
+    await main.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    // 断言「滚到位」本身：滚不动了才算到底，否则后面的是非判断建立在过渡态上。
+    const settled = await main.evaluate((element) => ({
+      top: element.scrollTop,
+      height: element.scrollHeight,
+      view: element.clientHeight
+    }));
+    expect(settled.top + settled.view).toBeGreaterThanOrEqual(settled.height - 1);
+
+    for (const title of ["按项目分布", "按模型分布", "活跃时段（周 × 小时）"]) {
+      await expect(page.getByRole("heading", { name: title })).toBeInViewport({ ratio: 1 });
+    }
+  });
+
   test("切到用量页再切回分析页，内容左缘不变", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("tab", { name: DASHBOARD }).click();

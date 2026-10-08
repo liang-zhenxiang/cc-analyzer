@@ -646,10 +646,17 @@ mod gui_capture {
     return {
       clientWidth: el.clientWidth,
       scrollWidth: el.scrollWidth,
+      /* 滚动几何：内容区自己的滚动容器（main）滚一次能带走多少内容，
+         「滚一次可达」的判定靠它们——事实在这里，判定在脚本。 */
+      clientHeight: el.clientHeight,
+      scrollHeight: el.scrollHeight,
+      scrollTop: el.scrollTop,
       overflowX: getComputedStyle(el).overflowX,
       right: el.getBoundingClientRect().right
     };
   }
+  var mainEl = document.querySelector('main');
+  var mainScrollTop = mainEl ? mainEl.scrollTop : 0;
   var facts = {
     viewport: { width: window.innerWidth, height: window.innerHeight },
     document: {
@@ -662,24 +669,51 @@ mod gui_capture {
     /* 界面字号当前档位（"1" / "1.3"）。缩放是否真的落到根元素上，这是唯一的事实
        来源；阈值与判定留给脚本。 */
     font_scale: getComputedStyle(document.documentElement).getPropertyValue('--font-scale').trim(),
-    main: boxOf(document.querySelector('main')),
+    main: boxOf(mainEl),
+    /* main 自身的视口矩形：限额卡「含于内容区」的横向判定要用它。 */
+    mainRect: mainEl ? rectOf(mainEl) : null,
     elements: [],
     tables: [],
     /* 会话列表的可见行。字号放大最先把这里撑破——行高是 `overflow: hidden` 的
        固定盒（`height: calc(54px * var(--font-scale))`）。锚点是列表自己的
        `aria-label` 与会话按钮的 `title`（cwd），不碰 CSS Module 的哈希类名。 */
-    session_rows: []
+    session_rows: [],
+    /* 内容区的面板标题（Panel / ReportPanel 的 <h2>）。top 是视口坐标，
+       docTop 是它在滚动内容里的位置（top + 当时的 scrollTop）——「滚一次
+       能不能到达」拿 docTop 与 main 的滚动几何比较，判定在脚本。 */
+    panels: []
   };
   var gauge = document.querySelector("[data-probe='gauge']");
   if (gauge) {
     var card = gauge.closest("[aria-label='计费窗口']");
     facts.elements.push({ name: 'gauge', rect: rectOf(gauge), card: card ? rectOf(card) : null });
   }
-  // 导出浮层：模态是它的稳定标记（`aria-modal`），不靠样式类名匹配——
-  // CSS Module 的类名带哈希，改了会静默失配。只收集几何，判定留在脚本里。
-  var exportDialog = document.querySelector('[role="dialog"][aria-modal="true"]');
-  if (exportDialog) {
-    facts.elements.push({ name: 'export-dialog', rect: rectOf(exportDialog) });
+  // 模态浮层：导出与全局搜索都是 [role=dialog][aria-modal]，靠 label 分流
+  // （导出浮层用 aria-labelledby 指向标题 id，搜索浮层用 aria-label）。
+  // 它们是 `position: fixed`，createPDF 不画进图——几何才是它们的证据。
+  // 只收集几何与 label，判定留在脚本里。
+  var dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+  for (var d = 0; d < dialogs.length; d++) {
+    facts.elements.push({
+      name: 'dialog',
+      label: dialogs[d].getAttribute('aria-label') || dialogs[d].getAttribute('aria-labelledby') || '',
+      rect: rectOf(dialogs[d])
+    });
+  }
+  // 限额区：两层限额（5 小时卡 + 周用量层）都要「读数在卡内、卡在内容区」。
+  // 读数锚点是卡内的 <b>——数值全是 <b>（CSS Module 类名带哈希，语义标签稳定）。
+  var billing = document.querySelector("section[aria-label='计费窗口']");
+  if (billing) {
+    var weekly = billing.querySelector("section[aria-label='周用量（滚动 7 天）']");
+    var valueEls = billing.querySelectorAll('b');
+    var valueRects = [];
+    for (var v = 0; v < valueEls.length; v++) valueRects.push(rectOf(valueEls[v]));
+    facts.elements.push({
+      name: 'billing',
+      card: rectOf(billing),
+      weekly: weekly ? rectOf(weekly) : null,
+      values: valueRects
+    });
   }
   var table = document.querySelector('table');
   if (table) {
@@ -695,6 +729,17 @@ mod gui_capture {
       lastColumnRight: lastHeader ? lastHeader.getBoundingClientRect().right : null,
       hasScrollHint: !!hint
     });
+  }
+  if (mainEl) {
+    var heads = mainEl.querySelectorAll('h2');
+    for (var h = 0; h < heads.length; h++) {
+      var hr = heads[h].getBoundingClientRect();
+      facts.panels.push({
+        title: (heads[h].textContent || '').trim(),
+        top: hr.top,
+        docTop: hr.top + mainScrollTop
+      });
+    }
   }
   var titles = document.querySelectorAll('[aria-label="会话列表"] button[title] strong');
   for (var i = 0; i < titles.length && facts.session_rows.length < 3; i++) {
@@ -743,6 +788,12 @@ mod gui_capture {
             // 每一步都要等**上一步**的 PDF 落盘再点下一个，否则截到的还是旧视图。
             // 探针同样不拿本步 PDF 当开关：等到了就等它落盘后再求值（与快照对齐），
             // 等不到也照常求值——宁可探针早一点，也不要「截图过、探针缺」。
+            //
+            // 同名目标会出现两次（「全局搜索」开与关）：文件按目标名命名的话，
+            // 第二次会**覆盖**第一次的图与探针，「开着浮层」的那份证据就丢了。
+            // 所以按出现次数给文件名加 `-2`、`-3` 后缀（首次不带）。
+            let mut seen_counts: std::collections::HashMap<&str, usize> =
+                std::collections::HashMap::new();
             let mut previous = out.clone();
             let mut previous_label = "默认视图".to_string();
             for tab in tabs.iter() {
@@ -760,7 +811,11 @@ mod gui_capture {
                 }
                 std::thread::sleep(Duration::from_millis(TAB_SETTLE_MS));
                 wait_until_ready(&webview, start, &format!("「{tab}」"));
-                let pdf = tab_output_path(&out, tabs.len(), tab);
+                let nth = *seen_counts
+                    .entry(tab.as_str())
+                    .and_modify(|c| *c += 1)
+                    .or_insert(1);
+                let pdf = tab_output_path(&out, tabs.len(), tab, nth);
                 capture(&webview, &pdf, start);
                 if !wait_for_file(&pdf, PDF_TIMEOUT_MS) {
                     eprintln!(
@@ -771,7 +826,11 @@ mod gui_capture {
                     );
                 }
                 if let Some(probe) = &probe {
-                    probe_at(&webview, &probe_output_path(probe, tabs.len(), tab), start);
+                    probe_at(
+                        &webview,
+                        &probe_output_path(probe, tabs.len(), tab, nth),
+                        start,
+                    );
                 }
                 previous = pdf;
                 previous_label = format!("「{tab}」");
@@ -1027,30 +1086,37 @@ mod gui_capture {
     }
 
     /// 文件名后缀：**单个**目标沿用旧名 `-tab`（既有文档与脚本依赖它）；
-    /// 多个目标各用 `-<slug>`，文件名能看出是哪张图。
-    fn tab_suffix(count: usize, tab: &str) -> String {
-        if count == 1 {
+    /// 多个目标各用 `-<slug>`，文件名能看出是哪张图。同名目标第 2 次及以后
+    /// 再追加 `-<序号>`（如 `-全局搜索-2`），否则后一次会覆盖前一次的产物——
+    /// 「开浮层 → 关浮层」这类成对目标就靠它保住第一次的证据。
+    fn tab_suffix(count: usize, tab: &str, nth: usize) -> String {
+        let base = if count == 1 {
             "-tab".to_string()
         } else {
             format!("-{}", slug_of(tab))
+        };
+        if nth > 1 {
+            format!("{base}-{nth}")
+        } else {
+            base
         }
     }
 
     /// 第 N 张图的输出路径：第一张去掉 `.pdf` 后缀再加 `-tab.pdf` / `-<slug>.pdf`。
-    fn tab_output_path(first: &Path, count: usize, tab: &str) -> PathBuf {
+    fn tab_output_path(first: &Path, count: usize, tab: &str, nth: usize) -> PathBuf {
         let mut path = first.to_path_buf();
         path.set_extension("");
         path.as_mut_os_string()
-            .push(format!("{}.pdf", tab_suffix(count, tab)));
+            .push(format!("{}.pdf", tab_suffix(count, tab, nth)));
         path
     }
 
     /// 探针 JSON 的输出路径：文件名规则与取图一致，只是后缀换成 `.json`。
-    fn probe_output_path(first: &Path, count: usize, tab: &str) -> PathBuf {
+    fn probe_output_path(first: &Path, count: usize, tab: &str, nth: usize) -> PathBuf {
         let mut path = first.to_path_buf();
         path.set_extension("");
         path.as_mut_os_string()
-            .push(format!("{}.json", tab_suffix(count, tab)));
+            .push(format!("{}.json", tab_suffix(count, tab, nth)));
         path
     }
 
@@ -1070,6 +1136,18 @@ mod gui_capture {
     fn font_scale_target(target: &str) -> Option<&str> {
         target
             .strip_prefix("字号=")
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    }
+
+    /// 目标是不是「滚动内容区」的动作形式 `滚动=<选择器>`（如 `滚动=main`）。
+    ///
+    /// 与 `字号=<档位>` 同一动作协议：不是「点一个按钮」，是对滚动容器的操作。
+    /// 用量总览的下半屏（按项目 / 按模型 / 活跃时段三块面板）只有滚过去才
+    /// 看得见——取图与几何探针都要能跟着滚到底，`滚动=main` 就是那一步。
+    fn scroll_target(target: &str) -> Option<&str> {
+        target
+            .strip_prefix("滚动=")
             .map(str::trim)
             .filter(|value| !value.is_empty())
     }
@@ -1114,10 +1192,28 @@ mod gui_capture {
     /// 也能点会话条目（它的 `title` 是 cwd）。`eval` 是单向的（拿不到脚本返回值），
     /// 所以点击结果写进 console：成功与失败各一条，都能在测试脚本收集的应用日志里追查。
     ///
-    /// `字号=<档位>` 不是「点一个已有按钮」，走 `font_scale_js` 那条动作。
+    /// 把内容区（当前只有 `main` 这一个滚动容器）滚到底。滚动是同步赋值
+    /// （项目样式里没有 `scroll-behavior: smooth`），结果写进 console，
+    /// 与其它动作一样可在应用日志里追查。
+    fn scroll_js(selector: &str) -> String {
+        let escaped = js_string(selector);
+        format!(
+            r#"(function () {{
+  var el = document.querySelector("{escaped}");
+  if (!el) {{ console.warn('gui-capture: 找不到要滚动的 {escaped}'); return; }}
+  el.scrollTop = el.scrollHeight;
+  console.log('gui-capture: {escaped} 已滚到底 scrollTop=' + el.scrollTop + ' / scrollHeight=' + el.scrollHeight);
+}})();"#
+        )
+    }
+
+    /// `字号=<档位>` 与 `滚动=<选择器>` 不是「点一个已有按钮」，各走各的动作。
     fn click_target_js(target: &str) -> String {
         if let Some(label) = font_scale_target(target) {
             return font_scale_js(label);
+        }
+        if let Some(selector) = scroll_target(target) {
+            return scroll_js(selector);
         }
         let escaped = js_string(target);
         format!(
@@ -1193,6 +1289,26 @@ mod gui_capture {
         }
 
         #[test]
+        fn scroll_target_only_matches_the_action_form() {
+            assert_eq!(scroll_target("滚动=main"), Some("main"));
+            assert_eq!(scroll_target("滚动= main "), Some("main"));
+            assert_eq!(scroll_target("滚动="), None);
+            // 普通目标不该被当成动作吞掉；字号动作也不归它管。
+            assert_eq!(scroll_target("用量总览"), None);
+            assert_eq!(scroll_target("字号=130%"), None);
+        }
+
+        #[test]
+        fn the_scroll_action_scrolls_the_container_and_reports() {
+            let js = click_target_js("滚动=main");
+            // 动作滚的是容器（赋值到底），而不是通用按钮扫描。
+            assert!(js.contains("scrollTop = el.scrollHeight"));
+            assert!(js.contains("已滚到底"));
+            assert!(!js.contains("已点击"));
+            assert!(!js.contains("已切界面字号"));
+        }
+
+        #[test]
         fn the_font_scale_action_clicks_a_radio_and_opens_settings() {
             let js = click_target_js("字号=130%");
             // 动作走的是 radiogroup 里的真实控件，而不是通用按钮扫描。
@@ -1218,6 +1334,45 @@ mod gui_capture {
             assert!(PROBE_JS.contains("font_scale:"));
             assert!(PROBE_JS.contains("--font-scale"));
             assert!(PROBE_JS.contains("session_rows"));
+        }
+
+        #[test]
+        fn the_probe_reports_panels_billing_and_labeled_dialogs() {
+            // 面板标题带文档位置（docTop）——「滚一次可达」的判定靠它。
+            assert!(PROBE_JS.contains("panels"));
+            assert!(PROBE_JS.contains("docTop"));
+            // 限额区：卡、周用量层、卡内读数（<b>）三种矩形都要收集。
+            assert!(PROBE_JS.contains("计费窗口"));
+            assert!(PROBE_JS.contains("周用量（滚动 7 天）"));
+            assert!(PROBE_JS.contains("name: 'billing'"));
+            // 浮层靠 label 分流（导出走 aria-labelledby，搜索走 aria-label），
+            // 不再假装全站只有一种 modal。
+            assert!(PROBE_JS.contains("name: 'dialog'"));
+            assert!(PROBE_JS.contains("aria-labelledby"));
+        }
+
+        #[test]
+        fn repeated_targets_get_numbered_suffixes() {
+            // 同名目标的第二次出现必须换文件名，否则会覆盖第一次的产物
+            // （「全局搜索」开与关就是同名的两次点击）。
+            let first = Path::new("/tmp/app-capture.pdf");
+            assert_eq!(
+                tab_output_path(first, 2, "全局搜索", 1),
+                PathBuf::from("/tmp/app-capture-全局搜索.pdf")
+            );
+            assert_eq!(
+                tab_output_path(first, 2, "全局搜索", 2),
+                PathBuf::from("/tmp/app-capture-全局搜索-2.pdf")
+            );
+            // 单个目标与首次出现保持旧规则（`-tab` 与不带序号）。
+            assert_eq!(
+                tab_output_path(first, 1, "用量总览", 1),
+                PathBuf::from("/tmp/app-capture-tab.pdf")
+            );
+            assert_eq!(
+                probe_output_path(first, 2, "全局搜索", 2),
+                PathBuf::from("/tmp/app-capture-全局搜索-2.json")
+            );
         }
     }
 }
