@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/testing/pitfalls.md", "reason": "验收时要逐条确认新断言不是「永远为真」的——本轮要求给出变异验证方式"}
+{"file": ".trellis/spec/testing/gui-tests.md", "reason": "真机门禁的判定依据与「浮层不进 createPDF 截图、只能用几何探针」这条已查明的约束"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "核对改动没有引入字面量颜色/间距/圆角/时长，没有绕过令牌层"}
+{"file": ".trellis/spec/guides/release-notes.md", "reason": "CHANGELOG [Unreleased] 的中文条目规范（段落会被原样拼进发布说明）"}
+{"file": ".trellis/tasks/10-07-round-i-truth/prd.md", "reason": "跨子任务验收标准与红线（用户路径不进 UI、零遥测、会话内容是不信输入）"}
+{"file": ".trellis/tasks/10-07-round-i-truth/research/design-review.md", "reason": "逐条核对评审要求是否真的落地，以及第 5 节里那 8 条被否证、不许动的结论"}

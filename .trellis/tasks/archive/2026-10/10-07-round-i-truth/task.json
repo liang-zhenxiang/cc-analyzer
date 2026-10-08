@@ -1,0 +1,32 @@
+{
+  "id": "round-i-truth",
+  "name": "round-i-truth",
+  "title": "Round I · 证据与层级收口：把该说清楚的说清楚",
+  "description": "把设计评审与竞品调研的 P0/P1 项落地：表格列预算与失败语义、错误态统一（含去掉夹具文案与绝对路径）、用量总览首屏成立与图表品质、新增周用量窗口，并补齐三层测试与真机取图门禁。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P0",
+  "creator": "liangyuxiang",
+  "assignee": "liangyuxiang",
+  "createdAt": "2026-10-07",
+  "completedAt": "2026-10-09",
+  "branch": "fix/log-table-budget",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "10-07-i1-table-budget",
+    "10-07-i2-error-states",
+    "10-07-i3-usage-firstscreen",
+    "10-07-i4-weekly-window",
+    "10-07-i5-evidence-gates"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
