@@ -30,6 +30,86 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+/* 两层限额的层名：并排存在后，「窗口」单指 5 小时层、「滚动 7 天」指周层，
+   两组读数不靠位置也能分清归属。 */
+.layerTitle {
+  grid-column: 1 / -1;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-weight: 600;
+}
+
+/* 周层：内嵌底色 + 线性条，与 5 小时层（表盘 + 卡面直排读数）在同一张卡里
+   靠两种语言区分——它不是第二张同构的仪表卡。不参与伸长（grow 0）：
+   富余宽度让给读数与历史条，内嵌面板被拉宽只会露出成片空白。 */
+.weekly {
+  display: grid;
+  min-width: 0;
+  flex: 0 1 300px;
+  align-content: start;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-inset);
+}
+
+.weeklyMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-05) var(--sp-2);
+}
+
+.weeklyStat {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-05);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 「未设周预算」是缺数据的占位，不与真值同权重。 */
+.weeklyMuted {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.weeklyBudget {
+  display: grid;
+  gap: var(--sp-05);
+}
+
+.weeklyBarTrack {
+  height: var(--sp-1);
+  overflow: hidden;
+  border-radius: var(--r-xs);
+  background: var(--border-strong);
+}
+
+/* 4px 的窄条属描边档语言（同日志表占比条与表盘进度弧），实色允许。 */
+.weeklyBarFill {
+  height: 100%;
+  border-radius: var(--r-xs);
+  background: var(--chart-1);
+}
+
+.weeklyBudgetText {
+  color: var(--text);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.weeklyNote {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
 .readout {
   display: grid;
   gap: var(--sp-05);

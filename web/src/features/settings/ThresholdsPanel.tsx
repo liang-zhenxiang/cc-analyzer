@@ -287,10 +287,16 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
   const isDefault = THRESHOLD_KEYS.every((key) => thresholds[key] === DEFAULT_THRESHOLDS[key]);
   const [customDraft, setCustomDraft] = useState(String(plan.limitTokens ?? ""));
   const [customFocused, setCustomFocused] = useState(false);
+  const [weeklyDraft, setWeeklyDraft] = useState(String(plan.weeklyLimitTokens ?? ""));
+  const [weeklyFocused, setWeeklyFocused] = useState(false);
 
   useEffect(() => {
     if (!customFocused) setCustomDraft(String(plan.limitTokens ?? ""));
   }, [customFocused, plan.limitTokens]);
+
+  useEffect(() => {
+    if (!weeklyFocused) setWeeklyDraft(String(plan.weeklyLimitTokens ?? ""));
+  }, [weeklyFocused, plan.weeklyLimitTokens]);
   const bridges = useBridges();
   const [channel, setChannel] = useState<UpdateChannel>(() => loadChannel());
   const [autoCheck, setAutoCheck] = useState(() => loadAutoCheck());
@@ -349,7 +355,8 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
       <h3 className={styles.sectionTitle}>计费窗口</h3>
       <p className={styles.note}>
         订阅计划决定「用量总览」里 5 小时窗口的限额刻度。限额是社区整理的
-        估算值（非官方），选「不选」则只看消耗、不显示百分比。
+        估算值（非官方），选「不选」则只看消耗、不显示百分比。周预算与计划
+        无关，需要对照再填。
       </p>
       <div className={styles.grid}>
         <label className={styles.field}>
@@ -362,7 +369,8 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
               onChange={(event) => {
                 const id = event.target.value as PlanId;
                 const preset = PLAN_PRESETS.find((item) => item.id === id);
-                setPlan({ id, limitTokens: preset ? preset.limitTokens : null });
+                // 保留周预算：两层限额正交，切计划不该把使用者填的周数字丢掉。
+                setPlan({ ...plan, id, limitTokens: preset ? preset.limitTokens : null });
               }}
             >
               {PLAN_PRESETS.map((preset) => (
@@ -394,7 +402,7 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
                   setCustomDraft(text);
                   const value = Number(text);
                   if (text !== "" && Number.isFinite(value) && value > 0) {
-                    setPlan({ id: plan.id, limitTokens: Math.round(value) });
+                    setPlan({ ...plan, limitTokens: Math.round(value) });
                   }
                 }}
               />
@@ -403,6 +411,40 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
             <span className={styles.hint}>四舍五入到整数；留空表示不设上限。</span>
           </label>
         ) : null}
+        <label className={styles.field}>
+          <span className={styles.label}>周预算（可选）</span>
+          <span className={styles.control}>
+            <TextInput
+              type="number"
+              aria-label="周预算（可选）"
+              min={1000}
+              step={1000}
+              value={weeklyDraft}
+              onFocus={() => setWeeklyFocused(true)}
+              onBlur={() => {
+                setWeeklyFocused(false);
+                setWeeklyDraft(String(plan.weeklyLimitTokens ?? ""));
+              }}
+              onChange={(event) => {
+                const text = event.target.value;
+                setWeeklyDraft(text);
+                if (text === "") {
+                  // 清空即撤销预算：周档没有预设可退，必须能一路退回「只显示消耗」。
+                  setPlan({ ...plan, weeklyLimitTokens: null });
+                  return;
+                }
+                const value = Number(text);
+                if (Number.isFinite(value) && value > 0) {
+                  setPlan({ ...plan, weeklyLimitTokens: Math.round(value) });
+                }
+              }}
+            />
+            <span className={styles.unit}>tok/7d</span>
+          </span>
+          <span className={styles.hint}>
+            周限额没有可靠的社区估算值，需要对照就自己填；清空则只显示消耗。
+          </span>
+        </label>
       </div>
       <h3 className={styles.sectionTitle}>软件更新</h3>
       <p className={styles.note}>
