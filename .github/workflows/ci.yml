@@ -579,6 +579,31 @@ jobs:
         run: ./scripts/format-release-notes-test.sh
 
   # ---------------------------------------------------------------------------
+  # 发布说明抽段自测
+  #
+  # `scripts/extract-changelog-section.sh` 从 CHANGELOG 里取「本版本的手写说明」，
+  # 只在**发布时**被 release.yml 调用一次。它的失败是静默的：抽不到内容只会走
+  # 降级分支（「本版本未在 CHANGELOG.md 中单独登记」），发布照常成功，只是说明里
+  # 少了维护者写的那一段。所以两条路径（稳定版的 `## [版本]` 段、先行版的
+  # `- **先行版 v…**` 条目）与几个边界都钉在夹具里，见
+  # scripts/extract-changelog-section-test.sh。
+  # ---------------------------------------------------------------------------
+  changelog-section-test:
+    name: 发布说明抽段自测
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: 运行脚本自测
+        run: ./scripts/extract-changelog-section-test.sh
+
+
+  # ---------------------------------------------------------------------------
   # 视觉基线一致性检查
   #
   # docs/screenshots/ 是 README 的门面，但更新全凭「人记得重出图」——上一轮
@@ -663,7 +688,7 @@ jobs:
   ci-summary:
     name: CI 总览
     runs-on: ubuntu-latest
-    needs: [actionlint, yamllint, shellcheck, web-test, web-e2e, web-build, rust-fmt, rust-clippy, rust-check, rust-test, commit-messages, zizmor, lint-selftest, release-notes-test, screenshots-baseline, readme-parity, gui-test-shutdown]
+    needs: [actionlint, yamllint, shellcheck, web-test, web-e2e, web-build, rust-fmt, rust-clippy, rust-check, rust-test, commit-messages, zizmor, lint-selftest, release-notes-test, changelog-section-test, screenshots-baseline, readme-parity, gui-test-shutdown]
     if: always()
     steps:
       - name: Checkout Repos
@@ -688,6 +713,7 @@ jobs:
           R_ZIZMOR: ${{ needs.zizmor.result }}
           R_LINT_SELFTEST: ${{ needs.lint-selftest.result }}
           R_RELEASE_NOTES_TEST: ${{ needs.release-notes-test.result }}
+          R_CHANGELOG_SECTION_TEST: ${{ needs.changelog-section-test.result }}
           R_SCREENSHOTS_BASELINE: ${{ needs.screenshots-baseline.result }}
           R_README_PARITY: ${{ needs.readme-parity.result }}
           R_GUI_TEST_SHUTDOWN: ${{ needs.gui-test-shutdown.result }}
@@ -716,6 +742,7 @@ jobs:
             "zizmor:工作流安全扫描"
             "lint-selftest:lint.sh 自测"
             "release-notes-test:发布说明转换自测"
+            "changelog-section-test:发布说明抽段自测"
             "screenshots-baseline:视觉基线一致性"
             "readme-parity:README 结构一致性"
             "gui-test-shutdown:真机测试中断清理自测"
