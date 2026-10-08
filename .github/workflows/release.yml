@@ -194,22 +194,17 @@ jobs:
           version="${TAG#v}"
           echo "从 CHANGELOG.md 提取 ${version} 的说明"
 
-          # 取出版本标题之后、下一个版本标题之前的内容
-          awk -v ver="$version" '
-            BEGIN { found = 0 }
-            /^## \[/ {
-              if (found) exit
-              if (index($0, "[" ver "]") > 0) { found = 1; next }
-            }
-            found { print }
-          ' CHANGELOG.md > changelog-section.md
-
-          if [[ -s changelog-section.md ]]; then
+          # 两条路径（稳定版的 `## [<version>]` 段 / 先行版的
+          # `- **先行版 v<version>` 条目）与它们的边界都收在
+          # scripts/extract-changelog-section.sh 里，并有一份夹具自测（CI 的
+          # 「发布说明抽段自测」）。这里**不再内联一份 awk**——抄本不会跟着规则改，
+          # 而它坏掉时只是发布说明少一段（见 #127）。
+          if ./scripts/extract-changelog-section.sh "$version" CHANGELOG.md > changelog-section.md; then
             echo "found=true" >> "$GITHUB_OUTPUT"
             echo "已提取 $(wc -l < changelog-section.md | tr -d ' ') 行"
           else
             echo "found=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::CHANGELOG.md 中没有 ${version} 的条目，发布说明将只包含变更清单"
+            echo "::notice::CHANGELOG.md 里没有 ${version} 的手写说明，发布说明将只包含变更清单"
           fi
 
       # -----------------------------------------------------------------------
