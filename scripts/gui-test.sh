@@ -55,9 +55,10 @@
 #                                        # 与几何判定。**单个值沿用旧文件名 -tab.pdf**。
 #
 # 默认的视图清单是「会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
-# 日志视图 → 导出 → 关闭导出窗口 → 用量总览 → 实时监控 → 字号恢复 100%」；每张图
-# 都配一份几何探针 JSON（`CCA_GUI_PROBE`），脚本据它判定**布局不变量**：无横向溢出、表盘
-# 有界且含于卡片、记录表末列可达、会话行不裁字。目标既可写可访问名/可见文本（标签页），也可写会话 cwd
+# 日志视图 → 导出 → 关闭导出窗口 → 用量总览 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→
+# 实时监控 → 字号恢复 100%」；每张图都配一份几何探针 JSON（`CCA_GUI_PROBE`），脚本据它判定
+# **布局不变量**：无横向溢出、表盘有界且含于卡片、记录表末列可达、会话行不裁字、
+# 两层限额读数在卡内、用量页三块面板滚一次可达。目标既可写可访问名/可见文本（标签页），也可写会话 cwd
 # （会匹配按钮的 `title`）。**前两步显式切回「会话分析」与「日志视图」**——应用会把当前
 # 标签页与分析器子视图记进 WebKit 的 localStorage（位于真实 ~/Library/WebKit，不受 HOME
 # 隔离），不先切回去，会话点击会落空、树视图也没有记录表。
@@ -109,8 +110,9 @@ gui-test.sh —— 真机 GUI 冒烟测试
   -h, --help                           # 显示帮助
 
 默认视图清单：会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
-日志视图 → 导出 → 关闭导出窗口 → 用量总览 → 实时监控 → 字号恢复 100%。每张图都配一份
-几何探针 JSON，脚本据它判定布局不变量（无横向溢出 / 表盘有界且含于卡片 / 记录表末列可达 / 文字里无 ESC 转义字节）。
+日志视图 → 导出 → 关闭导出窗口 → 用量总览 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→ 实时监控 →
+字号恢复 100%。每张图都配一份几何探针 JSON，脚本据它判定布局不变量（无横向溢出 / 表盘有界且含于卡片 /
+记录表末列可达 / 文字里无 ESC 转义字节 / 两层限额读数在卡内 / 用量页三块面板滚一次可达）。
 
 `字号=<档位>`（如 `字号=130%`）是一个动作目标：先在设置浮层里把界面字号切到该档，
 再取图与探针——用它验证「放大字号后布局仍然成立」。默认清单末尾会切回 100%，
@@ -572,27 +574,57 @@ else
   # 后面立刻点「关闭导出窗口」，否则浮层的遮罩会挡住余下三个视图的点击。
   # `/repo/ansi` 必须在「日志视图」之后再点一次：上一步已经把子视图切成日志，
   # 但换会话不会自动回到日志视图，而终端转义那条不变量只在日志表里才有内容。
+  # `滚动=main` 紧跟「用量总览」：用量页的下半屏（按项目 / 按模型 / 活跃时段
+  # 三块面板）在 main 内部滚动，不滚过去永远取不到——判定脚本靠「上一步是
+  # 用量总览」把三块面板的可达性判定挂在这一步上。
+  # 「全局搜索」出现两次是开与关：顶栏按钮是 toggle，第二次点击同一个按钮
+  # 即关闭浮层（探针在第两次点击前取证）。搜索浮层是 position: fixed，
+  # createPDF 不画它，证据是那一步的几何探针（dialog 事实带 label）。
   #
   # `字号=130%` 紧跟第一张之后：此后**每一个视图都在 130% 下重新验一遍**，
   # 而它自己那一步停在会话列表上，正好拿到「放大后会话行不裁字」的几何事实。
   # 末尾的 `字号=100%` 是**清理**：WebKit 的 localStorage 不受 HOME 隔离，不切回来
   # 就把 130% 留给了使用者的真实应用与下一次运行。
-  CAPTURE_TARGETS=("会话分析" "字号=130%" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "用量总览" "实时监控" "字号=100%")
+  CAPTURE_TARGETS=("会话分析" "字号=130%" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "用量总览" "滚动=main" "全局搜索" "全局搜索" "实时监控" "字号=100%")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
-# 多个目标各用 `app-capture-<slug>.pdf`。探针 JSON 同规则、后缀换 .json。
-# 这套规则与 src-tauri/src/lib.rs 的 tab_output_path / probe_output_path 一一对应。
+# 多个目标各用 `app-capture-<slug>.pdf`。同名目标第 2 次及以后再追加 `-<序号>`
+# （「全局搜索」开与关就是同名的两次点击，不去重的话第二次会覆盖第一次的图与探针）。
+# 探针 JSON 同规则、后缀换 .json。这套规则与 src-tauri/src/lib.rs 的
+# tab_output_path / probe_output_path 一一对应。
+#
+# 计数不用关联数组（`declare -A` 是 bash 4+ 的，macOS 自带 bash 3.2 直接报
+# invalid option——同 pitfalls 里「只在本地 macOS 暴露」的那一类）：数一遍已见
+# 目标列表就够了，清单就十几个名字。结果走全局变量而不是命令替换——
+# `$(count_seen …)` 在子 shell 里跑，数组追加传不回父 shell，第二次会被
+# 算成第一次，脚本就和应用侧的 `-2` 文件名对不上了。
+SEEN_TARGETS=()
+SEEN_COUNT_OUT=0
+count_seen() {
+  local target="$1" n=0 item
+  for item in ${SEEN_TARGETS[@]+"${SEEN_TARGETS[@]}"}; do
+    [[ "$item" == "$target" ]] && n=$((n + 1))
+  done
+  SEEN_TARGETS[${#SEEN_TARGETS[@]}]="$target"
+  SEEN_COUNT_OUT=$((n + 1))
+}
+
 declare -a CAPTURE_LABELS=("默认视图")
 declare -a CAPTURE_PDFS=("$CAPTURE_PDF")
 declare -a CAPTURE_SHOTS=("${ARTIFACT_DIR}/app-window.png")
 declare -a CAPTURE_PROBES=("$CAPTURE_PROBE")
 for _target in "${CAPTURE_TARGETS[@]}"; do
   [[ -n "$_target" ]] || continue
+  count_seen "$_target"
+  _nth="$SEEN_COUNT_OUT"
   if [[ ${#CAPTURE_TARGETS[@]} -eq 1 ]]; then
     _suffix="-tab"
   else
     _suffix="-$(slug_of "$_target")"
+  fi
+  if [[ "$_nth" -gt 1 ]]; then
+    _suffix="${_suffix}-${_nth}"
   fi
   CAPTURE_LABELS+=("$_target")
   CAPTURE_PDFS+=("${WORK_DIR}/app-capture${_suffix}.pdf")
@@ -801,10 +833,26 @@ GAUGE_MAX_WIDTH = 200
 # 会收缩，所以只判「不超过上限且完整落在窗口内」，不判具体像素。
 EXPORT_DIALOG_MAX_WIDTH = 480
 EXPORT_DIALOG_LABEL = "导出"
+# 浮层靠探针里 dialog 事实的 label 分流：导出浮层的可访问名来自
+# aria-labelledby（指向标题 id「export-dialog-title」），搜索浮层是 aria-label
+# 「全局搜索」。两种都是 [role=dialog][aria-modal]，不分流就会拿搜索浮层
+# 去套导出浮层的 480px 上限。
+EXPORT_DIALOG_TAG = "export-dialog-title"
+SEARCH_DIALOG_LABEL = "全局搜索"
+# 用量页下半屏的三块面板。「滚动=main」那一步（且上一步是用量总览）判定
+# 它们滚一次可达；「用量总览」那一步判定它们真的渲染了出来。
+USAGE_PANEL_TITLES = ["按项目分布", "按模型分布", "活跃时段（周 × 小时）"]
 coverage = os.environ.get("COVERAGE") == "1"
 seen_gauge = 0
 seen_table = 0
 seen_rows = 0
+seen_billing = 0
+seen_usage_panels = 0
+
+# 「滚动=main」的判定要知道滚的是哪个页面：清单是有序的，靠上一步的 label
+# 把动作与页面挂上钩（默认清单里它紧跟「用量总���」）。自定义清单把它用在
+# 别处时，三块面板的判定不适用，退化为 NOTE。
+prev_label = None
 
 for arg in sys.argv[1:]:
     label, _, path = arg.partition("::")
@@ -894,15 +942,16 @@ for arg in sys.argv[1:]:
             print(f"BAD|{label}：记录表末列被裁切（末列右边界 {last}，容器右边界 {right}，overflowX={overflow_x}，可滚动={scrollable}，提示={tbl.get('hasScrollHint')}）")
 
     export_seen = 0
+    search_seen = 0
     viewport = data.get("viewport") or {}
     for el in data.get("elements") or []:
-        if el.get("name") != "export-dialog":
+        if el.get("name") != "dialog":
             continue
-        export_seen += 1
+        dialog_label = el.get("label") or ""
         rect = el.get("rect") or {}
         width, height = rect.get("width"), rect.get("height")
         if not isinstance(width, (int, float)) or not isinstance(height, (int, float)):
-            print(f"BAD|{label}：导出浮层矩形缺失")
+            print(f"BAD|{label}：浮层（{dialog_label or '未命名'}）矩形缺失")
             continue
         inside = (
             isinstance(viewport.get("width"), (int, float))
@@ -912,20 +961,118 @@ for arg in sys.argv[1:]:
             and rect.get("x", 0) + width <= viewport["width"] + 1
             and rect.get("y", 0) + height <= viewport["height"] + 1
         )
-        if width <= EXPORT_DIALOG_MAX_WIDTH + 1 and inside:
-            print(f"OK|{label}：导出浮层有界且完整在窗口内（{width:.0f}×{height:.0f}px ≤ {EXPORT_DIALOG_MAX_WIDTH}px）")
+        if dialog_label == EXPORT_DIALOG_TAG:
+            export_seen += 1
+            if width <= EXPORT_DIALOG_MAX_WIDTH + 1 and inside:
+                print(f"OK|{label}：导出浮层有界且完整在窗口内（{width:.0f}×{height:.0f}px ≤ {EXPORT_DIALOG_MAX_WIDTH}px）")
+            else:
+                print(f"BAD|{label}：导出浮层失界（宽 {width:.0f}px，上限 {EXPORT_DIALOG_MAX_WIDTH}px，在窗口内={inside}）")
+        elif dialog_label == SEARCH_DIALOG_LABEL:
+            search_seen += 1
+            if inside:
+                print(f"OK|{label}：搜索浮层完整在窗口内（{width:.0f}×{height:.0f}px）")
+            else:
+                print(f"BAD|{label}：搜索浮层超出窗口（{width:.0f}×{height:.0f}px，在窗口内={inside}）")
         else:
-            print(f"BAD|{label}：导出浮层失界（宽 {width:.0f}px，上限 {EXPORT_DIALOG_MAX_WIDTH}px，在窗口内={inside}）")
+            print(f"NOTE|{label}：出现未识别的浮层（label={dialog_label}），只记录几何")
 
-    # 目标就是「导出」时，浮层出现是这一步的全部意义——没出现比尺寸错了更严重。
+    # 目标就是「导出」/「全局搜索」时，浮层出现是这一步的全部意义——没出现比
+    # 尺寸错了更严重。「全局搜索」在默认清单里连点两次（开与关）：第二次点击
+    # 时浮层应当已经关上（上一步还是「全局搜索」），不算缺失。
     if label == EXPORT_DIALOG_LABEL and export_seen == 0:
         print(f"BAD|{label}：探针里没有导出浮层——点击没有打开它，或面板整个没渲染出来")
+    if label == SEARCH_DIALOG_LABEL and search_seen == 0 and prev_label != SEARCH_DIALOG_LABEL:
+        print(f"BAD|{label}：探针里没有搜索浮层——顶栏按钮没有打开它，或浮层整个没渲染出来")
     # 浮层是 `position: fixed`，而 `WKWebView.createPDF` **不会把它画进 PDF**：
     # 实测「导出」这一步的 PDF 只比前一张多 117 字节（480×424 的浮层若入图不可能
     # 只差这么点），设置面板同样不入图。所以这张截图的证据价值是「它背后的视图」，
     # 浮层本身由上面的几何不变量与端到端断言负责——别对着截图找浮层。
-    if export_seen > 0:
+    if export_seen > 0 or search_seen > 0:
         print(f"NOTE|{label}：浮层是 position: fixed，createPDF 不渲染它——这张截图看的是背后的视图，浮层证据是上面的几何不变量")
+
+    # 限额区（5 小时卡 + 周用量层）：两层限额的读数都要在卡内，卡要在内容区里。
+    # 「含于内容区」横向对着 main 的视口矩形判；纵向不判视口位置（卡片可以滚到
+    # 视口外），判的是它含于 main 的滚动内容（docTop 落在 [0, scrollHeight]）。
+    for el in data.get("elements") or []:
+        if el.get("name") != "billing":
+            continue
+        seen_billing += 1
+        card = el.get("card") or {}
+        if not isinstance(card.get("width"), (int, float)) or not isinstance(card.get("height"), (int, float)):
+            print(f"BAD|{label}：计费窗口卡矩形缺失")
+            continue
+        problems = []
+
+        def billing_contains(inner, what):
+            if not isinstance(inner, dict) or not isinstance(inner.get("width"), (int, float)) or not isinstance(inner.get("height"), (int, float)):
+                problems.append(f"{what}矩形缺失")
+                return
+            if not (
+                inner.get("x", 0) >= card.get("x", 0) - 1
+                and inner.get("y", 0) >= card.get("y", 0) - 1
+                and inner.get("x", 0) + inner["width"] <= card.get("x", 0) + card["width"] + 1
+                and inner.get("y", 0) + inner["height"] <= card.get("y", 0) + card["height"] + 1
+            ):
+                problems.append(f"{what}不完全在卡片内")
+
+        billing_contains(el.get("weekly"), "周用量层")
+        for value_index, value in enumerate(el.get("values") or []):
+            billing_contains(value, f"限额读数#{value_index + 1}")
+        main_rect = data.get("mainRect") or {}
+        if isinstance(main_rect.get("x"), (int, float)) and isinstance(main_rect.get("width"), (int, float)):
+            if not (
+                card.get("x", 0) >= main_rect["x"] - 1
+                and card.get("x", 0) + card.get("width", 0) <= main_rect["x"] + main_rect["width"] + 1
+            ):
+                problems.append("卡片横向超出内容区")
+        main_info = data.get("main") or {}
+        scroll_top, scroll_height = main_info.get("scrollTop"), main_info.get("scrollHeight")
+        if isinstance(scroll_top, int) and isinstance(scroll_height, int):
+            card_doc_top = card.get("y", 0) + scroll_top
+            if card_doc_top < -1 or card_doc_top + card.get("height", 0) > scroll_height + 1:
+                problems.append(f"卡片纵向超出内容区（docTop {card_doc_top:.0f}，高 {card.get('height', 0):.0f}，scrollHeight {scroll_height}）")
+        if problems:
+            for problem in problems:
+                print(f"BAD|{label}：两层限额几何破坏——{problem}")
+        else:
+            values_count = len(el.get("values") or [])
+            print(f"OK|{label}：两层限额的读数都在卡片内、卡片含于内容区（周用量层 + {values_count} 个读数）")
+
+    # 用量页的面板标题：不滚动时判定「三块面板真的渲染了出来」；滚动一步
+    # （且上一步是用量总览）判定「滚一次就能到达」——面板被懒加载吞掉、或页面
+    # 重新长过一屏都会在这里红。docTop 是标题在滚动内容里的位置。
+    panels = data.get("panels") or []
+    if label == "用量总览":
+        titles = {p.get("title") for p in panels}
+        missing = [t for t in USAGE_PANEL_TITLES if t not in titles]
+        if missing:
+            print(f"BAD|{label}：用量面板没有渲染出来（缺：{'，'.join(missing)}）")
+        else:
+            seen_usage_panels += 1
+            print(f"OK|{label}：三块用量面板都在文档里（标题齐全）")
+    elif label.startswith("滚动=") and prev_label == "用量总览":
+        problems = []
+        main_info = data.get("main") or {}
+        scroll_top, client_height = main_info.get("scrollTop"), main_info.get("clientHeight")
+        viewport_height = (data.get("viewport") or {}).get("height")
+        for title in USAGE_PANEL_TITLES:
+            hit = next((p for p in panels if p.get("title") == title), None)
+            if hit is None:
+                problems.append(f"面板「{title}」不在文档里")
+                continue
+            doc_top, top = hit.get("docTop"), hit.get("top")
+            if isinstance(scroll_top, int) and isinstance(client_height, int) and isinstance(doc_top, (int, float)) and doc_top > scroll_top + client_height + 1:
+                problems.append(f"「{title}」滚一次到不了（docTop {doc_top:.0f} > scrollTop {scroll_top} + clientHeight {client_height}）")
+            if isinstance(viewport_height, (int, float)) and isinstance(top, (int, float)) and (top < -1 or top > viewport_height + 1):
+                problems.append(f"「{title}」滚到底后仍不在视口内（top {top:.0f}，视口高 {viewport_height:.0f}）")
+        if problems:
+            for problem in problems:
+                print(f"BAD|{label}：{problem}")
+        else:
+            seen_usage_panels += 1
+            print(f"OK|{label}：滚一次到底后三块面板标题全部可达（scrollTop {scroll_top} / scrollHeight {main_info.get('scrollHeight')}）")
+    elif label.startswith("滚动="):
+        print(f"NOTE|{label}：上一步不是用量总览（是 {prev_label}），跳过三块面板的可达性判定")
 
     # 界面字号：动作目标（`字号=<档位>`）必须真的把根元素变量切过去。
     font_scale_raw = data.get("font_scale")
@@ -962,12 +1109,18 @@ for arg in sys.argv[1:]:
         else:
             print(f"OK|{label}：会话行不裁字且行高随档位（{height}px，内容 {sh} ≤ {ch}）")
 
+    prev_label = label
+
 if coverage and seen_gauge == 0:
     print("BAD|视图覆盖：没有任何视图产出表盘几何——用量总览没被覆盖")
 if coverage and seen_table == 0:
     print("BAD|视图覆盖：没有任何视图产出记录表几何——日志表没被覆盖")
 if coverage and seen_rows == 0:
     print("BAD|视图覆盖：没有任何视图产出会话行几何——会话列表没被覆盖")
+if coverage and seen_billing == 0:
+    print("BAD|视图覆盖：没有任何视图产出计费窗口几何——限额区没被覆盖")
+if coverage and seen_usage_panels == 0:
+    print("BAD|视图覆盖：没有任何视图产出三块用量面板的标题——用量页下半屏没被覆盖")
 PY
 )" || PROBE_STATUS=$?
 

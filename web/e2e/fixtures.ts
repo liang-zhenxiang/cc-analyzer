@@ -12,6 +12,24 @@ export function fixture(name: string): string {
 }
 
 /**
+ * `web/package.json` 的 version：e2e 里「当前版本」的唯一事实来源。
+ *
+ * 写死它会让每一版归档截图的顶栏版本徽章都停在旧版本——v0.10.0 那一代就是
+ * 桩忘了跟着发版走，截图在撒谎而没人发现。e2e 跑在 node 里，直接读文件；
+ * 读不到或形状不对就抛错：仓库完整时这条路径不该有降级，静默降级只会把
+ * 问题重新藏进截图。防「机制被退化成写死」由 scripts/check-e2e-mock-version.sh
+ * 负责。
+ */
+export const APP_VERSION: string = (() => {
+  const parsed: unknown = JSON.parse(readFileSync(path.join(here, "..", "package.json"), "utf8"));
+  if (typeof parsed === "object" && parsed !== null && "version" in parsed) {
+    const version = (parsed as Record<string, unknown>).version;
+    if (typeof version === "string" && version !== "") return version;
+  }
+  throw new Error("web/package.json 缺少可用的 version 字段——e2e 的版本桩依赖它");
+})();
+
+/**
  * 真实 Claude Code 把项目目录名取为 cwd 的路径分隔符替换成 `-`
  * （`/repo/demo` → `-repo-demo`），这里照做，免得夹具与真实布局不一致。
  */
@@ -55,8 +73,8 @@ export function defaultScenario(overrides: Partial<MockScenario> = {}): MockScen
     appData: APP_DATA,
     files: sessionsToFiles(SESSION_SEEDS),
     monitor: { port: 8090, alive: false },
-    // 顶栏版本徽章读它；截图与断言都该看到一个正常的版本号
-    updater: { currentVersion: "0.10.0" },
+    // 顶栏版本徽章读它；与 web/package.json 同源，截图上的版本号才是真的
+    updater: { currentVersion: APP_VERSION },
     claudeStdout: [
       "## 会话概览",
       "",
@@ -134,7 +152,7 @@ export function brokenScanScenario(overrides: Partial<MockScenario> = {}): MockS
     appData: APP_DATA,
     files: {},
     monitor: { port: 8090, alive: false },
-    updater: { currentVersion: "0.10.0" },
+    updater: { currentVersion: APP_VERSION },
     ...overrides
   };
 }

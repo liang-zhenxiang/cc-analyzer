@@ -63,9 +63,11 @@ EXPECTED_VIEWS = [
     "analyzer-log",
     "analyzer-tree",
     "analyzer-report",
+    "analyzer-report-full",
     "settings",
     "monitor",
     "usage",
+    "usage-below",
 ]
 THEMES = ["light", "dark"]
 ENGINES = ["chromium", "webkit"]
