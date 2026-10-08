@@ -32,25 +32,31 @@ badge. Every screen, in both light and dark themes, is archived in
 
 ## Features
 
-- **5-hour billing window** — a plan-aware view of the window your subscription
-  is metered in: the current consumption dial, when the window opened, a
-  countdown to when it closes, and a projection of when you will reach the
-  limit at the current burn rate. Window clustering matches ccusage's `blocks`
-  (five hours from the first activity). Plan limits are community estimates and
-  are labelled as such; with no plan selected the app shows consumption only,
-  never a percentage it cannot stand behind — and a window younger than 30
-  minutes says "not enough data" instead of extrapolating. Derived entirely
-  from the local log.
+- **Two-tier usage limits** — Claude subscriptions meter usage in two layers;
+  the app reads both. The **5-hour billing window**: the current consumption
+  dial, when the window opened, a countdown to when it closes, and a projection
+  of when you will reach the limit at the current burn rate (clustering matches
+  ccusage's `blocks`: five hours from the first activity). The **rolling 7-day
+  window**: consumption over `(now − 7d, now]` is an exact figure read from
+  your logs, shown with the daily average and the previous period for
+  comparison. The weekly budget is an optional number you set yourself — no
+  reliable community estimate exists, so plan presets ship without one — and
+  the interface says outright that a rolling 7 days is not the official reset
+  window. Plan limits are community estimates and are labelled as such; with no
+  plan or budget selected the app shows consumption only, never a percentage it
+  cannot stand behind — and a window younger than 30 minutes says "not enough
+  data" instead of extrapolating. Derived entirely from the local log.
 - **Global search (⌘K / Ctrl+K)** — message-level search across every project
   and session, results grouped by project → session with the matching snippet
   and a relative time. Enter jumps into the session, opens the record and
   expands its detail panel, so a hit is always reachable, not merely listed.
   The index is built in the background and lives in memory only.
 - **Usage overview** — token consumption trends for the last 7 / 30 / 90 days,
-  per-project and per-model distributions, and a 7×24 activity heatmap. Every
-  figure carries a provenance badge (read from the log / estimated), the
-  estimated cost is priced per model against an offline pricing snapshot (date
-  shown), and everything is aggregated locally — nothing is uploaded.
+  per-project and per-model distributions, and a 7×24 activity heatmap, all
+  visible without scrolling on a 1440×900 screen. Every figure carries a
+  provenance badge (read from the log / estimated), the estimated cost is
+  priced per model against an offline pricing snapshot (date shown), and
+  everything is aggregated locally — nothing is uploaded.
 - **Session explorer** — sessions grouped by timeline (today / yesterday /
   this week / this month / earlier) and by project, with incrementally
   scanned titles and relative times.
@@ -98,7 +104,9 @@ badge. Every screen, in both light and dark themes, is archived in
 - **Performance at scale** — windowed, measured-height rendering and chunked
   parsing keep large sessions (tens of MB of JSONL) responsive.
 - **Local-first & private** — everything is parsed and rendered locally; the
-  app ships no telemetry.
+  app ships no telemetry. Errors say what failed and what to do next; the raw
+  error string, which can carry your local paths, stays out of the interface
+  unless you expand the details.
 
 ## Quick start
 
