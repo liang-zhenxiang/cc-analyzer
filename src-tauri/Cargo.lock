@@ -288,7 +288,7 @@ dependencies = [
 
 [[package]]
 name = "cc-analyzer"
-version = "0.13.0-beta.2"
+version = "0.13.0-beta.3"
 dependencies = [
  "block2",
  "objc2",
