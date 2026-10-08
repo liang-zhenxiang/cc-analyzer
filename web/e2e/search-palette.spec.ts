@@ -45,8 +45,13 @@ test.describe("全局搜索", () => {
     await page.getByLabel("搜索消息").fill("解析");
     // 夹具里 -repo-enhanced（“分析解析器”）与 -repo-usage-days（“先把数据面摸清楚”不含）——
     // 用「解析」至少命中 enhanced；宽松断言组标题出现且命中数可见。
+    // 标题印末段（编码前导 `-` 不再直接给用户），完整目录名在 title 上。
     await expect(page.getByText(/条命中/)).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole("heading", { name: "-repo-enhanced" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "repo-enhanced" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "repo-enhanced" })).toHaveAttribute(
+      "title",
+      "-repo-enhanced"
+    );
   });
 
   test("Enter 跳转：会话打开、记录高亮、详情面板可见", async ({ page }) => {

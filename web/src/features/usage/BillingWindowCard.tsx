@@ -94,57 +94,70 @@ export function BillingWindowCard({
         />
         <div className={styles.readouts}>
           <span className={styles.readout}>
-            <span className={styles.label}>窗口开启</span>
+            <span className={styles.labelRow}>
+              <span className={styles.label}>窗口开启</span>
+              <ProvenanceBadge provenance="logged" />
+            </span>
             <b className={styles.value}>{formatClock(active.start)}</b>
-            <ProvenanceBadge provenance="logged" />
           </span>
           <span className={styles.readout}>
-            <span className={styles.label}>窗口关闭</span>
+            <span className={styles.labelRow}>
+              <span className={styles.label}>窗口关闭</span>
+            </span>
             <b className={styles.value}>{formatCountdown(closesIn)}</b>
             <span className={styles.sub}>{formatClock(active.end)}</span>
           </span>
           <span className={styles.readout}>
-            <span className={styles.label}>消耗速度</span>
+            <span className={styles.labelRow}>
+              <span className={styles.label}>消耗速度</span>
+              {"insufficientSample" in rate ? null : <ProvenanceBadge provenance="inferred" />}
+            </span>
             <b className={styles.value}>
               {"insufficientSample" in rate ? "样本不足" : `${formatTokenCount(rate.tokensPerHour)}/时`}
             </b>
-            {"insufficientSample" in rate ? null : (
-              <ProvenanceBadge provenance="inferred" />
-            )}
           </span>
           <span className={styles.readout}>
-            <span className={styles.label}>预计到达限额</span>
+            <span className={styles.labelRow}>
+              <span className={styles.label}>预计到达限额</span>
+              {plan.limitTokens !== null && !("insufficientSample" in prediction) ? (
+                <ProvenanceBadge provenance="inferred" detail="线性外推" />
+              ) : null}
+            </span>
             <b className={styles.value}>
               {plan.limitTokens === null
-                ? "未选计划"
+                ? /* 缺数据的占位不跟真值同权重。 */
+                  <span className={styles.valueMuted}>未选计划</span>
                 : "insufficientSample" in prediction
                   ? "样本不足"
                   : "reachAt" in prediction
                     ? formatPredictionTime(prediction.reachAt)
                     : "—"}
             </b>
-            {plan.limitTokens !== null && !("insufficientSample" in prediction) ? (
-              <ProvenanceBadge provenance="inferred" detail="线性外推" />
-            ) : null}
           </span>
         </div>
+        {history.length > 0 ? (
+          <div className={styles.history}>
+            <span className={styles.historyLabel}>近几个窗口</span>
+            <BarChart
+              data={history}
+              ariaLabel="历史计费窗口消耗"
+              emptyText="暂无历史窗口"
+              /* 90 个单位的图在这张卡里会被拉到 750px 宽、130px 高，把卡片
+                 顶成首屏的三分之一；它是一条辅助趋势，不是主角。 */
+              height={72}
+              /* 横轴标签是窗口开始时刻、按柱位等距排布，真实间隔并不相等
+                 （相邻窗口可以差 5 分钟，也可以差 7 小时）——轴上必须说明这件事，
+                 否则等距的柱让人误以为时间也等距。 */
+              caption="每个柱 = 一个 5 小时计费窗口；横轴按窗口开始时刻等距排布，柱间距不代表真实间隔"
+            />
+          </div>
+        ) : null}
       </div>
       <p className={styles.planNote}>
         {plan.limitTokens === null
           ? "未选择订阅计划：只显示消耗，不显示百分比——没有分母就没有比率。在「设置 → 计费窗口」选择计划。"
           : `限额为社区整理的估算值（整理于 ${PLAN_LIMITS_AS_OF}，非官方数字），仅供参照；估算与预测都不是账单。`}
       </p>
-      {history.length > 0 ? (
-        <div className={styles.history}>
-          <span className={styles.historyLabel}>近几个窗口</span>
-          <BarChart
-            data={history}
-            ariaLabel="历史计费窗口消耗"
-            emptyText="暂无历史窗口"
-            height={90}
-          />
-        </div>
-      ) : null}
     </section>
   );
 }

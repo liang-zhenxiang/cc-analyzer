@@ -47,6 +47,13 @@ export type UsageAggregate = {
 export type UsageSessionInput = {
   records: readonly SessionRecord[];
   projectLabel: string;
+  /**
+   * The session's actual working directory, when the log carried one. Buckets
+   * stay keyed by `projectLabel` (the encoded directory name); this is carried
+   * alongside so the view can print a real project name instead of the
+   * identifier — see `formatProjectPath`.
+   */
+  projectPath?: string;
 };
 
 /** A day series point, zero-filled when nothing happened that day. */
@@ -85,10 +92,14 @@ export function addLocalDays(dayStart: number, days: number): number {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days).getTime();
 }
 
-/** Short axis label for a day key, e.g. `9-28`. */
+/**
+ * Short axis label for a day key, e.g. `9/28`. The slash is deliberate: the
+ * dashboard's other axis is wall-clock (`18:05`, a billing window's start), and
+ * `9-28` next to it reads like a score rather than a date.
+ */
 export function formatDayLabel(dayStart: number): string {
   const date = new Date(dayStart);
-  return `${date.getMonth() + 1}-${date.getDate()}`;
+  return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
 export function totalsSum(totals: UsageTotals): number {

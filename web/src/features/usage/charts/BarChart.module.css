@@ -7,6 +7,15 @@
   transition: fill var(--dur-hover) var(--ease-out), fill-opacity var(--dur-hover) var(--ease-out);
 }
 
+/* 轴注：横轴标签说不清「一根柱是什么」时（「近几个窗口」的 HH:MM 是窗口开始
+   时刻，等距排布而真实间隔不等）由这句话交代，不靠读者猜。 */
+.caption {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
 /* 悬停是单根柱的瞬时强调，不属于稳态大面积填充，允许实色（半透明）。 */
 .bar:hover {
   fill: var(--chart-1, var(--accent));

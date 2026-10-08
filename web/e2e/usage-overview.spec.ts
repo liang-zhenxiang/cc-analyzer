@@ -73,12 +73,15 @@ test.describe("用量总览", () => {
 
     const projects = page.getByRole("img", { name: "按项目分布" });
     await expect(projects).toBeVisible();
-    await expect(projects).toContainText("-repo-usage-days");
-    await expect(projects).toContainText("-repo-usage-models");
+    // 坐标轴上印的是会话真实 cwd 的末段，不是编码过的目录名。
+    await expect(projects).toContainText("usage-days");
+    await expect(projects).toContainText("usage-models");
+    await expect(projects).not.toContainText("-repo-usage-days");
 
     await expect(page.getByRole("img", { name: "按模型分布" })).toBeVisible();
-    // 堆叠条下面的图例把模型名写成可读文本（exact：svg 的 title 也含模型名）。
-    await expect(dashboard.getByText("claude-opus-4-1-20250805", { exact: true })).toBeVisible();
+    // 图例印「家族 + 版本」，原始 model id 收进 title（exact：svg 的 title 里也带着它）。
+    await expect(dashboard.getByText("Opus 4.1", { exact: true })).toBeVisible();
+    await expect(dashboard.getByTitle("claude-opus-4-1-20250805").first()).toBeVisible();
 
     await expect(page.getByRole("img", { name: "活跃时段热力图" })).toBeVisible();
   });
@@ -89,6 +92,43 @@ test.describe("用量总览", () => {
 
     await expect(page.getByText(/纳入统计/)).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/已分析/)).toHaveCount(0);
+  });
+
+  test("1440×900 不滚动时三块面板的标题都在首屏", async ({ page }) => {
+    // 这条是本任务的硬约束：仪表盘曾经比视口高 43%，「按项目分布」「按模型分布」
+    // 「活跃时段」三块从来没进过首屏，也没进过任何一张归档截图。
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/");
+    await page.getByRole("tab", { name: DASHBOARD }).click();
+    await expect(page.getByText(/纳入统计/)).toBeVisible({ timeout: 15_000 });
+
+    // 「不滚动」要成立：主区必须还在顶端（内容区在自己的滚动容器里）。
+    expect(await page.locator("main").evaluate((element) => element.scrollTop)).toBe(0);
+
+    for (const title of ["按项目分布", "按模型分布", "活跃时段（周 × 小时）"]) {
+      await expect(page.getByRole("heading", { name: title })).toBeInViewport({ ratio: 1 });
+    }
+  });
+
+  test("切到用量页再切回分析页，内容左缘不变", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("tab", { name: DASHBOARD }).click();
+    await expect(page.getByText(/纳入统计/)).toBeVisible({ timeout: 15_000 });
+    const usage = await page.getByLabel(DASHBOARD).evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, width: rect.width };
+    });
+
+    await page.getByRole("tab", { name: "会话分析", exact: true }).click();
+    // 分析页的根是 <div class="page">，用量页的根是 <section>——两者都直接挂在
+    // 主区下，比的正是「页面容器的左缘与宽度」。
+    const analyzer = await page.locator("main > *").first().evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, width: rect.width };
+    });
+
+    expect(Math.abs(usage.left - analyzer.left)).toBeLessThanOrEqual(1);
+    expect(Math.abs(usage.width - analyzer.width)).toBeLessThanOrEqual(1);
   });
 });
 

@@ -1,3 +1,37 @@
+/* 图 + 图例并排：图例是刻度的另一半，不跟着 SVG 等比放大（它是「形」不是数据）。
+   宽度不够时换行到图下方，而不是把热力图压窄。 */
+.wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-3) var(--sp-5);
+}
+
+.wrap > svg {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+.legend {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.legendLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.legendCell {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-xs);
+  background: var(--chart-1, var(--accent));
+}
+
 .cell {
   fill: var(--chart-1, var(--accent));
   transition: fill-opacity var(--dur-hover) var(--ease-out);
@@ -8,10 +42,10 @@
   stroke-width: 1;
 }
 
+/* 空格子只有填充、没有描边：此前描边让空 / 非空成了双重编码，
+   而描边本该只表示「这一格有数据」。 */
 .emptyCell {
   fill: var(--bg-inset);
-  stroke: var(--border);
-  stroke-width: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {

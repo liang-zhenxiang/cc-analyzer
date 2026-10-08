@@ -109,9 +109,12 @@ describe("SearchPalette", () => {
     await userEvent.type(input, "parser");
     await waitFor(() => {
       const groups = screen.getAllByRole("heading").map((node) => node.textContent);
-      expect(groups).toContain("-repo-alpha");
-      expect(groups).toContain("-repo-beta");
+      // 分组标题与侧栏、用量页共用 formatProjectPath：不把编码目录名
+      // （前导 `-`）直接铺给用户；编码名完整留在 title 上。
+      expect(groups).toContain("repo-alpha");
+      expect(groups).toContain("repo-beta");
     });
+    expect(screen.getByTitle("-repo-alpha")).toBeInTheDocument();
     expect(screen.getByText(/条命中/)).toBeInTheDocument();
   });
 

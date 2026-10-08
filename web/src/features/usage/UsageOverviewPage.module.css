@@ -1,10 +1,11 @@
 /* 仪表盘是纵向文档流（内容区整体滚动），不是分析页那种撑满视口的网格。
-   限宽是为了读数：图表 viewBox 720，铺到 1440 宽的柱子只会更难对齐。 */
+   容器不再限宽居中：分析页是全幅 12–1428，用量页限宽 1080 时切标签会让整页
+   内容横向跳 168px。限宽原来的理由（图表 viewBox 720，铺宽更难对齐）改由
+   网格承担——图表按列排布，宽度自然落回它的设计宽度附近。 */
 .page {
   display: flex;
+  min-width: 0;
   min-height: 100%;
-  max-width: 1080px;
-  margin: 0 auto;
   flex-direction: column;
   gap: var(--sp-3);
   padding: var(--sp-3);
@@ -32,7 +33,8 @@
 }
 
 /* KPI 读数行：设计 §6 的「读数行语言」——数值并排站在浅台阶上，
-   标签小字、数值 15px/600 + tabular-nums，徽章紧随数值。 */
+   标签小字、数值 --fs-lg/600 + tabular-nums，来源徽章收在标签行上。
+   免责说明跨列收在底部，不再撑高单列。 */
 .kpiRow {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -42,11 +44,14 @@
   background: var(--bg-subtle);
 }
 
+/* 两列网格：标签在第一行左、来源圆点在第一行右，数值独占第二行。
+   （源码里的顺序是标签 → 数值 → 圆点，网格把它们摆成正确的两行。） */
 .kpi {
-  display: flex;
+  display: grid;
   min-width: 0;
-  flex-direction: column;
-  gap: var(--sp-1);
+  align-items: center;
+  gap: var(--sp-2) var(--sp-1);
+  grid-template-columns: minmax(0, 1fr) auto;
   padding: var(--sp-3) var(--sp-4);
 }
 
@@ -55,46 +60,52 @@
 }
 
 .kpiLabel {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 数值是主角：15px（读数档）在四列并排时和标签差不开级。 */
+.kpiValue {
+  grid-column: 1 / -1;
+  color: var(--text);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  line-height: var(--lh-lg);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpiFootnote {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: var(--sp-2) var(--sp-4);
+  border-top: 1px solid var(--border);
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
   line-height: var(--lh-xs);
 }
 
-.kpiValueRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2);
-}
-
-.kpiValue {
-  color: var(--text);
-  font-size: var(--fs-md);
-  font-weight: 600;
-  line-height: var(--lh-md);
-  font-variant-numeric: tabular-nums;
-}
-
-.kpiNote {
-  color: var(--warning);
-  font-size: var(--fs-xs);
-  line-height: var(--lh-xs);
-}
-
-.distributionRow {
+/* 仪表盘下半区的两列网格。列宽决定图表的高度：SVG 是等比缩放的，
+   一块卡片铺满 1428px 时同一张图会长高一倍——首屏因此容不下三块面板。 */
+.board {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--sp-3);
   align-items: start;
 }
 
-/* 堆叠条只有 30px 高，模型名与数值靠这份清单可读；色块索引与 StackedBar 一致。 */
+/* 模型名与数值靠这份清单可读；色块索引与 StackedBar 一致。
+   两列排，六项也只占三行——它是网格里最高的那块，压缩它就够首屏了。 */
 .modelLegend {
-  display: flex;
+  display: grid;
   margin: var(--sp-3) 0 0;
   padding: 0;
-  flex-direction: column;
-  gap: var(--sp-1);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-1) var(--sp-3);
   list-style: none;
 }
 
@@ -145,7 +156,7 @@
     border-top: 1px solid var(--border);
   }
 
-  .distributionRow {
+  .board {
     grid-template-columns: minmax(0, 1fr);
   }
 }

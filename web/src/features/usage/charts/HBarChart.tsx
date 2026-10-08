@@ -3,14 +3,20 @@ import { formatTokenCount } from "../../../lib/format";
 import primitiveStyles from "./chartPrimitives.module.css";
 import styles from "./HBarChart.module.css";
 
-/** Horizontal bars for the per-project Top-N; lengths normalise to the max. */
+/**
+ * Horizontal bars for the per-project Top-N; lengths normalise to the max.
+ *
+ * `hint` is the untruncated identity behind a shortened `label` (the full path
+ * behind a project's last segment, say). It goes into the tooltip so nothing is
+ * lost when the axis has to abbreviate.
+ */
 export function HBarChart({
   data,
   formatValue = formatTokenCount,
   ariaLabel,
   emptyText = "暂无数据"
 }: {
-  data: { label: string; value: number }[];
+  data: { label: string; value: number; hint?: string }[];
   formatValue?: (value: number) => string;
   ariaLabel: string;
   emptyText?: string;
@@ -45,7 +51,7 @@ export function HBarChart({
               {point.label}
             </text>
             <rect x={labelWidth} y={y + 5} width={barWidth} height={rowHeight - 10} className={styles.bar}>
-              <title>{`${point.label}：${formatValue(point.value)}`}</title>
+              <title>{`${point.hint ?? point.label}：${formatValue(point.value)}`}</title>
             </rect>
             <text
               x={labelWidth + barWidth + 8}
