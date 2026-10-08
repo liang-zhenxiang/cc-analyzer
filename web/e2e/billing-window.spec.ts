@@ -24,7 +24,8 @@ test.describe("计费窗口", () => {
 
     await expect(card.getByText("窗口开启", { exact: true })).toBeVisible();
     await expect(card.getByText("已关闭")).toBeVisible();
-    await expect(card.getByText("读自日志")).toBeVisible();
+    // 5h 层与周层各有一枚「读自日志」圆点，取其一证明徽章在场即可。
+    await expect(card.getByText("读自日志").first()).toBeVisible();
   });
 
   test("未选计划：只看消耗，不显示百分比", async ({ page }) => {
@@ -52,5 +53,47 @@ test.describe("计费窗口", () => {
     await openUsage(page);
     const history = page.getByRole("img", { name: "历史计费窗口消耗" });
     await expect(history).toBeVisible();
+  });
+});
+
+test.describe("周用量（滚动 7 天）", () => {
+  test("未设预算：消耗与「不是官方重置窗口」的说明在场，无任何百分比", async ({ page }) => {
+    await openUsage(page);
+    const weekly = page.getByLabel("周用量（滚动 7 天）");
+    await expect(weekly).toBeVisible();
+
+    // recentActivityScenario：两个 usage 夹具（跨 4 个本地日）全部落在 7 天窗内，
+    // 与 KPI 的 246,130 同源——周层的消耗必须是同一份日志算出的同一个数。
+    await expect(weekly.getByText("246,130", { exact: true })).toBeVisible();
+    await expect(weekly.getByText("滚动 7 天", { exact: true })).toBeVisible();
+    await expect(weekly.getByText(/不是官方重置窗口/)).toBeVisible();
+    await expect(weekly.getByText(/未设周预算/)).toBeVisible();
+    // 夹具没有更早的活动 → 上一周期如实说 0，不造 ±100% 的「趋势」。
+    await expect(weekly.getByText("上一周期 0", { exact: true })).toBeVisible();
+    // 没有分母就没有比率：周层里不应出现任何百分比读数。
+    await expect(weekly.getByText(/\d+%/)).toHaveCount(0);
+  });
+
+  test("设置里填周预算 → 出现对照与日均推算；清掉 → 退回只显示消耗", async ({ page }) => {
+    await openUsage(page);
+
+    await page.getByRole("button", { name: "设置" }).click();
+    const panel = page.getByLabel("阈值设置");
+    await panel.getByLabel("周预算（可选）").fill("300000");
+    await page.getByRole("button", { name: "关闭" }).click();
+
+    const weekly = page.getByLabel("周用量（滚动 7 天）");
+    await expect(weekly.getByText(/周预算已用 82%/)).toBeVisible();
+    // 4 个活动日 ≥ 2 → 可推算；具体时刻随运行时间走，锁体例不锁值。
+    await expect(weekly.getByText(/按日均推算 \d{2}-\d{2} \d{2}:\d{2} 触达/)).toBeVisible();
+
+    await page.getByRole("button", { name: "设置" }).click();
+    await page.getByLabel("阈值设置").getByLabel("周预算（可选）").fill("");
+    await page.getByRole("button", { name: "关闭" }).click();
+
+    await expect(weekly.getByText(/未设周预算/)).toBeVisible();
+    await expect(weekly.getByText(/周预算已用/)).toHaveCount(0);
+    await expect(weekly.getByText(/按日均推算/)).toHaveCount(0);
+    await expect(weekly.getByText(/\d+%/)).toHaveCount(0);
   });
 });

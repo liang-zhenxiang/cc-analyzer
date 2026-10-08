@@ -6,6 +6,7 @@ import { BridgesProvider } from "../../api/bridges";
 import { NotificationProvider } from "../../app/NotificationProvider";
 import type { Bridges } from "../../api/types";
 import { getArchiveTask, resetArchiveTask } from "../archive/archiveTask";
+import { getPlan, setPlan } from "../usage/planLimits";
 import { getThresholds, resetThresholds, setThreshold } from "./thresholds";
 import { resetFontScaleForTest } from "./fontScale";
 
@@ -238,6 +239,47 @@ describe("本地归档 section", () => {
     expect(screen.getByRole("checkbox", { name: "启用本地归档" })).toBeChecked();
     expect(screen.getByRole("button", { name: "立即归档" })).toBeEnabled();
     expect(getArchiveTask().status).toBe("error");
+  });
+});
+
+describe("计费窗口 section · 周预算", () => {
+  test("周预算输入常驻（不随计划档位显隐），填写即入同一份持久化 JSON", async () => {
+    const user = userEvent.setup();
+    renderPanel(createBridges().bridges);
+
+    const weekly = screen.getByLabelText("周预算（可选）");
+    // 默认档（none）下也能填：周预算与计划正交，预设一律没有周数字。
+    await user.type(weekly, "300000");
+
+    expect(getPlan().weeklyLimitTokens).toBe(300000);
+    expect(getPlan().limitTokens).toBeNull();
+    const persisted = JSON.parse(localStorage.getItem("cca-billing-plan") ?? "{}");
+    expect(persisted.customWeeklyLimitTokens).toBe(300000);
+  });
+
+  test("清空输入即撤销预算，退回只显示消耗", async () => {
+    const user = userEvent.setup();
+    setPlan({ id: "none", limitTokens: null, weeklyLimitTokens: 300000 });
+    renderPanel(createBridges().bridges);
+
+    await user.clear(screen.getByLabelText("周预算（可选）"));
+
+    expect(getPlan().weeklyLimitTokens).toBeNull();
+  });
+
+  test("切换计划保留周预算——两层限额互不覆盖", async () => {
+    const user = userEvent.setup();
+    setPlan({ id: "none", limitTokens: null, weeklyLimitTokens: 300000 });
+    renderPanel(createBridges().bridges);
+
+    await user.selectOptions(screen.getByLabelText("订阅计划"), "pro");
+
+    expect(getPlan()).toEqual({ id: "pro", limitTokens: 19_000, weeklyLimitTokens: 300000 });
+  });
+
+  afterEach(() => {
+    setPlan({ id: "none", limitTokens: null, weeklyLimitTokens: null });
+    localStorage.clear();
   });
 });
 

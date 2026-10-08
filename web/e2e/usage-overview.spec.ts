@@ -35,7 +35,8 @@ test.describe("用量总览", () => {
     await expect(dashboard).toBeVisible();
 
     // KPI：tokens / 会话 / 消息读自日志，成本按快照估算并带快照日期。
-    await expect(dashboard.getByText("246,130")).toBeVisible();
+    // 246,130 同时是周层「滚动 7 天」的消耗（同一份日志），圈进 KPI 瓦片再断言。
+    await expect(kpiTile(page, "Tokens 总量").getByText("246,130")).toBeVisible();
     await expect(kpiTile(page, "消息数").getByText("16", { exact: true })).toBeVisible();
     await expect(kpiTile(page, "会话数").getByText("2", { exact: true })).toBeVisible();
     // 计费窗口卡的「窗口开启」也标「读自日志」，按 KPI 行作用域数 3 枚。
