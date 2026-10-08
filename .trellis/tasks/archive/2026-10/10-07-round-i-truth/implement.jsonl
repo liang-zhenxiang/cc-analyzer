@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端分层的入口：本轮的改动全部在 web/ 下，先读它决定要再读哪几篇"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "I2 要新增 ErrorState 组件、I1/I3 要改既有组件——组件边界与复用规则在这里"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "令牌纪律（不许字面量颜色/间距/圆角/时长）是本轮所有 CSS 改动的硬约束"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "I4 要扩 PlanSelection 的类型与反序列化，需要类型收窄的既有做法"}
+{"file": ".trellis/spec/testing/index.md", "reason": "三层测试的分工与「哪一层覆盖哪个盲区」——本轮每个子任务都要按它选层"}
+{"file": ".trellis/spec/testing/e2e-tests.md", "reason": "I1/I3/I5 的端到端断言写法与既有约定"}
+{"file": ".trellis/spec/testing/gui-tests.md", "reason": "I5 要扩展真机取图与几何探针，这是它唯一的权威说明"}
+{"file": ".trellis/spec/testing/pitfalls.md", "reason": "「永远为真的断言」等测试陷阱——本轮要求每条新断言都做变异验证"}
+{"file": ".trellis/tasks/10-07-round-i-truth/research/design-review.md", "reason": "本轮所有界面改动的第一手证据（DOM 实测 + 28 张截图逐张目验）；动手前必须读第 5 节「已否证的猜想」，别去改本来就是对的"}
+{"file": ".trellis/tasks/10-07-round-i-truth/research/competitors.md", "reason": "I4 周窗口的依据与红线边界（为什么不做多机同步/代理观测/提问打分）"}
+{"file": ".trellis/tasks/10-07-round-i-truth/design.md", "reason": "跨子任务的技术决策：冻结项、新增令牌、ErrorState 与周窗口的契约、权衡"}
