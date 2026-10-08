@@ -1,42 +1,52 @@
 .card {
   display: grid;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
   padding: var(--sp-3);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   background: var(--bg-subtle);
 }
 
+/* 表盘、四个读数、历史窗口条同处一行：竖着摞起来会吃掉首屏三分之一，
+   而首屏还要容下三块面板的标题。宽度不够时（窄窗口 / 130% 字号）换行。 */
 .gaugeArea {
+  /* 表盘在本卡里走紧凑档：没选计划时它是一个空环，占满 140px 没有信息量。 */
+  --gauge-size: var(--gauge-size-compact);
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
-  gap: var(--sp-4);
   align-items: center;
+  gap: var(--sp-3) var(--sp-5);
 }
 
+/* 四个窗口读数：2×2 网格。此前是 `auto-fit` 四列，`消耗速度` 那一格的标签
+   被挤成两行，四格的 label→value 间距实测 92 / 54 / 53 / 103px——同一组读数
+   四种间距，基线也就跟着不齐。 */
 .readouts {
   display: grid;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 320px;
   gap: var(--sp-2) var(--sp-4);
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .readout {
   display: grid;
   gap: var(--sp-05);
   align-content: start;
-  align-items: baseline;
-  grid-auto-flow: column;
-  justify-content: start;
-  column-gap: var(--sp-1);
+}
+
+.labelRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
 }
 
 .label {
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
   line-height: var(--lh-xs);
+  white-space: nowrap;
 }
 
 .value {
@@ -45,6 +55,12 @@
   font-weight: 600;
   line-height: var(--lh-md);
   font-variant-numeric: tabular-nums;
+}
+
+/* 「未选计划」是缺数据的占位，不是读数——它不该和真值同权重。 */
+.valueMuted {
+  color: var(--text-tertiary);
+  font-weight: 400;
 }
 
 .sub {
@@ -63,6 +79,8 @@
 
 .history {
   display: grid;
+  min-width: 0;
+  flex: 2 1 420px;
   gap: var(--sp-1);
 }
 

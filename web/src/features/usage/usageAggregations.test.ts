@@ -113,8 +113,8 @@ describe("usageAggregations", () => {
     ]);
 
     expect(aggregate.daily.size).toBe(2);
-    expect(formatDayLabel(dayStartOf(new Date(2026, 8, 30, 23, 0).getTime()))).toBe("9-30");
-    expect(formatDayLabel(dayStartOf(new Date(2026, 9, 1, 1, 0).getTime()))).toBe("10-1");
+    expect(formatDayLabel(dayStartOf(new Date(2026, 8, 30, 23, 0).getTime()))).toBe("9/30");
+    expect(formatDayLabel(dayStartOf(new Date(2026, 9, 1, 1, 0).getTime()))).toBe("10/1");
   });
 
   it("merges associatively", () => {

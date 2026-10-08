@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Heatmap } from "./Heatmap";
@@ -58,5 +60,40 @@ describe("Heatmap", () => {
 
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
     expect(screen.getByText("还没有活跃时段")).toBeInTheDocument();
+  });
+
+  it("渲染四档色阶图例，档位与格子同一套阶梯", () => {
+    const counts = emptyCounts();
+    counts[1][9] = 1;
+    counts[1][10] = 4;
+
+    const { container } = render(<Heatmap counts={counts} ariaLabel="活跃时段热力图" />);
+
+    const legend = container.querySelector("[data-heat-legend]");
+    expect(legend).not.toBeNull();
+    expect(legend!.textContent).toBe("少多");
+    const opacities = Array.from(legend!.querySelectorAll("[aria-hidden='true']")).map((cell) =>
+      Number.parseFloat((cell as HTMLElement).style.opacity)
+    );
+    // 四档，且自浅到深单调——没有刻度的热力图读不出「多热算热」。
+    expect(opacities).toHaveLength(4);
+    for (let index = 1; index < opacities.length; index += 1) {
+      expect(opacities[index]).toBeGreaterThan(opacities[index - 1]);
+    }
+    // 图例与格子上限同一档（最热的那一格）。
+    const hottest = Array.from(
+      screen.getByRole("img", { name: "活跃时段热力图" }).querySelectorAll("rect")
+    )
+      .map((cell) => Number.parseFloat(cell.getAttribute("fill-opacity") ?? "0"))
+      .reduce((highest, value) => Math.max(highest, value), 0);
+    expect(hottest).toBe(opacities[opacities.length - 1]);
+  });
+
+  it("空格子只有填充，没有描边", () => {
+    // 描边在 CSS Module 里，jsdom 不解析样式表——按仓库既有做法直接读样式文件。
+    const css = readFileSync(resolve(process.cwd(), "src/features/usage/charts/Heatmap.module.css"), "utf8");
+    const rule = /\.emptyCell\s*\{([^}]*)\}/.exec(css);
+    expect(rule).not.toBeNull();
+    expect(rule![1]).not.toMatch(/stroke/);
   });
 });

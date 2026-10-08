@@ -3,7 +3,7 @@ import { EmptyState } from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
 import { Panel } from "../../components/Panel";
 import { SegmentedControl, type SegmentedItem } from "../../components/SegmentedControl";
-import { formatTokenCount, formatUsd } from "../../lib/format";
+import { formatModelId, formatProjectPath, formatTokenCount, formatUsd } from "../../lib/format";
 import { PRICING_AS_OF, estimateCost } from "./pricingSnapshot";
 import { ProvenanceBadge } from "./ProvenanceBadge";
 import { useUsageOverview } from "./useUsageOverview";
@@ -110,6 +110,44 @@ export function UsageOverviewPage() {
     [range, tokenClass]
   );
 
+  // Buckets are keyed by the encoded project directory name; the sessions'
+  // real paths come from the scan. First path wins — a project bucket can hold
+  // sessions from several archive roots, and any of them names it truthfully.
+  const projectPaths = useMemo(() => {
+    const paths = new Map<string, string>();
+    for (const input of inputs) {
+      if (input.projectPath && !paths.has(input.projectLabel)) {
+        paths.set(input.projectLabel, input.projectPath);
+      }
+    }
+    return paths;
+  }, [inputs]);
+
+  const projectData = useMemo(
+    () =>
+      range.topProjects.map((slice) => {
+        const path = projectPaths.get(slice.label);
+        return {
+          value: slice.value,
+          label: formatProjectPath(slice.label, path),
+          hint: path ?? slice.label
+        };
+      }),
+    [range.topProjects, projectPaths]
+  );
+
+  // Model ids are raw API identifiers; the legend and the bar share this one
+  // mapping so the two never disagree, and the untouched id stays in the tooltip.
+  const modelData = useMemo(
+    () =>
+      range.topModels.map((slice) => ({
+        value: slice.value,
+        label: formatModelId(slice.label),
+        hint: slice.label
+      })),
+    [range.topModels]
+  );
+
   // 加载 / 空 / 出错共用同一块舞台（`stage` 把内容压在主区中线上）：
   // 三者是同一件事的三个阶段，位置不该跟着语义跳。
   if (error) {
@@ -167,87 +205,92 @@ export function UsageOverviewPage() {
       <BillingWindowCard inputs={inputs} />
 
       <div className={styles.kpiRow}>
+        {/* 来源徽章是标签行末尾的一枚圆点（`.kpi` 的两列网格把它放在第一行的
+            右端），数值独占第二行——瓦片里先看到数字，再看标签与出处。 */}
         <div className={styles.kpi}>
           <span className={styles.kpiLabel}>Tokens 总量</span>
-          <span className={styles.kpiValueRow}>
-            <span className={styles.kpiValue}>{formatTokenCount(range.kpi.tokens)}</span>
-            <ProvenanceBadge provenance="logged" />
-          </span>
+          <span className={styles.kpiValue}>{formatTokenCount(range.kpi.tokens)}</span>
+          <ProvenanceBadge provenance="logged" />
         </div>
         <div className={styles.kpi}>
           <span className={styles.kpiLabel}>会话数</span>
-          <span className={styles.kpiValueRow}>
-            <span className={styles.kpiValue}>{range.kpi.sessions.toLocaleString("en-US")}</span>
-            <ProvenanceBadge provenance="logged" />
-          </span>
+          <span className={styles.kpiValue}>{range.kpi.sessions.toLocaleString("en-US")}</span>
+          <ProvenanceBadge provenance="logged" />
         </div>
         <div className={styles.kpi}>
           <span className={styles.kpiLabel}>消息数</span>
-          <span className={styles.kpiValueRow}>
-            <span className={styles.kpiValue}>{range.kpi.messages.toLocaleString("en-US")}</span>
-            <ProvenanceBadge provenance="logged" />
-          </span>
+          <span className={styles.kpiValue}>{range.kpi.messages.toLocaleString("en-US")}</span>
+          <ProvenanceBadge provenance="logged" />
         </div>
         <div className={styles.kpi}>
-          <span className={styles.kpiLabel}>估算成本 · 非账单</span>
-          <span className={styles.kpiValueRow}>
-            <span className={styles.kpiValue}>{formatUsd(cost.usd)}</span>
-            <ProvenanceBadge provenance="estimated" detail={`快照日期 ${PRICING_AS_OF}`} />
-          </span>
-          {cost.hasUnknown ? (
-            <span className={styles.kpiNote}>
-              部分会话未知价 · 约 {formatTokenCount(cost.unknownTokens)} tok 未计入
-            </span>
-          ) : null}
+          <span className={styles.kpiLabel}>估算成本</span>
+          <span className={styles.kpiValue}>{formatUsd(cost.usd)}</span>
+          <ProvenanceBadge provenance="estimated" detail={`快照日期 ${PRICING_AS_OF}`} />
         </div>
+        {/* 免责说明跨列收在卡片底部：它此前是成本那一列的第三层（列头「非账单」
+            + chip「估算」+「快照日期」），把整张卡撑高、另外三列各留 60px 死白。 */}
+        <p className={styles.kpiFootnote}>
+          Tokens 总量、会话数、消息数读自本机日志；估算成本按定价快照（{PRICING_AS_OF}）折算，
+          不是账单。
+          {cost.hasUnknown
+            ? ` 部分会话未知价 · 约 ${formatTokenCount(cost.unknownTokens)} tok 未计入`
+            : ""}
+        </p>
       </div>
 
-      <Panel
-        title="每日 Token 消耗"
-        actions={
-          <SegmentedControl
-            items={CLASS_ITEMS}
-            value={tokenClass}
-            onChange={setTokenClass}
-            ariaLabel="Token 类别"
+      {/* 两列网格：单列文档流下仪表盘比视口高 43%，「按项目分布」「按模型分布」
+          「活跃时段」三块因此从来没进过首屏，也没进过任何一张归档截图。 */}
+      <div className={styles.board}>
+        <Panel
+          title="每日 Token 消耗"
+          actions={
+            <SegmentedControl
+              items={CLASS_ITEMS}
+              value={tokenClass}
+              onChange={setTokenClass}
+              ariaLabel="Token 类别"
+            />
+          }
+        >
+          <BarChart
+            data={trendData}
+            ariaLabel="每日 Token 消耗趋势"
+            emptyText="所选范围内暂无消耗"
+            height={170}
           />
-        }
-      >
-        <BarChart
-          data={trendData}
-          ariaLabel="每日 Token 消耗趋势"
-          emptyText="所选范围内暂无消耗"
-        />
-      </Panel>
-
-      <div className={styles.distributionRow}>
-        <Panel title="按项目分布">
-          <HBarChart data={range.topProjects} ariaLabel="按项目分布" emptyText="所选范围内暂无项目消耗" />
         </Panel>
+
+        <Panel title="按项目分布">
+          <HBarChart data={projectData} ariaLabel="按项目分布" emptyText="所选范围内暂无项目消耗" />
+        </Panel>
+
         <Panel title="按模型分布">
-          <StackedBar data={range.topModels} ariaLabel="按模型分布" emptyText="所选范围内暂无模型消耗" />
-          {range.topModels.length > 0 ? (
+          <StackedBar data={modelData} ariaLabel="按模型分布" emptyText="所选范围内暂无模型消耗" />
+          {modelData.length > 0 ? (
             <ul className={styles.modelLegend}>
-              {range.topModels.map((slice, index) => (
-                <li key={slice.label}>
+              {modelData.map((slice, index) => (
+                <li key={slice.hint}>
                   {/* 与 StackedBar 同一索引规则：module class 无法按索引计算，
                       内联 token 引用是该组件已认可的唯一例外。 */}
                   <span
                     className={styles.swatch}
                     style={{ background: `var(--chart-${(index % 6) + 1}, var(--accent))` }}
                   />
-                  <span className={styles.modelName}>{slice.label}</span>
+                  {/* 标签是缩短后的名字，原始 id 进 title——两个快照不是同一样东西。 */}
+                  <span className={styles.modelName} title={slice.hint}>
+                    {slice.label}
+                  </span>
                   <span className={styles.modelValue}>{formatTokenCount(slice.value)}</span>
                 </li>
               ))}
             </ul>
           ) : null}
         </Panel>
-      </div>
 
-      <Panel title="活跃时段（7×24）">
-        <Heatmap counts={range.hourly} ariaLabel="活跃时段热力图" />
-      </Panel>
+        <Panel title="活跃时段（周 × 小时）">
+          <Heatmap counts={range.hourly} ariaLabel="活跃时段热力图" />
+        </Panel>
+      </div>
     </section>
   );
 }

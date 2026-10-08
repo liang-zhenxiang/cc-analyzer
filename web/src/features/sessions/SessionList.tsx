@@ -7,7 +7,12 @@ import { SegmentedControl, type SegmentedItem } from "../../components/Segmented
 import { Skeleton } from "../../components/Skeleton";
 import { TextInput } from "../../components/TextInput";
 import { sessionTitle, type SessionMeta } from "./metadataCache";
-import { dateBucketLabel, formatBytes, formatRelativeTime } from "../../lib/format";
+import {
+  dateBucketLabel,
+  formatBytes,
+  formatProjectPath,
+  formatRelativeTime
+} from "../../lib/format";
 import { buildRowOffsets, computeSizedWindow } from "./virtualWindow";
 import { useThresholds } from "../settings/thresholds";
 import { useFontScale } from "../settings/fontScale";
@@ -358,7 +363,8 @@ function SessionButton({
       {session.metadataStatus === "failed" ? <small>标题提取失败</small> : null}
       <span className={styles.meta}>
         {formatRelativeTime(session.mtimeMs)} · {formatBytes(session.sizeBytes)} ·{" "}
-        {session.projectLabel}
+        {/* 项目名取会话真实 cwd 的末段；没有 cwd 时退回目录名（去掉编码用的前导 `-`）。 */}
+        {formatProjectPath(session.projectLabel, session.cwd)}
       </span>
     </button>
   );

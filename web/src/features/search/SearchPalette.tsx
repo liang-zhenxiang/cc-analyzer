@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { snippetOf, sharedSearchIndex, type SearchHit } from "./searchIndex";
 import { useSearchIndex } from "./useSearchIndex";
-import { formatRelativeTime } from "../../lib/format";
+import { formatProjectPath, formatRelativeTime } from "../../lib/format";
 import styles from "./SearchPalette.module.css";
 
 /** One flat, keyboard-navigable list item: a hit. */
@@ -121,7 +121,11 @@ export function SearchPalette({
         <div className={styles.results} ref={listRef}>
           {groups.map((group) => (
             <div key={group.projectLabel} className={styles.group}>
-              <h3 className={styles.groupTitle}>{group.projectLabel}</h3>
+              {/* 搜索索引里没有 cwd，分组标题走 formatProjectPath 的降级档：
+                  去掉编码前导 `-`；编码名完整进 title，需要溯源时看得到。 */}
+              <h3 className={styles.groupTitle} title={group.projectLabel}>
+                {formatProjectPath(group.projectLabel)}
+              </h3>
               {group.sessions.map((session) => (
                 <div key={session.sessionPath} className={styles.session}>
                   {session.hits.map((hit) => {

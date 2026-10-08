@@ -104,7 +104,8 @@ export function useUsageOverview() {
             if (parsed.records.length > 0) {
               const input: UsageSessionInput = {
                 records: parsed.records,
-                projectLabel: session.projectLabel
+                projectLabel: session.projectLabel,
+                projectPath: session.cwd
               };
               collected.push(input);
               mergeInto(accumulated, aggregateSessionInput(input));

@@ -24,9 +24,37 @@ export function niceAxisMax(value: number): number {
   return nice * 10 ** exponent;
 }
 
-/** `steps + 1` tick values from 0 up to `max` — the 0 tick doubles as the baseline. */
+/**
+ * The largest 1 / 2 / 5 / 10 × 10ⁿ step that is no bigger than `raw`. Rounding
+ * *down* is what keeps the tick count near the caller's hint: rounding up would
+ * leave `max` needing fewer divisions than asked for, so a 200K axis would get
+ * two gridlines instead of four.
+ */
+function niceStep(raw: number): number {
+  const exponent = Math.floor(Math.log10(raw));
+  const base = 10 ** exponent;
+  const mantissa = raw / base;
+  const nice = mantissa >= 5 ? 5 : mantissa >= 2 ? 2 : 1;
+  return nice * base;
+}
+
+/**
+ * Tick values from 0 up to `max`, in steps that land on 1 / 2 / 5 × 10ⁿ — the
+ * values a reader can do arithmetic with and compare across charts. Dividing
+ * the axis into equal thirds instead (the previous behaviour) is what produced
+ * `0 / 66.7K / 133.3K / 200K`: equal parts, but no round numbers, and a
+ * fingerprint that reads as "auto-generated" rather than "calibrated". `steps`
+ * is a hint for how many divisions to aim for, not a promise — the step size
+ * wins, because the whole point is that the labels are round.
+ */
 export function axisTicks(max: number, steps = 3): number[] {
-  return Array.from({ length: steps + 1 }, (_, index) => (max * index) / steps);
+  if (!Number.isFinite(max) || max <= 0) return [0, 1];
+  // Token counts are integers, so a fractional step (only reachable for a max
+  // below 2) is not a readable axis.
+  const step = Math.max(1, niceStep(max / steps));
+  const ticks: number[] = [];
+  for (let value = 0; value <= max + step / 1000; value += step) ticks.push(value);
+  return ticks;
 }
 
 const compactFormatter = new Intl.NumberFormat("en-US", {

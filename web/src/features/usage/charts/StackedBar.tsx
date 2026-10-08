@@ -16,7 +16,8 @@ export function StackedBar({
   ariaLabel,
   emptyText = "暂无数据"
 }: {
-  data: { label: string; value: number }[];
+  /** `hint` is the untruncated identity behind a shortened `label` — see HBarChart. */
+  data: { label: string; value: number; hint?: string }[];
   formatValue?: (value: number) => string;
   ariaLabel: string;
   emptyText?: string;
@@ -51,7 +52,7 @@ export function StackedBar({
               stroke: `var(--chart-${(index % 6) + 1}, var(--accent))`
             }}
           >
-            <title>{`${point.label}：${formatValue(point.value)}`}</title>
+            <title>{`${point.hint ?? point.label}：${formatValue(point.value)}`}</title>
           </rect>
         );
         x += segmentWidth;

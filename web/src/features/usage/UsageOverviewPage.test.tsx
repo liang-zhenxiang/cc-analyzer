@@ -132,7 +132,9 @@ describe("UsageOverviewPage", () => {
     expect(kpiRow).not.toBeNull();
     expect(await within(kpiRow as HTMLElement).findAllByText("读自日志")).toHaveLength(3);
     expect(within(dashboard).getByText("按定价快照估算")).toBeInTheDocument();
-    expect(within(dashboard).getByText(/快照日期 \d{4}-\d{2}-\d{2}/)).toBeInTheDocument();
+    // 免责说明收在 KPI 卡底部的跨列脚注里，日期仍是看得见的正文。
+    expect(within(dashboard).getByText(/定价快照（\d{4}-\d{2}-\d{2}）/)).toBeInTheDocument();
+    expect(within(dashboard).getByText(/不是账单/)).toBeInTheDocument();
   });
 
   it("switches the trend between 30 and 7 days", async () => {
@@ -189,12 +191,15 @@ describe("UsageOverviewPage", () => {
     expect(chartByName("活跃时段热力图")).toBeInTheDocument();
 
     const projects = chartByName("按项目分布");
+    // 标签是会话真实 cwd 的末段（夹具里没有 cwd，退回目录名本身）。
     expect(projects.textContent).toContain("-repo-alpha");
     expect(projects.textContent).toContain("-repo-beta");
 
-    // The stacked bar's legend repeats the model names as readable text.
-    expect(screen.getByText("claude-sonnet-4-5-20250929")).toBeInTheDocument();
-    expect(screen.getByText("claude-haiku-4-5-20251001")).toBeInTheDocument();
+    // The stacked bar's legend prints the model family and version as readable
+    // text; the raw id stays in the tooltip so nothing is lost.
+    expect(screen.getByText("Sonnet 4.5")).toBeInTheDocument();
+    expect(screen.getByText("Haiku 4.5")).toBeInTheDocument();
+    expect(screen.getByTitle("claude-sonnet-4-5-20250929")).toBeInTheDocument();
   });
 
   it("flags unknown models instead of pricing them at zero", async () => {

@@ -68,7 +68,8 @@ describe("BillingWindowCard", () => {
     // 2h 消耗 19k → 9.5k/h，剩 19k → 再过 2h 到限额
     render(<BillingWindowCard inputs={inputsOf([record(T0, 19_000)])} now={T0 + 2 * HOUR} />);
     const card = screen.getByLabelText("计费窗口");
-    expect(within(card).getAllByText("按消耗速度推算").length).toBeGreaterThanOrEqual(2);
+    // 速度与预测各一枚推算徽章（圆点；完整句子在可访问名上）。
+    expect(within(card).getAllByLabelText(/数据来源：按消耗速度推算/)).toHaveLength(2);
     // T0+2h 起再 2h → 13:00（同日）
     expect(within(card).getByText("10-02 13:00")).toBeInTheDocument();
   });

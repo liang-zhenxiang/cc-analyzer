@@ -1,39 +1,40 @@
-/* 置信徽章：细描边、小字号、随档位轻微着色——「诚实仪表」的设计语言。
-   颜色全部走 tokens.css；estimated 用警示色系，读自日志用成功色系。 */
+/* 来源徽章：**一枚圆点**。它标注的是「这个数字读自日志还是估算」，
+   一屏出现五六次；实底 + 描边 + 文字的小胶囊会把页面最响的颜色花在信息量
+   最低的地方（KPI 行里 chip 比数字还宽，层级整个倒过来）。
+   档位仍可辨：绿 = 确定的读数、琥珀 = 非确定信息、灰 = 快照元数据；
+   完整句子在 title 与可访问名里，正文看得到的是数据本身。 */
 .badge {
+  position: relative;
   display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  height: var(--control-h-sm);
-  padding: 0 var(--sp-2);
-  border: 1px solid var(--border);
-  border-radius: var(--r-xs);
-  font-size: var(--fs-xs);
-  line-height: var(--lh-xs);
-  color: var(--text-tertiary);
-  background: var(--bg-inset);
-  white-space: nowrap;
-}
-
-.detail {
-  color: var(--text-faint);
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
 }
 
 .logged {
-  color: var(--success);
-  background: var(--success-soft);
+  background: var(--success);
 }
 
 .estimated {
-  color: var(--warning);
-  background: var(--warning-soft);
+  background: var(--warning);
+}
+
+.inferred {
+  background: var(--warning);
 }
 
 .snapshot {
-  color: var(--text-secondary);
+  background: var(--text-tertiary);
 }
 
-/* 推算档与估算档同款描边色：都是「非读自日志」，差异在文案而非颜色等级。 */
-.inferred {
-  border-color: var(--warning);
+/* 只看不读的档位文案（完整句子在 title / aria-label 里）。 */
+.srOnly {
+  position: absolute;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  width: 1px;
+  height: 1px;
+  white-space: nowrap;
 }
