@@ -1,6 +1,13 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { test, expect, recentActivityScenario, compactScenario, errorScenario } from "./fixtures";
+import {
+  test,
+  expect,
+  recentActivityScenario,
+  compactScenario,
+  errorScenario,
+  changedFilesScenario
+} from "./fixtures";
 import type { Page } from "@playwright/test";
 
 /**
@@ -275,6 +282,48 @@ test.describe("截图归档 · 错误档", () => {
       await scrollMainToBottom(page);
       await settleImages(page);
       await page.screenshot({ path: path.join(OUT_DIR, `error-events-${theme}${suffix}.png`) });
+    });
+  }
+});
+
+// 改动标签页（Round N / N2）需要「真的动过文件」的会话：changedFilesScenario
+// 挂 /repo/changed-demo（三个文件：新建 + 失败 + 子链 + 项目外路径俱全）。
+// 一张：展开首文件后的完整形态（行、徽标、展开区记录清单与口径脚注）——
+// 空态由 e2e 断言覆盖，不另入截图矩阵。
+test.describe("截图归档 · 改动", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: changedFilesScenario() });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`改动标签页 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+
+      await page.goto("/");
+      await page.getByPlaceholder("搜会话 ID 或目录…").fill("changed-demo");
+      await sessionItems(page).first().click();
+      await expect(page.getByLabel("会话图状态")).toContainText("会话图已加载", {
+        timeout: 15_000
+      });
+      await page.getByRole("tab", { name: "改动", exact: true }).click();
+      await expect(page.getByRole("region", { name: "改动文件" })).toBeVisible();
+      // 展开首文件：截图要有展开区的样子（小结行 + 记录清单），引导态不是常态。
+      await page
+        .getByRole("region", { name: "改动文件" })
+        .getByRole("button", { name: /src\/web\/foo\.ts/ })
+        .click();
+      await expect(
+        page.getByRole("region", { name: "改动文件" }).locator("[data-changes-records]")
+      ).toBeVisible();
+      await page.waitForTimeout(250);
+      await settleImages(page);
+      await page.screenshot({ path: path.join(OUT_DIR, `changed-files-${theme}${suffix}.png`) });
     });
   }
 });

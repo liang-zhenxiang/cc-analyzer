@@ -180,6 +180,31 @@ export function compactScenario(overrides: Partial<MockScenario> = {}): MockScen
   };
 }
 
+/**
+ * 默认场景 + 改动文件夹具会话（/repo/changed-demo，2026-09-20 一个下午）：
+ * 文件 A（cwd 内：Read ×2 → Edit ×2 → Write(create) → 失败 Edit → 子链 Edit）、
+ * 文件 B（仅 Read）、文件 C（cwd 外 /etc/hosts 的 Edit），另含 snapshot / delta /
+ * attachment / cost-state 四行已登记类型。「改动」标签页的端到端与归档截图靠它。
+ * 改动视图没有时间窗概念，不需要平移。
+ *
+ * **时间戳刻意比 error-session 的最新（2026-10-03）早 13 天**：真机门禁把全部
+ * 夹具整体平移到「最新活动日 = 昨天」，相对间距不变——本夹具若只早两三天，
+ * 平移后会落进「近 7 天」窗口，它那条 is_error 的 Edit 就被错误档算成第 8 条
+ * （真机门禁抓到过一次）。13 天 > 窗口 7 天 + 舍入余量，落在窗外。
+ */
+export function changedFilesScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  const base = defaultScenario(overrides);
+  return {
+    ...base,
+    files: {
+      ...base.files,
+      [`${HOME}/.claude/projects/-repo-changed-demo/changed-files-session.jsonl`]: fixture(
+        "changed-files-session.jsonl"
+      )
+    }
+  };
+}
+
 /** 空场景：家目录存在但没有任何会话 */
 export function emptyScenario(overrides: Partial<MockScenario> = {}): MockScenario {
   return {

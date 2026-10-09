@@ -20,6 +20,7 @@ import { formatProjectPath } from "../../lib/format";
 import { TreeView } from "./TreeView";
 import { LogView } from "./LogView";
 import { ContextView, type ContextRevealRequest } from "./ContextView";
+import { ChangedFilesView } from "./ChangedFilesView";
 import { ParseCoverageChip } from "./ParseCoverageChip";
 import { emptyFilter, type RecordFilter, type TimeRange } from "./filters";
 import { parseJsonlTextAsync } from "./parseJsonl";
@@ -38,12 +39,13 @@ import { sessionTitle, type SessionMeta } from "./metadataCache";
 import type { ParsedSession, ParsedSessionGraph, SessionRecord } from "./types";
 import styles from "./SessionAnalyzerPage.module.css";
 
-type AnalyzerView = "log" | "tree" | "context";
+type AnalyzerView = "log" | "tree" | "context" | "changes";
 
 const ANALYZER_VIEW_ITEMS: SegmentedItem<AnalyzerView>[] = [
   { value: "log", label: "日志视图" },
   { value: "tree", label: "树视图" },
-  { value: "context", label: "上下文" }
+  { value: "context", label: "上下文" },
+  { value: "changes", label: "改动" }
 ];
 
 const VIEW_STORAGE_KEY = "cca-analyzer-view";
@@ -51,7 +53,7 @@ const VIEW_STORAGE_KEY = "cca-analyzer-view";
 function readStoredView(): AnalyzerView {
   try {
     const stored = localStorage.getItem(VIEW_STORAGE_KEY);
-    return stored === "tree" || stored === "context" ? stored : "log";
+    return stored === "tree" || stored === "context" || stored === "changes" ? stored : "log";
   } catch {
     return "log";
   }
@@ -487,9 +489,11 @@ export function SessionAnalyzerPage({
               {tokenPanelOpen ? (
                 <TokenPanel records={parsed.records} isSubagent={parsed.isSubagent} />
               ) : null}
-              {/* 上下文标签页不渲染时间线与筛选（design §2.1/§9-5）：取证的口径是
-                  「压缩点之前全部消息 − 幸存清单」，记录级筛选会让口径漂移。 */}
-              {view === "context" ? null : (
+              {/* 上下文 / 改动标签页不渲染时间线与筛选：两者的口径都是会话级
+                  全量（压缩取证 =「压缩点之前全部消息 − 幸存清单」；改动清单 =
+                  「通过文件工具动过的文件」），记录级筛选会让口径漂移
+                  （context design §2.1/§9-5，changes 裁决 #2 同款理由）。 */}
+              {view === "context" || view === "changes" ? null : (
                 <>
                   <TimelineTrack
                     session={parsed}
@@ -553,6 +557,8 @@ export function SessionAnalyzerPage({
                     windowOnly={windowOnly}
                     onWindowOnlyChange={setWindowOnly}
                   />
+                ) : view === "changes" ? (
+                  <ChangedFilesView parsed={parsed} onLocateInLog={locateInLog} />
                 ) : (
                   <ContextView
                     parsed={parsed}

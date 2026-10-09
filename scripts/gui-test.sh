@@ -56,12 +56,14 @@
 #
 # 默认的视图清单是「会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
 # 日志视图 → 导出 → 关闭导出窗口 → 压缩夹具会话 → 上下文 → 点选第 2 枚压缩事件 chip →
+# 改动夹具会话 → 改动 → 点选首个文件行 →
 # 用量总览 → 视图=用量 → 滚到底 → 近 7 天 → 错误档 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→
 # 实时监控 → 字号恢复 100%」；每张图都配一份
 # 几何探针 JSON（`CCA_GUI_PROBE`），脚本据它判定
 # **布局不变量**：无横向溢出、表盘有界且含于卡片、记录表末列可达、会话行不裁字、
 # 两层限额读数在卡内、用量页三块面板滚一次可达、上下文曲线有界且命中区与压缩次数一致、
-# 取证卡在视口内、被丢清单不是假列表、错误档趋势有界且事件列表是真列表。目标既可写
+# 取证卡在视口内、被丢清单不是假列表、错误档趋势有界且事件列表是真列表、
+# 改动文件列表是真列表且展开区可达。目标既可写
 # 可访问名/可见文本（标签页），也可写会话 cwd
 # （会匹配按钮的 `title`）、`字号=<档位>` / `视图=<用量页子视图名>` / `滚动=<选择器>` /
 # `点选=<CSS 选择器>` 四种动作。
@@ -117,12 +119,12 @@ gui-test.sh —— 真机 GUI 冒烟测试
 
 默认视图清单：会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
 日志视图 → 导出 → 关闭导出窗口 → 压缩夹具会话（/repo/compact-demo）→ 上下文 → 点选第 2 枚压缩
-事件 chip → 用量总览 → 视图=用量 → 滚到底 → 近 7 天 → 错误档 → 滚到底 → 全局搜索（开）→
-全局搜索（关）→ 实时监控 → 字号恢复 100%。
+事件 chip → 改动夹具会话（/repo/changed-demo）→ 改动 → 点选首个文件行 → 用量总览 → 视图=用量 →
+滚到底 → 近 7 天 → 错误档 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→ 实时监控 → 字号恢复 100%。
 每张图都配一份几何探针 JSON，脚本据它判定布局不变量（无横向溢出 / 表盘有界且含于卡片 /
 记录表末列可达 / 文字里无 ESC 转义字节 / 两层限额读数在卡内 / 用量页三块面板滚一次可达 /
 上下文曲线有界且命中区与压缩次数一致 / 取证卡在视口内 / 被丢清单不是假列表 / 错误档趋势
-有界且事件列表是真列表）。
+有界且事件列表是真列表 / 改动文件列表是真列表且展开区可达）。
 
 `字号=<档位>`（如 `字号=130%`）是一个动作目标：先在设置浮层里把界面字号切到该档，
 再取图与探针——用它验证「放大字号后布局仍然成立」。默认清单末尾会切回 100%，
@@ -500,6 +502,7 @@ FIXTURE_OFFSET="$(cat "${FIXTURE_SRC}"/session-basic.jsonl \
   "${FIXTURE_SRC}"/usage-dashboard-models.jsonl \
   "${FIXTURE_SRC}"/compact-session.jsonl \
   "${FIXTURE_SRC}"/error-session.jsonl \
+  "${FIXTURE_SRC}"/changed-files-session.jsonl \
   | node -e '
     const TS = /"timestamp":"([^"]+)"/g;
     let text = "", newest = 0;
@@ -545,6 +548,16 @@ install_fixture "${FIXTURE_SRC}/compact-session.jsonl" "-repo-compact-demo" "com
 # 工具错误 4（含一条 sidechain 失败）、一次被排除的 AskUserQuestion 拒绝。
 # 与 web/e2e 的 errorScenario 共用同一份 tests/fixtures/error-session.jsonl。
 install_fixture "${FIXTURE_SRC}/error-session.jsonl" "-repo-error-demo" "error-session"
+# 改动夹具（Round N / N2）：改动标签页的门禁步骤靠它——3 个文件（cwd 内含
+# 新建/失败/子链的 A、仅查看的 B、项目外的 C），文件 A 下钻清单 7 条。
+# 与 web/e2e 的 changedFilesScenario 共用同一份 tests/fixtures/changed-files-session.jsonl。
+# **时间戳刻意比 error-session 的最新（2026-10-03）早 13 天**，两个原因：
+# 1. 共用平移偏移取全部夹具里最新者——本夹具若更新，error-session 会被整体
+#    平移出「近 7 天」窗口，错误档的 7 条期望失配；
+# 2. 平移只改绝对位置、不改相对间距——本夹具若只早两三天，平移后自己会落进
+#    「近 7 天」窗口，它那条 is_error 的 Edit 就成了错误档的第 8 条。
+#    （两个方向都是真���门禁抓到过的；13 天 > 窗口 7 天 + 舍入余量。）
+install_fixture "${FIXTURE_SRC}/changed-files-session.jsonl" "-repo-changed-demo" "changed-files-session"
 # 归档夹具：源文件**不在**隔离家目录里（模拟 Claude Code 已清理），只有副本与索引。
 # 应用若真的把副本并回列表并解析，元数据缓存里会出现一条**键为副本路径**的条目——
 # 这是「归档 → 发现 → 解析 → 缓存」整条真机链路的直接证据。
@@ -571,7 +584,7 @@ cat >"${ARCHIVE_ROOT}/archive-index.json" <<JSON
 }
 JSON
 printf '  隔离家目录：%s\n' "$HOME_DIR"
-printf '  夹具会话：7 个（另有 1 个只剩归档副本的会话）\n'
+printf '  夹具会话：8 个（另有 1 个只剩归档副本的会话）\n'
 
 CACHE_PATH="${HOME_DIR}/Library/Application Support/${BUNDLE_ID}/meta-cache-v2.json"
 
@@ -632,7 +645,16 @@ else
   # 不隔离的 localStorage，上一次运行停在错误档时，点「用量总览」标签页只会
   # 得到错误档——表盘与三块面板根本不渲染。每次显式重置回用量档，门禁自愈
   # （同「前两步显式切回会话分析」的对策，只是对象换成了子视图状态维度）。
-  CAPTURE_TARGETS=("会话分析" "字号=130%" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "用量总览" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "实时监控" "字号=100%")
+  #
+  # 改动两步（Round N / N2）插在上下文三步之后：打开 /repo/changed-demo
+  # （3 个文件的夹具会话）→ 切「改动」标签页（文件列表真列表的账目在这一步
+  # 判定）→ `点选=` 首个文件行里的按钮（展开区可达 + 记录数与夹具一致）。
+  # 「改动」这个二字名走通用按名点击是安全的：通用扫描先扫 tablist，而全部
+  # tablist 里含「改动」二字的只有分析器子视图这一枚标签；文件行的可访问名
+  # 虽也含「改动 N」，但它在第二扫描域（普通按钮），永远轮不到。
+  # 点选目标写 `… button` 后缀：data-changes-file 挂在 li 上（行高账由 li 承载），
+  # 而 toggle 的 click 在行按钮上——点 li 不会触发 React 的 onClick。
+  CAPTURE_TARGETS=("会话分析" "字号=130%" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "实时监控" "字号=100%")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
@@ -771,10 +793,10 @@ PY
   COUNT="$(printf '%s\n' "$CACHE_REPORT" | grep '^COUNT ' | awk '{print $2}')"
   OUTSIDE="$(printf '%s\n' "$CACHE_REPORT" | grep '^OUTSIDE ' | awk '{print $2}')"
 
-  if [[ "${COUNT:-}" == "8" ]]; then
-    ok "缓存条目数 = 8（7 个夹具 + 1 个归档副本）"
+  if [[ "${COUNT:-}" == "9" ]]; then
+    ok "缓存条目数 = 9（8 个夹具 + 1 个归档副本）"
   else
-    bad "缓存条目数 = ${COUNT:-解析失败}，期望 8"
+    bad "缓存条目数 = ${COUNT:-解析失败}，期望 9"
     printf '  %s  %s%s\n' "$C_YELLOW" "$CACHE_REPORT" "$C_RESET"
   fi
 
@@ -899,6 +921,13 @@ CONTEXT_EVENT_COUNT = 2
 ERROR_TAB_LABEL = "错误"
 ERROR_WINDOW_DAYS = 7
 ERROR_EVENT_COUNT = 7
+# 改动标签页（Round N / N2）。夹具 changed-files-session.jsonl（挂
+# /repo/changed-demo）有 3 个文件（A cwd 内含新建/失败/子链、B 仅查看、C 项目外），
+# 文件 A 的下钻清单 7 条——「改动」与「点选=」两步据此判文件列表的真列表账目
+# 与展开区可达。
+CHANGES_TAB_LABEL = "改动"
+CHANGES_FILE_COUNT = 3
+CHANGES_RECORD_COUNT = 7
 coverage = os.environ.get("COVERAGE") == "1"
 seen_gauge = 0
 seen_table = 0
@@ -907,6 +936,7 @@ seen_billing = 0
 seen_usage_panels = 0
 seen_context = 0
 seen_error = 0
+seen_changes = 0
 
 # 「滚动=main」的判定要知道滚的是哪个页面：清单是有序的，靠上一步的 label
 # 把动作与页面挂上钩（默认清单里它紧跟「用量总���」）。自定义清单把它用在
@@ -1257,12 +1287,86 @@ for arg in sys.argv[1:]:
             else:
                 print(f"OK|{label}：错误事件面板滚一次可达，列表几何仍在（scrollTop {scroll_top} / scrollHeight {main_info.get('scrollHeight')}）")
 
+    # 改动标签页（Round N / N2）：文件列表是真列表（行高 × 声明行数对总高的账，
+    # 同被丢清单 / 错误事件列表的判法——li 承载行高、button 拉伸填满，N1 教训）。
+    # 几何事实由应用的探针收集（facts.changes），阈值与判定只在这里。
+    if label == CHANGES_TAB_LABEL:
+        ch = data.get("changes") or {}
+        if ch.get("view") is not True:
+            print(f"BAD|{label}：改动视图没有产出锚点（data-changes-view）——标签页没切过去，或整块没渲染")
+        else:
+            problems = []
+            files = ch.get("files")
+            if not isinstance(files, dict) or not isinstance(files.get("declaredCount"), int):
+                problems.append("文件列表没有产出滚动几何（data-changes-files）或行数读不出")
+            else:
+                declared = files["declaredCount"]
+                row_h = files.get("firstRowHeight")
+                scroll_h = files.get("listScrollHeight")
+                pads = [p for p in (files.get("padHeights") or []) if isinstance(p, (int, float))]
+                visible = files.get("visibleRows")
+                if declared != CHANGES_FILE_COUNT:
+                    problems.append(f"文件声明 {declared!r} 个，期望 {CHANGES_FILE_COUNT}（夹具 changed-files 的文件数）")
+                if not isinstance(row_h, (int, float)) or row_h <= 0 or not isinstance(scroll_h, int):
+                    problems.append(f"行高/总高缺失（firstRowHeight={row_h!r}，scrollHeight={scroll_h!r}）")
+                elif abs(scroll_h - declared * row_h) > 4:
+                    problems.append(f"文件列表总高 {scroll_h}px ≠ {declared} 行 × {row_h}px——声称的行数没有对应的内容高度")
+                if pads:
+                    if not isinstance(visible, int):
+                        problems.append("窗口化生效但可见行数缺失")
+                    elif abs(scroll_h - (sum(pads) + visible * row_h)) > 4:
+                        problems.append(f"垫片 {sum(pads)}px + 可见 {visible} 行 × {row_h}px ≠ 总高 {scroll_h}px——垫片没按行数算")
+                elif visible != declared:
+                    problems.append(f"无垫片时可见行 {visible!r} ≠ 声明 {declared}——列表没铺全，或行数算错")
+            if problems:
+                for problem in problems:
+                    print(f"BAD|{label}：改动视图——{problem}")
+            else:
+                seen_changes += 1
+                print(f"OK|{label}：文件列表是真列表（{files['declaredCount']} 行 × {files['firstRowHeight']:.1f}px ≈ 总高 {files['listScrollHeight']}px）")
+
+    # 点选改动文件行之后：展开区要真的渲染且记录数与夹具一致；账目把展开区
+    # 的高度也算进去（它是紧跟文件行的变高 li）。
+    if label.startswith("点选=") and prev_label == CHANGES_TAB_LABEL:
+        ch = data.get("changes") or {}
+        problems = []
+        if ch.get("view") is not True:
+            problems.append("改动视图不见了（data-changes-view）——切档状态丢了")
+        records = ch.get("records")
+        if not isinstance(records, dict) or not isinstance(records.get("rows"), int):
+            problems.append("展开区没有渲染（data-changes-records）——文件行点击没生效")
+        elif records["rows"] != CHANGES_RECORD_COUNT:
+            problems.append(f"展开区记录 {records['rows']!r} 条，期望 {CHANGES_RECORD_COUNT}（夹具文件 A 的记录数）")
+        elif not isinstance(records.get("height"), int) or records["height"] <= 0:
+            problems.append("展开区高度为零——记录行没有铺开")
+        files = ch.get("files")
+        if (
+            isinstance(files, dict)
+            and isinstance(files.get("firstRowHeight"), (int, float))
+            and isinstance(files.get("declaredCount"), int)
+            and isinstance(records, dict)
+            and isinstance(records.get("height"), int)
+        ):
+            expected = files["declaredCount"] * files["firstRowHeight"] + records["height"]
+            if abs(files.get("listScrollHeight", 0) - expected) > 4:
+                problems.append(
+                    f"总高 {files.get('listScrollHeight')}px ≠ {files['declaredCount']} 行 × "
+                    f"{files['firstRowHeight']:.1f}px + 展开 {records['height']}px——展开区没按行高入账"
+                )
+        if problems:
+            for problem in problems:
+                print(f"BAD|{label}：改动展开区——{problem}")
+        else:
+            seen_changes += 1
+            print(f"OK|{label}：展开区可达（{records['rows']} 条记录，高 {records['height']}px），账目含展开高度")
+
     # 点选压缩事件 chip 之后：取证卡要在视口内、被丢清单不能是「假列表」。
     # 防「假列表」的核心判据是滚动内容的总高 ≈ 声明行数 × 行高——清单只铺
     # 几十行却声称几百条、或垫片高度不随行数变，都会在这里红。当前夹具 82 条
     # 低于窗口化阈值（120），走「无垫片、全量铺开」分支；垫片分支为更大的
     # 清单留判据（事实在应用、断言在此，两个分支都成立才叫防得住）。
-    if label.startswith("点选="):
+    # （改动视图也有自己的「点选=」步骤——由 prev_label 分流，见上面改动档。）
+    if label.startswith("点选=") and prev_label != CHANGES_TAB_LABEL:
         ctx = data.get("context") or {}
         viewport = data.get("viewport") or {}
         card = ctx.get("forensicCard")
@@ -1346,6 +1450,8 @@ if coverage and seen_context == 0:
     print("BAD|视图覆盖：没有任何视图产出上下文曲线几何——上下文标签页没被覆盖")
 if coverage and seen_error == 0:
     print("BAD|视图覆盖：没有任何视图产出错误档几何——「错误」分段没被覆盖")
+if coverage and seen_changes == 0:
+    print("BAD|视图覆盖：没有任何视图产出改动档几何——「改动」标签页没被覆盖")
 PY
 )" || PROBE_STATUS=$?
 

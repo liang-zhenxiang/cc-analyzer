@@ -39,7 +39,14 @@ const SKIPPED_EVENT_TYPES = new Set([
   "last-prompt",
   "attachment",
   "file-history-snapshot",
-  "file-history-delta"
+  "file-history-delta",
+  // 以下四类是实机抽样（381 会话，2026-10）仍在未知桶里的记录：账本快照、
+  // AI 标题、模式切换与锁存标记。都只有元信息、当前视图不消费——登记为
+  // 「已知但跳过」，解析覆盖率不再把它们报成「我们不认识」。
+  "cost-state",
+  "ai-title",
+  "mode",
+  "atis-latch"
 ]);
 
 function textOf(value: unknown): string {

@@ -1,0 +1,410 @@
+/* 「改动文件」视图（design-changes-view.md §2–§5）：单面板填满 pane、面板体内部
+   滚动（LogView 舞台模式）。全视图零新增令牌、彩色只有 accent 选中系——
+   它是清单不是图表，是事实不是判定（§4/§9）。 */
+
+.root {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+/* Panel 的 .body 默认按内容高：从外向内把「撑满 + 内部滚动」接上
+   （.body 自带 min-height: 0，只缺 flex 增长——ContextView .eventsHost 同款链）。 */
+.root > section {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.root > section > div {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+}
+
+/* 面板 actions 里的一行聚合读数（裁决 #12：文字，不是图表）。 */
+.aggregate {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.scroller {
+  flex: 1 1 auto;
+  min-height: 120px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-subtle);
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-faint) transparent;
+}
+
+.scroller::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+}
+
+.scroller::-webkit-scrollbar-thumb {
+  border-radius: var(--r-xs);
+  background: var(--text-faint);
+}
+
+.scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroller:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* 文件行 / 表头共用的列模板（§3.1）：记号 24px ｜ 路径 1fr ｜ 改动 4ch ｜
+   查看 4ch ｜ 末次 11ch ｜ 子 agent 9ch。
+   **除 1fr 外每条轨道都必须恒定**：每行是独立 grid，任何 auto/max-content 轨
+   都会逐行解析——不只它自己变宽，它还会把 1fr 的余量偷走、把夹在中间的三列
+   整体推来推去（实测：行尾 59px 的子 agent chip 轨让三列整体左移 59px）；
+   无列间距时数字还会贴死（"4 2" 读作 "42"）。真机视觉验收抓到，三代缺陷
+   同根。因此变宽的内容不进轨道：新建 chip 住在路径单元格内部（紧跟文字，
+   裁决 #10 本意），子 agent chip 进**固定** 9ch 行尾轨（容纳「子agent 99」，
+   无 chip 的行与表头留空）。ch 挂 mono 度量且表头与行同族同号解析（表头文字
+   自己在单元格上降到 --fs-xs，不参与轨道度量），两个容器解出的轨宽才是同一
+   组像素；ch 随 --font-scale 缩放，字号自适应；11ch = 补零短时间戳的恒宽。 */
+.head,
+.row {
+  display: grid;
+  grid-template-columns: var(--control-h-sm) minmax(0, 1fr) 4ch 4ch 11ch 9ch;
+  column-gap: var(--sp-2);
+  align-items: center;
+  padding: 0 var(--row-pad-x);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+/* 表头：sticky 于面板体顶部、沉到 --bg-inset（LogView 表头地板），纯视觉 div，
+   文字真实可读（不 aria-hidden）。字号/族在单元格上降到 --fs-xs 的 sans——
+   容器保持 mono + --fs-sm 只为让 ch 轨与行解析出同一组像素（见上面列模板）。 */
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: var(--row-h);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.headPath {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-overflow: ellipsis;
+}
+
+/* 三列名与行值同列居中：表头文字（如「改动」两字）与行值（如「4」）宽度不同，
+   只有都居中，中心才一一对齐（视觉验收的判据）。用 justify-self 让盒子收缩到
+   内容宽再居中——量到的盒子就是文字本身，对齐断言量的与眼睛看的是同一个东西。 */
+.headNum {
+  justify-self: center;
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+/* 行高挂在 li 上、button 拉伸填满（N1 教训）：行盒几何由 li 对账，
+ * 130% 字号下 button 的行盒漂移不会再把真机门禁的列表账目打红。 */
+.fileRow {
+  display: flex;
+  height: var(--row-h);
+  border-bottom: 1px solid var(--border);
+}
+
+.list > li:last-child,
+.fileRow:last-child {
+  border-bottom: 0;
+}
+
+.row {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-hover) var(--ease-out);
+}
+
+.row:hover {
+  background: var(--bg-hover);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+/* 展开中（选中）：底色 + 左缘竖条 + 路径 600 字重——三通道，灰度截图可辨
+   （LogView .selected / N1 同语言）。 */
+.rowOpen {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.rowOpen:hover {
+  background: var(--accent-soft);
+}
+
+.rowOpen .path {
+  font-weight: 600;
+}
+
+/* 展开记号：24px 命中区里的无边框字形（LogView 折角画法）。 */
+.mark {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-align: center;
+}
+
+.row:hover .mark {
+  color: var(--text);
+}
+
+/* 路径单元格：路径文字 + （有则）新建 chip，flex 排在一行。chip 不占 grid 轨
+   ——它随文字走（裁决 #10「紧跟路径之后」），单元格整体吃 1fr 轨。 */
+.pathCell {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.path {
+  flex: 0 1 auto;
+  overflow: hidden;
+  min-width: 0;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 新建 chip（裁决 #10）：中性台阶——新建是属性不是喜讯，不借 --success。
+   行容器为轨道度量挂了 mono，chip 文字回到 sans。 */
+.chipNew {
+  flex: 0 0 auto;
+  padding: 0 var(--sp-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+/* 与表头 .headNum 同列居中：中心一一对齐（对齐判据见 .headNum 的注释）。 */
+.count,
+.countZero {
+  justify-self: center;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.count {
+  color: var(--text-secondary);
+}
+
+/* 零读数 → 「—」（§3.1）：0 就是没动过，破折号让非零数字更快跳出来；
+   faint 只放不需要读的装饰（「—」的信息在位置不在字形）。 */
+.countZero {
+  color: var(--text-faint);
+}
+
+.lastAt {
+  justify-self: center;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 子 agent chip（裁决 #11）：行尾**固定 9ch 轨**内右贴（auto 轨会偷 1fr 的
+   余量把三列推移——见列模板注释）、N1 同形制；与「新建」分居两处各随其义。
+   同 .chipNew：回到 sans。 */
+.chipAgent {
+  justify-self: end;
+  padding: 0 var(--sp-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  background: var(--bg-inset);
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+/* 展开区（§3.3）：列表流内的手风琴体。上发丝线由展开文件行自己的行分隔线
+   充当（行与体的分界），下边线与下一行分界；左缘与路径列文字对齐
+   （不整行缩进——对齐路径即对齐了视觉归属）。 */
+.expandedRow {
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-subtle);
+}
+
+.records {
+  /* 左缘对齐路径列文字：记号列 24px + 列间距（路径列起点，见 .row 的模板）。 */
+  padding: var(--sp-2) var(--row-pad-x) var(--sp-2)
+    calc(var(--row-pad-x) + var(--control-h-sm) + var(--sp-2));
+}
+
+/* 小结行：firstAt 与失败数的非���停路径（tooltip 非唯一通道）。 */
+.summary {
+  margin: 0 0 var(--sp-1);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.recordList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 记录行与文件行同款行高纪律：li 承载 --row-h，button 拉伸填满。 */
+.recordRowLi {
+  display: flex;
+  height: var(--row-h);
+}
+
+.recordRow {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-hover) var(--ease-out);
+}
+
+.recordRow:hover {
+  background: var(--bg-hover);
+}
+
+.recordRow:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+/* 时间列（N1 教训 #4）：nowrap + min-width——写死 px 在 130% 下装不下 mono
+   时间串会折行，折出的第二行把行高顶出 --row-h。补零等长串保证列宽恒定。 */
+.recordTime {
+  flex: 0 0 auto;
+  min-width: 88px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.toolName {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 失败注记（裁决 #8）：事实注记不是警报——tertiary，零 danger。 */
+.failNote {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+.chipSide {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 0 var(--sp-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  background: var(--bg-inset);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+.arrow {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity var(--dur-hover) var(--ease-out);
+}
+
+.recordRow:hover .arrow,
+.recordRow:focus-visible .arrow {
+  opacity: 1;
+}
+
+/* 空态（§3.5）：面板骨架保留，口径脚注照常在场——0 是检查后的结果。 */
+.empty {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+}
+
+/* 口径脚注（常显，面板底）：藏起来的口径等于没有口径。 */
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}

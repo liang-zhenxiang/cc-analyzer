@@ -6,6 +6,7 @@ import fixture from "../../../tests/fixtures/session-basic.jsonl?raw";
 import enhancedFixture from "../../../tests/fixtures/session-parser-enhanced.jsonl?raw";
 import tokenFixture from "../../../tests/fixtures/session-token-usage.jsonl?raw";
 import compactFixture from "../../../tests/fixtures/compact-session.jsonl?raw";
+import changedFilesFixture from "../../../tests/fixtures/changed-files-session.jsonl?raw";
 
 describe("parseJsonlText", () => {
   it("produces the same session as the chunked async parser", async () => {
@@ -811,5 +812,73 @@ describe("compact boundaries and parse coverage", () => {
       unparsableLines: 0,
       unknownTypeCounts: { "(missing)": 1 }
     });
+  });
+});
+
+describe("skipped-type registration（N2 · F1）", () => {
+  it("registers cost-state / ai-title / mode / atis-latch as known-skipped, out of the unknown bucket", () => {
+    const text = [
+      '{"type":"cost-state","sessionId":"x","totalCostUSD":0.1}',
+      '{"type":"cost-state","sessionId":"x","totalCostUSD":0.2}',
+      '{"type":"ai-title","aiTitle":"项目用途说明"}',
+      '{"type":"mode","mode":"normal"}',
+      '{"type":"atis-latch","atis":""}',
+      '{"type":"zzz-fake"}'
+    ].join("\n");
+    const session = parseJsonlText(text, "/tmp/skipped.jsonl");
+
+    // 已登记的类型计数进 skippedCounts（按各自 type 分桶）……
+    expect(session.skippedCounts).toEqual({
+      "cost-state": 2,
+      "ai-title": 1,
+      mode: 1,
+      "atis-latch": 1,
+      "zzz-fake": 1
+    });
+    // ……而**不**进未知桶；未登记的假类型仍进未知桶（既有行为不变）。
+    expect(session.parseCoverage).toEqual({
+      totalLines: 6,
+      unparsableLines: 0,
+      unknownTypeCounts: { "zzz-fake": 1 }
+    });
+    expect(session.records).toEqual([]);
+    expect(session.warnings).toEqual([]);
+  });
+
+  it("changed-files fixture: snapshot/delta/attachment/cost-state all land in skippedCounts", () => {
+    const session = parseJsonlText(changedFilesFixture, "/tmp/changed-files-session.jsonl");
+
+    expect(session.skippedCounts).toEqual({
+      "file-history-snapshot": 1,
+      "file-history-delta": 1,
+      attachment: 1,
+      "cost-state": 1
+    });
+    // 夹具没有未识别行：覆盖率是干净的零（改动视图的数字才有唯一解释）。
+    expect(session.parseCoverage).toEqual({
+      totalLines: 24,
+      unparsableLines: 0,
+      unknownTypeCounts: {}
+    });
+  });
+
+  it("changed-files fixture smoke: main records, sidechain messages, and no warnings", () => {
+    const session = parseJsonlText(changedFilesFixture, "/tmp/changed-files-session.jsonl");
+
+    expect(session.cwd).toBe("/repo/changed-demo");
+    // 主链：1 条用户提问 + 8 条带 tool_use 的模型消息（+ 各自的工具记录）+ 1 条收尾文本。
+    expect(session.records.filter((record) => record.kind === "user")).toHaveLength(1);
+    expect(session.records.filter((record) => record.kind === "assistant")).toHaveLength(9);
+    expect(session.records.filter((record) => record.kind === "tool")).toHaveLength(8);
+    // 子链：1 条 sidechain 模型消息 + 它的 Edit 工具记录。
+    expect(session.sidechainMessages.map((record) => record.kind)).toEqual(["assistant", "tool"]);
+    // 全部 tool_result 都配上了对（无未匹配、无告警）——失败那条也是配对的。
+    expect(session.unmatchedToolUses).toEqual([]);
+    expect(session.warnings).toEqual([]);
+    const failed = session.records.find((record) => record.fullId === "cf-edit-a3");
+    expect(failed?.isError).toBe(true);
+    // Write 的创建标记经 structuredResult 提取（改动视图「新建」徽标的数据源）。
+    const write = session.records.find((record) => record.fullId === "cf-write-a1");
+    expect(write?.structuredResult).toMatchObject({ toolName: "Write", created: true });
   });
 });

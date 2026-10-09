@@ -529,6 +529,34 @@ test("上下文标签页隐藏时间线与筛选，选择被持久化", async ()
   expect(await screen.findByRole("application", { name: "时间轨道" })).toBeInTheDocument();
 });
 
+test("改动标签页：空态如实，时间线与筛选隐藏，选择被持久化", async () => {
+  window.localStorage.clear();
+  const user = userEvent.setup();
+  render(
+    <BridgesProvider bridges={createBridges()}>
+      <NotificationProvider>
+        <SessionAnalyzerPage />
+      </NotificationProvider>
+    </BridgesProvider>
+  );
+
+  await user.click(await screen.findByRole("button", { name: /project-a/ }));
+  expect(await screen.findByRole("application", { name: "时间轨道" })).toBeInTheDocument();
+
+  await user.click(screen.getByRole("tab", { name: "改动" }));
+
+  // 默认桥接给的是纯问答会话：改动视图走空态（口径脚注照常在场）。
+  expect(await screen.findByText("本会话没有接触任何文件")).toBeInTheDocument();
+  expect(screen.getByText(/改动 = 成功的 Edit \/ Write \/ NotebookEdit/)).toBeInTheDocument();
+  // 口径与 context 档同款理由：会话级全量清单，记录级筛选会让口径漂移。
+  expect(screen.queryByRole("application", { name: "时间轨道" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "记录筛选" })).not.toBeInTheDocument();
+  expect(window.localStorage.getItem("cca-analyzer-view")).toBe("changes");
+
+  await user.click(screen.getByRole("tab", { name: "日志视图" }));
+  expect(await screen.findByRole("application", { name: "时间轨道" })).toBeInTheDocument();
+});
+
 test("enters a child session from the tree view", async () => {
   window.localStorage.clear();
   const user = userEvent.setup();
