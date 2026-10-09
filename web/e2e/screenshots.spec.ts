@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { test, expect, recentActivityScenario } from "./fixtures";
+import { test, expect, recentActivityScenario, compactScenario } from "./fixtures";
 import type { Page } from "@playwright/test";
 
 /**
@@ -164,6 +164,82 @@ test.describe("截图归档 · 用量总览", () => {
       await scrollMainToBottom(page);
       await settleImages(page);
       await page.screenshot({ path: path.join(OUT_DIR, `usage-below-${theme}${suffix}.png`) });
+    });
+  }
+});
+
+// 上下文标签页（Round J）需要「真的发生过压缩」的会话：默认场景八个会话都没有
+// compact 边界，截出来的上下文页只有空态。这里用 compactScenario（默认场景 +
+// /repo/compact-demo），同一轮里顺带补两张：含压缩行的日志视图（第七种行类型的
+// 真实排版，analyzer-log 继续验证无压缩的基础形态）与无压缩会话的上下文空态
+// （「有数据的零」，不是空盒子）。
+test.describe("截图归档 · 上下文", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: compactScenario() });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`上下文标签页 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+      const shot = async (view: string) => {
+        await settleImages(page);
+        await page.screenshot({ path: path.join(OUT_DIR, `${view}-${theme}${suffix}.png`) });
+      };
+
+      await page.goto("/");
+      await page.getByPlaceholder("搜会话 ID 或目录…").fill("compact-demo");
+      await sessionItems(page).first().click();
+      await expect(page.getByLabel("会话图状态")).toContainText("会话图已加载", { timeout: 15_000 });
+      await page.waitForTimeout(300);
+
+      // 含压缩行的日志视图：打开会话默认落在日志视图。夹具 251 行，超出窗口化
+      // 阈值（120）——不滚过去，压缩带行根本不在渲染窗口里；而带行不在表尾
+      // （其后还有第三段对话），一步滚到底也见不到。按视口步进滚，每步给窗口
+      // 化一拍重算时间，见到任一带行即停。滚动容器是 table 的父级（与
+      // PROBE_JS 同一个结构事实）。
+      for (let step = 0; step < 20; step += 1) {
+        if (await page.getByText(/压缩 #\d（(自动|手动)）/, { exact: false }).count()) break;
+        await page.evaluate(() => {
+          const table = document.querySelector("main table");
+          const scroller = table?.parentElement;
+          if (scroller) {
+            scroller.scrollTop = Math.min(
+              scroller.scrollTop + scroller.clientHeight,
+              scroller.scrollHeight
+            );
+          }
+        });
+        await page.waitForTimeout(120);
+      }
+      await expect(page.getByText(/压缩 #\d（(自动|手动)）/).first()).toBeVisible();
+      await shot("analyzer-log-compact");
+
+      // 上下文标签页 · 含压缩会话：点第 2 枚事件 chip 打开取证卡（截图要有
+      // 「选中态」的样子，引导行不是这个视图的常态演示）。
+      await page.getByRole("tab", { name: "上下文" }).click();
+      await expect(page.getByRole("img", { name: /上下文压力：120 条模型消息/ })).toBeVisible();
+      const panel = page.getByRole("region", { name: "压缩事件" });
+      await panel.getByRole("button", { name: /#2 / }).click();
+      await expect(panel.getByText("被丢出上下文的内容 · 82 条")).toBeVisible();
+      await page.waitForTimeout(250);
+      await shot("context");
+
+      // 上下文标签页 · 无压缩会话：换到 /repo/demo（session-basic，有 usage、
+      // 无压缩）。子视图随页面状态保持在「上下文」，无需再点。搜索词用带斜杠的
+      // 完整 cwd——只搜 "demo" 会把 /repo/compact-demo 也筛进来，点到谁看排序。
+      await page.getByPlaceholder("搜会话 ID 或目录…").fill("/repo/demo");
+      await sessionItems(page).first().click();
+      await expect(page.getByLabel("会话图状态")).toContainText("会话图已加载", { timeout: 15_000 });
+      await expect(page.getByRole("img", { name: /未发生压缩/ })).toBeVisible();
+      await expect(page.getByText("本会话未发生压缩——上下文从未重置")).toBeVisible();
+      await page.waitForTimeout(250);
+      await shot("context-empty");
     });
   }
 });

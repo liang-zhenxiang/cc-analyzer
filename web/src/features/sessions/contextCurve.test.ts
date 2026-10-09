@@ -196,16 +196,20 @@ describe("peakLabelPlacement", () => {
     { eventId: "e", x: geometry.xAt(5), y: 0, hitX: 0, hitWidth: 24, hitY: 0, hitHeight: 100 }
   ];
 
-  it("sits 4px above the peak, centred, when no marker is near", () => {
-    const placement = peakLabelPlacement(2, 90, geometry, [], 11);
-    expect(placement).toEqual({ x: geometry.xAt(2), y: geometry.yAt(90) - 4, anchor: "middle" });
+  it("sits 7px above the peak, centred, when no marker is near", () => {
+    // 峰值取 70（不是 90）：7px 的避让在 90 的几何下会撞上 padTop + fontSize
+    // 的 clamp 下限，量出来的就不是「离点一档」而是「clamp 后的地板」。
+    const placement = peakLabelPlacement(2, 70, geometry, [], 11);
+    // 字面量 7 而不是引用 PEAK_LABEL_OFFSET：有人把避让距离改回去（或改错档）时，
+    // 这条断言要红——「标签与描边之间留一档呼吸」正是 J2 评审定的回归本体。
+    expect(placement).toEqual({ x: geometry.xAt(2), y: geometry.yAt(70) - 7, anchor: "middle" });
   });
 
   it("dodges up and to the right when an event marker collides", () => {
-    const placement = peakLabelPlacement(5, 90, geometry, markers, 11);
+    const placement = peakLabelPlacement(5, 70, geometry, markers, 11);
     expect(placement.anchor).toBe("start");
     expect(placement.x).toBeGreaterThan(geometry.xAt(5));
-    expect(placement.y).toBeLessThan(geometry.yAt(90) - 4);
+    expect(placement.y).toBeLessThan(geometry.yAt(70) - 7);
   });
 });
 

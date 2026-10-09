@@ -1,6 +1,5 @@
 import type { Page } from "@playwright/test";
-import { test, expect, defaultScenario, fixture } from "./fixtures";
-import type { MockScenario } from "./tauri-mock";
+import { test, expect, compactScenario } from "./fixtures";
 
 /**
  * 会话详情「上下文」标签页（Round J · J2）。
@@ -10,22 +9,6 @@ import type { MockScenario } from "./tauri-mock";
  * 空态是「有数据的零」而不是空盒子。数据全部来自共享夹具
  * compact-session.jsonl（2 次压缩：auto + manual，断崖 ≥10×）。
  */
-
-const HOME = "/Users/e2e";
-
-/** 默认场景 + 压缩夹具会话（/repo/compact-demo）。 */
-function compactScenario(): MockScenario {
-  const base = defaultScenario();
-  return {
-    ...base,
-    files: {
-      ...base.files,
-      [`${HOME}/.claude/projects/-repo-compact-demo/compact-session.jsonl`]: fixture(
-        "compact-session.jsonl"
-      )
-    }
-  };
-}
 
 function sessionItems(page: Page) {
   return page.getByLabel("会话列表", { exact: true }).locator("button[title]:has(strong)");

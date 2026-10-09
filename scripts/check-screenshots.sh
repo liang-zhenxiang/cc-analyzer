@@ -68,6 +68,11 @@ EXPECTED_VIEWS = [
     "monitor",
     "usage",
     "usage-below",
+    # Round J：上下文标签页三视图——含压缩行的日志表、上下文取证打开态、
+    # 无压缩会话的「有数据的零」。analyzer-log 保留为无压缩的基础形态。
+    "analyzer-log-compact",
+    "context",
+    "context-empty",
 ]
 THEMES = ["light", "dark"]
 ENGINES = ["chromium", "webkit"]

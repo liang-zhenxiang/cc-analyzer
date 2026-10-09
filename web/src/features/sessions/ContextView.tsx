@@ -73,9 +73,14 @@ export function ContextView({
   const [hover, setHover] = useState<Hover>(null);
 
   // 选中是「这个会话里的事件」的状态：切会话时清空，不跨会话携带。
+  // 依赖必须是 sessionId 而不是 parsed 对象身份——真机上解析器会在后台
+  // 重算并产出新对象（缓存写回 → 会话刷新），按对象身份清空会把用户
+  // 刚点下的选中态抹掉（真机门禁的「点选压缩事件」步骤抓住了它：
+  // 点击后 3 秒内一次后台重解析就能让取证卡消失，mock 环境永远复现不了）。
+  const sessionId = parsed.sessionId;
   useEffect(() => {
     setSelectedEventId(null);
-  }, [parsed]);
+  }, [sessionId]);
 
   // 外部定位请求只在 nonce 变化时生效；事件不在本会话里时不动（宁可不选中，
   // 也不选一个不存在的 id）。

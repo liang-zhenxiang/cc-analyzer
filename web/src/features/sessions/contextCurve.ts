@@ -158,9 +158,17 @@ export function eventMarkerGeometries(
 export type PeakLabelPlacement = { x: number; y: number; anchor: "middle" | "start" };
 
 /**
- * The one direct label on the chart (the peak). Sits 4px above the point;
- * when an event marker stands within `clearance` the label dodges up and to
- * the right instead of overlapping the diamond or the hairline.
+ * The peak label's clearance from the curve stroke. It was 4 until the J2
+ * visual review caught the label grazing the stroke in dense regions; 7 keeps
+ * the text clear of the 2px stroke plus its neighbours without looking
+ * detached. Colliding markers still add their own dodge on top.
+ */
+export const PEAK_LABEL_OFFSET = 7;
+
+/**
+ * The one direct label on the chart (the peak). Sits `PEAK_LABEL_OFFSET` above
+ * the point; when an event marker stands within `clearance` the label dodges
+ * up and to the right instead of overlapping the diamond or the hairline.
  */
 export function peakLabelPlacement(
   peakIndex: number,
@@ -172,7 +180,10 @@ export function peakLabelPlacement(
 ): PeakLabelPlacement {
   const x = geometry.xAt(peakIndex);
   const collides = markers.some((marker) => Math.abs(marker.x - x) < clearance);
-  const y = Math.max(geometry.yAt(peakValue) - 4 - (collides ? 6 : 0), geometry.padTop + fontSize);
+  const y = Math.max(
+    geometry.yAt(peakValue) - PEAK_LABEL_OFFSET - (collides ? 6 : 0),
+    geometry.padTop + fontSize
+  );
   return collides ? { x: x + 6, y, anchor: "start" } : { x, y, anchor: "middle" };
 }
 

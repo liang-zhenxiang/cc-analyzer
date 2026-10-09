@@ -32,6 +32,26 @@ badge. Every screen, in both light and dark themes, is archived in
 
 ## Features
 
+- **Context forensics (new)** — every Claude Code session carries a context
+  that fills up and is occasionally compacted: old messages are rewritten into
+  a summary and silently leave the model's working memory. CC Analyzer is the
+  first tool that makes this visible and *attributable*. The session's
+  **Context** tab draws an "context ECG": the per-call context size (input +
+  cache-write + cache-read) as an area chart where each compaction is a cliff.
+  Click a cliff to open the forensic card — before/after sizes, tokens
+  dropped, duration, trigger (auto/manual), and the surviving-message list
+  from the log's own `preservedMessages` — and a **"dropped from context"
+  list** that names, message by message, what left the context at that
+  boundary (with a *user-only* filter for "when was my constraint dropped").
+  Rows jump straight back to the log view. Compaction also appears as a
+  full-width band row in the log table, as a **compaction panel** in the
+  usage overview (count, cumulative dropped tokens, auto/manual split, top-3
+  sessions — the "where did my limit go" narrative), and the log view now
+  shows a **parse-coverage chip** when the parser meets record types it does
+  not recognize (the report goes to your clipboard only — format drift
+  becomes visible instead of silently dropped). No invented numbers: fields
+  the log doesn't carry read "not recorded", and no "official context limit"
+  line is drawn because no such source exists.
 - **Two-tier usage limits** — Claude subscriptions meter usage in two layers;
   the app reads both. The **5-hour billing window**: the current consumption
   dial, when the window opened, a countdown to when it closes, and a projection
@@ -71,7 +91,9 @@ badge. Every screen, in both light and dark themes, is archived in
   grow while spacing, icons and the gauge keep their size — legibility, not a
   zoomed page. The chosen step survives a restart; pick 100% to go back.
 - **Log view with one row model** — user / LLM / tool / agent / workflow /
-  wait rows, with duration, share and waterfall columns; filter by row kind,
+  wait rows plus a full-width **compact-boundary band row** (the compaction
+  summary is folded into its expandable section, never counted as user
+  speech), with duration and share columns; filter by row kind,
   success/failure, duration range, or free text. Tool output keeps the terminal
   colours it was written with (ANSI SGR, 256-colour and true-colour, carriage
   returns resolved) while every table cell, copy action and export stays plain
