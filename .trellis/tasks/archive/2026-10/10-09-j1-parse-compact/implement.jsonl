@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/10-09-round-j-context/research/jsonl-compact-facts.md", "reason": "真实 JSONL 实测字段与硬约束（logicalParentUuid、累计值、幸存清单）"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "文件放哪、测试贴实现放"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "unknown 边界 + 手写收窄，parseJsonl 全程适用"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "门禁命令与测试要求；注释英文、界面中文"}
+{"file": ".trellis/spec/testing/index.md", "reason": "夹具共用与三层测试的分工"}

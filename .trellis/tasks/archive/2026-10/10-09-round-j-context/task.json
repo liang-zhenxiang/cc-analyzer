@@ -1,0 +1,31 @@
+{
+  "id": "round-j-context",
+  "name": "round-j-context",
+  "title": "Round J：上下文压力与压缩取证",
+  "description": "把 compact_boundary 与逐消息 usage 变成可见的上下文压力曲线与压缩取证视图，回答『限额去哪了/约束何时被丢』",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "liangyuxiang",
+  "assignee": "liangyuxiang",
+  "createdAt": "2026-10-09",
+  "completedAt": "2026-10-09",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "10-09-j1-parse-compact",
+    "10-09-j2-context-tab",
+    "10-09-j3-integration",
+    "10-09-j4-evidence"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
