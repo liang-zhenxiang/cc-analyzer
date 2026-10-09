@@ -106,6 +106,9 @@ export function CompactionPanel({
               key={event.id}
               type="button"
               aria-pressed={pressed}
+              // data-probe 是仅用于探测的稳定属性（同 Gauge 的 data-probe="gauge"）：
+              // chip 的可访问名带具体数字，真机门禁要「点第 k 枚」时靠它才不脆。
+              data-probe={`compact-event-${index + 1}`}
               className={pressed ? styles.chipSelected : styles.chip}
               onClick={() => onSelect(pressed ? null : event.id)}
             >
@@ -115,7 +118,7 @@ export function CompactionPanel({
         })}
       </div>
       {selected ? (
-        <div className={styles.card}>
+        <div className={styles.card} data-probe="forensic-card">
           <div className={styles.numbers}>
             <h3 className={styles.cardTitle}>
               <span aria-hidden="true">◆</span>

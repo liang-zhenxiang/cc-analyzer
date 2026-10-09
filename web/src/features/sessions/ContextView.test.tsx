@@ -178,3 +178,46 @@ describe("ContextView 空态与降级（design §2.6）", () => {
     expect(screen.getByText("0 / 2 条")).toBeInTheDocument();
   });
 });
+
+describe("选中态的生命周期（真机缺陷回归）", () => {
+  it("同一会话的后台重解析不丢选中——清空只认会话身份，不认对象身份", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <ContextView parsed={parsedCompact()} onLocateInLog={vi.fn()} />
+    );
+    await user.click(screen.getByRole("button", { name: /#2 / }));
+    expect(screen.getByRole("button", { name: /#2 / })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+
+    // 后台重解析：同一份日志重新 parse 产出**新对象**（缓存写回后会话刷新的真实路径）。
+    // 真机上这个新对象在点击后数秒内到达，曾把刚选中的事件抹掉（gui-test 抓到）。
+    rerender(<ContextView parsed={parsedCompact()} onLocateInLog={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: /#2 / })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.getByText(/压缩 #2/)).toBeInTheDocument();
+  });
+
+  it("切换到另一个会话才清空选中", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <ContextView parsed={parsedCompact()} onLocateInLog={vi.fn()} />
+    );
+    await user.click(screen.getByRole("button", { name: /#2 / }));
+
+    rerender(
+      <ContextView
+        parsed={parseJsonlText(basicFixture, "/tmp/other-session.jsonl")}
+        onLocateInLog={vi.fn()}
+      />
+    );
+
+    // basic 夹具没有压缩事件：引导行回来、没有 #2 残留
+    expect(screen.getByText(/未发生压缩/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /#2 / })).not.toBeInTheDocument();
+  });
+});

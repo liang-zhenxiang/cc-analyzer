@@ -127,6 +127,26 @@ export function recentActivityScenario(overrides: Partial<MockScenario> = {}): M
   return { ...base, files };
 }
 
+/**
+ * 默认场景 + 压缩夹具会话（/repo/compact-demo，2 次压缩：auto + manual）。
+ *
+ * 上下文标签页、日志表的压缩带行与真机门禁的「上下文」步骤都靠它——夹具里
+ * 还混着 future-widget / quantum-latch 两类未识别行，解析覆盖率 chip 的
+ * 「N 行未识别」态也因此被这套场景覆盖。
+ */
+export function compactScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  const base = defaultScenario(overrides);
+  return {
+    ...base,
+    files: {
+      ...base.files,
+      [`${HOME}/.claude/projects/-repo-compact-demo/compact-session.jsonl`]: fixture(
+        "compact-session.jsonl"
+      )
+    }
+  };
+}
+
 /** 空场景：家目录存在但没有任何会话 */
 export function emptyScenario(overrides: Partial<MockScenario> = {}): MockScenario {
   return {

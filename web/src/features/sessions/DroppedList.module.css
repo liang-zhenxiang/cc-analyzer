@@ -30,6 +30,24 @@
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   background: var(--bg-subtle);
+  /* 原生浅色滚动条的 thumb 在白卡上对比不足（J2 评审）：提到 --text-faint 一档
+     （两主题各自的既有值），粗细走 --scrollbar-size。Firefox/标准用 scrollbar-color，
+     WebKit/Chromium 用伪元素——两套写的是同一个令牌，不是两套标准。 */
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-faint) transparent;
+}
+
+.scroller::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+}
+
+.scroller::-webkit-scrollbar-thumb {
+  border-radius: var(--r-xs);
+  background: var(--text-faint);
+}
+
+.scroller::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .list {

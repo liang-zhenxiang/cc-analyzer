@@ -752,6 +752,87 @@ mod gui_capture {
       height: Math.round(row.getBoundingClientRect().height)
     });
   }
+  /* 上下文标签页（Round J）：曲线 SVG、压缩命中区、取证卡、被丢清单与解析
+     覆盖率 chip 的原始事实。锚点刻意绕开 CSS Module 哈希类名——图表宿主靠
+     role/aria-label（曲线图是全站唯一的 role=img 区域），清单与取证卡靠组件
+     上的 data-probe 稳定属性（同 gauge 先例），覆盖率 chip 靠全站唯一的
+     aria-haspopup="dialog" 按钮。不在上下文视图时各子项为 null，判定在脚本。 */
+  var contextFacts = { chart: null, forensicCard: null, dropped: null, coverageChip: null };
+  var chartHost = document.querySelector('div[role="img"][aria-label^="上下文压力"]');
+  var chartSvg = chartHost ? chartHost.querySelector('svg') : null;
+  if (chartSvg) {
+    var vb = chartSvg.getAttribute('viewBox');
+    var chartRect = chartSvg.getBoundingClientRect();
+    contextFacts.chart = {
+      viewBox: vb,
+      width: Math.round(chartRect.width),
+      height: Math.round(chartRect.height),
+      /* 压缩事件的 24px 命中区数量：数量与夹具的压缩次数对得上才有意义。 */
+      eventHits: chartSvg.querySelectorAll('rect[data-event-id]').length
+    };
+  }
+  var forensicCard = document.querySelector('[data-probe="forensic-card"]');
+  if (forensicCard) {
+    contextFacts.forensicCard = { rect: rectOf(forensicCard) };
+  }
+  /* 事件 chip 的在场与选中态——「点击没落地」与「选中了但卡片没渲染」靠它分辨。 */
+  var chipNodes = document.querySelectorAll('[data-probe^="compact-event-"]');
+  contextFacts.eventChips = Array.prototype.map.call(chipNodes, function (chip) {
+    return {
+      probe: chip.getAttribute('data-probe'),
+      pressed: chip.getAttribute('aria-pressed'),
+      disabled: chip.disabled === true
+    };
+  });
+  var droppedEl = document.querySelector('[data-probe="dropped-list"]');
+  if (droppedEl) {
+    var droppedItems = droppedEl.querySelectorAll('ul > li');
+    var droppedVisible = 0;
+    var firstRowHeight = null;
+    var padHeights = [];
+    var declaredCount = null;
+    /* 标题在滚动容器**外面**的 header 里（data-probe 挂在滚动容器上）——
+       先回到 section 再找 h3，别在容器内部空找。 */
+    var headingSection = droppedEl.closest('section');
+    var heading = headingSection ? headingSection.querySelector('h3') : null;
+    var countMatch = heading
+      ? (heading.textContent || '').match(/(\d+)\s*条/)
+      : null;
+    if (countMatch) declaredCount = parseInt(countMatch[1], 10);
+    for (var k = 0; k < droppedItems.length; k++) {
+      var item = droppedItems[k];
+      if (item.getAttribute('aria-hidden') === 'true') {
+        padHeights.push(item.offsetHeight);
+      } else {
+        droppedVisible += 1;
+        if (firstRowHeight === null) {
+          /* 不取整：130% 字号下行高是 35.39px 这种值，round 成 35 再乘 82 行
+             会凭空差出 32px——亚像素累计属于事实，不该被断言口径吃掉。 */
+          firstRowHeight = item.getBoundingClientRect().height;
+        }
+      }
+    }
+    contextFacts.dropped = {
+      clientHeight: droppedEl.clientHeight,
+      /* 行数 × 行高的账要跟 <ul> 自己对——滚动容器自带上下内边距（130% 字号下
+         实测 32px），拿容器的 scrollHeight 对账会把内边距算成「假列表」。 */
+      listScrollHeight: (droppedEl.querySelector('ul') || droppedEl).scrollHeight,
+      scrollHeight: droppedEl.scrollHeight,
+      scrollTop: droppedEl.scrollTop,
+      declaredCount: declaredCount,
+      visibleRows: droppedVisible,
+      firstRowHeight: firstRowHeight,
+      padHeights: padHeights
+    };
+  }
+  var coverageBtn = document.querySelector('button[aria-haspopup="dialog"]');
+  if (coverageBtn) {
+    contextFacts.coverageChip = {
+      text: (coverageBtn.textContent || '').replace(/\s+/g, ' ').trim(),
+      rect: rectOf(coverageBtn)
+    };
+  }
+  facts.context = contextFacts;
   return JSON.stringify(facts);
 })();"##;
 
@@ -805,7 +886,26 @@ mod gui_capture {
                     );
                     return;
                 }
-                if let Err(err) = webview.eval(click_target_js(tab).as_str()) {
+                // `点选=<选择器>` 走带回执的 evaluateJavaScript（同探针通道）：
+                // eval() 是单向投递，脚本若被丢弃无从得知——真机上点选压缩事件 chip
+                // 曾整段静默失效（chip 全程 aria-pressed=false），带回执才能把
+                // 「点了 / 没这个元素 / 脚本丢了」三态分开说清楚。
+                if let Some(receipt_js) = click_query_receipt_js(tab) {
+                    match evaluate_string(&webview, &receipt_js) {
+                        Some(receipt) => {
+                            println!(
+                                "gui-capture: [+{}ms] 「{tab}」点选回执 {receipt}",
+                                start.elapsed().as_millis()
+                            );
+                        }
+                        None => {
+                            eprintln!(
+                                "gui-capture: [+{}ms] 「{tab}」点选求值没有回执（回调超时或脚本异常）",
+                                start.elapsed().as_millis()
+                            );
+                        }
+                    }
+                } else if let Err(err) = webview.eval(click_target_js(tab).as_str()) {
                     eprintln!("gui-capture: 执行点击「{tab}」的脚本失败 {err}");
                     return;
                 }
@@ -1152,6 +1252,21 @@ mod gui_capture {
             .filter(|value| !value.is_empty())
     }
 
+    /// 目标是不是「按选择器点选」的动作形式 `点选=<CSS 选择器>`（如
+    /// `点选=[data-probe='compact-event-2']`）。
+    ///
+    /// 通用按钮扫描靠可访问名**精确**匹配，而有些控件的可访问名带动态数字
+    /// （压缩事件 chip 是「#2 03-01 10:00 · 手动 · 156.2K→9.6K」）——把这种
+    /// 文本当目标名，夹具一改就静默失配。这些控件带 `data-probe` 稳定属性
+    /// （同 Gauge 的 `data-probe="gauge"` 先例），按选择器点它才不脆。
+    /// 选择器里不能含逗号（目标清单以逗号分隔），这是动作协议的边界。
+    fn click_query_target(target: &str) -> Option<&str> {
+        target
+            .strip_prefix("点选=")
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    }
+
     /// 在真机上把界面字号切到指定档位：先点顶栏的「设置」打开浮层，再点「界面字号」
     /// 里对应的一项。**点的是真实控件**，不是直接改 localStorage——要证的正是
     /// 「设置里的控件真的接上了根变量」。`eval` 是单向的（拿不到返回值），所以结果
@@ -1207,13 +1322,49 @@ mod gui_capture {
         )
     }
 
-    /// `字号=<档位>` 与 `滚动=<选择器>` 不是「点一个已有按钮」，各走各的动作。
+    /// `点选=<选择器>`：点通用扫描够不着的目标（可访问名带动态数字的控件）。
+    ///
+    /// 带回执版本（evaluateJavaScript 通道）：点击后**同步**读一次点击前后的
+    /// aria-pressed（React 18 的离散事件在派发内同步跑 handler，setState 落到
+    /// DOM 要到提交帧，所以同步读的是点击前状态——回执里两者都带，脚本侧
+    /// 拿下一帧的探针对照）。返回字符串，三态：`clicked` / `missing` / 异常。
+    fn click_query_receipt_js(target: &str) -> Option<String> {
+        let selector = click_query_target(target)?;
+        let escaped = js_string(selector);
+        Some(format!(
+            r#"(function () {{
+  var el = document.querySelector("{escaped}");
+  if (!el) return 'missing';
+  el.click();
+  return 'clicked';
+}})();"#
+        ))
+    }
+
+    /// eval 通道的点选脚本（现仅由带回执版本取代，保留给潜在的非真机路径）。
+    fn click_query_js(selector: &str) -> String {
+        let escaped = js_string(selector);
+        format!(
+            r#"(function () {{
+  var el = document.querySelector("{escaped}");
+  if (!el) {{ console.warn('gui-capture: 找不到点选目标 {escaped}'); return; }}
+  el.click();
+  console.log('gui-capture: 已点选 {escaped}');
+}})();"#
+        )
+    }
+
+    /// `字号=<档位>`、`滚动=<选择器>` 与 `点选=<选择器>` 不是「点一个已有按钮」，
+    /// 各走各的动作。
     fn click_target_js(target: &str) -> String {
         if let Some(label) = font_scale_target(target) {
             return font_scale_js(label);
         }
         if let Some(selector) = scroll_target(target) {
             return scroll_js(selector);
+        }
+        if let Some(selector) = click_query_target(target) {
+            return click_query_js(selector);
         }
         let escaped = js_string(target);
         format!(
@@ -1299,6 +1450,19 @@ mod gui_capture {
         }
 
         #[test]
+        fn click_query_target_only_matches_the_action_form() {
+            assert_eq!(
+                click_query_target("点选=[data-probe='compact-event-2']"),
+                Some("[data-probe='compact-event-2']")
+            );
+            assert_eq!(click_query_target("点选= "), None);
+            // 普通目标与另外两个动作都不归它管。
+            assert_eq!(click_query_target("/repo/demo"), None);
+            assert_eq!(click_query_target("滚动=main"), None);
+            assert_eq!(click_query_target("字号=130%"), None);
+        }
+
+        #[test]
         fn the_scroll_action_scrolls_the_container_and_reports() {
             let js = click_target_js("滚动=main");
             // 动作滚的是容器（赋值到底），而不是通用按钮扫描。
@@ -1330,6 +1494,17 @@ mod gui_capture {
         }
 
         #[test]
+        fn the_click_query_action_targets_a_selector() {
+            let js = click_target_js("点选=[data-probe='compact-event-2']");
+            // 动作走 querySelector（可访问名带动态数字的控件够不着通用扫描），
+            // 而不是通用按钮扫描。
+            assert!(js.contains("document.querySelector"));
+            assert!(js.contains("已点选"));
+            assert!(!js.contains("已点击"));
+            assert!(!js.contains("已切界面字号"));
+        }
+
+        #[test]
         fn the_probe_reports_the_font_scale_and_session_rows() {
             assert!(PROBE_JS.contains("font_scale:"));
             assert!(PROBE_JS.contains("--font-scale"));
@@ -1349,6 +1524,20 @@ mod gui_capture {
             // 不再假装全站只有一种 modal。
             assert!(PROBE_JS.contains("name: 'dialog'"));
             assert!(PROBE_JS.contains("aria-labelledby"));
+        }
+
+        #[test]
+        fn the_probe_reports_context_view_anchors() {
+            // 上下文标签页（Round J）的锚点：曲线宿主（role=img + aria-label 前缀）、
+            // 压缩命中区（rect[data-event-id]）、取证卡与被丢清单（data-probe）、
+            // 覆盖率 chip（全站唯一的 aria-haspopup="dialog" 按钮）。
+            assert!(PROBE_JS.contains("上下文压力"));
+            assert!(PROBE_JS.contains("rect[data-event-id]"));
+            assert!(PROBE_JS.contains("forensic-card"));
+            assert!(PROBE_JS.contains("dropped-list"));
+            assert!(PROBE_JS.contains("aria-haspopup=\"dialog\""));
+            assert!(PROBE_JS.contains("declaredCount"));
+            assert!(PROBE_JS.contains("padHeights"));
         }
 
         #[test]

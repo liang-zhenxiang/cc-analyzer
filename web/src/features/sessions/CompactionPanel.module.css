@@ -184,7 +184,9 @@
   display: flex;
   min-height: 0;
   flex-direction: column;
-  border-left: 1px solid var(--border);
+  /* 两栏之间的分隔线从 --border 升到 --border-strong：J2 评审发现浅色下这条线
+     偏浅，读不出「两栏」的切分。 */
+  border-left: 1px solid var(--border-strong);
   padding-left: var(--sp-4);
 }
 
@@ -196,7 +198,7 @@
 
   .listColumn {
     border-left: 0;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--border-strong);
     padding-left: 0;
     padding-top: var(--sp-3);
   }

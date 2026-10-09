@@ -113,7 +113,15 @@ export function DroppedList({
           role="radiogroup"
         />
       </div>
-      <div ref={scrollRef} className={styles.scroller} onScroll={onScroll} onKeyDown={onRowKeyDown}>
+      <div
+        ref={scrollRef}
+        className={styles.scroller}
+        onScroll={onScroll}
+        onKeyDown={onRowKeyDown}
+        // data-probe 是仅用于探测的稳定属性（同 Gauge 的 data-probe="gauge"）：
+        // CSS Module 类名带哈希，真机门禁取清单滚动几何要靠它定位。
+        data-probe="dropped-list"
+      >
         <ul ref={listRef} className={styles.list}>
           {listWindow.start > 0 ? (
             <li aria-hidden="true" style={{ height: listWindow.padTop }} />
