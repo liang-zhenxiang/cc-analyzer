@@ -57,13 +57,13 @@
 # 默认的视图清单是「会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
 # 日志视图 → 导出 → 关闭导出窗口 → 压缩夹具会话 → 上下文 → 点选第 2 枚压缩事件 chip →
 # 改动夹具会话 → 改动 → 点选首个文件行 →
-# 用量总览 → 视图=用量 → 滚到底 → 近 7 天 → 错误档 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→
+# 用量总览 → 视图=用量 → 滚到底 → 点选工具普查榜首行 → 近 7 天 → 错误档 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→
 # 实时监控 → 字号恢复 100%」；每张图都配一份
 # 几何探针 JSON（`CCA_GUI_PROBE`），脚本据它判定
 # **布局不变量**：无横向溢出、表盘有界且含于卡片、记录表末列可达、会话行不裁字、
 # 两层限额读数在卡内、用量页三块面板滚一次可达、上下文曲线有界且命中区与压缩次数一致、
 # 取证卡在视口内、被丢清单不是假列表、错误档趋势有界且事件列表是真列表、
-# 改动文件列表是真列表且展开区可达。目标既可写
+# 改动文件列表是真列表且展开区可达、工具普查四栏清单是真列表且下钻区可达。目标既可写
 # 可访问名/可见文本（标签页），也可写会话 cwd
 # （会匹配按钮的 `title`）、`字号=<档位>` / `视图=<用量页子视图名>` / `滚动=<选择器>` /
 # `点选=<CSS 选择器>` 四种动作。
@@ -120,11 +120,12 @@ gui-test.sh —— 真机 GUI 冒烟测试
 默认视图清单：会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
 日志视图 → 导出 → 关闭导出窗口 → 压缩夹具会话（/repo/compact-demo）→ 上下文 → 点选第 2 枚压缩
 事件 chip → 改动夹具会话（/repo/changed-demo）→ 改动 → 点选首个文件行 → 用量总览 → 视图=用量 →
-滚到底 → 近 7 天 → 错误档 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→ 实时监控 → 字号恢复 100%。
+滚到底 → 点选工具普查榜首行 → 近 7 天 → 错误档 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→ 实时监控 →
+字号恢复 100%。
 每张图都配一份几何探针 JSON，脚本据它判定布局不变量（无横向溢出 / 表盘有界且含于卡片 /
 记录表末列可达 / 文字里无 ESC 转义字节 / 两层限额读数在卡内 / 用量页三块面板滚一次可达 /
 上下文曲线有界且命中区与压缩次数一致 / 取证卡在视口内 / 被丢清单不是假列表 / 错误档趋势
-有界且事件列表是真列表 / 改动文件列表是真列表且展开区可达）。
+有界且事件列表是真列表 / 改动文件列表是真列表且展开区可达 / 工具普查四栏清单是真列表且下钻区可达）。
 
 `字号=<档位>`（如 `字号=130%`）是一个动作目标：先在设置浮层里把界面字号切到该档，
 再取图与探针——用它验证「放大字号后布局仍然成立」。默认清单末尾会切回 100%，
@@ -503,6 +504,7 @@ FIXTURE_OFFSET="$(cat "${FIXTURE_SRC}"/session-basic.jsonl \
   "${FIXTURE_SRC}"/compact-session.jsonl \
   "${FIXTURE_SRC}"/error-session.jsonl \
   "${FIXTURE_SRC}"/changed-files-session.jsonl \
+  "${FIXTURE_SRC}"/tool-census-session.jsonl \
   | node -e '
     const TS = /"timestamp":"([^"]+)"/g;
     let text = "", newest = 0;
@@ -558,6 +560,15 @@ install_fixture "${FIXTURE_SRC}/error-session.jsonl" "-repo-error-demo" "error-s
 #    「近 7 天」窗口，它那条 is_error 的 Edit 就成了错误档的第 8 条。
 #    （两个方向都是真���门禁抓到过的；13 天 > 窗口 7 天 + 舍入余量。）
 install_fixture "${FIXTURE_SRC}/changed-files-session.jsonl" "-repo-changed-demo" "changed-files-session"
+# 工具统计夹具（Round N / N3）：「工具与 skill」面板的门禁步骤靠它——主链 13 次
+# tool_use（Skill 裸名 + ns:name、MCP 3 段名 + 2 段防御名、Agent 带
+# totalToolUseCount）+ sidechain 2 次。与 web/e2e 的 toolCensusScenario 共用
+# 同一份 tests/fixtures/tool-census-session.jsonl。最新时间戳（10-03 12:00:14Z）
+# 刻意早于 error-session 的最新（10-03 12:50Z）：共用平移锚点不变，错误档的
+# 7 条期望照旧成立；窗内工具调用 = 本夹具 + error-session（+30 天档的
+# changed-files，其 Edit/Read/Write 与前两者重类不重名），榜单行数恒为
+# Top-6 + 折尾（8 类内置），榜首恒为 Bash（7 次并列时按名字稳定排序胜出）。
+install_fixture "${FIXTURE_SRC}/tool-census-session.jsonl" "-repo-census-demo" "tool-census-session"
 # 归档夹具：源文件**不在**隔离家目录里（模拟 Claude Code 已清理），只有副本与索引。
 # 应用若真的把副本并回列表并解析，元数据缓存里会出现一条**键为副本路径**的条目——
 # 这是「归档 → 发现 → 解析 → 缓存」整条真机链路的直接证据。
@@ -584,7 +595,7 @@ cat >"${ARCHIVE_ROOT}/archive-index.json" <<JSON
 }
 JSON
 printf '  隔离家目录：%s\n' "$HOME_DIR"
-printf '  夹具会话：8 个（另有 1 个只剩归档副本的会话）\n'
+printf '  夹具会话：9 个（另有 1 个只剩归档副本的会话）\n'
 
 CACHE_PATH="${HOME_DIR}/Library/Application Support/${BUNDLE_ID}/meta-cache-v2.json"
 
@@ -654,7 +665,12 @@ else
   # 虽也含「改动 N」，但它在第二扫描域（普通按钮），永远轮不到。
   # 点选目标写 `… button` 后缀：data-changes-file 挂在 li 上（行高账由 li 承载），
   # 而 toggle 的 click 在行按钮上——点 li 不会触发 React 的 onClick。
-  CAPTURE_TARGETS=("会话分析" "字号=130%" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "实时监控" "字号=100%")
+  #
+  # 工具普查点选（Round N / N3）插在「滚动=main」之后、「近 7 天」之前：滚到底
+  # 让「工具与 skill」面板进视口，`点选=` 榜首行（data-tool-census-row，挂行按钮
+  # 上）打开下钻区（下钻在场、会话行是真列表的账目在这一步判定）。榜首恒为
+  # Bash（夹具账见 install_fixture 处的注释），可访问名带动态数字，按稳定属性点。
+  CAPTURE_TARGETS=("会话分析" "字号=130%" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "点选=[data-tool-census-row='Bash']" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "实时监控" "字号=100%")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
@@ -793,10 +809,10 @@ PY
   COUNT="$(printf '%s\n' "$CACHE_REPORT" | grep '^COUNT ' | awk '{print $2}')"
   OUTSIDE="$(printf '%s\n' "$CACHE_REPORT" | grep '^OUTSIDE ' | awk '{print $2}')"
 
-  if [[ "${COUNT:-}" == "9" ]]; then
-    ok "缓存条目数 = 9（8 个夹具 + 1 个归档副本）"
+  if [[ "${COUNT:-}" == "10" ]]; then
+    ok "缓存条目数 = 10（9 个夹具 + 1 个归档副本）"
   else
-    bad "缓存条目数 = ${COUNT:-解析失败}，期望 9"
+    bad "缓存条目数 = ${COUNT:-解析失败}，期望 10"
     printf '  %s  %s%s\n' "$C_YELLOW" "$CACHE_REPORT" "$C_RESET"
   fi
 
@@ -928,12 +944,22 @@ ERROR_EVENT_COUNT = 7
 CHANGES_TAB_LABEL = "改动"
 CHANGES_FILE_COUNT = 3
 CHANGES_RECORD_COUNT = 7
+# 工具与 skill 面板（Round N / N3）。夹具账（任意区间档 7/30/90 都成立）：
+# 窗内工具调用来自 tool-census-session 与 error-session（changed-files 只在
+# 30/90 天档入窗，且其 Edit/Read/Write 与前两者重类不重名）——内置工具恒
+# 8 类 → 主榜 7 行（Top-6 + 折尾），榜首恒为 Bash（并列 7 次时按名字稳定
+# 排序胜出）；skill 恒 3 行、子 agent 恒 1 行、MCP 恒 2 行。
+CENSUS_PANEL_TITLE = "工具与 skill"
+CENSUS_RANK_LABEL = "内置工具调用排行"
+CENSUS_RANK_ROWS = 7
+CENSUS_TOP_ROW = "Bash"
 coverage = os.environ.get("COVERAGE") == "1"
 seen_gauge = 0
 seen_table = 0
 seen_rows = 0
 seen_billing = 0
 seen_usage_panels = 0
+seen_census = 0
 seen_context = 0
 seen_error = 0
 seen_changes = 0
@@ -1143,6 +1169,17 @@ for arg in sys.argv[1:]:
         else:
             seen_usage_panels += 1
             print(f"OK|{label}：三块用量面板都在文档里（标题齐全）")
+        # 工具与 skill 面板（N3）同档在场：面板标题 + 体首行双读数（夹具保证
+        # 窗内必有工具调用，全空态在这里就是失败——面板没接上聚合）。
+        census = data.get("toolCensus") or {}
+        census_total = census.get("total") or ""
+        if census.get("view") is not True or CENSUS_PANEL_TITLE not in titles:
+            print(f"BAD|{label}：工具与 skill 面板没有渲染出来（探针锚点或面板标题缺失）")
+        elif not (census_total.startswith("共 ") and " 主链 " in census_total and "子 agent 占 " in census_total):
+            print(f"BAD|{label}：工具与 skill 的体首行双读数缺失或形状不对（{census_total!r}）")
+        else:
+            seen_census += 1
+            print(f"OK|{label}：工具与 skill 面板在场，体首行双读数齐全（{census_total}）")
     elif label.startswith("滚动=") and prev_label in ("用量总览", "视图=用量"):
         problems = []
         main_info = data.get("main") or {}
@@ -1158,12 +1195,38 @@ for arg in sys.argv[1:]:
                 problems.append(f"「{title}」滚一次到不了（docTop {doc_top:.0f} > scrollTop {scroll_top} + clientHeight {client_height}）")
             if isinstance(viewport_height, (int, float)) and isinstance(top, (int, float)) and (top < -1 or top > viewport_height + 1):
                 problems.append(f"「{title}」滚到底后仍不在视口内（top {top:.0f}，视口高 {viewport_height:.0f}）")
+        # 工具与 skill（N3）滚一次可达 + 主榜清单是真列表（行高测 li，账目与
+        # <ul> 自己的 scrollHeight 对——被丢清单的判法）。此处不判「滚到底后
+        # 在视口内」：面板常高约 300px，若上方内容把它顶出最终视口，那是页面
+        # 变长的自然结果，可达性（docTop）才是这里的不变量。
+        census = data.get("toolCensus") or {}
+        census_hit = next((p for p in panels if p.get("title") == CENSUS_PANEL_TITLE), None)
+        if census_hit is None or census.get("view") is not True:
+            problems.append(f"面板「{CENSUS_PANEL_TITLE}」不在文档里（探针锚点缺失）")
+        else:
+            doc_top = census_hit.get("docTop")
+            if isinstance(scroll_top, int) and isinstance(client_height, int) and isinstance(doc_top, (int, float)) and doc_top > scroll_top + client_height + 1:
+                problems.append(f"「{CENSUS_PANEL_TITLE}」滚一次到不了（docTop {doc_top:.0f} > scrollTop {scroll_top} + clientHeight {client_height}）")
+            rank = next((l for l in census.get("lists") or [] if l.get("label") == CENSUS_RANK_LABEL), None)
+            if rank is None:
+                problems.append("主榜清单没有产出滚动几何（data-tool-census-list）")
+            else:
+                rows, row_h = rank.get("rows"), rank.get("firstRowHeight")
+                scroll_h = rank.get("listScrollHeight")
+                if rows != CENSUS_RANK_ROWS:
+                    problems.append(f"主榜 {rows!r} 行，期望 {CENSUS_RANK_ROWS}（Top-6 + 折尾，夹具账）")
+                if not isinstance(row_h, (int, float)) or row_h <= 0 or not isinstance(scroll_h, int):
+                    problems.append(f"主榜行高/总高缺失（firstRowHeight={row_h!r}，scrollHeight={scroll_h!r}）")
+                elif abs(scroll_h - rows * row_h) > 4:
+                    problems.append(f"主榜总高 {scroll_h}px ≠ {rows} 行 × {row_h:.1f}px——声称的行数没有对应的内容高度")
         if problems:
             for problem in problems:
                 print(f"BAD|{label}：{problem}")
         else:
             seen_usage_panels += 1
-            print(f"OK|{label}：滚一次到底后三块面板标题全部可达（scrollTop {scroll_top} / scrollHeight {main_info.get('scrollHeight')}）")
+            if census_hit is not None:
+                seen_census += 1
+            print(f"OK|{label}：滚一次到底后三块面板与工具普查主榜全部可达（scrollTop {scroll_top} / scrollHeight {main_info.get('scrollHeight')}）")
     elif label.startswith("滚动="):
         print(f"NOTE|{label}：上一步不在用量页（是 {prev_label}），跳过三块面板的可达性判定")
 
@@ -1360,13 +1423,47 @@ for arg in sys.argv[1:]:
             seen_changes += 1
             print(f"OK|{label}：展开区可达（{records['rows']} 条记录，高 {records['height']}px），账目含展开高度")
 
+    # 工具普查点选（Round N / N3）：点榜单首行（data-tool-census-row，值 = 行
+    # label）后下钻区要在场——过滤态锚点的值就是被点的行名（「点击没落地」与
+    # 「落地了但列表没渲染」靠它分辨），会话行是真列表（行高 × 行数对 <ul>
+    # 自己总高的账，同被丢清单的判法），四栏清单不因下钻在场而消失。
+    if label.startswith("点选=") and "tool-census" in label:
+        census = data.get("toolCensus") or {}
+        problems = []
+        if census.get("view") is not True:
+            problems.append("面板不见了（data-tool-census）——用量档状态丢了")
+        else:
+            if census.get("filter") != CENSUS_TOP_ROW:
+                problems.append(f"下钻过滤态是 {census.get('filter')!r}，期望 {CENSUS_TOP_ROW!r}——点击没落地或选中丢失")
+            sessions = census.get("sessions")
+            if not isinstance(sessions, dict) or not isinstance(sessions.get("rows"), int):
+                problems.append("下钻会话列表没有渲染（data-tool-census-sessions）")
+            else:
+                row_h, scroll_h = sessions.get("firstRowHeight"), sessions.get("listScrollHeight")
+                if sessions["rows"] < 1:
+                    problems.append("下钻会话行数 < 1——topSessions 没接上")
+                elif not isinstance(row_h, (int, float)) or row_h <= 0 or not isinstance(scroll_h, int):
+                    problems.append(f"下钻行高/总高缺失（firstRowHeight={row_h!r}，scrollHeight={scroll_h!r}）")
+                elif abs(scroll_h - sessions["rows"] * row_h) > 4:
+                    problems.append(f"下钻总高 {scroll_h}px ≠ {sessions['rows']} 行 × {row_h:.1f}px——声称的行数没有对应的内容高度")
+            rank = next((l for l in census.get("lists") or [] if l.get("label") == CENSUS_RANK_LABEL), None)
+            if rank is None:
+                problems.append("主榜清单不见了——下钻在场不该让四栏位移或消失")
+        if problems:
+            for problem in problems:
+                print(f"BAD|{label}：工具普查下钻——{problem}")
+        else:
+            seen_census += 1
+            print(f"OK|{label}：下钻区在场（过滤 {census.get('filter')}，{census['sessions']['rows']} 行 × {census['sessions']['firstRowHeight']:.1f}px ≈ 总高 {census['sessions']['listScrollHeight']}px），主榜仍在")
+
     # 点选压缩事件 chip 之后：取证卡要在视口内、被丢清单不能是「假列表」。
     # 防「假列表」的核心判据是滚动内容的总高 ≈ 声明行数 × 行高——清单只铺
     # 几十行却声称几百条、或垫片高度不随行数变，都会在这里红。当前夹具 82 条
     # 低于窗口化阈值（120），走「无垫片、全量铺开」分支；垫片分支为更大的
     # 清单留判据（事实在应用、断言在此，两个分支都成立才叫防得住）。
-    # （改动视图也有自己的「点选=」步骤——由 prev_label 分流，见上面改动档。）
-    if label.startswith("点选=") and prev_label != CHANGES_TAB_LABEL:
+    # （改动视图与工具普查各有自己的「点选=」步骤——前者由 prev_label 分流
+    #   （见上面改动档），后者由选择器里的 tool-census 分流（见上面工具普查段）。）
+    if label.startswith("点选=") and "tool-census" not in label and prev_label != CHANGES_TAB_LABEL:
         ctx = data.get("context") or {}
         viewport = data.get("viewport") or {}
         card = ctx.get("forensicCard")
@@ -1446,6 +1543,8 @@ if coverage and seen_billing == 0:
     print("BAD|视图覆盖：没有任何视图产出计费窗口几何——限额区没被覆盖")
 if coverage and seen_usage_panels == 0:
     print("BAD|视图覆盖：没有任何视图产出三块用量面板的标题——用量页下半屏没被覆盖")
+if coverage and seen_census == 0:
+    print("BAD|视图覆盖：没有任何视图产出工具普查面板的锚点——「工具与 skill」面板没被覆盖")
 if coverage and seen_context == 0:
     print("BAD|视图覆盖：没有任何视图产出上下文曲线几何——上下文标签页没被覆盖")
 if coverage and seen_error == 0:

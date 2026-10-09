@@ -951,6 +951,61 @@ mod gui_capture {
     }
   }
   facts.changes = changesFacts;
+  /* 工具与 skill 面板（Round N / N3）：四栏清单与下钻区的原始事实。锚点是
+     组件自带的 data-tool-census-* 稳定属性（同 data-error-* 先例，不碰
+     CSS Module 哈希类名）；不在用量档时 view 为 null，判定在脚本。
+     各栏清单的行高账由 li 承载（N1/N2 教训：button 拉伸填满、li 对账）。 */
+  var censusFacts = { view: null, total: null, lists: [], sessions: null, filter: null };
+  var censusView = document.querySelector('[data-tool-census]');
+  if (censusView) {
+    censusFacts.view = true;
+    var censusTotalEl = censusView.querySelector('[data-tool-census-total]');
+    if (censusTotalEl) {
+      censusFacts.total = (censusTotalEl.textContent || '').replace(/\s+/g, ' ').trim();
+    }
+    /* 四栏各自的清单：行数（非 aria-hidden 的 li）、首行高、<ul> 自己的
+       scrollHeight（对账不掺容器内边距——dropped-list 的教训）。 */
+    var censusLists = censusView.querySelectorAll('[data-tool-census-list]');
+    for (var cl = 0; cl < censusLists.length; cl++) {
+      var listEl = censusLists[cl];
+      var listItems = listEl.children;
+      var listVisible = 0;
+      var listFirstRowHeight = null;
+      for (var li = 0; li < listItems.length; li++) {
+        if (listItems[li].getAttribute('aria-hidden') === 'true') continue;
+        listVisible += 1;
+        if (listFirstRowHeight === null) {
+          listFirstRowHeight = listItems[li].getBoundingClientRect().height;
+        }
+      }
+      censusFacts.lists.push({
+        label: listEl.getAttribute('aria-label') || '',
+        rows: listVisible,
+        firstRowHeight: listFirstRowHeight,
+        listScrollHeight: listEl.scrollHeight
+      });
+    }
+    /* 下钻区（点选行之后才在场）：会话行数与首行高、过滤态（属性值 = 选中行
+       的 label——「点击没落地」与「落地了但列表没渲染」靠它分辨）。 */
+    var censusSessionsEl = censusView.querySelector('[data-tool-census-sessions]');
+    if (censusSessionsEl) {
+      var sessionItems = censusSessionsEl.children;
+      var sessionFirstRowHeight = null;
+      if (sessionItems.length > 0) {
+        sessionFirstRowHeight = sessionItems[0].getBoundingClientRect().height;
+      }
+      censusFacts.sessions = {
+        rows: sessionItems.length,
+        firstRowHeight: sessionFirstRowHeight,
+        listScrollHeight: censusSessionsEl.scrollHeight
+      };
+    }
+    var censusFilterEl = censusView.querySelector('[data-tool-census-filter]');
+    if (censusFilterEl) {
+      censusFacts.filter = censusFilterEl.getAttribute('data-tool-census-filter');
+    }
+  }
+  facts.toolCensus = censusFacts;
   return JSON.stringify(facts);
 })();"##;
 
@@ -1780,6 +1835,21 @@ mod gui_capture {
             assert!(PROBE_JS.contains("facts.changes"));
             // closest('section') 方向相反（子不是祖），出现过就不许再回来。
             assert!(!PROBE_JS.contains("changesView.closest"));
+        }
+
+        #[test]
+        fn the_probe_reports_tool_census_anchors() {
+            // 工具与 skill 面板（Round N / N3）的锚点：容器（data-tool-census）、
+            // 体首行双读数（data-tool-census-total）、四栏清单（data-tool-census-list，
+            // 行数 × 行高 = 总高的账目事实，行高测 li）、下钻会话列表
+            // （data-tool-census-sessions）与过滤态（data-tool-census-filter 的
+            // 属性值 = 选中行 label）。
+            assert!(PROBE_JS.contains("[data-tool-census]"));
+            assert!(PROBE_JS.contains("[data-tool-census-total]"));
+            assert!(PROBE_JS.contains("[data-tool-census-list]"));
+            assert!(PROBE_JS.contains("[data-tool-census-sessions]"));
+            assert!(PROBE_JS.contains("[data-tool-census-filter]"));
+            assert!(PROBE_JS.contains("facts.toolCensus"));
         }
 
         #[test]

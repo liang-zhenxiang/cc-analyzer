@@ -180,6 +180,32 @@ export function compactScenario(overrides: Partial<MockScenario> = {}): MockScen
   };
 }
 
+/** 工具统计夹具里最新的活动日（tool-census 的 2026-10-03）——平移锚点。 */
+const TOOL_CENSUS_NEWEST_DAY = Date.UTC(2026, 9, 3);
+
+/**
+ * 默认场景 + 工具统计夹具会话（/repo/census-demo，两个自然日）：主链 13 次
+ * tool_use（含 Skill×2、mcp 3 段 + 2 段防御名、Agent×1 带 totalToolUseCount=2）
+ * + sidechain 2 次（Bash / Skill maintain-loop）。
+ *
+ * 「工具与 skill」面板的端到端与归档截图靠它。窗内**只有这份夹具有工具调用**
+ * （默认场景的两个 usage 夹具无 tool_use，其余会话平移后在窗外），面板计数因此
+ * 是确定值。平移锚点取全部夹具里最新者（= 本夹具的 10-03，与错误场景同日）。
+ */
+export function toolCensusScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  const base = defaultScenario(overrides);
+  const offset = offsetToYesterday(TOOL_CENSUS_NEWEST_DAY);
+  const files: Record<string, string> = {};
+  for (const [path, content] of Object.entries(base.files)) {
+    files[path] = path.endsWith(".jsonl") ? shiftDays(content, offset) : content;
+  }
+  files[`${HOME}/.claude/projects/-repo-census-demo/tool-census-session.jsonl`] = shiftDays(
+    fixture("tool-census-session.jsonl"),
+    offset
+  );
+  return { ...base, files };
+}
+
 /**
  * 默认场景 + 改动文件夹具会话（/repo/changed-demo，2026-09-20 一个下午）：
  * 文件 A（cwd 内：Read ×2 → Edit ×2 → Write(create) → 失败 Edit → 子链 Edit）、

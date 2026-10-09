@@ -2,6 +2,7 @@ import type { SessionRecord, SessionUsage, CompactEvent } from "../sessions/type
 import type { SessionMeta } from "../sessions/metadataCache";
 import { tokenTotalsOf } from "../sessions/tokenTotals";
 import type { ErrorSessionFacts } from "./errorStats";
+import type { ToolCallFact } from "./toolCensus";
 
 /**
  * Pure aggregation over parsed sessions: the usage dashboard's whole data
@@ -69,6 +70,13 @@ export type UsageSessionInput = {
    * calibres never mix in one merge.
    */
   errorExtract?: ErrorSessionFacts;
+  /**
+   * Tool call facts (N3) with sidechain merged in — same precedent as
+   * `compactEvents` / `errorExtract`: this aggregate ignores them; the
+   * windowed `toolCensus` reads them separately (实测 41.3% 的 tool_use 在
+   * sidechain 行，只吃 records 的聚合会低估近一半).
+   */
+  toolCalls?: readonly ToolCallFact[];
   /**
    * The scan's `SessionMeta` for this session, when the input came from a real
    * scan (hand-built fakes in tests omit it). The compaction panel's top-3 rows

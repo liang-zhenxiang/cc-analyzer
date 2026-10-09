@@ -3,7 +3,7 @@ import path from "node:path";
 import {
   test,
   expect,
-  recentActivityScenario,
+  toolCensusScenario,
   compactScenario,
   errorScenario,
   changedFilesScenario
@@ -141,11 +141,14 @@ test.describe("截图归档", () => {
 
 // 用量总览需要「最近真的有活动」才有内容可截：仪表盘的时间窗相对
 // Date.now()，夹具的固定时间戳会随着日子过去掉出窗外，截出一排空图。
-// 这里单独用平移后的场景（recentActivityScenario），并等扫描收口再截。
+// 场景用 toolCensusScenario（N3 起多一块「工具与 skill」���板）：默认场景的
+// usage 夹具没有任何 tool_use，继续用 recentActivityScenario 会让新面板
+// 在归档截图里永远是全空态。该场景窗内只有 census 夹具有工具调用，
+// 面板读数是确定值（见 tool-census.spec.ts 的账目）。
 test.describe("截图归档 · 用量总览", () => {
   test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
 
-  test.use({ scenario: recentActivityScenario() });
+  test.use({ scenario: toolCensusScenario() });
 
   test.beforeAll(() => {
     mkdirSync(OUT_DIR, { recursive: true });
@@ -169,6 +172,10 @@ test.describe("截图归档 · 用量总览", () => {
       // 整块在折叠线以下——视口截图从不滚动，它们因此从未进入归档、从未进入
       // 任何一次视觉验收（评审 §2 的方法论缺口，本视图存在的理由）。
       await scrollMainToBottom(page);
+      // 「工具与 skill」面板（N3）住活跃时段之后：截一张**下钻选中态**——
+      // 引导态不是这个面板的常态演示（同改动视图展开首文件的先例）。
+      await page.locator("[data-tool-census-row='Bash']").click();
+      await expect(page.locator("[data-tool-census-sessions]")).toBeVisible();
       await settleImages(page);
       await page.screenshot({ path: path.join(OUT_DIR, `usage-below-${theme}${suffix}.png`) });
     });

@@ -14,6 +14,7 @@ import {
   type UsageSessionInput
 } from "./usageAggregations";
 import { extractErrorEvents } from "./errorStats";
+import { extractToolCalls } from "./toolCensus";
 
 // 解析缓存与全局搜索共享同一单例（见 sessionParseCache.ts 的注释）：
 // 一个文件只解析一次，消费方再多也不重复付费。
@@ -112,6 +113,8 @@ export function useUsageOverview() {
                 // 错误聚合（N1）同趟提取：事件 + 逐日分母，纯函数无 IO；
                 // 在这里产出（而不是解析层），缓存命中的会话同样携带。
                 errorExtract: extractErrorEvents(parsed, session),
+                // 工具普查（N3）同趟提取（含 sidechain 行），同上不进解析缓存。
+                toolCalls: extractToolCalls(parsed),
                 session
               };
               collected.push(input);

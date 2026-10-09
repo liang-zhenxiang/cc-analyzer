@@ -13,6 +13,8 @@ import { CompactionStatsPanel } from "./CompactionStatsPanel";
 import { compactionStats } from "./compactionStats";
 import { mergeErrorStats } from "./errorStats";
 import { ErrorOverviewSection } from "./ErrorOverviewSection";
+import { toolCensus } from "./toolCensus";
+import { ToolCensusPanel } from "./ToolCensusPanel";
 import {
   aggregateRange,
   formatDayLabel,
@@ -130,6 +132,8 @@ export function UsageOverviewPage({
   const compaction = useMemo(() => compactionStats(inputs, days), [inputs, days]);
   // 错误聚合同位（design §8）：与压缩统计一样独立 memo，不进既有聚合桶。
   const errorStats = useMemo(() => mergeErrorStats(inputs, days), [inputs, days]);
+  // 工具普查（N3）同位：窗口化口径与上两者一致，不进既有聚合桶。
+  const census = useMemo(() => toolCensus(inputs, days), [inputs, days]);
 
   const cost = useMemo(() => {
     let usd = 0;
@@ -356,6 +360,18 @@ export function UsageOverviewPage({
             <Panel title="活跃时段（周 × 小时）">
               <Heatmap counts={range.hourly} ariaLabel="活跃时段热力图" />
             </Panel>
+
+            {/* 工具与 skill（N3）住活跃时段之后、压缩统计之前（design 裁决 10）：
+                「量级主体 → 配置清单 → 现场（会话）」是一条横向叙事，整行同
+                compactionRow 形态（复用同一个类——两处整行容器不该有两个名字）。 */}
+            <div className={styles.compactionRow}>
+              <ToolCensusPanel
+                census={census}
+                days={days}
+                sessionsInWindow={range.kpi.sessions}
+                onOpenSession={onOpenSession}
+              />
+            </div>
 
             {/* 压缩统计住满第三行整行（design §4）：两列网格里塞半宽会留空洞，
                 这块面板本来就是一条横向叙事。 */}
