@@ -7,6 +7,7 @@ import {
   formatModelId,
   formatProjectPath,
   formatRelativeTime,
+  formatShortStamp,
   formatTokenCount
 } from "./format";
 
@@ -34,6 +35,13 @@ describe("format helpers", () => {
 
   it("formats timestamps in Chinese", () => {
     expect(formatDateTime(Date.UTC(2026, 0, 2, 3, 4, 5))).toMatch(/2026\/1\/2/);
+  });
+
+  it("formats zero-padded short stamps for dense rows", () => {
+    // 本地时区构造（压缩事件 chip / 改动文件行用的都是本地时刻）；补零让
+    // mono 列里每位等宽，1 月 3 日 9:07 不会比 12 月 31 日短一截。
+    expect(formatShortStamp(new Date(2026, 0, 3, 9, 7).getTime())).toBe("01-03 09:07");
+    expect(formatShortStamp(new Date(2026, 11, 31, 23, 59).getTime())).toBe("12-31 23:59");
   });
 
   it("formats relative time labels for the session list", () => {

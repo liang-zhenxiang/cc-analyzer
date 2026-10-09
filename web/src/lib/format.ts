@@ -58,6 +58,16 @@ export function formatClock(ms: number, withSeconds = false): string {
   return withSeconds ? `${base}:${pad(date.getSeconds())}` : base;
 }
 
+/**
+ * `03-01 09:33` — 密集行里的短时间戳（压缩事件 chip、改动文件行）。
+ * 日期与时间都补零成等长串：mono 列里宽度恒定，行间对齐不抖动。
+ */
+export function formatShortStamp(ms: number): string {
+  const date = new Date(ms);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${formatClock(ms)}`;
+}
+
 /** Relative time labels for the session list (刚刚 / N 分钟前 / 更早). */
 export function formatRelativeTime(ms: number, now = Date.now()): string {
   if (!ms || ms < 0) return "-";

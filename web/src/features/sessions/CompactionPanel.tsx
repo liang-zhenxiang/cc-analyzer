@@ -3,7 +3,7 @@ import { ProvenanceBadge } from "../usage/ProvenanceBadge";
 import { formatAxisValue } from "../usage/charts/chartPrimitives";
 import { toRow, triggerLabel } from "./logRows";
 import { DroppedList } from "./DroppedList";
-import { formatClock, formatDateTime, formatDuration } from "../../lib/format";
+import { formatClock, formatDateTime, formatDuration, formatShortStamp } from "../../lib/format";
 import type { DroppedBucket } from "./droppedMessages";
 import type { CompactionAnchor } from "./contextSeries";
 import type { CompactEvent, ContextSample } from "./types";
@@ -11,13 +11,7 @@ import styles from "./CompactionPanel.module.css";
 
 // triggerLabel 已上移到 logRows.ts：带行、事件 chip、取证卡与详情面板必须把
 // 同一个 trigger 叫成同一个名字（ROW_KIND_LABELS 的同款理由）。
-
-/** `03-01 09:33` — 事件 chip 的短时间戳。 */
-function shortStamp(ms: number): string {
-  const date = new Date(ms);
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
+// shortStamp 同理上移到 lib/format.ts（改动文件行与之同一格式，口径同一来源）。
 
 /** 压缩占比：百分比 = (pre − post) / pre。 */
 function dropPercent(event: CompactEvent): string | null {
@@ -112,7 +106,7 @@ export function CompactionPanel({
               className={pressed ? styles.chipSelected : styles.chip}
               onClick={() => onSelect(pressed ? null : event.id)}
             >
-              {`#${index + 1} ${shortStamp(event.timestamp)} · ${triggerLabel(event.trigger)} · ${compactPair(event)}`}
+              {`#${index + 1} ${formatShortStamp(event.timestamp)} · ${triggerLabel(event.trigger)} · ${compactPair(event)}`}
             </button>
           );
         })}

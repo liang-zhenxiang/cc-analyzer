@@ -892,6 +892,65 @@ mod gui_capture {
     }
   }
   facts.error = errorFacts;
+  /* 改动标签页（Round N / N2）：文件列表滚动几何与展开区可达性的原始事实。
+     锚点全是组件自带的 data-changes-* 稳定属性（同 data-probe 先例，不碰
+     CSS Module 哈希类名）；不在改动视图时 view 为 null，判定在脚本。
+     文件行的行高账由 li[data-changes-file] 承载（N1 教训：button 拉伸填满、
+     li 对账），展开区是紧跟其后的变高 li，高度单列一项。 */
+  var changesFacts = { view: null, files: null, records: null, empty: null };
+  var changesView = document.querySelector('[data-changes-view]');
+  if (changesView) {
+    changesFacts.view = true;
+    var filesEl = changesView.querySelector('[data-changes-files]');
+    if (filesEl) {
+      var fileItems = filesEl.querySelectorAll('ul > li[data-changes-file]');
+      var filesVisible = 0;
+      var filesFirstRowHeight = null;
+      var filesPads = [];
+      /* 声明行数读面板头部的聚合读数（“N 个文件”）。锚点是聚合 span 自己的
+         data-changes-aggregate——**不要**用 closest('section') 借面板结构找：
+         closest 走的是祖先链，而本视图的 Panel section 是 data-changes-view 的
+         子元素，方向相反（真机抓到过一次 declaredCount 恒 null）。 */
+      var aggregateEl = changesView.querySelector('[data-changes-aggregate]');
+      var filesDeclared = null;
+      var filesMatch = aggregateEl
+        ? (aggregateEl.textContent || '').match(/(\d+)\s*个文件/)
+        : null;
+      if (filesMatch) filesDeclared = parseInt(filesMatch[1], 10);
+      for (var f = 0; f < fileItems.length; f++) {
+        var fileItem = fileItems[f];
+        if (fileItem.getAttribute('aria-hidden') === 'true') {
+          filesPads.push(fileItem.offsetHeight);
+        } else {
+          filesVisible += 1;
+          if (filesFirstRowHeight === null) {
+            filesFirstRowHeight = fileItem.getBoundingClientRect().height;
+          }
+        }
+      }
+      changesFacts.files = {
+        clientHeight: filesEl.clientHeight,
+        listScrollHeight: (filesEl.querySelector('ul') || filesEl).scrollHeight,
+        scrollHeight: filesEl.scrollHeight,
+        scrollTop: filesEl.scrollTop,
+        declaredCount: filesDeclared,
+        visibleRows: filesVisible,
+        firstRowHeight: filesFirstRowHeight,
+        padHeights: filesPads
+      };
+      var recordsEl = filesEl.querySelector('[data-changes-records]');
+      if (recordsEl) {
+        changesFacts.records = {
+          height: Math.round(recordsEl.getBoundingClientRect().height),
+          rows: recordsEl.querySelectorAll('[data-changes-record]').length
+        };
+      }
+    }
+    if (changesView.querySelector('[data-changes-empty]')) {
+      changesFacts.empty = true;
+    }
+  }
+  facts.changes = changesFacts;
   return JSON.stringify(facts);
 })();"##;
 
@@ -1701,6 +1760,26 @@ mod gui_capture {
             assert!(PROBE_JS.contains("[data-error-events]"));
             assert!(PROBE_JS.contains("[data-error-filter]"));
             assert!(PROBE_JS.contains("facts.error"));
+        }
+
+        #[test]
+        fn the_probe_reports_changes_view_anchors() {
+            // 改动标签页（Round N / N2）的锚点：容器（data-changes-view）、文件
+            // 列表（data-changes-files + li[data-changes-file] 的行高账目）、
+            // 展开区（data-changes-records + 记录行 data-changes-record）、空态
+            // （data-changes-empty）。声明行数读聚合读数自己的
+            // data-changes-aggregate（不借面板结构，理由见 PROBE_JS 注释）。
+            assert!(PROBE_JS.contains("[data-changes-view]"));
+            assert!(PROBE_JS.contains("[data-changes-files]"));
+            assert!(PROBE_JS.contains("li[data-changes-file]"));
+            assert!(PROBE_JS.contains("[data-changes-aggregate]"));
+            assert!(PROBE_JS.contains("[data-changes-records]"));
+            assert!(PROBE_JS.contains("[data-changes-record]"));
+            assert!(PROBE_JS.contains("[data-changes-empty]"));
+            assert!(PROBE_JS.contains("个文件"));
+            assert!(PROBE_JS.contains("facts.changes"));
+            // closest('section') 方向相反（子不是祖），出现过就不许再回来。
+            assert!(!PROBE_JS.contains("changesView.closest"));
         }
 
         #[test]

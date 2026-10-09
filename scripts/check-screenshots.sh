@@ -77,6 +77,9 @@ EXPECTED_VIEWS = [
     # （分布切面 + 事件列表）。
     "error-view",
     "error-events",
+    # Round N / N2：改动标签页——展开首文件后的完整形态（行、徽标、
+    # 展开区记录清单与口径脚注）。
+    "changed-files",
 ]
 THEMES = ["light", "dark"]
 ENGINES = ["chromium", "webkit"]
