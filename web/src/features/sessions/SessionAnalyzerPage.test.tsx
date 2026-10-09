@@ -500,6 +500,35 @@ test("switches between the log and tree views and remembers the choice", async (
   expect(await screen.findByRole("table")).toBeInTheDocument();
 });
 
+test("上下文标签页隐藏时间线与筛选，选择被持久化", async () => {
+  window.localStorage.clear();
+  const user = userEvent.setup();
+  render(
+    <BridgesProvider bridges={createBridges()}>
+      <NotificationProvider>
+        <SessionAnalyzerPage />
+      </NotificationProvider>
+    </BridgesProvider>
+  );
+
+  await user.click(await screen.findByRole("button", { name: /project-a/ }));
+  expect(await screen.findByRole("application", { name: "时间轨道" })).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: "记录筛选" })).toBeInTheDocument();
+
+  await user.click(screen.getByRole("tab", { name: "上下文" }));
+
+  // 该会话没有带用量的模型消息：上下文面板如实说明，事件面板不渲染。
+  expect(await screen.findByText("没有可绘制的上下文数据")).toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "压缩事件" })).not.toBeInTheDocument();
+  // 取证口径不可漂移：时间线与筛选在这一个标签页里消失（design §2.1）。
+  expect(screen.queryByRole("application", { name: "时间轨道" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "记录筛选" })).not.toBeInTheDocument();
+  expect(window.localStorage.getItem("cca-analyzer-view")).toBe("context");
+
+  await user.click(screen.getByRole("tab", { name: "日志视图" }));
+  expect(await screen.findByRole("application", { name: "时间轨道" })).toBeInTheDocument();
+});
+
 test("enters a child session from the tree view", async () => {
   window.localStorage.clear();
   const user = userEvent.setup();

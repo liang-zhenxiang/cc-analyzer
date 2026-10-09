@@ -18,6 +18,7 @@ import { formatLabel, projectNameOf, type ExportBase, type ExportFormat } from "
 import { useArchiveTask } from "../archive/archiveTask";
 import { TreeView } from "./TreeView";
 import { LogView } from "./LogView";
+import { ContextView } from "./ContextView";
 import { emptyFilter, type RecordFilter, type TimeRange } from "./filters";
 import { parseJsonlTextAsync } from "./parseJsonl";
 import { resolveSessionGraph } from "./sessionGraph";
@@ -35,18 +36,20 @@ import { sessionTitle, type SessionMeta } from "./metadataCache";
 import type { ParsedSession, ParsedSessionGraph, SessionRecord } from "./types";
 import styles from "./SessionAnalyzerPage.module.css";
 
-type AnalyzerView = "log" | "tree";
+type AnalyzerView = "log" | "tree" | "context";
 
 const ANALYZER_VIEW_ITEMS: SegmentedItem<AnalyzerView>[] = [
   { value: "log", label: "日志视图" },
-  { value: "tree", label: "树视图" }
+  { value: "tree", label: "树视图" },
+  { value: "context", label: "上下文" }
 ];
 
 const VIEW_STORAGE_KEY = "cca-analyzer-view";
 
 function readStoredView(): AnalyzerView {
   try {
-    return localStorage.getItem(VIEW_STORAGE_KEY) === "tree" ? "tree" : "log";
+    const stored = localStorage.getItem(VIEW_STORAGE_KEY);
+    return stored === "tree" || stored === "context" ? stored : "log";
   } catch {
     return "log";
   }
@@ -459,13 +462,19 @@ export function SessionAnalyzerPage({
               {tokenPanelOpen ? (
                 <TokenPanel records={parsed.records} isSubagent={parsed.isSubagent} />
               ) : null}
-              <TimelineTrack
-                session={parsed}
-                selection={filter.timeRange}
-                onSelect={(timeRange) => setFilter({ ...filter, timeRange })}
-                onReveal={revealRecord}
-              />
-              <FilterBar filter={filter} onChange={setFilter} />
+              {/* 上下文标签页不渲染时间线与筛选（design §2.1/§9-5）：取证的口径是
+                  「压缩点之前全部消息 − 幸存清单」，记录级筛选会让口径漂移。 */}
+              {view === "context" ? null : (
+                <>
+                  <TimelineTrack
+                    session={parsed}
+                    selection={filter.timeRange}
+                    onSelect={(timeRange) => setFilter({ ...filter, timeRange })}
+                    onReveal={revealRecord}
+                  />
+                  <FilterBar filter={filter} onChange={setFilter} />
+                </>
+              )}
               <div className={styles.viewBar}>
                 <SegmentedControl
                   items={ANALYZER_VIEW_ITEMS}
@@ -491,7 +500,7 @@ export function SessionAnalyzerPage({
                     onSelect={setSelectedRecord}
                     onLocateInTree={locateInTree}
                   />
-                ) : (
+                ) : view === "tree" ? (
                   <TreeView
                     session={parsed}
                     graph={graph}
@@ -505,6 +514,8 @@ export function SessionAnalyzerPage({
                     windowOnly={windowOnly}
                     onWindowOnlyChange={setWindowOnly}
                   />
+                ) : (
+                  <ContextView parsed={parsed} onLocateInLog={locateInLog} />
                 )}
               </div>
               <div className={styles.reportPane}>

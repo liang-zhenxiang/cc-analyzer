@@ -29,8 +29,11 @@ export function niceAxisMax(value: number): number {
  * *down* is what keeps the tick count near the caller's hint: rounding up would
  * leave `max` needing fewer divisions than asked for, so a 200K axis would get
  * two gridlines instead of four.
+ *
+ * Exported since J2: the context chart's x axis (message ordinals) needs the
+ * same 1/2/5×10ⁿ rounding the y axis gets here.
  */
-function niceStep(raw: number): number {
+export function niceStep(raw: number): number {
   const exponent = Math.floor(Math.log10(raw));
   const base = 10 ** exponent;
   const mantissa = raw / base;

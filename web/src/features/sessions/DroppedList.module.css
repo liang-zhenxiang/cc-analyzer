@@ -1,0 +1,128 @@
+.root {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-2);
+}
+
+.title {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 清单在自己的框里滚动：与日志表同一种「卡片 + 内部滚动」的约定。 */
+.scroller {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-subtle);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+/* 行语言逐字复用日志表：--row-h 行高、类型徽标带类别色竖条、悬停台阶。 */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: var(--row-h);
+  padding: 0 var(--row-pad-x);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--dur-hover) var(--ease-in-out);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.row:hover {
+  background: var(--bg-hover);
+}
+
+/* 键盘焦点行：与日志表逐字一致（底色 + accent 竖条双信号）。 */
+.row:focus-visible {
+  outline: none;
+  background: var(--bg-hover);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.rowTime {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.kind {
+  flex: 0 0 auto;
+  display: inline-block;
+  /* 1px/2px 是形不是距：发丝内距与类别色描边（与日志表 .kind 同款）。 */
+  padding: 1px var(--sp-1) 1px var(--sp-15);
+  border-left: 2px solid var(--row-color, var(--text-tertiary));
+  border-radius: var(--r-xs);
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.rowText {
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+}
+
+.rowText strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.user {
+  --row-color: var(--cat-user);
+}
+
+.llm {
+  --row-color: var(--cat-compute);
+}
+
+.tool {
+  --row-color: var(--cat-direct);
+}
+
+.subagent {
+  --row-color: var(--cat-delegated);
+}
+
+.workflow {
+  --row-color: var(--cat-workflow);
+}
+
+.wait {
+  --row-color: var(--cat-wait);
+}

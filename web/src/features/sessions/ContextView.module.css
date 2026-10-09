@@ -1,0 +1,184 @@
+/* 上下文标签页：上面板（压力曲线）+ 下面板（压缩事件）纵向分食 pane。
+   两块都是 Panel；事件面板吃剩余高度，被丢清单在卡内滚动。 */
+.stack {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* 面板 actions 里的读数（峰值 / 次数）：KPI 同构降一级，配一枚来源圆点。 */
+.peakReading {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 事件面板的 flex 链：Panel 的 .body 默认按内容高，这里从外向内把
+   「撑满 + 内部滚动」接上（.body 自带 min-height: 0，只缺 flex 增长）。 */
+.eventsHost {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 180px;
+  flex-direction: column;
+}
+
+.eventsHost > section {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.eventsHost > section > div {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.chartWrap {
+  position: relative;
+  outline: none;
+}
+
+.chartWrap:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 单系列面积图：描边实色、填充 -soft（大面积只用 soft 的令牌规则）。 */
+.area {
+  fill: var(--chart-1-soft);
+}
+
+.line {
+  fill: none;
+  stroke: var(--chart-1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.peakLabel {
+  fill: var(--text-secondary);
+  font-size: var(--fs-xs);
+}
+
+/* 准线：中性灰虚线，离开绘图区即消隐（design §7）。 */
+.crosshair {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  shape-rendering: crispEdges;
+}
+
+.crosshairDot {
+  fill: var(--chart-1);
+  stroke: var(--bg-subtle);
+  stroke-width: 2;
+}
+
+/* 竖发丝线是定位线（chrome）：中性色，hover/选中才让位给系列色（design §2.2）。 */
+.markerLine,
+.markerLineActive {
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+  transition: stroke var(--dur-hover) var(--ease-in-out);
+}
+
+.markerLine {
+  stroke: var(--border-strong);
+}
+
+.markerLineActive {
+  stroke: var(--chart-1);
+}
+
+/* 菱形：--chart-1 实心 + 2px 表面环（压线也可辨）；hover/聚焦放大到 12px
+   （10 × 1.2），过渡走 --dur-hover；选中再外扩 2px --accent 环。 */
+.markerDiamond,
+.markerDiamondActive {
+  fill: var(--chart-1);
+  stroke: var(--bg-subtle);
+  stroke-width: 2;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform var(--dur-hover) var(--ease-in-out);
+}
+
+.markerDiamondActive {
+  transform: scale(1.2);
+}
+
+.markerSelectedRing {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+/* 命中区只提供几何（指针统一走外层坐标换算），不接指针事件。 */
+.hitRect {
+  fill: transparent;
+  pointer-events: none;
+}
+
+/* tooltip：TimelineTrack 探针气泡同款画法（浮层三件套之轻量版）。 */
+.tooltip {
+  position: absolute;
+  top: var(--sp-1);
+  transform: translateX(-50%);
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.tooltipLine {
+  display: block;
+}
+
+.tooltipLine strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.tooltipTertiary {
+  color: var(--text-tertiary);
+}
+
+.tooltipHint {
+  display: block;
+  margin-top: var(--sp-05);
+  color: var(--text-faint);
+}
+
+.caption {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
