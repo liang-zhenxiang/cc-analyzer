@@ -1,4 +1,5 @@
-import type { SessionRecord, SessionUsage } from "../sessions/types";
+import type { SessionRecord, SessionUsage, CompactEvent } from "../sessions/types";
+import type { SessionMeta } from "../sessions/metadataCache";
 import { tokenTotalsOf } from "../sessions/tokenTotals";
 
 /**
@@ -54,6 +55,18 @@ export type UsageSessionInput = {
    * identifier — see `formatProjectPath`.
    */
   projectPath?: string;
+  /**
+   * Compact boundaries from this session's log (J1), carried for the
+   * compaction panel (J3) — `aggregateSessionInput` itself ignores them; the
+   * windowed `compactionStats` reads them separately.
+   */
+  compactEvents?: readonly CompactEvent[];
+  /**
+   * The scan's `SessionMeta` for this session, when the input came from a real
+   * scan (hand-built fakes in tests omit it). The compaction panel's top-3 rows
+   * need it to reopen the session in the analyzer.
+   */
+  session?: SessionMeta;
 };
 
 /** A day series point, zero-filled when nothing happened that day. */

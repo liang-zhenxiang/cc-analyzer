@@ -8,7 +8,7 @@ import { Button, IconButton } from "../../components/Button";
 import { AnsiText } from "../../components/AnsiText";
 import { Icon } from "../../components/Icon";
 import { formatDateTime, formatDuration } from "../../lib/format";
-import { tokensOf } from "./logRows";
+import { tokensOf, triggerLabel } from "./logRows";
 import { formatInputValue, structuredResultLines } from "./structuredResultLines";
 import { recordSummary } from "./recordSummary";
 import { safeStringify } from "../../lib/json";
@@ -20,6 +20,7 @@ export function RecordDetailPanel({
   clipboard,
   system,
   onLocate,
+  onLocateInContext,
   onClose,
   onSelectChild,
   sessionId,
@@ -30,6 +31,8 @@ export function RecordDetailPanel({
   clipboard: ClipboardService;
   system: SystemService;
   onLocate: (recordId: string) => void;
+  /** 压缩边界记录的「在上下文视图定位」——树里没有这个节点，定位目标换成上下文标签页。 */
+  onLocateInContext?: (eventId: string) => void;
   /** 收起面板——选中状态归页面所有，所以由页面传进来。 */
   onClose?: () => void;
   onSelectChild?: (record: SessionRecord) => void;
@@ -92,6 +95,26 @@ export function RecordDetailPanel({
         <dt>时间</dt><dd>{formatDateTime(record.timestamp)}</dd>
         <dt>耗时</dt><dd>{formatDuration(record.durationMs)}</dd>
         <dt>状态</dt><dd className={record.isError ? styles.error : undefined}>{record.isError ? "失败" : "正常"}</dd>
+        {/* 压缩边界记录（system）的数字栏同取证卡口径（design §3）：宁可写「—」，
+            也不把缺字段猜成 0。 */}
+        {record.compactEvent ? (
+          <>
+            <dt>触发方式</dt><dd>{triggerLabel(record.compactEvent.trigger)}</dd>
+            <dt>上下文规模</dt>
+            <dd>
+              {record.compactEvent.preTokens !== null && record.compactEvent.postTokens !== null
+                ? `${record.compactEvent.preTokens.toLocaleString("en-US")} → ${record.compactEvent.postTokens.toLocaleString("en-US")}`
+                : "—"}
+            </dd>
+            <dt>本次丢弃</dt>
+            <dd>
+              {record.compactEvent.preTokens !== null && record.compactEvent.postTokens !== null
+                ? `${(record.compactEvent.preTokens - record.compactEvent.postTokens).toLocaleString("en-US")} tok`
+                : "—"}
+            </dd>
+            <dt>幸存消息</dt><dd>{record.compactEvent.survivedUuids.length} 条</dd>
+          </>
+        ) : null}
         {record.toolName ? <><dt>工具</dt><dd>{record.toolName}</dd></> : null}
         {record.model ? <><dt>模型</dt><dd>{record.model}</dd></> : null}
         {tokens ? (
@@ -136,6 +159,13 @@ export function RecordDetailPanel({
           <pre>
             <AnsiText text={structuredLines.join("\n")} />
           </pre>
+        </section>
+      ) : null}
+      {record.compactEvent ? (
+        <section aria-label="压缩摘要（模型重写）">
+          <h4>压缩摘要（模型重写）</h4>
+          {/* 事件保留的摘要正文（解析层截到 2000 字）；没有摘要消息时直说。 */}
+          <pre>{record.compactEvent.summaryText ?? "（该边界没有摘要消息）"}</pre>
         </section>
       ) : null}
       <section aria-label="记录原文">
@@ -220,7 +250,16 @@ export function RecordDetailPanel({
         >
           复制摘要
         </Button>
-        <Button type="button" onClick={() => onLocate(record.fullId)}>在树视图定位</Button>
+        {/* 压缩边界在树视图里没有节点：定位目标换成上下文标签页并选中该事件。 */}
+        {record.compactEvent ? (
+          onLocateInContext ? (
+            <Button type="button" onClick={() => onLocateInContext(record.compactEvent!.id)}>
+              在上下文视图定位
+            </Button>
+          ) : null
+        ) : (
+          <Button type="button" onClick={() => onLocate(record.fullId)}>在树视图定位</Button>
+        )}
         {record.childSessionPath && childPathInScope ? (
           <Button type="button" onClick={() => {
             if (childDirectory) void runAction("打开位置", () => system.openFolder(childDirectory));

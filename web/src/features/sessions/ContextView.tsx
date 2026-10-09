@@ -22,6 +22,7 @@ import {
 } from "./contextCurve";
 import { droppedByEvent } from "./droppedMessages";
 import { CompactionPanel } from "./CompactionPanel";
+import { triggerLabel } from "./logRows";
 import { formatClock, formatDuration } from "../../lib/format";
 import type { ParsedSession, SessionRecord } from "./types";
 import styles from "./ContextView.module.css";
@@ -38,14 +39,13 @@ const DIAMOND_RADIUS = 5;
 /** The peak label rides at --fs-xs; its viewBox height, for clamping. */
 const TICK_FONT_SIZE = 11;
 
-export function triggerLabel(trigger: string | null): string {
-  if (trigger === "auto") return "自动";
-  if (trigger === "manual") return "手动";
-  if (trigger === null) return "—";
-  return trigger;
-}
-
 type Hover = { kind: "event"; eventId: string } | { kind: "point"; index: number } | null;
+
+/**
+ * 外部「在上下文视图定位」请求（日志表压缩带行 / 详情面板发出）。nonce 让同
+ * 一事件可以被重复定位——只有请求对象变化才生效，不随渲染重触发。
+ */
+export type ContextRevealRequest = { eventId: string; nonce: number };
 
 /**
  * 会话详情「上下文」标签页（design §2）：上面板画逐消息的上下文压力面积图，
@@ -54,10 +54,13 @@ type Hover = { kind: "event"; eventId: string } | { kind: "point"; index: number
  */
 export function ContextView({
   parsed,
-  onLocateInLog
+  onLocateInLog,
+  revealEventRequest = null
 }: {
   parsed: ParsedSession;
   onLocateInLog: (recordId: string) => void;
+  /** 「在上下文视图定位」：切进来并选中该压缩事件（nonce 驱动，可重复定位）。 */
+  revealEventRequest?: ContextRevealRequest | null;
 }) {
   const events = useMemo(() => parsed.compactEvents ?? [], [parsed]);
   const samples = useMemo(() => contextSeriesOf(parsed.records), [parsed]);
@@ -73,6 +76,15 @@ export function ContextView({
   useEffect(() => {
     setSelectedEventId(null);
   }, [parsed]);
+
+  // 外部定位请求只在 nonce 变化时生效；事件不在本会话里时不动（宁可不选中，
+  // 也不选一个不存在的 id）。
+  useEffect(() => {
+    if (!revealEventRequest) return;
+    if (events.some((event) => event.id === revealEventRequest.eventId)) {
+      setSelectedEventId(revealEventRequest.eventId);
+    }
+  }, [revealEventRequest, events]);
 
   const recordByFullId = useMemo(() => {
     const map = new Map<string, SessionRecord>();

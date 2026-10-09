@@ -680,6 +680,10 @@ describe("compact boundaries and parse coverage", () => {
       summaryUuid: "cs-summary-002",
       logicalParentUuid: "cs-asst-089"
     });
+    // J3：原始边界记录随事件保留（带行的「原始事件」展开区用）。
+    expect(auto.raw).toEqual(
+      expect.objectContaining({ uuid: "cs-boundary-001", subtype: "compact_boundary" })
+    );
   });
 
   it("keeps a boundary without compactMetadata, with numbers null", () => {
@@ -709,7 +713,10 @@ describe("compact boundaries and parse coverage", () => {
         survivedUuids: [],
         summaryText: null,
         summaryUuid: null,
-        logicalParentUuid: "last-message"
+        logicalParentUuid: "last-message",
+        // J3 keeps the raw line with the event (the band row shows it under
+        // 原始事件); assert its identity fields without duplicating the object.
+        raw: expect.objectContaining({ uuid: "old-boundary", subtype: "compact_boundary" })
       }
     ]);
     expect(session.warnings).toEqual([]);

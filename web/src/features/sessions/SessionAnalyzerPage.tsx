@@ -16,9 +16,11 @@ import { ReportPanel } from "./ReportPanel";
 import { ExportDialog } from "./ExportDialog";
 import { formatLabel, projectNameOf, type ExportBase, type ExportFormat } from "./exportTypes";
 import { useArchiveTask } from "../archive/archiveTask";
+import { formatProjectPath } from "../../lib/format";
 import { TreeView } from "./TreeView";
 import { LogView } from "./LogView";
-import { ContextView } from "./ContextView";
+import { ContextView, type ContextRevealRequest } from "./ContextView";
+import { ParseCoverageChip } from "./ParseCoverageChip";
 import { emptyFilter, type RecordFilter, type TimeRange } from "./filters";
 import { parseJsonlTextAsync } from "./parseJsonl";
 import { resolveSessionGraph } from "./sessionGraph";
@@ -59,8 +61,11 @@ export function SessionAnalyzerPage({
   revealRequest = null,
   onRevealHandled
 }: {
-  /** 全局搜索的跳转请求：打开该会话并定位到该记录。 */
-  revealRequest?: { path: string; recordId: string; nonce: number } | null;
+  /**
+   * 全局搜索的跳转请求：打开该会话并定位到该记录。`recordId` 为 null 时只
+   * 落到会话本身（用量页「压缩统计」的 top3 行走这条路径——那里没有具体记录）。
+   */
+  revealRequest?: { path: string; recordId: string | null; nonce: number } | null;
   onRevealHandled?: () => void;
 } = {}) {
   const bridges = useBridges();
@@ -106,7 +111,7 @@ export function SessionAnalyzerPage({
   }>({ text: "", loading: false, error: null, signature: null, meta: null });
 
   const allLogRows = useMemo(
-    () => (parsed ? buildLogRows(parsed.records, parsed.turns) : []),
+    () => (parsed ? buildLogRows(parsed.records, parsed.turns, parsed.compactEvents ?? []) : []),
     [parsed]
   );
   const logRows = useMemo(() => filterLogRows(allLogRows, filter), [allLogRows, filter]);
@@ -254,7 +259,9 @@ export function SessionAnalyzerPage({
     const nextFilter = override?.filter ?? filter;
     const nextMode = override?.mode ?? mode;
     const nextNode = override?.node ?? (nextMode === "node" ? reportNode : null);
-    const baseRows = override?.session ? buildLogRows(session.records, session.turns) : allLogRows;
+    const baseRows = override?.session
+      ? buildLogRows(session.records, session.turns, session.compactEvents ?? [])
+      : allLogRows;
     const nextRows = override ? filterLogRows(baseRows, nextFilter) : logRows;
     const nextRecords = override ? recordsOfRows(nextRows) : records;
     // A child-session report is not described by the page signature; report it
@@ -359,6 +366,14 @@ export function SessionAnalyzerPage({
     setHighlightId(recordId);
   }, []);
 
+  // 「在上下文视图定位」（压缩带行 / 详情面板）：切标签并选中该压缩事件。
+  // nonce 让同一事件可被重复定位；选中态本身仍住在 ContextView 里。
+  const [contextReveal, setContextReveal] = useState<ContextRevealRequest | null>(null);
+  const locateInContext = useCallback((eventId: string) => {
+    setView("context");
+    setContextReveal({ eventId, nonce: Date.now() });
+  }, []);
+
   // 全局搜索跳转，拆成两个职责单一的 effect——「打开会话」与「定位记录」。
   // 混在一个 effect 里让 openSession 依赖进 deps，会被回调身份抖动反复
   // 触发（实测在真实键盘事件下变成同步重入风暴）；拆开后各自天然幂等：
@@ -367,14 +382,24 @@ export function SessionAnalyzerPage({
     if (!revealRequest) return;
     if (selectedSessionRef.current?.path === revealRequest.path) return;
     const target = sessionsRef.current.find((item) => item.path === revealRequest.path);
-    if (target) void openSession(target);
-    else onRevealHandled?.();
-    // 刻意只依赖 revealRequest：请求本身就是重放的单位。
-  }, [revealRequest, openSession, onRevealHandled]);
+    if (target) {
+      void openSession(target);
+    } else if (!loading) {
+      // 列表已就绪却没有该会话：请求无法兑现，清掉它，不留在悬挂态。
+      onRevealHandled?.();
+    }
+    // `sessions`/`loading` 进 deps 是刻意的：从用量页/搜索浮层跨标签跳转时
+    // 分析页刚重新挂载、列表还没回来——请求必须等列表就绪才能找得到会话。
+  }, [revealRequest, openSession, onRevealHandled, sessions, loading]);
 
   useEffect(() => {
     if (!revealRequest) return;
     if (selectedSession?.path !== revealRequest.path) return;
+    // 会话级跳转（recordId 为 null）：会话已开即完成，不再找记录。
+    if (revealRequest.recordId === null) {
+      onRevealHandled?.();
+      return;
+    }
     const record = parsed?.records.find((item) => item.fullId === revealRequest.recordId);
     if (record) {
       locateInLog(record.fullId);
@@ -489,6 +514,19 @@ export function SessionAnalyzerPage({
                       ? `会话图已加载 · ${graph.sessions.length} 个会话${graph.warnings.length ? ` · ${graph.warnings.length} 个警告` : ""}`
                       : ""}
                 </div>
+                {/* 解析覆盖率（design §5）：与「会话图状态」同一层——都在回答
+                    「这次解析可信吗」。M=0 时什么都不渲染（全部解析是默认期望）。 */}
+                {parsed.parseCoverage ? (
+                  <ParseCoverageChip
+                    coverage={parsed.parseCoverage}
+                    sessionLabel={
+                      selectedSession
+                        ? formatProjectPath(selectedSession.projectLabel, selectedSession.cwd)
+                        : parsed.sessionId
+                    }
+                    clipboard={bridges.clipboard}
+                  />
+                ) : null}
               </div>
               <div className={styles.pane}>
                 {view === "log" ? (
@@ -499,6 +537,7 @@ export function SessionAnalyzerPage({
                     timeRange={filter.timeRange}
                     onSelect={setSelectedRecord}
                     onLocateInTree={locateInTree}
+                    onLocateInContext={locateInContext}
                   />
                 ) : view === "tree" ? (
                   <TreeView
@@ -515,7 +554,11 @@ export function SessionAnalyzerPage({
                     onWindowOnlyChange={setWindowOnly}
                   />
                 ) : (
-                  <ContextView parsed={parsed} onLocateInLog={locateInLog} />
+                  <ContextView
+                    parsed={parsed}
+                    onLocateInLog={locateInLog}
+                    revealEventRequest={contextReveal}
+                  />
                 )}
               </div>
               <div className={styles.reportPane}>
@@ -557,6 +600,7 @@ export function SessionAnalyzerPage({
             clipboard={bridges.clipboard}
             system={bridges.system}
             onLocate={locateInTree}
+            onLocateInContext={locateInContext}
             onClose={() => setSelectedRecord(null)}
             onSelectChild={setSelectedRecord}
             sessionId={parsed?.sessionId}

@@ -98,6 +98,12 @@
   align-items: start;
 }
 
+/* 压缩统计面板住满整行（design §4）：读数 → 占比 → 去哪了是一条横向叙事，
+   半宽会在两列网格里留下对侧空洞。 */
+.compactionRow {
+  grid-column: 1 / -1;
+}
+
 /* 模型名与数值靠这份清单可读；色块索引与 StackedBar 一致。
    两列排，六项也只占三行——它是网格里最高的那块，压缩它就够首屏了。 */
 .modelLegend {

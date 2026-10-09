@@ -73,7 +73,7 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [revealRequest, setRevealRequest] = useState<{
     path: string;
-    recordId: string;
+    recordId: string | null;
     nonce: number;
   } | null>(null);
 
@@ -155,7 +155,14 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
                   onRevealHandled={() => setRevealRequest(null)}
                 />
               ) : tab === "usage" ? (
-                <UsageOverviewPage />
+                <UsageOverviewPage
+                  // 压缩统计 top3 行的握手：切回会话分析并打开该会话
+                  // （recordId 为 null = 只落到会话，不定位记录）。
+                  onOpenSession={(session) => {
+                    setTab("analyzer");
+                    setRevealRequest({ path: session.path, recordId: null, nonce: Date.now() });
+                  }}
+                />
               ) : (
                 <MonitorPage onEnterFloat={enterFloatMode} />
               )}

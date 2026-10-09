@@ -1,0 +1,164 @@
+/* 解析覆盖率 chip（design §5）：8px 琥珀圆点 + 小字。琥珀 = 非确定信息
+   （ProvenanceBadge 同款语义），压缩不占类别色后分析页没有第二个琥珀信号争它。 */
+.host {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  cursor: pointer;
+}
+
+.chip:hover {
+  text-decoration: underline;
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning);
+}
+
+/* 非模态弹出卡（anchored popover）：浮层三件套（--bg-elevated + --r-lg +
+   --shadow-md），**无遮罩**——它不拦截背后的交互。右对齐挂在 chip 之下。 */
+.popover {
+  position: absolute;
+  top: calc(100% + var(--sp-2));
+  right: 0;
+  z-index: 3;
+  width: min(420px, 90vw);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+}
+
+.popover h3 {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-sm);
+}
+
+.intro {
+  margin: 0 0 var(--sp-2);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.table th {
+  padding: var(--sp-05) var(--sp-1);
+  border-bottom: 1px solid var(--border-strong);
+  color: var(--text-tertiary);
+  font-weight: 600;
+  text-align: left;
+}
+
+.table td {
+  padding: var(--sp-05) var(--sp-1);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+/* 类型名是日志里的裸标识符，走 mono；长名换行不截断（它是被复制的键）。 */
+.typeName {
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
+.count {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 占比条复用日志表「占比」的轨道语言：6px 轨道 + --chart-1 填充。 */
+.share {
+  white-space: nowrap;
+}
+
+.shareTrack {
+  display: inline-block;
+  width: 56px;
+  height: 6px;
+  margin-right: var(--sp-2);
+  overflow: hidden;
+  border-radius: var(--r-xs);
+  background: var(--border-strong);
+  vertical-align: middle;
+}
+
+.shareFill {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-xs);
+  background: var(--chart-1);
+}
+
+.shareText {
+  display: inline-block;
+  min-width: 42px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  vertical-align: middle;
+}
+
+.reportRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+.copy {
+  padding: var(--sp-05) var(--sp-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  cursor: pointer;
+}
+
+.copy:hover {
+  background: var(--bg-hover);
+}
+
+.copy:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.reportNote {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}

@@ -1,0 +1,147 @@
+/* 压缩统计面板（design §4）：读数 → 占比 → 去哪了。读数与页面 KPI 同构但降
+   一级（--fs-md 600 + tabular）——它住在 Panel 里，层级低于页面 KPI。 */
+.statsRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-4) var(--sp-6);
+}
+
+.reading {
+  display: grid;
+  min-width: 96px;
+  gap: var(--sp-05);
+}
+
+.readingLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.readingValue {
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: var(--lh-md);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 触发方式分布：堆叠条 + 双项图例。图例行 = 色块 + 名 + 数（design §4）。 */
+.distribution {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+  list-style: none;
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+/* 图例小色块是「小徽章」，允许实色（design §6 的令牌规则）。 */
+.legendSwatchAuto,
+.legendSwatchManual {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-xs);
+}
+
+.legendSwatchAuto {
+  background: var(--chart-1);
+}
+
+.legendSwatchManual {
+  background: var(--chart-4);
+}
+
+/* 丢弃最多 top3：modelLegend 清单模式（名 + 右对齐 mono 数值），行首一枚小 ◆
+   记号（--chart-1，文字形）。行可点 → 打开会话分析。 */
+.topSessions {
+  display: grid;
+  gap: var(--sp-1);
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.topRow,
+.topRowStatic {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-05) var(--sp-1);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-align: left;
+}
+
+.topRow {
+  cursor: pointer;
+}
+
+.topRow:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.topRow:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.topDiamond {
+  flex: 0 0 auto;
+  color: var(--chart-1);
+  font-size: var(--fs-xs);
+}
+
+.topName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topValue {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 叙事句说完就走：一行小字，不与读数抢层级。 */
+.narrative {
+  margin: var(--sp-3) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 0 次压缩（周期内）：面板保留、一行事实文字——不画空图（design §4）。 */
+.zeroState {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}

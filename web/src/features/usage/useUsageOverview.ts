@@ -105,7 +105,10 @@ export function useUsageOverview() {
               const input: UsageSessionInput = {
                 records: parsed.records,
                 projectLabel: session.projectLabel,
-                projectPath: session.cwd
+                projectPath: session.cwd,
+                // 压缩面板（J3）逐会话读事件；SessionMeta 让 top3 行能重开会话。
+                compactEvents: parsed.compactEvents ?? [],
+                session
               };
               collected.push(input);
               mergeInto(accumulated, aggregateSessionInput(input));

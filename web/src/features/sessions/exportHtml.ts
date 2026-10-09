@@ -218,7 +218,11 @@ const KIND_COLORS: Record<LogRowKind, string> = {
   tool: "var(--cat-tool)",
   subagent: "var(--cat-agent)",
   workflow: "var(--cat-workflow)",
-  wait: "var(--cat-wait)"
+  wait: "var(--cat-wait)",
+  // Compact band rows never reach the export (it iterates records, and the
+  // boundary is not one) — the key only satisfies the Record. Neutral by
+  // design: compaction carries no category colour (design §6).
+  compact: "var(--text-tertiary)"
 };
 
 /**
