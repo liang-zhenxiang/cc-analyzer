@@ -38,9 +38,12 @@ shots.mkdir(parents=True, exist_ok=True)
 views = [
     "analyzer-empty",
     "analyzer-log",
+    "analyzer-log-compact",
     "analyzer-tree",
     "analyzer-report",
     "analyzer-report-full",
+    "context",
+    "context-empty",
     "settings",
     "monitor",
     "usage",
