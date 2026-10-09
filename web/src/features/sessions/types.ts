@@ -26,6 +26,70 @@ export type SystemTurnDuration = {
   durationMs: number;
 };
 
+/**
+ * One `type: "system", subtype: "compact_boundary"` record: the moment Claude
+ * Code compacted the conversation. Numbers stay `null` when the log predates
+ * `compactMetadata` — a zero would impersonate a measured value.
+ */
+export type CompactEvent = {
+  /** The boundary record's own uuid. */
+  id: string;
+  /** The boundary record's timestamp (ms). */
+  timestamp: number;
+  /** `compactMetadata.trigger` verbatim ("manual" | "auto" observed so far). */
+  trigger: string | null;
+  /** Context size right before compaction. */
+  preTokens: number | null;
+  /** Context size right after compaction. */
+  postTokens: number | null;
+  /**
+   * `compactMetadata.cumulativeDroppedTokens` as recorded — already cumulative
+   * across the session, never re-summed here.
+   */
+  droppedTokens: number | null;
+  durationMs: number | null;
+  /** `preservedMessages.uuids` (falls back to `allUuids`); empty when neither exists. */
+  survivedUuids: string[];
+  /**
+   * The `isCompactSummary` user message that follows the boundary, truncated
+   * to `COMPACT_SUMMARY_TEXT_LIMIT`. Null when the log has no such message.
+   */
+  summaryText: string | null;
+  summaryUuid: string | null;
+  /**
+   * The boundary's `logicalParentUuid` — the last message before compaction.
+   * The boundary's own `parentUuid` is null in every observed log, so this is
+   * the only usable attachment point onto the message chain.
+   */
+  logicalParentUuid: string | null;
+};
+
+/**
+ * Line-level view of what the parser saw versus what it understood. Types the
+ * parser neither handles nor explicitly skips land in `unknownTypeCounts`; a
+ * line without a `type` field is keyed `"(missing)"`.
+ */
+export type ParseCoverage = {
+  /** Non-blank lines seen. */
+  totalLines: number;
+  /** Lines whose JSON could not be parsed into an object. */
+  unparsableLines: number;
+  unknownTypeCounts: Record<string, number>;
+};
+
+/**
+ * One point on the per-call context-size curve. `contextTokens` is the whole
+ * prompt that call fed the model: input + cache creation + cache read (missing
+ * counters are zeros per `SessionUsage`, not unknowns).
+ */
+export type ContextSample = {
+  uuid: string;
+  timestamp: number;
+  contextTokens: number;
+  outputTokens: number;
+  model: string | null;
+};
+
 export type AssistantContentBlock = {
   type: string;
   text?: string;
@@ -117,6 +181,12 @@ export type SessionRecord = {
   isInterrupt?: boolean;
   isSidechain?: boolean;
   isSynthetic?: boolean;
+  /**
+   * True for the `isCompactSummary` user message that follows a compact
+   * boundary — a continuation artifact the model wrote, not user speech.
+   * Derived statistics must exclude it from user-message counts.
+   */
+  compactSummary?: boolean;
   apiError?: { kind: string | null; status: number | null };
   missingTimestamp?: boolean;
   stopReason?: string;
@@ -148,6 +218,10 @@ export type ParsedSession = {
   warnings: string[];
   systemTurnDurations: SystemTurnDuration[];
   skippedCounts: Record<string, number>;
+  /** Compact boundaries in file order (which is chronological for JSONL). */
+  compactEvents?: CompactEvent[];
+  /** Line-level parse coverage; always present in parser output. */
+  parseCoverage?: ParseCoverage;
   sidechainMessages: SessionRecord[];
 };
 

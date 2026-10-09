@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { parseJsonlText, parseJsonlTextAsync } from "./parseJsonl";
+import { aggregateSession } from "../usage/usageAggregations";
 
 import fixture from "../../../tests/fixtures/session-basic.jsonl?raw";
 import enhancedFixture from "../../../tests/fixtures/session-parser-enhanced.jsonl?raw";
 import tokenFixture from "../../../tests/fixtures/session-token-usage.jsonl?raw";
+import compactFixture from "../../../tests/fixtures/compact-session.jsonl?raw";
 
 describe("parseJsonlText", () => {
   it("produces the same session as the chunked async parser", async () => {
@@ -631,5 +633,176 @@ describe("parser defaults and malformed input", () => {
     expect(session.records[0].kind).toBe("assistant");
     expect(session.records[0].id).toBe("line-0");
     expect(session.warnings).toEqual([]);
+  });
+});
+
+describe("compact boundaries and parse coverage", () => {
+  it("parses both compactions from the fixture with full metadata", () => {
+    const session = parseJsonlText(compactFixture, "/tmp/compact-session.jsonl");
+
+    expect(session.compactEvents).toHaveLength(2);
+    const [auto, manual] = session.compactEvents ?? [];
+    expect(auto).toMatchObject({
+      id: "cs-boundary-001",
+      timestamp: Date.parse("2026-03-01T09:33:57.455Z"),
+      trigger: "auto",
+      preTokens: 167400,
+      postTokens: 11200,
+      droppedTokens: 156200,
+      durationMs: 37455,
+      survivedUuids: [
+        "cs-user-047",
+        "cs-asst-047",
+        "cs-user-048",
+        "cs-asst-048",
+        "cs-user-049",
+        "cs-asst-049"
+      ],
+      summaryUuid: "cs-summary-001",
+      // parentUuid is null on the boundary itself; the chain attachment is
+      // logicalParentUuid and must survive parsing.
+      logicalParentUuid: "cs-asst-049"
+    });
+    expect(
+      auto.summaryText?.startsWith(
+        "This session is being continued from a previous conversation that ran out of context."
+      )
+    ).toBe(true);
+    expect(auto.summaryText).toContain("Primary Request and Intent");
+    expect(manual).toMatchObject({
+      id: "cs-boundary-002",
+      trigger: "manual",
+      preTokens: 156200,
+      postTokens: 9600,
+      // Already cumulative in the log: 156200 + (156200 - 9600) = 302800.
+      droppedTokens: 302800,
+      survivedUuids: ["cs-user-088", "cs-asst-088", "cs-user-089", "cs-asst-089"],
+      summaryUuid: "cs-summary-002",
+      logicalParentUuid: "cs-asst-089"
+    });
+  });
+
+  it("keeps a boundary without compactMetadata, with numbers null", () => {
+    const session = parseJsonlText(
+      JSON.stringify({
+        type: "system",
+        subtype: "compact_boundary",
+        uuid: "old-boundary",
+        parentUuid: null,
+        logicalParentUuid: "last-message",
+        content: "Conversation compacted",
+        level: "info",
+        timestamp: "2026-01-02T03:04:05.000Z"
+      }),
+      "/tmp/old-compact.jsonl"
+    );
+
+    expect(session.compactEvents).toEqual([
+      {
+        id: "old-boundary",
+        timestamp: Date.parse("2026-01-02T03:04:05.000Z"),
+        trigger: null,
+        preTokens: null,
+        postTokens: null,
+        droppedTokens: null,
+        durationMs: null,
+        survivedUuids: [],
+        summaryText: null,
+        summaryUuid: null,
+        logicalParentUuid: "last-message"
+      }
+    ]);
+    expect(session.warnings).toEqual([]);
+  });
+
+  it("falls back to allUuids when preservedMessages.uuids is absent", () => {
+    const session = parseJsonlText(
+      JSON.stringify({
+        type: "system",
+        subtype: "compact_boundary",
+        uuid: "fallback-boundary",
+        parentUuid: null,
+        logicalParentUuid: null,
+        timestamp: "2026-01-02T03:04:05.000Z",
+        compactMetadata: {
+          trigger: "auto",
+          preservedMessages: { allUuids: ["keep-1", "keep-2"] }
+        }
+      }),
+      "/tmp/fallback-compact.jsonl"
+    );
+
+    expect(session.compactEvents?.[0]?.survivedUuids).toEqual(["keep-1", "keep-2"]);
+  });
+
+  it("attaches and truncates the compact summary text", () => {
+    const longSummary = `${"s".repeat(3000)}`;
+    const session = parseJsonlText(
+      [
+        JSON.stringify({
+          type: "system",
+          subtype: "compact_boundary",
+          uuid: "boundary-x",
+          parentUuid: null,
+          logicalParentUuid: null,
+          timestamp: "2026-01-02T03:04:05.000Z"
+        }),
+        JSON.stringify({
+          type: "user",
+          uuid: "summary-x",
+          parentUuid: "boundary-x",
+          isCompactSummary: true,
+          timestamp: "2026-01-02T03:04:04.000Z",
+          message: { role: "user", content: longSummary }
+        })
+      ].join("\n"),
+      "/tmp/summary-compact.jsonl"
+    );
+
+    expect(session.compactEvents?.[0]).toMatchObject({
+      summaryUuid: "summary-x",
+      summaryText: "s".repeat(2000)
+    });
+  });
+
+  it("marks compact summaries and keeps them out of message statistics", () => {
+    const session = parseJsonlText(compactFixture, "/tmp/compact-session.jsonl");
+
+    const summaries = session.records.filter((record) => record.compactSummary === true);
+    expect(summaries.map((record) => record.fullId)).toEqual(["cs-summary-001", "cs-summary-002"]);
+    // The row model keeps kind "user" — J3 decides how the row renders.
+    expect(summaries.every((record) => record.kind === "user")).toBe(true);
+
+    // 120 turns of user + assistant; the two summaries must not count.
+    const aggregate = aggregateSession(session.records);
+    expect(aggregate.messages).toBe(240);
+  });
+
+  it("counts total lines, unparsable lines, and unknown types", () => {
+    const session = parseJsonlText(compactFixture, "/tmp/compact-session.jsonl");
+
+    expect(session.parseCoverage).toEqual({
+      totalLines: 251,
+      unparsableLines: 1,
+      unknownTypeCounts: { "future-widget": 2, "quantum-latch": 1 }
+    });
+    // Explicitly skipped types stay out of the unknown buckets, and the
+    // compact boundary no longer counts as skipped system noise.
+    expect(session.skippedCounts).toEqual({
+      progress: 2,
+      attachment: 1,
+      "future-widget": 2,
+      "quantum-latch": 1
+    });
+  });
+
+  it("keys a line without a type under (missing)", () => {
+    const session = parseJsonlText(JSON.stringify({ nope: 1 }), "/tmp/no-type.jsonl");
+
+    expect(session.parseCoverage).toEqual({
+      totalLines: 1,
+      unparsableLines: 0,
+      unknownTypeCounts: { "(missing)": 1 }
+    });
   });
 });
