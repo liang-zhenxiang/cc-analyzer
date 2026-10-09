@@ -1,0 +1,203 @@
+.root {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* 事件 chip 条：横向滚动即可，不分页（事件 ≤ 数十个，design §7）。 */
+.chipBar {
+  display: flex;
+  gap: var(--sp-2);
+  overflow-x: auto;
+  padding-bottom: var(--sp-1);
+}
+
+.chip,
+.chipSelected {
+  flex: 0 0 auto;
+  padding: var(--sp-05) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chip:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* 选中 = SegmentedControl 同款三信号：accent-soft 底 + accent 描边 + 文字转正。 */
+.chipSelected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.chip:focus-visible,
+.chipSelected:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.guidance {
+  margin: 0;
+  padding: var(--sp-2) 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+/* 取证卡：数字栏固定宽，清单栏吃剩余；两栏之间一条发丝线，不另套卡（design §2.1）。 */
+.card {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: var(--sp-4);
+}
+
+.cardTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: 0 0 var(--sp-3);
+  color: var(--text);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  line-height: var(--lh-base);
+}
+
+.numbers {
+  min-width: 0;
+}
+
+.facts {
+  display: grid;
+  margin: 0;
+  gap: var(--sp-2);
+}
+
+.fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.fact dt {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+.fact dd {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: var(--lh-md);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.arrow {
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+/* 曲线两侧读数是互证注脚，降为小号三级（design §2.3）。 */
+.factSub {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+}
+
+.factNote {
+  margin-left: var(--sp-05);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+}
+
+.missingNote {
+  margin-left: var(--sp-05);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+}
+
+.survivorToggle {
+  margin-left: var(--sp-1);
+  padding: 0 var(--sp-1);
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  cursor: pointer;
+}
+
+.survivorToggle:hover {
+  color: var(--text);
+}
+
+.survivorToggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.survivors {
+  display: grid;
+  gap: var(--sp-1);
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.survivors li {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.survivors time {
+  margin-right: var(--sp-2);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.listColumn {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  padding-left: var(--sp-4);
+}
+
+/* 卡宽不足两栏时上下堆叠：发丝线随之换到顶部（design §2.1）。 */
+@media (max-width: 880px) {
+  .card {
+    grid-template-columns: 1fr;
+  }
+
+  .listColumn {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    padding-left: 0;
+    padding-top: var(--sp-3);
+  }
+}

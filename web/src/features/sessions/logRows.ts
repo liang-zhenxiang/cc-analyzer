@@ -148,7 +148,12 @@ function llmSummary(record: SessionRecord): string {
   return text ? truncate(text) : "（无文本输出）";
 }
 
-function toRow(record: SessionRecord): LogRow {
+/**
+ * The log-table row one record becomes — the 「时间 · 类型徽章 · 动作 · 摘要」
+ * language. Exported since J2: the dropped-messages list reuses it verbatim
+ * (design §2.4), so a second summary rule cannot drift from the table's.
+ */
+export function toRow(record: SessionRecord): LogRow {
   const kind = rowKind(record);
   const action =
     kind === "user"
