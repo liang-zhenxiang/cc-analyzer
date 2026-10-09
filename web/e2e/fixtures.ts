@@ -127,6 +127,39 @@ export function recentActivityScenario(overrides: Partial<MockScenario> = {}): M
   return { ...base, files };
 }
 
+/** 错误夹具里最新的活动日（error-session 的 2026-10-03）——错误场景的平移锚点 */
+const ERROR_FIXTURE_NEWEST_DAY = Date.UTC(2026, 9, 3);
+
+/** 「最新活动日在昨天」的共用偏移（天）：全部场景共用同一平移策略。 */
+function offsetToYesterday(newestDay: number): number {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const target = Date.UTC(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+  return Math.round((target - newestDay) / 86_400_000);
+}
+
+/**
+ * 默认场景 + 错误夹具会话（/repo/error-demo，两个自然日：API 错误 3 +
+ * 工具错误 4 + 一次被排除的 AskUserQuestion 拒绝 + 一条 sidechain 失败）。
+ *
+ * 「错误」档面板的端到端与真机门禁都靠它；平移锚点是**全部**（含错误夹具）
+ * 里最新的 timestamp，会话之间的相对日期保持不变。窗内另有 usage 两个夹具
+ * （无错误），空态分支用 recentActivityScenario（不含错误夹具）覆盖。
+ */
+export function errorScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  const base = defaultScenario(overrides);
+  const offset = offsetToYesterday(ERROR_FIXTURE_NEWEST_DAY);
+  const files: Record<string, string> = {};
+  for (const [path, content] of Object.entries(base.files)) {
+    files[path] = path.endsWith(".jsonl") ? shiftDays(content, offset) : content;
+  }
+  files[`${HOME}/.claude/projects/-repo-error-demo/error-session.jsonl`] = shiftDays(
+    fixture("error-session.jsonl"),
+    offset
+  );
+  return { ...base, files };
+}
+
 /**
  * 默认场景 + 压缩夹具会话（/repo/compact-demo，2 次压缩：auto + manual）。
  *

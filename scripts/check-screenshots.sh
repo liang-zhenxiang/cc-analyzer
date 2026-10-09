@@ -73,6 +73,10 @@ EXPECTED_VIEWS = [
     "analyzer-log-compact",
     "context",
     "context-empty",
+    # Round N / N1：错误档两视图——首屏（KPI 行 + 趋势主角）与滚到底
+    # （分布切面 + 事件列表）。
+    "error-view",
+    "error-events",
 ]
 THEMES = ["light", "dark"]
 ENGINES = ["chromium", "webkit"]

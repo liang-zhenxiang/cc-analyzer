@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppShell } from "./AppShell";
@@ -171,4 +174,73 @@ test("opens and closes the threshold settings panel", async () => {
 
   await user.click(screen.getByRole("button", { name: "关闭" }));
   expect(screen.queryByRole("heading", { name: "阈值设置" })).not.toBeInTheDocument();
+});
+
+/**
+ * 错误事件行的握手（N1）：用量总览 → 错误档 → 点一条主链事件 → 切回会话
+ * 分析、打开该会话并定位记录（详情面板出现）——「只能看不能跳」在这里红。
+ */
+test("错误档事件行跳回会话分析并定位记录", async () => {
+  const user = userEvent.setup();
+
+  // 夹具整体平移到「最新事件在 2 小时前」：窗口相对 Date.now()，不平移会掉出窗外。
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const fixtureText = readFileSync(
+    path.join(here, "../features/usage/../../../tests/fixtures/error-session.jsonl"),
+    "utf8"
+  );
+  const timestamps = [...fixtureText.matchAll(/"timestamp":"([^"]+)"/g)].map((match) =>
+    Date.parse(match[1] as string)
+  );
+  const delta = Date.now() - 2 * 3_600_000 - Math.max(...timestamps);
+  const shifted = fixtureText.replace(
+    /"timestamp":"([^"]+)"/g,
+    (_match, iso: string) => `"timestamp":${JSON.stringify(new Date(Date.parse(iso) + delta).toISOString())}`
+  );
+
+  const PROJECTS_ROOT = "/home/tester/.claude/projects";
+  const fixturePath = `${PROJECTS_ROOT}/-repo-error-demo/error-session.jsonl`;
+  const errorBridges = {
+    ...bridges,
+    fs: {
+      ...bridges.fs,
+      readDir: vi.fn(async (target: string) =>
+        target === PROJECTS_ROOT
+          ? [{ name: "-repo-error-demo", is_dir: true, is_file: false }]
+          : [{ name: "error-session.jsonl", is_dir: false, is_file: true }]
+      ),
+      readText: vi.fn(async (target: string) => {
+        if (target === fixturePath) return shifted;
+        throw new Error(`文件不存在 ${target}`);
+      }),
+      readHead: vi.fn(async (target: string) => (target === fixturePath ? shifted : "")),
+      stat: vi.fn(async () => ({
+        is_file: true,
+        size: shifted.length,
+        mtime_ms: 1_700_000_000_000
+      }))
+    }
+  } as unknown as Bridges;
+
+  render(<AppShell bridges={errorBridges} />);
+
+  await user.click(screen.getByRole("tab", { name: "用量总览" }));
+  await screen.findByText(/纳入统计/, {}, { timeout: 15_000 });
+  await user.click(screen.getByRole("tab", { name: "错误" }));
+
+  const errorView = await screen.findByRole("region", { name: "跨会话错误分析" });
+  expect(within(errorView).getByText(/全部 7 条 · 时间倒序/)).toBeInTheDocument();
+
+  // 点主链的 Edit 失败事件 → 跳会话分析、开图、定位到记录（详情面板出现）。
+  await user.click(screen.getByRole("button", { name: /String to replace not found/ }));
+  expect(screen.getByRole("tab", { name: /^会话分析$/ })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  );
+  expect(await screen.findByRole("status", { name: "会话图状态" })).toHaveTextContent(
+    "会话图已加载"
+  );
+  await waitFor(() =>
+    expect(screen.getByRole("complementary", { name: "记录详情" })).toBeInTheDocument()
+  );
 });

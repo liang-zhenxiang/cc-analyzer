@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { test, expect, recentActivityScenario, compactScenario } from "./fixtures";
+import { test, expect, recentActivityScenario, compactScenario, errorScenario } from "./fixtures";
 import type { Page } from "@playwright/test";
 
 /**
@@ -240,6 +240,41 @@ test.describe("截图归档 · 上下文", () => {
       await expect(page.getByText("本会话未发生压缩——上下文从未重置")).toBeVisible();
       await page.waitForTimeout(250);
       await shot("context-empty");
+    });
+  }
+});
+
+// 错误档（Round N / N1）需要「真的有过失败」的会话：errorScenario 在默认场景
+// 上挂 /repo/error-demo（两个自然日、API 3 + 工具 4 + 一条 sidechain 失败）。
+// 两张：首屏（KPI 行 + 趋势主角）与滚到底（两个分布切面 + 事件列表）。
+test.describe("截图归档 · 错误档", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: errorScenario() });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`错误档 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+
+      await page.goto("/");
+      await page.getByRole("tab", { name: "用量总览" }).click();
+      await expect(page.getByText(/纳入统计/)).toBeVisible({ timeout: 15_000 });
+      await page.getByRole("tab", { name: "错误", exact: true }).click();
+      await expect(page.getByLabel("跨会话错误分析")).toBeVisible();
+      await expect(page.getByText(/全部 7 条 · 时间倒序/)).toBeVisible();
+      await page.waitForTimeout(300);
+      await settleImages(page);
+      await page.screenshot({ path: path.join(OUT_DIR, `error-view-${theme}${suffix}.png`) });
+
+      await scrollMainToBottom(page);
+      await settleImages(page);
+      await page.screenshot({ path: path.join(OUT_DIR, `error-events-${theme}${suffix}.png`) });
     });
   }
 });
