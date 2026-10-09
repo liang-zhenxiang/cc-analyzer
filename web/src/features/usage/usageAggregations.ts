@@ -158,9 +158,9 @@ function sessionTotals(records: readonly SessionRecord[]): UsageTotals {
 
 /**
  * Aggregates one session's records. `messages` counts user + assistant
- * records (conversation activity); usage is read from any record carrying a
- * `usage` object — the parser only attaches it to assistant records — and is
- * bucketed by that record's own local day and model.
+ * records (conversation activity), excluding compact summaries; usage is read
+ * from any record carrying a `usage` object — the parser only attaches it to
+ * assistant records — and is bucketed by that record's own local day and model.
  */
 export function aggregateSession(records: readonly SessionRecord[]): UsageAggregate {
   const aggregate = emptyAggregate();
@@ -169,6 +169,9 @@ export function aggregateSession(records: readonly SessionRecord[]): UsageAggreg
 
   for (const record of records) {
     if (record.kind !== "user" && record.kind !== "assistant") continue;
+    // A compact summary is a continuation artifact, not user speech — it must
+    // not count as a message any more than a system event would.
+    if (record.compactSummary === true) continue;
     aggregate.messages += 1;
 
     const dayStart = dayStartOf(record.timestamp);

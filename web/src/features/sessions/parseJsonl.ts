@@ -1,5 +1,7 @@
 import type {
   AssistantContentBlock,
+  CompactEvent,
+  ParseCoverage,
   ParsedSession,
   ParseJsonlOptions,
   SessionRecord,
@@ -93,6 +95,10 @@ function toolCategory(toolName: string | undefined): ToolCategory | undefined {
 }
 
 const TOOL_RESULT_LIMIT = 5 * 1024;
+/** Compact summaries can run long; only the head is kept in memory. */
+const COMPACT_SUMMARY_TEXT_LIMIT = 2000;
+/** Bucket key for coverage counts when a line carries no `type` field. */
+const MISSING_TYPE_KEY = "(missing)";
 const SLASH_COMMAND_PATTERN = /^\/([A-Za-z:_-]+)$/;
 const COMMAND_NAME_PATTERN = /<command-name>([^<]*)<\/command-name>/;
 const COMMAND_ARGS_PATTERN = /<command-args>([\s\S]*?)<\/command-args>/;
@@ -145,6 +151,64 @@ function childSessionLinks(value: Record<string, unknown>): Pick<SessionRecord, 
       optionalString(nested.path) ??
       optionalString(toolUseResult.agentFilePath)
   };
+}
+
+/** A finite number from `compactMetadata`, or null — never an invented zero. */
+function compactNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function stringArrayOf(value: unknown): string[] | undefined {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : undefined;
+}
+
+/** `preservedMessages.uuids`, falling back to `allUuids`, then to an empty list. */
+function survivedUuidsOf(metadata: Record<string, unknown> | undefined): string[] {
+  const preserved = isRecord(metadata?.preservedMessages) ? metadata.preservedMessages : undefined;
+  return stringArrayOf(preserved?.uuids) ?? stringArrayOf(preserved?.allUuids) ?? [];
+}
+
+/**
+ * Collects one `compact_boundary` record into a `CompactEvent`. The boundary's
+ * own `parentUuid` is null in observed logs; the chain attachment point is
+ * `logicalParentUuid`, kept verbatim so consumers can anchor against it.
+ */
+function consumeCompactBoundary(state: ParserState, value: Record<string, unknown>, eventTimestamp: number | null): void {
+  const id = optionalString(value.uuid);
+  if (id === undefined || eventTimestamp === null) {
+    state.skippedCounts.system = (state.skippedCounts.system ?? 0) + 1;
+    return;
+  }
+  const metadata = isRecord(value.compactMetadata) ? value.compactMetadata : undefined;
+  state.compactEvents.push({
+    id,
+    timestamp: eventTimestamp,
+    trigger: optionalString(metadata?.trigger) ?? null,
+    preTokens: compactNumber(metadata?.preTokens),
+    postTokens: compactNumber(metadata?.postTokens),
+    droppedTokens: compactNumber(metadata?.cumulativeDroppedTokens),
+    durationMs: compactNumber(metadata?.durationMs),
+    survivedUuids: survivedUuidsOf(metadata),
+    summaryText: null,
+    summaryUuid: null,
+    logicalParentUuid: optionalString(value.logicalParentUuid) ?? null
+  });
+}
+
+/**
+ * Fills `summaryText`/`summaryUuid` on the compact event this message belongs
+ * to. The summary message's `parentUuid` points at the boundary uuid; when
+ * that link is missing, the most recent event still awaiting a summary takes
+ * it (the boundary is written immediately before its summary).
+ */
+function attachCompactSummary(events: CompactEvent[], value: Record<string, unknown>, text: string): void {
+  const parent = optionalString(value.parentUuid);
+  const target =
+    events.find((event) => event.id === parent && event.summaryUuid === null) ??
+    [...events].reverse().find((event) => event.summaryUuid === null);
+  if (!target) return;
+  target.summaryUuid = optionalString(value.uuid) ?? null;
+  target.summaryText = text.length > 0 ? text.slice(0, COMPACT_SUMMARY_TEXT_LIMIT) : null;
 }
 
 type ContentBlock = {
@@ -230,6 +294,8 @@ type ParserState = {
   assistantAggregates: Map<string, AssistantAggregate>;
   systemTurnDurations: SystemTurnDuration[];
   skippedCounts: Record<string, number>;
+  compactEvents: CompactEvent[];
+  coverage: ParseCoverage;
   sidechainMessages: SessionRecord[];
   timestampedLines: Array<{
     value: Record<string, unknown>;
@@ -253,6 +319,8 @@ function createParserState(): ParserState {
     assistantAggregates: new Map(),
     systemTurnDurations: [],
     skippedCounts: {},
+    compactEvents: [],
+    coverage: { totalLines: 0, unparsableLines: 0, unknownTypeCounts: {} },
     sidechainMessages: [],
     timestampedLines: [],
     sessionId: undefined,
@@ -266,13 +334,15 @@ function createParserState(): ParserState {
 
 /** Parses the first pass over one line, accumulating into `state`. */
 function consumeLine(state: ParserState, line: string, index: number): void {
-  const { warnings, systemTurnDurations, skippedCounts, timestampedLines } = state;
+  const { warnings, systemTurnDurations, skippedCounts, timestampedLines, coverage } = state;
     const lineNumber = index + 1;
     if (!line.trim()) return;
+    coverage.totalLines += 1;
     try {
       const parsed = JSON.parse(line) as unknown;
       if (!isRecord(parsed)) {
         warnings.push(`第 ${lineNumber} 行解析失败: 非对象事件`);
+        coverage.unparsableLines += 1;
         return;
       }
       const value = parsed;
@@ -300,6 +370,13 @@ function consumeLine(state: ParserState, line: string, index: number): void {
         return;
       }
 
+      // Must run before the skipped-type filter: "system" as a whole is a
+      // skipped type, but compact boundaries are session-level data now.
+      if (value.type === "system" && value.subtype === "compact_boundary") {
+        consumeCompactBoundary(state, value, eventTimestamp);
+        return;
+      }
+
       if (value.type === "user" && value.isMeta === true) {
         skippedCounts["user-meta"] = (skippedCounts["user-meta"] ?? 0) + 1;
         return;
@@ -318,6 +395,11 @@ function consumeLine(state: ParserState, line: string, index: number): void {
       if (isKnownSkippedType || (value.type !== "user" && value.type !== "assistant")) {
         const key = typeof value.type === "string" && value.type.length > 0 ? value.type : "unknown";
         skippedCounts[key] = (skippedCounts[key] ?? 0) + 1;
+        if (!isKnownSkippedType) {
+          // Neither handled nor explicitly skipped — count it as unknown.
+          const bucket = typeof value.type === "string" && value.type.length > 0 ? value.type : MISSING_TYPE_KEY;
+          coverage.unknownTypeCounts[bucket] = (coverage.unknownTypeCounts[bucket] ?? 0) + 1;
+        }
         return;
       }
 
@@ -329,6 +411,7 @@ function consumeLine(state: ParserState, line: string, index: number): void {
       timestampedLines.push({ value, lineNumber, timestamp: eventTimestamp });
     } catch (error) {
       warnings.push(`第 ${lineNumber} 行解析失败: ${String(error)}`);
+      coverage.unparsableLines += 1;
     }
 }
 
@@ -375,6 +458,8 @@ function finishParse(
     assistantAggregates,
     systemTurnDurations,
     skippedCounts,
+    compactEvents,
+    coverage,
     sidechainMessages,
     timestampedLines,
     sessionId,
@@ -384,6 +469,10 @@ function finishParse(
   } = state;
   let { startedAt, endedAt, lastCommandName } = state;
 
+  // Compact summaries are attached during the pass below; sort the events
+  // first so "most recent event without a summary" follows chronology even
+  // when lines arrive out of order.
+  compactEvents.sort((a, b) => a.timestamp - b.timestamp);
   timestampedLines.sort((a, b) => a.timestamp - b.timestamp || a.lineNumber - b.lineNumber);
   for (const { value, lineNumber, timestamp: ts } of timestampedLines) {
     const message = value.message as { role?: string; model?: string; content?: unknown } | undefined;
@@ -501,6 +590,10 @@ function finishParse(
 
     if (toolResults.length === 0) {
       if (!prompt) continue;
+      const isCompactSummary = value.isCompactSummary === true;
+      if (isCompactSummary) {
+        attachCompactSummary(compactEvents, value, prompt);
+      }
       records.push({
         id: recordId(value, lineNumber),
         fullId: typeof value.uuid === "string" ? value.uuid : `line-${lineNumber}`,
@@ -512,6 +605,7 @@ function finishParse(
         commandName,
         isInterrupt,
         lineNumber,
+        compactSummary: isCompactSummary || undefined,
         raw: value
       });
       continue;
@@ -563,6 +657,8 @@ function finishParse(
     warnings,
     systemTurnDurations,
     skippedCounts,
+    compactEvents,
+    parseCoverage: coverage,
     sidechainMessages: sortedSidechainMessages
   };
 }
