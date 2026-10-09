@@ -257,16 +257,46 @@ jobs:
       # 需要 pkg-config 找到它们（macOS / Windows 用系统 WebView，无此依赖，
       # 所以本地是 macOS 时发现不了）。系统库只能从发行版安装，版本随
       # runner 镜像走——这是 GitHub Actions 生态的公认做法。
+      # 这一步的耗时**几乎全在下载**：实测一次 11 分 15 秒里，下载占 11 分 10 秒、
+      # 解包与配置只占 2 秒，而 `apt-get update` 本身只要 3 秒（#80）。所以缓存的是
+      # .deb 下载物——命中后 install 直接用本地的包，不再重复拉 webkit 系的大包。
+      # 缓存目录放在工作区里（runner 用户自己的），不走 /var/cache/apt（那是 root 的，
+      # 缓存动作以 runner 身份解包会写不进去）。
+      # 仅 CI 校验作业使用缓存——release 构建绝不引入任何缓存路径。
+      - name: 缓存 apt 包
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .apt-archives
+          # 键由包列表派生：改那个文件即自动换键（见 .github/ci-tauri-apt-packages.txt）
+          key: apt-tauri-${{ runner.os }}-${{ hashFiles('.github/ci-tauri-apt-packages.txt') }}
+          restore-keys: apt-tauri-${{ runner.os }}-
+
       - name: 安装 Tauri Linux 依赖
+        # 兜底：镜像彻底卡死时**快速失败**（实测最坏一次 11 分 10 秒，也出现过 25 分钟
+        # 以上），重跑会抽到新 runner 并命中上面的缓存，通常几十秒就过——把「慢性死亡」
+        # 变成「一次重跑」。
+        timeout-minutes: 15
         run: |
           #!/usr/bin/env bash
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev
+          # 包列表只有一处：三个 Rust 作业共用 .github/ci-tauri-apt-packages.txt，
+          # 它也同时是上面缓存键的来源。注释行（# 开头）不算包名。
+          packages="$(grep -v '^[[:space:]]*#' .github/ci-tauri-apt-packages.txt | tr '\n' ' ')"
+          mkdir -p "$GITHUB_WORKSPACE/.apt-archives"
+          # apt 的下载沙箱用户 `_apt` 要能写这个目录，否则每次安装都留一条
+          # 「Download is performed unsandboxed as root … Permission denied」的告警
+          # （不致命，但让日志看起来像坏了）；末尾再统一把属主交还给 runner。
+          chmod -R 0777 "$GITHUB_WORKSPACE/.apt-archives"
+          # 镜像抖动时重试，而不是把一次超时当成失败
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          # shellcheck disable=SC2086  # 这里需要按空白拆成多个包名
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 \
+            -o Dir::Cache::archives="$GITHUB_WORKSPACE/.apt-archives" \
+            install -y $packages
+          # apt 以 root 身份往缓存目录里写下载物与 lock/partial，而缓存动作以 runner
+          # 身份打包——不把属主交还回去，保存时会 `Permission denied`：日志里显示
+          # 「Cache restored successfully」一切正常，实则缓存永远建不起来（实测踩到）。
+          sudo chown -R "$(id -u)":"$(id -g)" "$GITHUB_WORKSPACE/.apt-archives"
 
       - name: 缓存 cargo
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -307,16 +337,46 @@ jobs:
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
 
       # 同 rust-clippy：Linux 上编译 Tauri 需要 GTK / webkit2gtk 系统库
+      # 这一步的耗时**几乎全在下载**：实测一次 11 分 15 秒里，下载占 11 分 10 秒、
+      # 解包与配置只占 2 秒，而 `apt-get update` 本身只要 3 秒（#80）。所以缓存的是
+      # .deb 下载物——命中后 install 直接用本地的包，不再重复拉 webkit 系的大包。
+      # 缓存目录放在工作区里（runner 用户自己的），不走 /var/cache/apt（那是 root 的，
+      # 缓存动作以 runner 身份解包会写不进去）。
+      # 仅 CI 校验作业使用缓存——release 构建绝不引入任何缓存路径。
+      - name: 缓存 apt 包
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .apt-archives
+          # 键由包列表派生：改那个文件即自动换键（见 .github/ci-tauri-apt-packages.txt）
+          key: apt-tauri-${{ runner.os }}-${{ hashFiles('.github/ci-tauri-apt-packages.txt') }}
+          restore-keys: apt-tauri-${{ runner.os }}-
+
       - name: 安装 Tauri Linux 依赖
+        # 兜底：镜像彻底卡死时**快速失败**（实测最坏一次 11 分 10 秒，也出现过 25 分钟
+        # 以上），重跑会抽到新 runner 并命中上面的缓存，通常几十秒就过——把「慢性死亡」
+        # 变成「一次重跑」。
+        timeout-minutes: 15
         run: |
           #!/usr/bin/env bash
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev
+          # 包列表只有一处：三个 Rust 作业共用 .github/ci-tauri-apt-packages.txt，
+          # 它也同时是上面缓存键的来源。注释行（# 开头）不算包名。
+          packages="$(grep -v '^[[:space:]]*#' .github/ci-tauri-apt-packages.txt | tr '\n' ' ')"
+          mkdir -p "$GITHUB_WORKSPACE/.apt-archives"
+          # apt 的下载沙箱用户 `_apt` 要能写这个目录，否则每次安装都留一条
+          # 「Download is performed unsandboxed as root … Permission denied」的告警
+          # （不致命，但让日志看起来像坏了）；末尾再统一把属主交还给 runner。
+          chmod -R 0777 "$GITHUB_WORKSPACE/.apt-archives"
+          # 镜像抖动时重试，而不是把一次超时当成失败
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          # shellcheck disable=SC2086  # 这里需要按空白拆成多个包名
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 \
+            -o Dir::Cache::archives="$GITHUB_WORKSPACE/.apt-archives" \
+            install -y $packages
+          # apt 以 root 身份往缓存目录里写下载物与 lock/partial，而缓存动作以 runner
+          # 身份打包——不把属主交还回去，保存时会 `Permission denied`：日志里显示
+          # 「Cache restored successfully」一切正常，实则缓存永远建不起来（实测踩到）。
+          sudo chown -R "$(id -u)":"$(id -g)" "$GITHUB_WORKSPACE/.apt-archives"
 
       - name: 缓存 cargo
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -363,16 +423,46 @@ jobs:
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
 
       # 同 rust-clippy / rust-check：Linux 上编译 Tauri 需要 GTK / webkit2gtk 系统库
+      # 这一步的耗时**几乎全在下载**：实测一次 11 分 15 秒里，下载占 11 分 10 秒、
+      # 解包与配置只占 2 秒，而 `apt-get update` 本身只要 3 秒（#80）。所以缓存的是
+      # .deb 下载物——命中后 install 直接用本地的包，不再重复拉 webkit 系的大包。
+      # 缓存目录放在工作区里（runner 用户自己的），不走 /var/cache/apt（那是 root 的，
+      # 缓存动作以 runner 身份解包会写不进去）。
+      # 仅 CI 校验作业使用缓存——release 构建绝不引入任何缓存路径。
+      - name: 缓存 apt 包
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .apt-archives
+          # 键由包列表派生：改那个文件即自动换键（见 .github/ci-tauri-apt-packages.txt）
+          key: apt-tauri-${{ runner.os }}-${{ hashFiles('.github/ci-tauri-apt-packages.txt') }}
+          restore-keys: apt-tauri-${{ runner.os }}-
+
       - name: 安装 Tauri Linux 依赖
+        # 兜底：镜像彻底卡死时**快速失败**（实测最坏一次 11 分 10 秒，也出现过 25 分钟
+        # 以上），重跑会抽到新 runner 并命中上面的缓存，通常几十秒就过——把「慢性死亡」
+        # 变成「一次重跑」。
+        timeout-minutes: 15
         run: |
           #!/usr/bin/env bash
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev
+          # 包列表只有一处：三个 Rust 作业共用 .github/ci-tauri-apt-packages.txt，
+          # 它也同时是上面缓存键的来源。注释行（# 开头）不算包名。
+          packages="$(grep -v '^[[:space:]]*#' .github/ci-tauri-apt-packages.txt | tr '\n' ' ')"
+          mkdir -p "$GITHUB_WORKSPACE/.apt-archives"
+          # apt 的下载沙箱用户 `_apt` 要能写这个目录，否则每次安装都留一条
+          # 「Download is performed unsandboxed as root … Permission denied」的告警
+          # （不致命，但让日志看起来像坏了）；末尾再统一把属主交还给 runner。
+          chmod -R 0777 "$GITHUB_WORKSPACE/.apt-archives"
+          # 镜像抖动时重试，而不是把一次超时当成失败
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          # shellcheck disable=SC2086  # 这里需要按空白拆成多个包名
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 \
+            -o Dir::Cache::archives="$GITHUB_WORKSPACE/.apt-archives" \
+            install -y $packages
+          # apt 以 root 身份往缓存目录里写下载物与 lock/partial，而缓存动作以 runner
+          # 身份打包——不把属主交还回去，保存时会 `Permission denied`：日志里显示
+          # 「Cache restored successfully」一切正常，实则缓存永远建不起来（实测踩到）。
+          sudo chown -R "$(id -u)":"$(id -g)" "$GITHUB_WORKSPACE/.apt-archives"
 
       - name: 缓存 cargo
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

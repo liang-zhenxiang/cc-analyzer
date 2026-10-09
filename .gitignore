@@ -21,6 +21,9 @@ web/test-results/
 # 真机 GUI 测试的截图产物
 gui-artifacts/
 
+# CI 里 Tauri 系统库的 apt 下载缓存（工作区内的临时目录，见 .github/workflows/ci.yml）
+.apt-archives/
+
 # 编辑器与 AI 助手的本地配置（每人自己的工作区设置，不入库）
 .idea/
 .claude/settings.local.json
