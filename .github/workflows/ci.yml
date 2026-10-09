@@ -289,6 +289,10 @@ jobs:
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 \
             -o Dir::Cache::archives="$GITHUB_WORKSPACE/.apt-archives" \
             install -y $packages
+          # apt 以 root 身份往缓存目录里写下载物与 lock/partial，而缓存动作以 runner
+          # 身份打包——不把属主交还回去，保存时会 `Permission denied`：日志里显示
+          # 「Cache restored successfully」一切正常，实则缓存永远建不起来（实测踩到）。
+          sudo chown -R "$(id -u)":"$(id -g)" "$GITHUB_WORKSPACE/.apt-archives"
 
       - name: 缓存 cargo
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -361,6 +365,10 @@ jobs:
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 \
             -o Dir::Cache::archives="$GITHUB_WORKSPACE/.apt-archives" \
             install -y $packages
+          # apt 以 root 身份往缓存目录里写下载物与 lock/partial，而缓存动作以 runner
+          # 身份打包——不把属主交还回去，保存时会 `Permission denied`：日志里显示
+          # 「Cache restored successfully」一切正常，实则缓存永远建不起来（实测踩到）。
+          sudo chown -R "$(id -u)":"$(id -g)" "$GITHUB_WORKSPACE/.apt-archives"
 
       - name: 缓存 cargo
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -439,6 +447,10 @@ jobs:
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 \
             -o Dir::Cache::archives="$GITHUB_WORKSPACE/.apt-archives" \
             install -y $packages
+          # apt 以 root 身份往缓存目录里写下载物与 lock/partial，而缓存动作以 runner
+          # 身份打包——不把属主交还回去，保存时会 `Permission denied`：日志里显示
+          # 「Cache restored successfully」一切正常，实则缓存永远建不起来（实测踩到）。
+          sudo chown -R "$(id -u)":"$(id -g)" "$GITHUB_WORKSPACE/.apt-archives"
 
       - name: 缓存 cargo
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
