@@ -1,0 +1,14 @@
+# CI 里编译 Tauri 需要的 Linux 系统库（rust-clippy / rust-check / rust-test 三个作业共用）。
+#
+# 为什么是单独一个文件：这份列表有**两个消费者**——`apt-get install` 的参数，以及
+# apt 下载缓存的键（`hashFiles` 它）。写在 ci.yml 里三遍的话，改包列表时既容易漏改，
+# 缓存键也不会跟着变。
+#
+# 改这个文件即自动换缓存键，不需要人工记得 bump 版本号。
+#
+# 只列 Tauri 官方文档要求的那几个；多装一个包就多一份下载时间（#80 的实测：
+# 这一步的耗时几乎全在下载）。
+libwebkit2gtk-4.1-dev
+libgtk-3-dev
+libayatana-appindicator3-dev
+librsvg2-dev
