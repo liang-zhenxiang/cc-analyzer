@@ -833,6 +833,65 @@ mod gui_capture {
     };
   }
   facts.context = contextFacts;
+  /* 错误档（Round N / N1）：趋势 SVG、事件列表滚动几何与过滤态的原始事实。
+     锚点全是组件自带的 data-error-* 稳定属性（同 data-probe 先例，不碰
+     CSS Module 哈希类名）；不在错误档时 view 为 null，判定在脚本。 */
+  var errorFacts = { view: null, trend: null, events: null, filter: null };
+  var errorView = document.querySelector('[data-error-view]');
+  if (errorView) {
+    errorFacts.view = true;
+    var trendSvg = errorView.querySelector('[data-error-trend] svg');
+    if (trendSvg) {
+      var trendRect = trendSvg.getBoundingClientRect();
+      errorFacts.trend = {
+        viewBox: trendSvg.getAttribute('viewBox'),
+        width: Math.round(trendRect.width),
+        height: Math.round(trendRect.height),
+        /* 工具柱数量：与区间天数对得上才有意义（零填充天也有短桩）。 */
+        bars: trendSvg.querySelectorAll('rect[data-bar]').length
+      };
+    }
+    var eventsEl = errorView.querySelector('[data-error-events]');
+    if (eventsEl) {
+      var eventItems = eventsEl.querySelectorAll('ul > li');
+      var eventsVisible = 0;
+      var eventsFirstRowHeight = null;
+      var eventsPads = [];
+      var eventsDeclared = null;
+      /* 描述行（面板体首行，在滚动容器**外面**）里「N 条」就是声明行数——回到
+         section 再读文本（同 dropped-list 的标题教训）；行内文本没有「N 条」，
+         首个匹配即描述行。账目与 <ul> 自己的总高对（容器内边距不掺和）。 */
+      var eventsSection = eventsEl.closest('section');
+      var descMatch = (eventsSection ? eventsSection.textContent : '').match(/(\d+)\s*条/);
+      if (descMatch) eventsDeclared = parseInt(descMatch[1], 10);
+      for (var e = 0; e < eventItems.length; e++) {
+        var item = eventItems[e];
+        if (item.getAttribute('aria-hidden') === 'true') {
+          eventsPads.push(item.offsetHeight);
+        } else {
+          eventsVisible += 1;
+          if (eventsFirstRowHeight === null) {
+            eventsFirstRowHeight = item.getBoundingClientRect().height;
+          }
+        }
+      }
+      errorFacts.events = {
+        clientHeight: eventsEl.clientHeight,
+        listScrollHeight: (eventsEl.querySelector('ul') || eventsEl).scrollHeight,
+        scrollHeight: eventsEl.scrollHeight,
+        scrollTop: eventsEl.scrollTop,
+        declaredCount: eventsDeclared,
+        visibleRows: eventsVisible,
+        firstRowHeight: eventsFirstRowHeight,
+        padHeights: eventsPads
+      };
+    }
+    var filterEl = document.querySelector('[data-error-filter]');
+    if (filterEl) {
+      errorFacts.filter = (filterEl.textContent || '').replace(/\s+/g, ' ').trim();
+    }
+  }
+  facts.error = errorFacts;
   return JSON.stringify(facts);
 })();"##;
 
@@ -886,11 +945,12 @@ mod gui_capture {
                     );
                     return;
                 }
-                // `点选=<选择器>` 走带回执的 evaluateJavaScript（同探针通道）：
-                // eval() 是单向投递，脚本若被丢弃无从得知——真机上点选压缩事件 chip
-                // 曾整段静默失效（chip 全程 aria-pressed=false），带回执才能把
-                // 「点了 / 没这个元素 / 脚本丢了」三态分开说清楚。
-                if let Some(receipt_js) = click_query_receipt_js(tab) {
+                // `点选=<选择器>` 与 `视图=<名>` 走带回执的 evaluateJavaScript
+                // （同探针通道）：eval() 是单向投递，脚本若被丢弃无从得知——真机上
+                // 点选压缩事件 chip 曾整段静默失效（chip 全程 aria-pressed=false），
+                // 带回执才能把「点了 / 没这个元素 / 脚本丢了」三态分开说清楚。
+                let receipt_js = click_query_receipt_js(tab).or_else(|| view_click_receipt_js(tab));
+                if let Some(receipt_js) = receipt_js {
                     match evaluate_string(&webview, &receipt_js) {
                         Some(receipt) => {
                             println!(
@@ -1240,6 +1300,19 @@ mod gui_capture {
             .filter(|value| !value.is_empty())
     }
 
+    /// 目标是不是「切用量页子视图」的动作形式 `视图=<名>`（`视图=用量` / `视图=错误`）。
+    ///
+    /// 与 `字号=` 同一动作协议。存在的理由是**状态泄漏自愈**：N1 给用量页加了
+    /// 「用量|错误」分段，选择记进真实 WebKit 的 localStorage（不受 HOME 隔离），
+    /// 上一次运行停在错误档时，后续运行点「用量总览」标签页只会得到错误档——
+    /// 表盘与三块面板根本不渲染。默认清单因此在「用量总览」后显式重置一次。
+    fn view_target(target: &str) -> Option<&str> {
+        target
+            .strip_prefix("视图=")
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    }
+
     /// 目标是不是「滚动内容区」的动作形式 `滚动=<选择器>`（如 `滚动=main`）。
     ///
     /// 与 `字号=<档位>` 同一动作协议：不是「点一个按钮」，是对滚动容器的操作。
@@ -1354,11 +1427,58 @@ mod gui_capture {
         )
     }
 
-    /// `字号=<档位>`、`滚动=<选择器>` 与 `点选=<选择器>` 不是「点一个已有按钮」，
-    /// 各走各的动作。
+    /// `视图=<名>` 的带回执点击脚本（同点选的 receipt 通道——J4 教训：点选类
+    /// 动作别走单向 eval，脚本被丢弃时无从得知）。
+    ///
+    /// 锚点是分段的容器（`aria-label="总览视图"`，全站唯一）+ SegmentedControl
+    /// 的默认角色 `tablist`/`tab`——**不是** radiogroup：那是它的另一种模式
+    /// （设置里的字号档在用），这里不是。按可见文本**精确**匹配目标名，回执
+    /// 带点击前的 aria-selected（泄漏时是 true，回执因此能区分「已在目标档」
+    /// 与「切过去了」）。三态与点选一致：`clicked …` / `missing …` / 异常。
+    fn view_click_receipt_js(target: &str) -> Option<String> {
+        let label = view_target(target)?;
+        let escaped = js_string(label);
+        Some(format!(
+            r#"(function () {{
+  var wanted = "{escaped}";
+  var items = document.querySelectorAll('[role="tablist"][aria-label="总览视图"] [role="tab"]');
+  for (var i = 0; i < items.length; i++) {{
+    var text = (items[i].textContent || '').replace(/\s+/g, ' ').trim();
+    if (text === wanted) {{
+      var before = items[i].getAttribute('aria-selected');
+      items[i].click();
+      return 'clicked ' + wanted + ' (was ' + before + ')';
+    }}
+  }}
+  return 'missing ' + wanted;
+}})();"#
+        ))
+    }
+
+    /// eval 通道的视图切换脚本（保留给潜在的非真机路径，同点选的备胎）。
+    fn view_click_js(label: &str) -> String {
+        let escaped = js_string(label);
+        format!(
+            r#"(function () {{
+  var wanted = "{escaped}";
+  var items = document.querySelectorAll('[role="tablist"][aria-label="总览视图"] [role="tab"]');
+  for (var i = 0; i < items.length; i++) {{
+    var text = (items[i].textContent || '').replace(/\s+/g, ' ').trim();
+    if (text === wanted) {{ items[i].click(); console.log('gui-capture: 已切总览视图 ' + wanted); return; }}
+  }}
+  console.warn('gui-capture: 找不到总览视图档 ' + wanted);
+}})();"#
+        )
+    }
+
+    /// `字号=<档位>`、`滚动=<选择器>`、`点选=<选择器>` 与 `视图=<名>` 不是
+    /// 「点一个已有按钮」，各走各的动作。
     fn click_target_js(target: &str) -> String {
         if let Some(label) = font_scale_target(target) {
             return font_scale_js(label);
+        }
+        if let Some(label) = view_target(target) {
+            return view_click_js(label);
         }
         if let Some(selector) = scroll_target(target) {
             return scroll_js(selector);
@@ -1440,6 +1560,18 @@ mod gui_capture {
         }
 
         #[test]
+        fn view_target_only_matches_the_action_form() {
+            assert_eq!(view_target("视图=用量"), Some("用量"));
+            assert_eq!(view_target("视图= 错误 "), Some("错误"));
+            assert_eq!(view_target("视图="), None);
+            // 普通目标与另外几个动作都不归它管。
+            assert_eq!(view_target("用量总览"), None);
+            assert_eq!(view_target("字号=130%"), None);
+            assert_eq!(view_target("滚动=main"), None);
+            assert_eq!(view_target("点选=[data-probe='compact-event-2']"), None);
+        }
+
+        #[test]
         fn scroll_target_only_matches_the_action_form() {
             assert_eq!(scroll_target("滚动=main"), Some("main"));
             assert_eq!(scroll_target("滚动= main "), Some("main"));
@@ -1481,6 +1613,24 @@ mod gui_capture {
             assert!(js.contains("已切界面字号"));
             // 档位文案进的是被转义过的字面量。
             assert!(js.contains("var wanted = \"130%\""));
+        }
+
+        #[test]
+        fn the_view_action_clicks_the_segment_with_a_receipt() {
+            let js = view_click_receipt_js("视图=用量").expect("视图= 动作应有回执脚本");
+            // 走的是总览视图分段的真实 tab 控件（SegmentedControl 默认 tablist；
+            // radiogroup 是它的另一种模式，这里不是），而不是通用按钮扫描。
+            assert!(js.contains("[role=\"tablist\"][aria-label=\"总览视图\"]"));
+            assert!(js.contains("[role=\"tab\"]"));
+            // 回执带点击前的选中态：泄漏时 was true 能与「已在目标档」区分。
+            assert!(js.contains("aria-selected"));
+            assert!(js.contains("clicked "));
+            assert!(js.contains("missing "));
+            // 目标名进的是被转义过的字面量。
+            assert!(js.contains("var wanted = \"用量\""));
+            // 非视图动作不产回执脚本（交给其它动作处理）。
+            assert!(view_click_receipt_js("字号=130%").is_none());
+            assert!(view_click_receipt_js("用量总览").is_none());
         }
 
         #[test]
@@ -1538,6 +1688,19 @@ mod gui_capture {
             assert!(PROBE_JS.contains("aria-haspopup=\"dialog\""));
             assert!(PROBE_JS.contains("declaredCount"));
             assert!(PROBE_JS.contains("padHeights"));
+        }
+
+        #[test]
+        fn the_probe_reports_error_view_anchors() {
+            // 错误档（Round N / N1）的锚点：容器（data-error-view）、趋势 SVG
+            // （data-error-trend + rect[data-bar]）、事件列表（data-error-events，
+            // 行数 × 行高 = 总高的账目事实）、过滤态（data-error-filter）。
+            assert!(PROBE_JS.contains("[data-error-view]"));
+            assert!(PROBE_JS.contains("[data-error-trend]"));
+            assert!(PROBE_JS.contains("rect[data-bar]"));
+            assert!(PROBE_JS.contains("[data-error-events]"));
+            assert!(PROBE_JS.contains("[data-error-filter]"));
+            assert!(PROBE_JS.contains("facts.error"));
         }
 
         #[test]

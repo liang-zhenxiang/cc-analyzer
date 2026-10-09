@@ -11,6 +11,8 @@ import { useUsageOverview } from "./useUsageOverview";
 import { BillingWindowCard } from "./BillingWindowCard";
 import { CompactionStatsPanel } from "./CompactionStatsPanel";
 import { compactionStats } from "./compactionStats";
+import { mergeErrorStats } from "./errorStats";
+import { ErrorOverviewSection } from "./ErrorOverviewSection";
 import {
   aggregateRange,
   formatDayLabel,
@@ -26,6 +28,15 @@ import styles from "./UsageOverviewPage.module.css";
 const RANGE_KEY = "cca-usage-range";
 const RANGE_OPTIONS = [7, 30, 90] as const;
 type UsageRange = (typeof RANGE_OPTIONS)[number];
+
+/** 页内子视图（N1）：缺省仍是「用量」——错误分析是显式选择，首屏不被垄断。 */
+const VIEW_KEY = "cca-usage-view";
+type UsageView = "usage" | "errors";
+
+const VIEW_ITEMS: SegmentedItem<UsageView>[] = [
+  { value: "usage", label: "用量" },
+  { value: "errors", label: "错误" }
+];
 
 const RANGE_ITEMS: SegmentedItem<string>[] = RANGE_OPTIONS.map((option) => ({
   value: String(option),
@@ -47,6 +58,17 @@ function readStoredRange(): UsageRange {
     // localStorage may be unavailable; the default range still works.
   }
   return 30;
+}
+
+/** Stored values are untrusted: anything unknown falls back to the usage view. */
+function readStoredView(): UsageView {
+  try {
+    const stored = localStorage.getItem(VIEW_KEY);
+    if (stored === "errors") return "errors";
+  } catch {
+    // See readStoredRange: persistence is optional.
+  }
+  return "usage";
 }
 
 /**
@@ -74,14 +96,18 @@ function tokenClassValue(totals: UsageTotals, tokenClass: TokenClass): number {
 }
 
 export function UsageOverviewPage({
-  onOpenSession
+  onOpenSession,
+  onRevealRecord
 }: {
   /** 压缩统计 top3 行的「打开会话」回调；缺省（单测）时行不可点。 */
   onOpenSession?: (session: SessionMeta) => void;
+  /** 错误事件行的「跳回会话分析定位」回调（N1，与全局搜索的 onReveal 同款）。 */
+  onRevealRecord?: (path: string, recordId: string | null) => void;
 } = {}) {
   const { inputs, progress, scanning, error, skipped, refresh } = useUsageOverview();
   const [days, setDays] = useState<UsageRange>(readStoredRange);
   const [tokenClass, setTokenClass] = useState<TokenClass>("total");
+  const [view, setView] = useState<UsageView>(readStoredView);
 
   useEffect(() => {
     try {
@@ -91,9 +117,19 @@ export function UsageOverviewPage({
     }
   }, [days]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(VIEW_KEY, view);
+    } catch {
+      // See readStoredView: persistence is optional.
+    }
+  }, [view]);
+
   const range = useMemo(() => aggregateRange(inputs, days), [inputs, days]);
   // 压缩统计与 aggregateRange 同一口径的时间窗（周期口径与页面控件一致）。
   const compaction = useMemo(() => compactionStats(inputs, days), [inputs, days]);
+  // 错误聚合同位（design §8）：与压缩统计一样独立 memo，不进既有聚合桶。
+  const errorStats = useMemo(() => mergeErrorStats(inputs, days), [inputs, days]);
 
   const cost = useMemo(() => {
     let usd = 0;
@@ -198,12 +234,22 @@ export function UsageOverviewPage({
   return (
     <section className={styles.page} aria-label="用量总览">
       <div className={styles.header}>
-        <SegmentedControl
-          items={RANGE_ITEMS}
-          value={String(days)}
-          onChange={(next) => setDays(toRange(next))}
-          ariaLabel="时间范围"
-        />
+        {/* 视图分段放最左：视图身份先于时间范围（design §2.1）。区间控件与
+            扫描进度行两档共用——不另造第二套窗口状态。 */}
+        <div className={styles.headerControls}>
+          <SegmentedControl
+            items={VIEW_ITEMS}
+            value={view}
+            onChange={setView}
+            ariaLabel="总览视图"
+          />
+          <SegmentedControl
+            items={RANGE_ITEMS}
+            value={String(days)}
+            onChange={(next) => setDays(toRange(next))}
+            ariaLabel="时间范围"
+          />
+        </div>
         <span className={styles.progress} {...(scanning ? { "data-probe-pending": true } : {})}>
           {scanning
             ? `已分析 ${progress.done} / ${progress.total} 个会话`
@@ -212,105 +258,117 @@ export function UsageOverviewPage({
         </span>
       </div>
 
-      <BillingWindowCard inputs={inputs} />
+      {view === "errors" ? (
+        <ErrorOverviewSection
+          stats={errorStats}
+          days={days}
+          sessionsInWindow={range.kpi.sessions}
+          projectPaths={projectPaths}
+          onRevealRecord={onRevealRecord}
+        />
+      ) : (
+        <>
+          <BillingWindowCard inputs={inputs} />
 
-      <div className={styles.kpiRow}>
-        {/* 来源徽章是标签行末尾的一枚圆点（`.kpi` 的两列网格把它放在第一行的
+          <div className={styles.kpiRow}>
+            {/* 来源徽章是标签行末尾的一枚圆点（`.kpi` 的两列网格把它放在第一行的
             右端），数值独占第二行——瓦片里先看到数字，再看标签与出处。 */}
-        <div className={styles.kpi}>
-          <span className={styles.kpiLabel}>Tokens 总量</span>
-          <span className={styles.kpiValue}>{formatTokenCount(range.kpi.tokens)}</span>
-          <ProvenanceBadge provenance="logged" />
-        </div>
-        <div className={styles.kpi}>
-          <span className={styles.kpiLabel}>会话数</span>
-          <span className={styles.kpiValue}>{range.kpi.sessions.toLocaleString("en-US")}</span>
-          <ProvenanceBadge provenance="logged" />
-        </div>
-        <div className={styles.kpi}>
-          <span className={styles.kpiLabel}>消息数</span>
-          <span className={styles.kpiValue}>{range.kpi.messages.toLocaleString("en-US")}</span>
-          <ProvenanceBadge provenance="logged" />
-        </div>
-        <div className={styles.kpi}>
-          <span className={styles.kpiLabel}>估算成本</span>
-          <span className={styles.kpiValue}>{formatUsd(cost.usd)}</span>
-          <ProvenanceBadge provenance="estimated" detail={`快照日期 ${PRICING_AS_OF}`} />
-        </div>
-        {/* 免责说明跨列收在卡片底部：它此前是成本那一列的第三层（列头「非账单」
+            <div className={styles.kpi}>
+              <span className={styles.kpiLabel}>Tokens 总量</span>
+              <span className={styles.kpiValue}>{formatTokenCount(range.kpi.tokens)}</span>
+              <ProvenanceBadge provenance="logged" />
+            </div>
+            <div className={styles.kpi}>
+              <span className={styles.kpiLabel}>会话数</span>
+              <span className={styles.kpiValue}>{range.kpi.sessions.toLocaleString("en-US")}</span>
+              <ProvenanceBadge provenance="logged" />
+            </div>
+            <div className={styles.kpi}>
+              <span className={styles.kpiLabel}>消息数</span>
+              <span className={styles.kpiValue}>{range.kpi.messages.toLocaleString("en-US")}</span>
+              <ProvenanceBadge provenance="logged" />
+            </div>
+            <div className={styles.kpi}>
+              <span className={styles.kpiLabel}>估算成本</span>
+              <span className={styles.kpiValue}>{formatUsd(cost.usd)}</span>
+              <ProvenanceBadge provenance="estimated" detail={`快照日期 ${PRICING_AS_OF}`} />
+            </div>
+            {/* 免责说明跨列收在卡片底部：它此前是成本那一列的第三层（列头「非账单」
             + chip「估算」+「快照日期」），把整张卡撑高、另外三列各留 60px 死白。 */}
-        <p className={styles.kpiFootnote}>
-          Tokens 总量、会话数、消息数读自本机日志；估算成本按定价快照（{PRICING_AS_OF}）折算，
-          不是账单。
-          {cost.hasUnknown
-            ? ` 部分会话未知价 · 约 ${formatTokenCount(cost.unknownTokens)} tok 未计入`
-            : ""}
-        </p>
-      </div>
+            <p className={styles.kpiFootnote}>
+              Tokens 总量、会话数、消息数读自本机日志；估算成本按定价快照（{PRICING_AS_OF}）折算，
+              不是账单。
+              {cost.hasUnknown
+                ? ` 部分会话未知价 · 约 ${formatTokenCount(cost.unknownTokens)} tok 未计入`
+                : ""}
+            </p>
+          </div>
 
-      {/* 两列网格：单列文档流下仪表盘比视口高 43%，「按项目分布」「按模型分布」
+          {/* 两列网格：单列文档流下仪表盘比视口高 43%，「按项目分布」「按模型分布」
           「活跃时段」三块因此从来没进过首屏，也没进过任何一张归档截图。 */}
-      <div className={styles.board}>
-        <Panel
-          title="每日 Token 消耗"
-          actions={
-            <SegmentedControl
-              items={CLASS_ITEMS}
-              value={tokenClass}
-              onChange={setTokenClass}
-              ariaLabel="Token 类别"
-            />
-          }
-        >
-          <BarChart
-            data={trendData}
-            ariaLabel="每日 Token 消耗趋势"
-            emptyText="所选范围内暂无消耗"
-            height={170}
-          />
-        </Panel>
+          <div className={styles.board}>
+            <Panel
+              title="每日 Token 消耗"
+              actions={
+                <SegmentedControl
+                  items={CLASS_ITEMS}
+                  value={tokenClass}
+                  onChange={setTokenClass}
+                  ariaLabel="Token 类别"
+                />
+              }
+            >
+              <BarChart
+                data={trendData}
+                ariaLabel="每日 Token 消耗趋势"
+                emptyText="所选范围内暂无消耗"
+                height={170}
+              />
+            </Panel>
 
-        <Panel title="按项目分布">
-          <HBarChart data={projectData} ariaLabel="按项目分布" emptyText="所选范围内暂无项目消耗" />
-        </Panel>
+            <Panel title="按项目分布">
+              <HBarChart data={projectData} ariaLabel="按项目分布" emptyText="所选范围内暂无项目消耗" />
+            </Panel>
 
-        <Panel title="按模型分布">
-          <StackedBar data={modelData} ariaLabel="按模型分布" emptyText="所选范围内暂无模型消耗" />
-          {modelData.length > 0 ? (
-            <ul className={styles.modelLegend}>
-              {modelData.map((slice, index) => (
-                <li key={slice.hint}>
-                  {/* 与 StackedBar 同一索引规则：module class 无法按索引计算，
-                      内联 token 引用是该组件已认可的唯一例外。 */}
-                  <span
-                    className={styles.swatch}
-                    style={{ background: `var(--chart-${(index % 6) + 1}, var(--accent))` }}
-                  />
-                  {/* 标签是缩短后的名字，原始 id 进 title——两个快照不是同一样东西。 */}
-                  <span className={styles.modelName} title={slice.hint}>
-                    {slice.label}
-                  </span>
-                  <span className={styles.modelValue}>{formatTokenCount(slice.value)}</span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </Panel>
+            <Panel title="按模型分布">
+              <StackedBar data={modelData} ariaLabel="按模型分布" emptyText="所选范围内暂无模型消耗" />
+              {modelData.length > 0 ? (
+                <ul className={styles.modelLegend}>
+                  {modelData.map((slice, index) => (
+                    <li key={slice.hint}>
+                      {/* 与 StackedBar 同一索引规则：module class 无法按索引计算，
+                          内联 token 引用是该组件已认可的唯一例外。 */}
+                      <span
+                        className={styles.swatch}
+                        style={{ background: `var(--chart-${(index % 6) + 1}, var(--accent))` }}
+                      />
+                      {/* 标签是缩短后的名字，原始 id 进 title——两个快照不是同一样东西。 */}
+                      <span className={styles.modelName} title={slice.hint}>
+                        {slice.label}
+                      </span>
+                      <span className={styles.modelValue}>{formatTokenCount(slice.value)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </Panel>
 
-        <Panel title="活跃时段（周 × 小时）">
-          <Heatmap counts={range.hourly} ariaLabel="活跃时段热力图" />
-        </Panel>
+            <Panel title="活跃时段（周 × 小时）">
+              <Heatmap counts={range.hourly} ariaLabel="活跃时段热力图" />
+            </Panel>
 
-        {/* 压缩统计住满第三行整行（design §4）：两列网格里塞半宽会留空洞，
-            这块面板本来就是一条横向叙事。 */}
-        <div className={styles.compactionRow}>
-          <CompactionStatsPanel
-            stats={compaction}
-            days={days}
-            onOpenSession={onOpenSession}
-          />
-        </div>
-      </div>
+            {/* 压缩统计住满第三行整行（design §4）：两列网格里塞半宽会留空洞，
+                这块面板本来就是一条横向叙事。 */}
+            <div className={styles.compactionRow}>
+              <CompactionStatsPanel
+                stats={compaction}
+                days={days}
+                onOpenSession={onOpenSession}
+              />
+            </div>
+          </div>
+        </>
+      )}
     </section>
   );
 }

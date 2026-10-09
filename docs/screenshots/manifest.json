@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-09T12:10:13.559Z",
-  "commit": "8a1135f+dirty",
+  "generatedAt": "2026-10-09T17:53:35.234Z",
+  "commit": "497a9e1+dirty",
   "dirty": true,
   "files": [
     "analyzer-empty-dark-webkit.png",
@@ -35,6 +35,14 @@
     "context-empty-light.png",
     "context-light-webkit.png",
     "context-light.png",
+    "error-events-dark-webkit.png",
+    "error-events-dark.png",
+    "error-events-light-webkit.png",
+    "error-events-light.png",
+    "error-view-dark-webkit.png",
+    "error-view-dark.png",
+    "error-view-light-webkit.png",
+    "error-view-light.png",
     "monitor-dark-webkit.png",
     "monitor-dark.png",
     "monitor-light-webkit.png",

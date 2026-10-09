@@ -56,12 +56,15 @@
 #
 # 默认的视图清单是「会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
 # 日志视图 → 导出 → 关闭导出窗口 → 压缩夹具会话 → 上下文 → 点选第 2 枚压缩事件 chip →
-# 用量总览 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→ 实时监控 → 字号恢复 100%」；每张图都配一份
+# 用量总览 → 视图=用量 → 滚到底 → 近 7 天 → 错误档 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→
+# 实时监控 → 字号恢复 100%」；每张图都配一份
 # 几何探针 JSON（`CCA_GUI_PROBE`），脚本据它判定
 # **布局不变量**：无横向溢出、表盘有界且含于卡片、记录表末列可达、会话行不裁字、
 # 两层限额读数在卡内、用量页三块面板滚一次可达、上下文曲线有界且命中区与压缩次数一致、
-# 取证卡在视口内、被丢清单不是假列表。目标既可写可访问名/可见文本（标签页），也可写会话 cwd
-# （会匹配按钮的 `title`）、`字号=<档位>` / `滚动=<选择器>` / `点选=<CSS 选择器>` 三种动作。
+# 取证卡在视口内、被丢清单不是假列表、错误档趋势有界且事件列表是真列表。目标既可写
+# 可访问名/可见文本（标签页），也可写会话 cwd
+# （会匹配按钮的 `title`）、`字号=<档位>` / `视图=<用量页子视图名>` / `滚动=<选择器>` /
+# `点选=<CSS 选择器>` 四种动作。
 # **前两步显式切回「会话分析」与「日志视图」**——应用会把当前
 # 标签页与分析器子视图记进 WebKit 的 localStorage（位于真实 ~/Library/WebKit，不受 HOME
 # 隔离），不先切回去，会话点击会落空、树视图也没有记录表。
@@ -114,17 +117,21 @@ gui-test.sh —— 真机 GUI 冒烟测试
 
 默认视图清单：会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
 日志视图 → 导出 → 关闭导出窗口 → 压缩夹具会话（/repo/compact-demo）→ 上下文 → 点选第 2 枚压缩
-事件 chip → 用量总览 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→ 实时监控 → 字号恢复 100%。
+事件 chip → 用量总览 → 视图=用量 → 滚到底 → 近 7 天 → 错误档 → 滚到底 → 全局搜索（开）→
+全局搜索（关）→ 实时监控 → 字号恢复 100%。
 每张图都配一份几何探针 JSON，脚本据它判定布局不变量（无横向溢出 / 表盘有界且含于卡片 /
 记录表末列可达 / 文字里无 ESC 转义字节 / 两层限额读数在卡内 / 用量页三块面板滚一次可达 /
-上下文曲线有界且命中区与压缩次数一致 / 取证卡在视口内 / 被丢清单不是假列表）。
+上下文曲线有界且命中区与压缩次数一致 / 取证卡在视口内 / 被丢清单不是假列表 / 错误档趋势
+有界且事件列表是真列表）。
 
 `字号=<档位>`（如 `字号=130%`）是一个动作目标：先在设置浮层里把界面字号切到该档，
 再取图与探针——用它验证「放大字号后布局仍然成立」。默认清单末尾会切回 100%，
 因为 WebKit 的 localStorage 不受 HOME 隔离，不恢复会把这个偏好留给下一次运行与使用者。
-`滚动=<选择器>`（如 `滚动=main`）与 `点选=<CSS 选择器>`（如 `点选=[data-probe='compact-event-2']`）
-也是动作目标：前者把滚动容器滚到底，后者点击通用扫描够不着的控件（可访问名带动态数字的，
-靠组件上的 data-probe 稳定属性定位）。选择器里不能含逗号（目标清单以逗号分隔）。
+`滚动=<选择器>`（如 `滚动=main`）、`视图=<用量页子视图名>`（如 `视图=用量`，重置 N1 的
+「用量|错误」分段状态——它记在不受 HOME 隔离的真实 WebKit localStorage 里，不重置时上次
+停在错误档的残留会让用量档的判定整段落空）与 `点选=<CSS 选择器>`（如 `点选=[data-probe='compact-event-2']`）
+也是动作目标：第一种把滚动容器滚到底，第二种显式切换用量页子视图，第三种点击通用扫描够不着的
+控件（可访问名带动态数字的，靠组件上的 data-probe 稳定属性定位）。选择器里不能含逗号（目标清单以逗号分隔）。
 
 探针缺失算失败（不是跳过）。失败时会打印探针路径、最后修改时间、脚本等待时长，以及应用
 日志里与这份探针相关的行，用来区分「应用没写出来」还是「脚本等太短」。
@@ -485,11 +492,14 @@ shift_fixture_jsonl() {
 }
 
 # 全部夹具里最新的 timestamp 与「昨天 00:00 UTC」的日差 = 共用偏移。
+# （compact-session 的字段冒号后带空格，匹配不到 timestamp——它是会话内视图
+# 的夹具，不进任何时间窗，平移与否不影响判定。）
 FIXTURE_OFFSET="$(cat "${FIXTURE_SRC}"/session-basic.jsonl \
   "${FIXTURE_SRC}"/session-subagent.jsonl \
   "${FIXTURE_SRC}"/usage-dashboard-days.jsonl \
   "${FIXTURE_SRC}"/usage-dashboard-models.jsonl \
   "${FIXTURE_SRC}"/compact-session.jsonl \
+  "${FIXTURE_SRC}"/error-session.jsonl \
   | node -e '
     const TS = /"timestamp":"([^"]+)"/g;
     let text = "", newest = 0;
@@ -531,6 +541,10 @@ install_fixture "${FIXTURE_SRC}/session-ansi.jsonl" "-repo-ansi" "3d2a5442-9c65-
 # 与 web/e2e 共用同一份 tests/fixtures/compact-session.jsonl（拷贝而非软链，
 # Windows/CI 语义），挂在 /repo/compact-demo 与 e2e 的 compactScenario 同名。
 install_fixture "${FIXTURE_SRC}/compact-session.jsonl" "-repo-compact-demo" "compact-session"
+# 错误夹具（Round N / N1）：错误档的门禁步骤靠它——两个自然日、API 错误 3 +
+# 工具错误 4（含一条 sidechain 失败）、一次被排除的 AskUserQuestion 拒绝。
+# 与 web/e2e 的 errorScenario 共用同一份 tests/fixtures/error-session.jsonl。
+install_fixture "${FIXTURE_SRC}/error-session.jsonl" "-repo-error-demo" "error-session"
 # 归档夹具：源文件**不在**隔离家目录里（模拟 Claude Code 已清理），只有副本与索引。
 # 应用若真的把副本并回列表并解析，元数据缓存里会出现一条**键为副本路径**的条目——
 # 这是「归档 → 发现 → 解析 → 缓存」整条真机链路的直接证据。
@@ -557,7 +571,7 @@ cat >"${ARCHIVE_ROOT}/archive-index.json" <<JSON
 }
 JSON
 printf '  隔离家目录：%s\n' "$HOME_DIR"
-printf '  夹具会话：6 个（另有 1 个只剩归档副本的会话）\n'
+printf '  夹具会话：7 个（另有 1 个只剩归档副本的会话）\n'
 
 CACHE_PATH="${HOME_DIR}/Library/Application Support/${BUNDLE_ID}/meta-cache-v2.json"
 
@@ -607,7 +621,18 @@ else
   # 不着，所以用 `点选=<data-probe 选择器>` 动作（同 `滚动=` 的动作协议）。
   # 插在导出之后是为了不动「导出只在会话打开时渲染」那串依赖；这三步全在
   # 会话分析页内完成，不影响后面的顶栏标签页。
-  CAPTURE_TARGETS=("会话分析" "字号=130%" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "用量总览" "滚���=main" "全局搜索" "全局搜索" "实时监控" "字号=100%")
+  #
+  # 错误档三步（Round N / N1）插在用量总览滚到底之后：「近 7 天」先把区间
+  # 切到确定档（区间记忆落在**不隔离**的 WebKit localStorage 里，不点它柱数
+  # 就不确定），「错误」切进分段档（趋势 SVG + 事件列表的几何在这一步判定），
+  # 再一次「滚动=main」把事件面板滚进视口（可达性判定挂在「上一步是错误」上，
+  # 同用量页三块面板的判法）。
+  #
+  # 「视图=用量」紧跟「用量总览」：N1 的「用量|错误」分段把选择也记进那份
+  # 不隔离的 localStorage，上一次运行停在错误档时，点「用量总览」标签页只会
+  # 得到错误档——表盘与三块面板根本不渲染。每次显式重置回用量档，门禁自愈
+  # （同「前两步显式切回会话分析」的对策，只是对象换成了子视图状态维度）。
+  CAPTURE_TARGETS=("会话分析" "字号=130%" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "用量总览" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "实时监控" "字号=100%")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
@@ -746,10 +771,10 @@ PY
   COUNT="$(printf '%s\n' "$CACHE_REPORT" | grep '^COUNT ' | awk '{print $2}')"
   OUTSIDE="$(printf '%s\n' "$CACHE_REPORT" | grep '^OUTSIDE ' | awk '{print $2}')"
 
-  if [[ "${COUNT:-}" == "7" ]]; then
-    ok "缓存条目数 = 7（6 个夹具 + 1 个归档副本）"
+  if [[ "${COUNT:-}" == "8" ]]; then
+    ok "缓存条目数 = 8（7 个夹具 + 1 个归档副本）"
   else
-    bad "缓存条目数 = ${COUNT:-解析失败}，期望 7"
+    bad "缓存条目数 = ${COUNT:-解析失败}，期望 8"
     printf '  %s  %s%s\n' "$C_YELLOW" "$CACHE_REPORT" "$C_RESET"
   fi
 
@@ -869,6 +894,11 @@ USAGE_PANEL_TITLES = ["按项目分布", "按模型分布", "活跃时段（周 
 # 「上下文」那一步据此判曲线命中区个数与覆盖率 chip 的在场。
 CONTEXT_TAB_LABEL = "上下文"
 CONTEXT_EVENT_COUNT = 2
+# 错误档（Round N / N1）。门禁清单里「错误」前先点了「近 7 天」，趋势柱因此
+# 是确定值；事件数 = 夹具 error-session 的 7 条（其余在窗夹具都没有错误信号）。
+ERROR_TAB_LABEL = "错误"
+ERROR_WINDOW_DAYS = 7
+ERROR_EVENT_COUNT = 7
 coverage = os.environ.get("COVERAGE") == "1"
 seen_gauge = 0
 seen_table = 0
@@ -876,6 +906,7 @@ seen_rows = 0
 seen_billing = 0
 seen_usage_panels = 0
 seen_context = 0
+seen_error = 0
 
 # 「滚动=main」的判定要知道滚的是哪个页面：清单是有序的，靠上一步的 label
 # 把动作与页面挂上钩（默认清单里它紧跟「用量总���」）。自定义清单把它用在
@@ -1066,11 +1097,15 @@ for arg in sys.argv[1:]:
             values_count = len(el.get("values") or [])
             print(f"OK|{label}：两层限额的读数都在卡片内、卡片含于内容区（周用量层 + {values_count} 个读数）")
 
-    # 用量页的面板标题：不滚动时判定「三块面板真的渲染了出来」；滚动一步
-    # （且上一步是用量总览）判定「滚一次就能到达」——面板被懒加载吞掉、或页面
-    # 重新长过一屏都会在这里红。docTop 是标题在滚动内容里的位置。
+    # 用量页的面板标题：在「视图=用量」步骤判定「三块面板真的渲染了出来」——
+    # 不能挂在「用量总览」标签页本身：N1 的「用量|错误」分段把选择记进真实
+    # WebKit 的 localStorage，上一次运行停在错误档时，点进标签页渲染的是错误
+    # 档（表盘与三块面板都不在），显式重置（视图=用量）之后的判定才有意义。
+    # 滚动一步（且上一步是用量总览或视图=用量）判定「滚一次就能到达」——面板
+    # 被懒加载吞掉、或页面重新长过一屏都会在这里红。docTop 是标题在滚动内容
+    # 里的位置。
     panels = data.get("panels") or []
-    if label == "用量总览":
+    if label == "视图=用量":
         titles = {p.get("title") for p in panels}
         missing = [t for t in USAGE_PANEL_TITLES if t not in titles]
         if missing:
@@ -1078,7 +1113,7 @@ for arg in sys.argv[1:]:
         else:
             seen_usage_panels += 1
             print(f"OK|{label}：三块用量面板都在文档里（标题齐全）")
-    elif label.startswith("滚动=") and prev_label == "用量总览":
+    elif label.startswith("滚动=") and prev_label in ("用量总览", "视图=用量"):
         problems = []
         main_info = data.get("main") or {}
         scroll_top, client_height = main_info.get("scrollTop"), main_info.get("clientHeight")
@@ -1100,7 +1135,7 @@ for arg in sys.argv[1:]:
             seen_usage_panels += 1
             print(f"OK|{label}：滚一次到底后三块面板标题全部可达（scrollTop {scroll_top} / scrollHeight {main_info.get('scrollHeight')}）")
     elif label.startswith("滚动="):
-        print(f"NOTE|{label}：上一步不是用量总览（是 {prev_label}），跳过三块面板的可达性判定")
+        print(f"NOTE|{label}：上一步不在用量页（是 {prev_label}），跳过三块面板的可达性判定")
 
     # 界面字号：动作目标（`字号=<档位>`）必须真的把根元素变量切过去。
     font_scale_raw = data.get("font_scale")
@@ -1147,6 +1182,80 @@ for arg in sys.argv[1:]:
             print(f"BAD|{label}：解析覆盖率 chip 缺失或文本不含「行未识别」——夹具会话有 3 行未识别，M>0 时 chip 必须在场")
         else:
             print(f"OK|{label}：覆盖率 chip 在场（「{chip['text']}」）")
+
+    # 错误档（Round N / N1）：趋势 SVG 有界且柱数 = 区间天数（零填充天也有
+    # 短桩）、事件列表是真列表（行高 × 声明行数对总高的账，同被丢清单的判法）。
+    # 几何事实由应用的探针收集（facts.error），阈值与判定只在这里。
+    if label == ERROR_TAB_LABEL:
+        err = data.get("error") or {}
+        if err.get("view") is not True:
+            print(f"BAD|{label}：错误档没有产出锚点（data-error-view）——分段没切过去，或整块没渲染")
+        else:
+            problems = []
+            trend = err.get("trend")
+            if not isinstance(trend, dict):
+                problems.append("趋势 SVG 缺失（data-error-trend）")
+            else:
+                try:
+                    vb = [float(part) for part in (trend.get("viewBox") or "").split()]
+                except (TypeError, ValueError):
+                    vb = []
+                if len(vb) != 4 or not (0 < vb[2] <= 4096 and 0 < vb[3] <= 4096):
+                    problems.append(f"趋势 viewBox 失界（{trend.get('viewBox')!r}）")
+                bars = trend.get("bars")
+                if bars != ERROR_WINDOW_DAYS:
+                    problems.append(f"趋势柱 {bars!r} 根，期望 {ERROR_WINDOW_DAYS}（清单先点了「近 7 天」，零填充天也有短桩）")
+            events = err.get("events")
+            if not isinstance(events, dict) or not isinstance(events.get("declaredCount"), int):
+                problems.append("事件列表没有产出滚动几何（data-error-events）或行数读不出")
+            else:
+                declared = events["declaredCount"]
+                row_h = events.get("firstRowHeight")
+                scroll_h = events.get("listScrollHeight")
+                pads = [p for p in (events.get("padHeights") or []) if isinstance(p, (int, float))]
+                visible = events.get("visibleRows")
+                if declared != ERROR_EVENT_COUNT:
+                    problems.append(f"事件声明 {declared!r} 条，期望 {ERROR_EVENT_COUNT}（夹具 error-session 的错误数）")
+                if not isinstance(row_h, (int, float)) or row_h <= 0 or not isinstance(scroll_h, int):
+                    problems.append(f"行高/总高缺失（firstRowHeight={row_h!r}，scrollHeight={scroll_h!r}）")
+                elif abs(scroll_h - declared * row_h) > 4:
+                    problems.append(f"事件列表总高 {scroll_h}px ≠ {declared} 行 × {row_h}px——声称的行数没有对应的内容高度")
+                if pads:
+                    if not isinstance(visible, int):
+                        problems.append("窗口化生效但可见行数缺失")
+                    elif abs(scroll_h - (sum(pads) + visible * row_h)) > 4:
+                        problems.append(f"垫片 {sum(pads)}px + 可见 {visible} 行 × {row_h}px ≠ 总高 {scroll_h}px——垫片没按行数算")
+                elif visible != declared:
+                    problems.append(f"无垫片时可见行 {visible!r} ≠ 声明 {declared}——列表没铺全，或行数算错")
+            if problems:
+                for problem in problems:
+                    print(f"BAD|{label}：错误档——{problem}")
+            else:
+                seen_error += 1
+                print(f"OK|{label}：趋势 SVG 有界且 {ERROR_WINDOW_DAYS} 根柱，事件列表是真列表（{events['declaredCount']} 行 × {events['firstRowHeight']:.1f}px ≈ 总高 {events['listScrollHeight']}px）")
+
+    # 错误档滚到底：事件面板要滚一次可达（docTop 对 main 滚动几何判，同用量
+    # 页三块面板的判法）。
+    if label.startswith("滚动=") and prev_label == ERROR_TAB_LABEL:
+        err = data.get("error") or {}
+        if err.get("view") is not True:
+            print(f"BAD|{label}：上一步是错误档，这一步却不见了 data-error-view——切档状态丢了")
+        else:
+            problems = []
+            main_info = data.get("main") or {}
+            scroll_top, client_height = main_info.get("scrollTop"), main_info.get("clientHeight")
+            hit = next((p for p in (data.get("panels") or []) if p.get("title") == "错误事件"), None)
+            if hit is None:
+                problems.append("面板「错误事件」不在文档里")
+            elif isinstance(scroll_top, int) and isinstance(client_height, int) and isinstance(hit.get("docTop"), (int, float)) and hit["docTop"] > scroll_top + client_height + 1:
+                problems.append(f"「错误事件」滚一次到不了（docTop {hit['docTop']:.0f} > scrollTop {scroll_top} + clientHeight {client_height}）")
+            if not isinstance(err.get("events"), dict):
+                problems.append("事件列表的滚动几何不见了（data-error-events）")
+            if problems:
+                for problem in problems:
+                    print(f"BAD|{label}：错误档滚到底——{problem}")
+            else:
+                print(f"OK|{label}：错误事件面板滚一次可达，列表几何仍在（scrollTop {scroll_top} / scrollHeight {main_info.get('scrollHeight')}）")
 
     # 点选压缩事件 chip 之后：取证卡要在视口内、被丢清单不能是「假列表」。
     # 防「假列表」的核心判据是滚动内容的总高 ≈ 声明行数 × 行高——清单只铺
@@ -1235,6 +1344,8 @@ if coverage and seen_usage_panels == 0:
     print("BAD|视图覆盖：没有任何视图产出三块用量面板的标题——用量页下半屏没被覆盖")
 if coverage and seen_context == 0:
     print("BAD|视图覆盖：没有任何视图产出上下文曲线几何——上下文标签页没被覆盖")
+if coverage and seen_error == 0:
+    print("BAD|视图覆盖：没有任何视图产出错误档几何——「错误」分段没被覆盖")
 PY
 )" || PROBE_STATUS=$?
 

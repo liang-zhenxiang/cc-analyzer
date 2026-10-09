@@ -1,0 +1,178 @@
+/* 错误事件列表（design §3.5）：行高 --row-h，五段（时间 88px｜通道记号 8px｜
+   身份｜预览 flex｜子 agent 徽标｜行尾箭头）。面板体 max-height 320px 内滚动。 */
+.description {
+  margin: 0 0 var(--sp-2);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.descriptionScope {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* 装饰性引导——faint 的合法用途（design §3.5）。 */
+.hint {
+  color: var(--text-faint);
+}
+
+.clear {
+  height: var(--control-h-sm);
+  margin-right: var(--sp-2);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  cursor: pointer;
+}
+
+.clear:hover {
+  background: var(--bg-hover);
+}
+
+.clear:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.scroller {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.list {
+  display: block;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 行高挂在 li 上、button 拉伸填满——「行是真 button」的语义不变（design
+   §3.5），但几何由 li 对账。高度不放 button：inline-level 按钮在行盒里对
+   基线，分数字号下每行多出 ~0.75px 缝隙，真机门禁 130% 字号 7 行就漂出
+   ±4px 容差（DroppedList 的 li 自己就是行，82 行都能对平——同一教训）。 */
+.list li {
+  display: flex;
+  height: var(--row-h);
+}
+
+.row {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  /* 行内基准字号：各段自设 fs-*，但没设的段（行尾箭头��不该吃到继承来的
+     更大字号——放大字号时它会成为最高的行内盒。 */
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-hover) var(--ease-out);
+}
+
+.row:hover {
+  background: var(--bg-hover);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+/* 时间列：min-width 是 100% 字号下的列预算（design §3.5 的 88px），字号放大
+   时由 nowrap 按内容撑开——写死 88px 在 130% 下会装不下 mono 时间串而折行，
+   折出来的第二行把 button 内容顶出 --row-h，布局溢出再冒进 ul 的
+   scrollHeight，门禁的行高账目就漂出容差（真机 130% 抓到）。格式补零成
+   等长串，mono 下列宽恒定、行间对齐。 */
+.time {
+  flex: 0 0 auto;
+  min-width: 88px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 通道记号：8px 实色方块（小徽章允许实色）；身份由下一段文字承载，不靠颜色单扛。 */
+.markTool,
+.markApi {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-xs);
+}
+
+.markTool {
+  background: var(--chart-1);
+}
+
+.markApi {
+  background: var(--chart-4);
+}
+
+.identity {
+  flex: 0 0 auto;
+  max-width: 160px;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 子 agent 徽标：归属信息不是警报，中性台阶（design §3.5）。 */
+.sidechain {
+  flex: 0 0 auto;
+  padding: 0 var(--sp-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  background: var(--bg-inset);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.arrow {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity var(--dur-hover) var(--ease-out);
+}
+
+.row:hover .arrow,
+.row:focus-visible .arrow {
+  opacity: 1;
+}
+
+.noMatch {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}

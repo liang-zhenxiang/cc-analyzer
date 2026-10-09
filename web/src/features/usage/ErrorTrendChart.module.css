@@ -1,0 +1,190 @@
+/* 「每日错误率」趋势图（design §3.2）：工具柱 = chart-1，API 线 = chart-4，
+   异常墨水（▲ / 异常线 / 直标）= danger——全图仅有的红色数据墨水。 */
+.legend {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-2);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+/* 图例小徽章允许实色（design §4）；三形互异（块 / 线段 / 三角）。 */
+.legendTool {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-xs);
+  background: var(--chart-1);
+}
+
+.legendApi {
+  width: 16px;
+  height: 2px;
+  background: var(--chart-4);
+}
+
+.legendAnomaly {
+  width: 0;
+  height: 0;
+  margin-top: var(--sp-05);
+  border-right: 4px solid transparent;
+  border-bottom: 7px solid var(--danger);
+  border-left: 4px solid transparent;
+}
+
+.chartWrap {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.chartWrap:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 工具柱：soft 填充 + 实色描边（BarChart.bar 同款仪器画法）。 */
+.bar {
+  fill: var(--chart-1-soft);
+  stroke: var(--chart-1);
+  stroke-width: 1;
+  cursor: pointer;
+  transition: fill var(--dur-hover) var(--ease-out), fill-opacity var(--dur-hover) var(--ease-out);
+}
+
+/* 悬停是瞬时强调，允许实色半透明；键盘焦点日加深描边（不靠颜色单扛）。 */
+.bar:hover,
+.barFocused {
+  fill: var(--chart-1);
+  fill-opacity: 0.55;
+}
+
+.barFocused {
+  stroke-width: 2;
+}
+
+/* 日过滤选中：实色加深一档 + 描边加粗——SVG 里没有「左缘竖条」，选中语义
+   由浓度与描边双信号承载（与切面行的选中同源，不靠颜色单扛）。 */
+.barSelected {
+  fill: var(--chart-1);
+  fill-opacity: 0.35;
+  stroke-width: 2;
+}
+
+/* API 线：chart-4 2px 直折线（不平滑——仪器不造假）。 */
+.apiLine {
+  fill: none;
+  stroke: var(--chart-4);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.apiDot,
+.hoverApiDot {
+  fill: var(--chart-4);
+}
+
+/* 悬停吸附点：实心 + 表面环（dataviz 标记规格）。 */
+.hoverApiDot {
+  stroke: var(--bg-subtle);
+  stroke-width: 2;
+}
+
+/* 异常线：唯一的参考线，由聚合层阈值驱动；▲ 直标与线都用 danger。 */
+.anomalyLine {
+  stroke: var(--danger);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.anomalyLineLabel {
+  fill: var(--danger);
+  font-size: var(--fs-xs);
+  text-anchor: end;
+}
+
+/* 异常日直标：文字走 secondary（▲ 本身已是 danger，形状与文字双信号）。 */
+.anomalyDayLabel {
+  fill: var(--text-secondary);
+  font-size: var(--fs-xs);
+}
+
+.anomalyMark {
+  fill: var(--danger);
+  stroke: none;
+}
+
+.crosshair {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+/* tooltip：ContextView 探针气泡同款画法（浮层三件套之轻量版）。 */
+.tooltip {
+  position: absolute;
+  top: var(--sp-1);
+  transform: translateX(-50%);
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.tooltipLine {
+  display: block;
+}
+
+.tooltipLine strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.tooltipTertiary {
+  color: var(--text-tertiary);
+}
+
+.tooltipAnomaly {
+  color: var(--danger);
+}
+
+.caption {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    transition: none;
+  }
+}

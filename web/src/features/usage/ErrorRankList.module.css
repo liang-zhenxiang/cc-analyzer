@@ -1,0 +1,125 @@
+/* 分布切面行（design §3.3/§3.4）：标签右对齐 170px｜条｜次数 64px｜率 48px，
+   行高 26px（HBarChart 惯例）。间距只用 --sp-* 档位；描边与条高是「形」，
+   按 tokens.css 的规则不受档位约束。 */
+.list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  gap: var(--sp-1);
+  list-style: none;
+}
+
+/* 行高挂在 li 上、button 拉伸填满——与 ErrorEventList 同一教训：高度留在
+   inline-level 按钮上时，行盒基线会在分数字号下给每行加亚像素缝隙。 */
+.list li {
+  display: flex;
+  height: 26px;
+}
+
+.row {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-1);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-hover) var(--ease-out);
+}
+
+.dual {
+  grid-template-columns: 170px minmax(0, 1fr) 64px 48px;
+}
+
+.single {
+  grid-template-columns: 170px minmax(0, 1fr) 64px;
+}
+
+.row:hover {
+  background: var(--bg-hover);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* 选中 = 过滤中：底色 + 左缘竖条双信号（日志表选中行同语言）。 */
+.selected {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 条区：表面轨道不设底色（面板底就是轨道），段与条贴行盒垂直居中。 */
+.track {
+  position: relative;
+  display: flex;
+  height: 14px;
+  min-width: 0;
+  gap: 2px; /* 堆叠段的表面缝（dataviz 规格）：缝露的是面板底本身 */
+}
+
+/* 大面积填充只允许 -soft，轮廓由实色描边收（BarChart.bar 同款仪器画法）。 */
+.bar,
+.segment {
+  height: 100%;
+  border-radius: var(--r-xs);
+}
+
+.bar {
+  background: var(--chart-1-soft);
+  border: 1px solid var(--chart-1);
+}
+
+.segmentTool {
+  background: var(--chart-1-soft);
+  border: 1px solid var(--chart-1);
+}
+
+.segmentApi {
+  background: var(--chart-4-soft);
+  border: 1px solid var(--chart-4);
+}
+
+/* 「其他」折尾容器：中性台阶色声明「我不是通道」；信息在文字读数。 */
+.tail .bar,
+.tail .segment {
+  background: var(--bg-active);
+  border-color: var(--border-strong);
+}
+
+.value,
+.secondary {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.secondary {
+  color: var(--text-tertiary);
+}

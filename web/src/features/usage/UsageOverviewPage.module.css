@@ -26,6 +26,15 @@
   gap: var(--sp-3);
 }
 
+/* 页头左簇：视图分段（用量 | 错误）在前、区间控件在后——视图身份先于时间
+   范围（N1 design §2.1）。右端的进度行两档共用，位置不随档位跳。 */
+.headerControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
 .progress {
   color: var(--text-tertiary);
   font-size: var(--fs-xs);

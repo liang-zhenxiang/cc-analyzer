@@ -1,0 +1,76 @@
+/* 「错误」档的版式骨架（design §2.2）：KPI 行复用页面级 kpiRow（见
+   UsageOverviewPage.module.css），趋势与事件面板各住整行，两个分布切面
+   两列（align-items: start——两列不等高不补白）。纵向文档流滚动。 */
+.section {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.fullRow {
+  min-width: 0;
+}
+
+.twoCol {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+  align-items: start;
+}
+
+/* 通道色块：标签文字前的 8×8 冗余信号（CVD 双保险），aria-hidden。 */
+.chipApi,
+.chipTool {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--sp-1);
+  border-radius: var(--r-xs);
+  vertical-align: baseline;
+}
+
+.chipApi {
+  background: var(--chart-4);
+}
+
+.chipTool {
+  background: var(--chart-1);
+}
+
+/* 值行右侧次读数（design §3.1）。 */
+.kpiSub {
+  margin-left: var(--sp-2);
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+
+/* 红色只给「仪器判定异常」（design §0-1）：KPI 异常日 >0 是三处之一。 */
+.kpiDanger {
+  color: var(--danger);
+}
+
+.caption {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 空态事实行（design §3.6）：0 是被验证过的——分母数字就是证据。 */
+.emptyFact {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+@media (max-width: 900px) {
+  .twoCol {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

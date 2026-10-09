@@ -162,6 +162,12 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
                     setTab("analyzer");
                     setRevealRequest({ path: session.path, recordId: null, nonce: Date.now() });
                   }}
+                  // 错误事件行的握手（N1）：与全局搜索的 onReveal 同款——sidechain
+                  // 事件 recordId=null，reveal 的既有语义就是「只落到会话」。
+                  onRevealRecord={(path, recordId) => {
+                    setTab("analyzer");
+                    setRevealRequest({ path, recordId, nonce: Date.now() });
+                  }}
                 />
               ) : (
                 <MonitorPage onEnterFloat={enterFloatMode} />

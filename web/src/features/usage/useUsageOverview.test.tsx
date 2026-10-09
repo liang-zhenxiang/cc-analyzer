@@ -183,6 +183,36 @@ describe("useUsageOverview", () => {
     expect(sessionReads()).toBe(1);
   });
 
+  it("mounts errorExtract on every input, including cache-served mounts", async () => {
+    // 错误聚合（N1）的提取挂在 readSession 产出上：缓存命中的会话不重读文件，
+    // 但 errorExtract 必须照样携带——否则第二次挂载的错误面板静默变空。
+    const path = `${PROJECTS_ROOT}/-repo-error-mount/iii.jsonl`;
+    const apiErrorLine = JSON.stringify({
+      type: "assistant",
+      timestamp: "2026-05-01T10:00:10.000Z",
+      uuid: "i3",
+      isApiErrorMessage: true,
+      apiErrorStatus: 402,
+      error: "unknown",
+      message: { id: "msg-i3", role: "assistant", model: "<synthetic>", content: [{ type: "text", text: "API Error: Payment required" }] }
+    });
+    const bridges = createUsageBridges({
+      [path]: userLine("i1", "2026-05-01T10:00:00.000Z") + "\n" + assistantLine("i2", "2026-05-01T10:00:05.000Z") + "\n" + apiErrorLine
+    });
+
+    const first = renderUsageHook(bridges);
+    await waitFor(() => expect(first.result.current.scanning).toBe(false));
+    const extract = first.result.current.inputs[0]?.errorExtract;
+    expect(extract).toBeDefined();
+    expect(extract?.events).toHaveLength(1);
+    expect(extract?.events[0]).toMatchObject({ kind: "api", apiStatus: 402 });
+    first.unmount();
+
+    const second = renderUsageHook(bridges);
+    await waitFor(() => expect(second.result.current.scanning).toBe(false));
+    expect(second.result.current.inputs[0]?.errorExtract?.events).toHaveLength(1);
+  });
+
   it("drops a superseded scan when the session list changes mid-flight", async () => {
     const goodPath = `${PROJECTS_ROOT}/-repo-race/ggg.jsonl`;
     const extraPath = `${PROJECTS_ROOT}/-repo-race/hhh.jsonl`;

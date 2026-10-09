@@ -1,6 +1,7 @@
 import type { SessionRecord, SessionUsage, CompactEvent } from "../sessions/types";
 import type { SessionMeta } from "../sessions/metadataCache";
 import { tokenTotalsOf } from "../sessions/tokenTotals";
+import type { ErrorSessionFacts } from "./errorStats";
 
 /**
  * Pure aggregation over parsed sessions: the usage dashboard's whole data
@@ -61,6 +62,13 @@ export type UsageSessionInput = {
    * windowed `compactionStats` reads them separately.
    */
   compactEvents?: readonly CompactEvent[];
+  /**
+   * Error events plus per-day denominator facts (N1), extracted in the same
+   * scan pass — same precedent as `compactEvents`: this aggregate ignores
+   * them; the windowed `mergeErrorStats` reads them separately so the two
+   * calibres never mix in one merge.
+   */
+  errorExtract?: ErrorSessionFacts;
   /**
    * The scan's `SessionMeta` for this session, when the input came from a real
    * scan (hand-built fakes in tests omit it). The compaction panel's top-3 rows

@@ -13,6 +13,7 @@ import {
   type UsageAggregate,
   type UsageSessionInput
 } from "./usageAggregations";
+import { extractErrorEvents } from "./errorStats";
 
 // 解析缓存与全局搜索共享同一单例（见 sessionParseCache.ts 的注释）：
 // 一个文件只解析一次，消费方再多也不重复付费。
@@ -108,6 +109,9 @@ export function useUsageOverview() {
                 projectPath: session.cwd,
                 // 压缩面板（J3）逐会话读事件；SessionMeta 让 top3 行能重开会话。
                 compactEvents: parsed.compactEvents ?? [],
+                // 错误聚合（N1）同趟提取：事件 + 逐日分母，纯函数无 IO；
+                // 在这里产出（而不是解析层），缓存命中的会话同样携带。
+                errorExtract: extractErrorEvents(parsed, session),
                 session
               };
               collected.push(input);
