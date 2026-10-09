@@ -192,8 +192,35 @@ jobs:
       # WebKit 也要装：macOS 上 Tauri 用的是 WKWebView，
       # 真机截图受屏幕录制权限限制（详见 .trellis/spec/testing/gui-tests.md），
       # 跑 WebKit 是同一引擎家族、且不需要任何系统权限的近似。
+      #
+      # 这一步的耗时同样**几乎全在 apt**：实测一次 9 分 57 秒里，`--with-deps`
+      # 内部装的 197 个包 / 116 MB 占 9 分 41 秒（被限速到 206 kB/s），而四个
+      # 浏览器包合计只占 13 秒（#144）。所以只缓存 apt 的下载物，不缓存浏览器本体。
+      - name: 缓存 apt 包（Playwright 的系统依赖）
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .apt-archives
+          # 键由 lockfile 派生：Playwright 升级即自动换键（它的依赖列表跟着版本走）
+          key: apt-playwright-${{ runner.os }}-${{ hashFiles('web/package-lock.json') }}
+          restore-keys: apt-playwright-${{ runner.os }}-
+
       - name: 安装浏览器（Chromium + WebKit）
-        run: npx --prefix web playwright install --with-deps chromium webkit
+        # 兜底：镜像彻底卡死时快速失败，重跑抽新 runner 并命中上面的缓存
+        timeout-minutes: 15
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/.apt-archives"
+          # `_apt`（沙箱下载用户）要能写；末尾再把属主交还给 runner 供缓存打包
+          chmod -R 0777 "$GITHUB_WORKSPACE/.apt-archives"
+          # `--with-deps` 是 Playwright 自己调 apt-get，**传不进** `-o Dir::Cache::archives`，
+          # 所以写一份全局配置，让所有 apt 调用（它的和我们的）都落到同一个缓存目录。
+          echo "Dir::Cache::archives \"$GITHUB_WORKSPACE/.apt-archives\";" \
+            | sudo tee /etc/apt/apt.conf.d/99-ci-apt-cache > /dev/null
+          npx --prefix web playwright install --with-deps chromium webkit
+          # 属主不交还，缓存保存时会 Permission denied——而那**不会让 job 失败**
+          # （Rust 那半踩过，见 #143），只会让缓存永远建不起来。
+          sudo chown -R "$(id -u)":"$(id -g)" "$GITHUB_WORKSPACE/.apt-archives"
 
       - name: 运行端到端测试
         run: npm --prefix web run test:e2e
