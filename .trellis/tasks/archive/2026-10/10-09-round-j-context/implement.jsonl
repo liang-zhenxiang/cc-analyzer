@@ -1,0 +1,9 @@
+{"file": ".trellis/tasks/10-09-round-j-context/research/jsonl-compact-facts.md", "reason": "真实 JSONL 实测字段——compact_boundary 挂靠用 logicalParentUuid、cumulativeDroppedTokens 是累计值等硬约束"}
+{"file": ".trellis/tasks/10-09-round-j-context/research/design-context-view.md", "reason": "设计师产出的视觉与交互规范（J2/J3 实现的唯一视觉依据）"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "五个顶层目录与依赖方向、测试贴实现文件放"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "命名函数组件、CSS Modules + 令牌、无 React.FC/memo/forwardRef"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "四层状态阶梯与 cca-* localStorage 键"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "磁盘/进程边界用 unknown + 手写收窄"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "tsc -b + Vitest 门禁、测试要求、审查清单"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "异步数据流与 request-id 守卫、DOM 测量 hook（窗口化列表）"}
+{"file": ".trellis/spec/testing/index.md", "reason": "三层测试各自覆盖什么、验收标准"}

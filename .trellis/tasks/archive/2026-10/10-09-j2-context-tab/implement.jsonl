@@ -1,0 +1,7 @@
+{"file": ".trellis/tasks/10-09-round-j-context/research/design-context-view.md", "reason": "视觉与交互唯一权威（§2 视图A、§6 令牌、§7 交互、§8 a11y、§9 不做什么）"}
+{"file": ".trellis/tasks/10-09-round-j-context/research/jsonl-compact-facts.md", "reason": "数据硬约束"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "文件归属与依赖方向"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "组件与 CSS Modules 约定"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "DOM 测量 hook 与 rAF"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "门禁与测试要求"}
+{"file": ".trellis/spec/testing/index.md", "reason": "三层测试分工与夹具共用"}

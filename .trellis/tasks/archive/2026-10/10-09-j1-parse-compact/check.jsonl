@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/10-09-round-j-context/research/jsonl-compact-facts.md", "reason": "核对实现是否遵守实测硬约束（挂靠/累计值/幸存清单/null 不造 0）"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "门禁命令、禁用模式、审查清单"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "边界收窄纪律"}
+{"file": ".trellis/spec/testing/index.md", "reason": "验收标准与夹具共用规则"}
