@@ -19,7 +19,9 @@ const kindLabels: Record<SessionRecord["kind"], string> = {
   user: "用户",
   assistant: "模型",
   tool: "工具",
-  wait: "等待"
+  wait: "等待",
+  // 仅压缩带行的合成边界记录会走到这里（RecordDetailPanel 的子表）。
+  system: "系统"
 };
 
 /** Fallback height until a row is measured, plus the height an expanded row adds. */

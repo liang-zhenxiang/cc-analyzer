@@ -191,7 +191,10 @@ function consumeCompactBoundary(state: ParserState, value: Record<string, unknow
     survivedUuids: survivedUuidsOf(metadata),
     summaryText: null,
     summaryUuid: null,
-    logicalParentUuid: optionalString(value.logicalParentUuid) ?? null
+    logicalParentUuid: optionalString(value.logicalParentUuid) ?? null,
+    // The raw line stays with the event: the log table's band row (J3) shows
+    // it under 原始事件 just like every message row shows its own record.
+    raw: value
   });
 }
 

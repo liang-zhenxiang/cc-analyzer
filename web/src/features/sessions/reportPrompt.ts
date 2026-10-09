@@ -474,11 +474,13 @@ function recordFilePath(record: SessionRecord): string | undefined {
 
 /** Row-type distribution for the current filter, mirroring 筛选后分布. */
 export function distributionSection(rows: LogRow[]): PromptSection {
-  if (rows.length === 0) {
+  // 压缩带行不参与「时间去哪了」的分区（design §9-4）：它是结构，不是活动类别。
+  const partitioned = rows.filter((row) => row.kind !== "compact");
+  if (partitioned.length === 0) {
     return { id: "distribution", title: "筛选后分布", body: "当前筛选没有匹配到记录。", priority: 92 };
   }
   const byLabel = new Map<string, { count: number; durationMs: number }>();
-  for (const row of rows) {
+  for (const row of partitioned) {
     const entry = byLabel.get(row.label) ?? { count: 0, durationMs: 0 };
     entry.count += 1;
     entry.durationMs += row.durationMs;
@@ -490,7 +492,7 @@ export function distributionSection(rows: LogRow[]): PromptSection {
     title: "筛选后分布",
     priority: 92,
     body: [
-      `共 ${rows.length} 条（按耗时合计降序）`,
+      `共 ${partitioned.length} 条（按耗时合计降序）`,
       "",
       "| 类型 | 条数 | 耗时合计 |",
       "|---|---|---|",

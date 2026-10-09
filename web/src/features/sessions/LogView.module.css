@@ -268,6 +268,100 @@
   --row-color: var(--cat-wait);
 }
 
+/* 压缩边界带行（design §3）：全表唯一一种通栏行。底色是比行低一���的台阶
+   （--bg-inset），上边框比行分隔线强一级——「在此切开」；下边沿用行分隔线。
+   身份由几何（通栏）+ 形状（◆）+ 文字承载，**不占类别色**（--cat-* 一个都不
+   动，两主题与 CVD 零成本，design §6）。hover 走 tr:hover 的既有规则。 */
+.compactRow {
+  background: var(--bg-inset);
+}
+
+/* td 保持表格单元：在 table-layout: fixed 下，跨 8 列的宽度由列预算求和而来；
+   一旦改成 flex，固定布局会用匿名单元格按内容自适应，数字串会被压成零宽。 */
+.compactRow > td {
+  border-top: 1px solid var(--border-strong);
+}
+
+/* 行内容是一个 flex 行：时间 / 标题不缩，数字串吃剩余空间并在 130% 档截断，
+   展开器被推到右端。 */
+.compactLine {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--sp-2);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* 时间与数字串都走 mono/tabular：与时间列同节拍（design §3）。 */
+.compactTime {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.compactTitle {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+/* 数字串 400 字重、可截断：130% 档单行放不下时 ellipsis，全文在行的 title。 */
+.compactNumbers {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 展开器与 .actions 同款约束：24px 按钮不把行撑过 --row-h，右对齐吃余量。 */
+.compactActions {
+  display: flex;
+  flex: 0 0 auto;
+  height: var(--lh-sm);
+  margin-left: auto;
+  align-self: center;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* 压缩行展开区里的幸存清单：与取证卡的幸存清单同构（时间 mono + 行语言）。 */
+.compactSurvivors {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.compactSurvivors li {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compactSurvivors time {
+  margin-right: var(--sp-2);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.compactSurvivorsEmpty {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
 /* 耗时档位用文字色阶与字重区分，**不用类别色**。
    借用 --cat-* 会让蓝色同时是「tool 执行」和「耗时 1–60 秒」，
    一个维度被拆成两半，两个维度都读不准。 */

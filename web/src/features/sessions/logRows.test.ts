@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildLogRows, tokensOf } from "./logRows";
+import { buildLogRows, filterLogRows, tokensOf } from "./logRows";
+import { emptyFilter } from "./filters";
 import { parseJsonlText } from "./parseJsonl";
 import type { SessionRecord, Turn } from "./types";
 import ansiFixture from "../../../tests/fixtures/session-ansi.jsonl?raw";
+import compactFixture from "../../../tests/fixtures/compact-session.jsonl?raw";
 
 const ESC = "\u001b";
 
@@ -296,5 +298,95 @@ describe("buildLogRows", () => {
     const rows = buildLogRows([record], []);
     expect(rows[0].summary).toBe("line1");
     expect(rows[0].summary.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * 压缩边界带行（J3，design §3）：用共享夹具 compact-session.jsonl（2 次压缩：
+ * auto + manual，pre/post 齐全）走完整解析管线，断言注册、入序与摘要折叠。
+ */
+describe("buildLogRows · 压缩边界带行", () => {
+  const parsed = parseJsonlText(compactFixture, "/repo/compact-demo/compact-session.jsonl");
+  const events = parsed.compactEvents ?? [];
+  const rows = buildLogRows(parsed.records, parsed.turns, events);
+
+  const boundary1 = Date.UTC(2026, 2, 1, 9, 33, 57, 455);
+
+  it("registers one full-width compact row per boundary, in boundary order", () => {
+    const compactRows = rows.filter((row) => row.kind === "compact");
+    expect(compactRows.map((row) => row.id)).toEqual([
+      "compact-cs-boundary-001",
+      "compact-cs-boundary-002"
+    ]);
+    expect(compactRows[0]).toMatchObject({
+      kind: "compact",
+      label: "压缩",
+      action: "压缩 #1（自动）",
+      summary: "167,400 → 11,200 tok · 丢弃 156,200 · 37.5s",
+      timestamp: boundary1,
+      status: "na",
+      tokens: null,
+      records: []
+    });
+    expect(compactRows[1].action).toBe("压缩 #2（手动）");
+  });
+
+  it("inserts the band row by boundary timestamp between its neighbours", () => {
+    const index = rows.findIndex((row) => row.id === "compact-cs-boundary-001");
+    expect(index).toBeGreaterThan(0);
+    expect(rows[index - 1].timestamp).toBeLessThanOrEqual(boundary1);
+    expect(rows[index + 1].timestamp).toBeGreaterThanOrEqual(boundary1);
+  });
+
+  it("folds the isCompactSummary message into the band row instead of a user row", () => {
+    // 数据约束 #3：摘要是模型的重写工件，不是用户发言——表里不允许出现它的行。
+    expect(rows.some((row) => row.records.some((record) => record.compactSummary === true))).toBe(
+      false
+    );
+    const compact = rows.find((row) => row.id === "compact-cs-boundary-001")?.compact;
+    expect(compact?.summaryRecord?.fullId).toBe("cs-summary-001");
+    expect(compact?.summaryRecord?.text).toContain("This session is being continued");
+  });
+
+  it("resolves the survivor list against the session's records", () => {
+    const compact = rows.find((row) => row.id === "compact-cs-boundary-001")?.compact;
+    expect(compact?.survivors.map((record) => record.fullId)).toEqual([
+      "cs-user-047",
+      "cs-asst-047",
+      "cs-user-048",
+      "cs-asst-048",
+      "cs-user-049",
+      "cs-asst-049"
+    ]);
+  });
+
+  it("synthesizes a system boundary record for the detail panel, outside records", () => {
+    const compact = rows.find((row) => row.id === "compact-cs-boundary-001")?.compact;
+    expect(compact?.record).toMatchObject({
+      kind: "system",
+      fullId: "cs-boundary-001",
+      timestamp: boundary1
+    });
+    // 合成记录不进 row.records：报告与导出按记录聚合，不许被它污染。
+    expect(rows.find((row) => row.id === "compact-cs-boundary-001")?.records).toEqual([]);
+  });
+
+  it("participates in the kind filter as 压缩", () => {
+    const only = filterLogRows(rows, { ...emptyFilter, kinds: new Set(["compact"]) });
+    expect(only.map((row) => row.kind)).toEqual(["compact", "compact"]);
+    // 类型筛选不含压缩时，压缩行随其它类型一起被筛掉。
+    const without = filterLogRows(rows, { ...emptyFilter, kinds: new Set(["user", "llm"]) });
+    expect(without.some((row) => row.kind === "compact")).toBe(false);
+  });
+
+  it("matches the duration filter by compaction duration", () => {
+    const slow = filterLogRows(rows, {
+      ...emptyFilter,
+      durationMode: "gt",
+      minDurationMs: 40_000
+    });
+    // 37.455s 的 #1 被排除，41.2s 的 #2 留下。
+    expect(slow.some((row) => row.id === "compact-cs-boundary-001")).toBe(false);
+    expect(slow.some((row) => row.id === "compact-cs-boundary-002")).toBe(true);
   });
 });

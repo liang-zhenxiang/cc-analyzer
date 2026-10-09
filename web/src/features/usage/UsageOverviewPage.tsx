@@ -4,10 +4,13 @@ import { ErrorState } from "../../components/ErrorState";
 import { Panel } from "../../components/Panel";
 import { SegmentedControl, type SegmentedItem } from "../../components/SegmentedControl";
 import { formatModelId, formatProjectPath, formatTokenCount, formatUsd } from "../../lib/format";
+import type { SessionMeta } from "../sessions/metadataCache";
 import { PRICING_AS_OF, estimateCost } from "./pricingSnapshot";
 import { ProvenanceBadge } from "./ProvenanceBadge";
 import { useUsageOverview } from "./useUsageOverview";
 import { BillingWindowCard } from "./BillingWindowCard";
+import { CompactionStatsPanel } from "./CompactionStatsPanel";
+import { compactionStats } from "./compactionStats";
 import {
   aggregateRange,
   formatDayLabel,
@@ -70,7 +73,12 @@ function tokenClassValue(totals: UsageTotals, tokenClass: TokenClass): number {
   return tokenClass === "total" ? totalsSum(totals) : totals[tokenClass];
 }
 
-export function UsageOverviewPage() {
+export function UsageOverviewPage({
+  onOpenSession
+}: {
+  /** 压缩统计 top3 行的「打开会话」回调；缺省（单测）时行不可点。 */
+  onOpenSession?: (session: SessionMeta) => void;
+} = {}) {
   const { inputs, progress, scanning, error, skipped, refresh } = useUsageOverview();
   const [days, setDays] = useState<UsageRange>(readStoredRange);
   const [tokenClass, setTokenClass] = useState<TokenClass>("total");
@@ -84,6 +92,8 @@ export function UsageOverviewPage() {
   }, [days]);
 
   const range = useMemo(() => aggregateRange(inputs, days), [inputs, days]);
+  // 压缩统计与 aggregateRange 同一口径的时间窗（周期口径与页面控件一致）。
+  const compaction = useMemo(() => compactionStats(inputs, days), [inputs, days]);
 
   const cost = useMemo(() => {
     let usd = 0;
@@ -290,6 +300,16 @@ export function UsageOverviewPage() {
         <Panel title="活跃时段（周 × 小时）">
           <Heatmap counts={range.hourly} ariaLabel="活跃时段热力图" />
         </Panel>
+
+        {/* 压缩统计住满第三行整行（design §4）：两列网格里塞半宽会留空洞，
+            这块面板本来就是一条横向叙事。 */}
+        <div className={styles.compactionRow}>
+          <CompactionStatsPanel
+            stats={compaction}
+            days={days}
+            onOpenSession={onOpenSession}
+          />
+        </div>
       </div>
     </section>
   );

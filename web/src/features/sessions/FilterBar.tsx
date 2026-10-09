@@ -10,7 +10,9 @@ const kindLabels: Array<[RowKindFilter, string]> = [
   ["tool", "工具"],
   ["subagent", "Agent"],
   ["workflow", "workflow"],
-  ["wait", "等用户"]
+  ["wait", "等用户"],
+  // 第七个 chip 是纯文字（design §3）：压缩是结构不是活动类别，不配色。
+  ["compact", "压缩"]
 ];
 
 const statusLabels: Array<[RowStatusFilter, string]> = [

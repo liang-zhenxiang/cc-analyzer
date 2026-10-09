@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ProvenanceBadge } from "../usage/ProvenanceBadge";
 import { formatAxisValue } from "../usage/charts/chartPrimitives";
-import { toRow } from "./logRows";
+import { toRow, triggerLabel } from "./logRows";
 import { DroppedList } from "./DroppedList";
 import { formatClock, formatDateTime, formatDuration } from "../../lib/format";
 import type { DroppedBucket } from "./droppedMessages";
@@ -9,13 +9,8 @@ import type { CompactionAnchor } from "./contextSeries";
 import type { CompactEvent, ContextSample } from "./types";
 import styles from "./CompactionPanel.module.css";
 
-/** trigger 一律是文字（design §8），永远不编码成颜色或形状。 */
-export function triggerLabel(trigger: string | null): string {
-  if (trigger === "auto") return "自动";
-  if (trigger === "manual") return "手动";
-  if (trigger === null) return "—";
-  return trigger;
-}
+// triggerLabel 已上移到 logRows.ts：带行、事件 chip、取证卡与详情面板必须把
+// 同一个 trigger 叫成同一个名字（ROW_KIND_LABELS 的同款理由）。
 
 /** `03-01 09:33` — 事件 chip 的短时间戳。 */
 function shortStamp(ms: number): string {

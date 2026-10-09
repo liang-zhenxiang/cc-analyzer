@@ -96,7 +96,9 @@ const NEWEST_FIXTURE_DAY = Date.UTC(2026, 9, 1);
 
 /** 把内容里全部 `"timestamp"` 整体平移 N 天（UTC 日历日，保留当天时刻）。 */
 export function shiftDays(content: string, offsetDays: number): string {
-  return content.replace(/"timestamp":"([^"]+)"/g, (match, iso: string) => {
+  // `:\s*`：夹具不全是紧凑 JSON——compact-session.jsonl 的字段冒号后带空格，
+  // 只匹配无空格形式会把整个平移变成空操作（事件留在窗外、面板读到 0 次）。
+  return content.replace(/"timestamp":\s*"([^"]+)"/g, (match, iso: string) => {
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return match;
     date.setUTCDate(date.getUTCDate() + offsetDays);

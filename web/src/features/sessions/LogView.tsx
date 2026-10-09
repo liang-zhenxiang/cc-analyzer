@@ -12,13 +12,14 @@ import { Button } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
 import { AnsiText } from "../../components/AnsiText";
 import type { SessionRecord } from "./types";
-import type { LogRow } from "./logRows";
+import type { CompactRowData, LogRow } from "./logRows";
+import { toRow, triggerLabel } from "./logRows";
 import { formatInputValue, structuredResultLines } from "./structuredResultLines";
 import { focusRowIn, useRowNavigation } from "./useRowNavigation";
 import { useMeasuredRowHeights } from "./measuredRows";
 import { buildRowOffsets, computeSizedWindow } from "./virtualWindow";
 import type { TimeRange } from "./filters";
-import { formatDateTime, formatDuration } from "../../lib/format";
+import { formatClock, formatDateTime, formatDuration } from "../../lib/format";
 import { safeStringify } from "../../lib/json";
 import { useThresholds } from "../settings/thresholds";
 import { useFontScale } from "../settings/fontScale";
@@ -33,7 +34,10 @@ const EXPANDED_PANEL_HEIGHT = 320;
 
 /** Where a row sits on the session timeline. */
 function rowInterval(row: LogRow): { start: number; end: number } {
-  return row.kind === "llm"
+  // Model rows and compact bands both end at their timestamp: a response's
+  // span reaches back over its thinking time, and compaction's durationMs
+  // elapsed before the boundary was written.
+  return row.kind === "llm" || row.kind === "compact"
     ? { start: row.timestamp - row.durationMs, end: row.timestamp }
     : { start: row.timestamp, end: row.timestamp + row.durationMs };
 }
@@ -111,7 +115,8 @@ export function LogView({
   highlightId,
   timeRange,
   onSelect,
-  onLocateInTree
+  onLocateInTree,
+  onLocateInContext
 }: {
   rows: LogRow[];
   selectedId: string | null;
@@ -119,6 +124,8 @@ export function LogView({
   timeRange?: TimeRange | null;
   onSelect: (record: SessionRecord) => void;
   onLocateInTree: (recordId: string) => void;
+  /** 切到上下文标签页并选中该压缩事件（带行展开区的「在上下文视图定位」）。 */
+  onLocateInContext: (eventId: string) => void;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const highlightRef = useRef<HTMLTableRowElement | null>(null);
@@ -167,7 +174,10 @@ export function LogView({
   const { activeIndex, setActiveIndex, onKeyDown: onRowKeyDown } = useRowNavigation({
     count: visibleRows.length,
     onActivate: (index) => {
-      const primary = visibleRows[index]?.records[visibleRows[index].records.length - 1];
+      // Compact band rows select their synthesized boundary record (design §3:
+      // 「与消息行完全同权」); message rows select their last record.
+      const row = visibleRows[index];
+      const primary = row?.compact ? row.compact.record : row?.records[row.records.length - 1];
       if (primary) onSelect(primary);
     },
     focusRow
@@ -233,8 +243,10 @@ export function LogView({
             <tr aria-hidden="true" style={{ height: virtualWindow.padTop }} />
           ) : null}
           {visibleRows.map((row, index) => {
-            const primary = row.records[row.records.length - 1];
-            const selected = row.records.some((record) => record.fullId === selectedId);
+            const primary = row.compact ? row.compact.record : row.records[row.records.length - 1];
+            const selected = row.compact
+              ? row.compact.event.id === selectedId
+              : row.records.some((record) => record.fullId === selectedId);
             const expanded = expandedId === row.id;
             const highlighted = highlightId
               ? row.records.some((record) => record.fullId === highlightId)
@@ -256,6 +268,7 @@ export function LogView({
                 axis={axis}
                 onSelect={onSelect}
                 onLocateInTree={onLocateInTree}
+                onLocateInContext={onLocateInContext}
                 onToggle={() => setExpandedId((current) => (current === row.id ? null : row.id))}
               />
             );
@@ -287,6 +300,7 @@ function Fragment({
   axis,
   onSelect,
   onLocateInTree,
+  onLocateInContext,
   onToggle
 }: {
   row: LogRow;
@@ -303,6 +317,7 @@ function Fragment({
   axis: Axis;
   onSelect: (record: SessionRecord) => void;
   onLocateInTree: (recordId: string) => void;
+  onLocateInContext: (eventId: string) => void;
   onToggle: () => void;
 }) {
   const panels = row.gap
@@ -316,99 +331,266 @@ function Fragment({
     : row.records.flatMap((record) => recordPanels(record));
   return (
     <>
-      <tr
-        ref={(element) => {
-          rowMeasure(element);
-          if (rowRef) rowRef.current = element;
-        }}
-        className={[
-          styles[row.kind],
-          selected ? styles.selected : "",
-          highlighted ? styles.highlight : ""
-        ].filter(Boolean).join(" ")}
-        data-row-index={navIndex}
-        tabIndex={navActive ? 0 : -1}
-        onFocus={() => onNavFocus(navIndex)}
-        onClick={() => {
-          if (primary) onSelect(primary);
-        }}
-      >
-        <td>{formatDateTime(row.timestamp)}</td>
-        <td><span className={styles.kind}>{row.label}</span></td>
-        <td>
-          {/* 摘要列是唯一没写宽度的列：它在固定布局里吸收剩余宽度（130% 档实测
-              ~404px）。截断交给这一行自己——列宽不再由内容决定。 */}
-          <span
-            className={styles.detailLine}
-            title={row.summary ? `${row.action} · ${row.summary}` : row.action}
-          >
-            <strong>{row.action}</strong>
-            {row.summary ? ` · ${row.summary}` : ""}
-          </span>
-        </td>
-        <td className={styles.tokens} title={promptBreakdown(row)}>
-          {row.tokens ? `${row.tokens.prompt} / ${row.tokens.output}` : "—"}
-        </td>
-        <td className={styles[durationClass(row.durationMs)]}>
-          {row.durationMs > 0 ? formatDuration(row.durationMs) : "—"}
-        </td>
-        <td className={styles.share} title={shareTitle(row, axis)}>
-          <span className={styles.shareTrack}>
+      {row.compact ? (
+        <CompactBandRow
+          compact={row.compact}
+          selected={selected}
+          expanded={expanded}
+          navIndex={navIndex}
+          navActive={navActive}
+          onNavFocus={onNavFocus}
+          rowMeasure={rowMeasure}
+          onSelect={onSelect}
+          onToggle={onToggle}
+        />
+      ) : (
+        <tr
+          ref={(element) => {
+            rowMeasure(element);
+            if (rowRef) rowRef.current = element;
+          }}
+          className={[
+            styles[row.kind],
+            selected ? styles.selected : "",
+            highlighted ? styles.highlight : ""
+          ].filter(Boolean).join(" ")}
+          data-row-index={navIndex}
+          tabIndex={navActive ? 0 : -1}
+          onFocus={() => onNavFocus(navIndex)}
+          onClick={() => {
+            if (primary) onSelect(primary);
+          }}
+        >
+          <td>{formatDateTime(row.timestamp)}</td>
+          <td><span className={styles.kind}>{row.label}</span></td>
+          <td>
+            {/* 摘要列是唯一没写宽度的列：它在固定布局里吸收剩余宽度（130% 档实测
+                ~404px）。截断交给这一行自己——列宽不再由内容决定。 */}
             <span
-              className={styles.shareFill}
-              style={{ width: `${shareRatio(row.durationMs, axis) * 100}%` }}
-            />
-          </span>
-          <span className={styles.shareText}>{shareLabel(row.durationMs, axis)}</span>
-        </td>
-        <td className={row.status === "error" ? styles.error : styles.statusMuted}>
-          {statusLabel(row.status)}
-        </td>
-        <td className={styles.actions}>
-          <button
-            type="button"
-            className={styles.toggle}
-            aria-expanded={expanded}
-            aria-label={expanded ? "收起" : "展开"}
-            title={expanded ? "收起" : "展开"}
-            onClick={(event) => {
-              event.stopPropagation();
-              onToggle();
-            }}
-          >
-            <span aria-hidden="true">{expanded ? "▼" : "▶"}</span>
-          </button>
-        </td>
-      </tr>
-      {expanded ? (
-        <tr className={styles.expanded} ref={panelMeasure}>
-          <td colSpan={8}>
-            {/* 低频动作移入展开区顶部、右对齐：与右栏详情里那颗完全同款。
-                仅当该行有记录时渲染——「等用户」这类无记录行展开后不出现。 */}
-            {primary ? (
-              <div className={styles.expandActions}>
-                <Button type="button" onClick={() => onLocateInTree(primary.fullId)}>
-                  在树视图定位
-                </Button>
-              </div>
-            ) : null}
-            {panels.map((panel, index) => (
-              <section key={`${panel.label}-${index}`} aria-label={panel.label}>
-                <h4>
-                  {panel.label}
-                  {panel.meta ? <span className={styles.panelMeta}>{panel.meta}</span> : null}
-                </h4>
-                {/* 终端输出按原色渲染：`panel.body` 里可能就是 Claude Code 抓到的
-                    带 SGR 序列的 stdout，原样打印只会得到 `[31m` 乱码。 */}
-                <pre>
-                  <AnsiText text={panel.body} />
-                </pre>
-              </section>
-            ))}
+              className={styles.detailLine}
+              title={row.summary ? `${row.action} · ${row.summary}` : row.action}
+            >
+              <strong>{row.action}</strong>
+              {row.summary ? ` · ${row.summary}` : ""}
+            </span>
+          </td>
+          <td className={styles.tokens} title={promptBreakdown(row)}>
+            {row.tokens ? `${row.tokens.prompt} / ${row.tokens.output}` : "—"}
+          </td>
+          <td className={styles[durationClass(row.durationMs)]}>
+            {row.durationMs > 0 ? formatDuration(row.durationMs) : "—"}
+          </td>
+          <td className={styles.share} title={shareTitle(row, axis)}>
+            <span className={styles.shareTrack}>
+              <span
+                className={styles.shareFill}
+                style={{ width: `${shareRatio(row.durationMs, axis) * 100}%` }}
+              />
+            </span>
+            <span className={styles.shareText}>{shareLabel(row.durationMs, axis)}</span>
+          </td>
+          <td className={row.status === "error" ? styles.error : styles.statusMuted}>
+            {statusLabel(row.status)}
+          </td>
+          <td className={styles.actions}>
+            <button
+              type="button"
+              className={styles.toggle}
+              aria-expanded={expanded}
+              aria-label={expanded ? "收起" : "展开"}
+              title={expanded ? "收起" : "展开"}
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggle();
+              }}
+            >
+              <span aria-hidden="true">{expanded ? "▼" : "▶"}</span>
+            </button>
           </td>
         </tr>
+      )}
+      {expanded ? (
+        row.compact ? (
+          <CompactExpandedRow
+            compact={row.compact}
+            panelMeasure={panelMeasure}
+            onLocateInContext={onLocateInContext}
+          />
+        ) : (
+          <tr className={styles.expanded} ref={panelMeasure}>
+            <td colSpan={8}>
+              {/* 低频动作移入展开区顶部、右对齐：与右栏详情里那颗完全同款。
+                  仅当该行有记录时渲染——「等用户」这类无记录行展开后不出现。 */}
+              {primary ? (
+                <div className={styles.expandActions}>
+                  <Button type="button" onClick={() => onLocateInTree(primary.fullId)}>
+                    在树视图定位
+                  </Button>
+                </div>
+              ) : null}
+              {panels.map((panel, index) => (
+                <section key={`${panel.label}-${index}`} aria-label={panel.label}>
+                  <h4>
+                    {panel.label}
+                    {panel.meta ? <span className={styles.panelMeta}>{panel.meta}</span> : null}
+                  </h4>
+                  {/* 终端输出按原色渲染：`panel.body` 里可能就是 Claude Code 抓到的
+                      带 SGR 序列的 stdout，原样打印只会得到 `[31m` 乱码。 */}
+                  <pre>
+                    <AnsiText text={panel.body} />
+                  </pre>
+                </section>
+              ))}
+            </td>
+          </tr>
+        )
       ) : null}
     </>
+  );
+}
+
+/**
+ * 压缩边界带行（design §3）：全表唯一一种通栏行——`colspan=8`、`--bg-inset`
+ * 台阶底、上边框比行分隔线强一级（「在此切开」）。身份由几何（通栏）+ 形状
+ * （◆）+ 文字承载，不占类别色；hover / 点击选中 / 键盘导航与消息行完全同权。
+ */
+function CompactBandRow({
+  compact,
+  selected,
+  expanded,
+  navIndex,
+  navActive,
+  onNavFocus,
+  rowMeasure,
+  onSelect,
+  onToggle
+}: {
+  compact: CompactRowData;
+  selected: boolean;
+  expanded: boolean;
+  navIndex: number;
+  navActive: boolean;
+  onNavFocus: (index: number) => void;
+  rowMeasure: (element: HTMLTableRowElement | null) => void;
+  onSelect: (record: SessionRecord) => void;
+  onToggle: () => void;
+}) {
+  const { event, ordinal } = compact;
+  const title = `压缩 #${ordinal}（${triggerLabel(event.trigger)}） · ${compactNumbers(event)}`;
+  return (
+    <tr
+      ref={rowMeasure}
+      className={[styles.compactRow, selected ? styles.selected : ""]
+        .filter(Boolean)
+        .join(" ")}
+      data-row-index={navIndex}
+      tabIndex={navActive ? 0 : -1}
+      onFocus={() => onNavFocus(navIndex)}
+      onClick={() => onSelect(compact.record)}
+    >
+      <td colSpan={8}>
+        <span className={styles.compactLine} title={title}>
+          <time className={styles.compactTime}>{formatDateTime(event.timestamp)}</time>
+          <strong className={styles.compactTitle}>
+            <span aria-hidden="true">◆</span>
+            {` 压缩 #${ordinal}（${triggerLabel(event.trigger)}）`}
+          </strong>
+          <span className={styles.compactNumbers}>{compactNumbers(event)}</span>
+          <span className={styles.compactActions}>
+            <button
+              type="button"
+              className={styles.toggle}
+              aria-expanded={expanded}
+              aria-label={expanded ? "收起压缩行" : "展开压缩行"}
+              title={expanded ? "收起" : "展开"}
+              onClick={(event2) => {
+                event2.stopPropagation();
+                onToggle();
+              }}
+            >
+              <span aria-hidden="true">{expanded ? "▼" : "▶"}</span>
+            </button>
+          </span>
+        </span>
+      </td>
+    </tr>
+  );
+}
+
+/** The band row's number run: `422,858 → 11,359 tok · 丢弃 411,499 · 37.5s`. */
+function compactNumbers(event: CompactRowData["event"]): string {
+  const parts: string[] = [];
+  if (event.preTokens !== null && event.postTokens !== null) {
+    parts.push(
+      `${event.preTokens.toLocaleString("en-US")} → ${event.postTokens.toLocaleString("en-US")} tok · 丢弃 ${(
+        event.preTokens - event.postTokens
+      ).toLocaleString("en-US")}`
+    );
+  }
+  if (event.durationMs !== null) parts.push(formatDuration(event.durationMs));
+  return parts.join(" · ");
+}
+
+/**
+ * 压缩带行的展开区（design §3）：压缩摘要（模型重写）/ 幸存消息 / 原始事件
+ * 三块，沿用 recordPanels 的 section 惯例；顶部动作位是「在上下文视图定位」。
+ */
+function CompactExpandedRow({
+  compact,
+  panelMeasure,
+  onLocateInContext
+}: {
+  compact: CompactRowData;
+  panelMeasure: (element: HTMLTableRowElement | null) => void;
+  onLocateInContext: (eventId: string) => void;
+}) {
+  const summaryBody = compact.summaryRecord
+    ? compact.summaryRecord.text || "（空）"
+    : compact.event.summaryText ?? "（该边界没有摘要消息）";
+  // 幸存清单复用日志表的行语言（toRow 的截断/剥转义规则），与本会话其余清单同构。
+  const survivorRows = compact.survivors.map((record) => ({ record, row: toRow(record) }));
+  return (
+    <tr className={styles.expanded} ref={panelMeasure}>
+      <td colSpan={8}>
+        <div className={styles.expandActions}>
+          <Button type="button" onClick={() => onLocateInContext(compact.event.id)}>
+            在上下文视图定位
+          </Button>
+        </div>
+        <section aria-label="压缩摘要（模型重写）">
+          <h4>压缩摘要（模型重写）</h4>
+          <pre>
+            <AnsiText text={summaryBody} />
+          </pre>
+        </section>
+        <section aria-label="幸存消息">
+          <h4>
+            幸存消息
+            <span className={styles.panelMeta}>{compact.survivors.length} 条</span>
+          </h4>
+          {survivorRows.length > 0 ? (
+            <ul className={styles.compactSurvivors}>
+              {survivorRows.map(({ record, row }) => (
+                <li
+                  key={record.fullId}
+                  title={row.summary ? `${row.action} · ${row.summary}` : row.action}
+                >
+                  <time>{formatClock(record.timestamp, true)}</time>
+                  {row.action}
+                  {row.summary ? ` · ${row.summary}` : ""}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className={styles.compactSurvivorsEmpty}>（该边界未记录幸存清单）</p>
+          )}
+        </section>
+        <section aria-label="原始事件">
+          <h4>原始事件</h4>
+          <pre>{safeStringify(compact.event.raw ?? compact.event, 2)}</pre>
+        </section>
+      </td>
+    </tr>
   );
 }
 

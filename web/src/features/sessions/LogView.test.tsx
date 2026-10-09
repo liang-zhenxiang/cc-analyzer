@@ -1,11 +1,11 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LogView } from "./LogView";
 import { buildLogRows } from "./logRows";
-import type { SessionRecord, Turn } from "./types";
+import type { CompactEvent, SessionRecord, Turn } from "./types";
 
 // 注释剥掉再断言：CSS 里的说明文字本身就会提到 `.container td` / `waterfall`
 // 这些标识符，不剥的话断言读的是注释、不是规则。
@@ -83,6 +83,7 @@ const turns: Turn[] = [{ index: 0, startedAt: 100, endedAt: 600, records: [user,
 function setup(highlightId: string | null = null) {
   const onSelect = vi.fn();
   const onLocateInTree = vi.fn();
+  const onLocateInContext = vi.fn();
   render(
     <LogView
       rows={buildLogRows([user, assistant, read], turns)}
@@ -90,9 +91,10 @@ function setup(highlightId: string | null = null) {
       highlightId={highlightId}
       onSelect={onSelect}
       onLocateInTree={onLocateInTree}
+      onLocateInContext={onLocateInContext}
     />
   );
-  return { onSelect, onLocateInTree };
+  return { onSelect, onLocateInTree, onLocateInContext };
 }
 
 beforeEach(() => {
@@ -171,6 +173,7 @@ describe("LogView", () => {
         highlightId={null}
         onSelect={vi.fn()}
         onLocateInTree={vi.fn()}
+        onLocateInContext={vi.fn()}
       />
     );
 
@@ -199,6 +202,7 @@ describe("LogView", () => {
         highlightId={null}
         onSelect={onSelect}
         onLocateInTree={vi.fn()}
+        onLocateInContext={vi.fn()}
       />
     );
 
@@ -233,6 +237,7 @@ describe("LogView", () => {
         timeRange={{ start: 0, end: 1000 }}
         onSelect={vi.fn()}
         onLocateInTree={vi.fn()}
+        onLocateInContext={vi.fn()}
       />
     );
 
@@ -277,6 +282,7 @@ describe("LogView", () => {
         highlightId={null}
         onSelect={vi.fn()}
         onLocateInTree={vi.fn()}
+        onLocateInContext={vi.fn()}
       />
     );
 
@@ -317,6 +323,7 @@ describe("LogView", () => {
         highlightId={null}
         onSelect={vi.fn()}
         onLocateInTree={vi.fn()}
+        onLocateInContext={vi.fn()}
       />
     );
 
@@ -467,6 +474,7 @@ describe("终端输出保真", () => {
         highlightId={null}
         onSelect={vi.fn()}
         onLocateInTree={vi.fn()}
+        onLocateInContext={vi.fn()}
       />
     );
 
@@ -487,5 +495,102 @@ describe("终端输出保真", () => {
       (node) => node.style.color.length > 0
     );
     expect(colored?.style.color).toBe("var(--ansi-1)");
+  });
+});
+
+/** 压缩边界带行（J3，design §3）：通栏行、摘要折叠进展开区、选中/定位同权。 */
+describe("LogView · 压缩边界带行", () => {
+  const compactEvent: CompactEvent = {
+    id: "bnd-1",
+    timestamp: 350,
+    trigger: "auto",
+    preTokens: 167_400,
+    postTokens: 11_200,
+    droppedTokens: 156_200,
+    durationMs: 37_455,
+    survivedUuids: ["llm-1"],
+    summaryText: "This session is being continued from a previous conversation.",
+    summaryUuid: "summary-1",
+    logicalParentUuid: "llm-1",
+    raw: { type: "system", subtype: "compact_boundary", content: "Conversation compacted" }
+  };
+  const summaryRecord = base("summary-1", {
+    kind: "user",
+    timestamp: 300,
+    text: "This session is being continued from a previous conversation. Summary: ...",
+    compactSummary: true
+  });
+  const user2 = base("user-2", { kind: "user", timestamp: 400, text: "压缩完成，继续" });
+
+  function setupCompact() {
+    const records = [user, assistant, summaryRecord, user2];
+    const ownTurns: Turn[] = [
+      { index: 0, startedAt: 100, endedAt: 440, records: [user, assistant] },
+      { index: 1, startedAt: 300, endedAt: 300, records: [summaryRecord] },
+      { index: 2, startedAt: 400, endedAt: 400, records: [user2] }
+    ];
+    const onSelect = vi.fn();
+    const onLocateInContext = vi.fn();
+    render(
+      <LogView
+        rows={buildLogRows(records, ownTurns, [compactEvent])}
+        selectedId={null}
+        highlightId={null}
+        onSelect={onSelect}
+        onLocateInTree={vi.fn()}
+        onLocateInContext={onLocateInContext}
+      />
+    );
+    return { onSelect, onLocateInContext };
+  }
+
+  it("renders the full-width band row and folds the summary away", () => {
+    setupCompact();
+
+    const band = screen.getByText("压缩 #1（自动）").closest("tr")!;
+    // 数字串是行的一部分：pre → post、丢弃与耗时都在带行上。
+    expect(within(band).getByText("167,400 → 11,200 tok · 丢弃 156,200 · 37.5s")).toBeInTheDocument();
+    // 通栏：整行只有一个单元格。
+    expect(band.querySelectorAll("td")).toHaveLength(1);
+    expect(band.querySelector("td")?.colSpan).toBe(8);
+    // 摘要消息不单独成行（数据约束 #3）——它的文本只该出现在展开区里。
+    expect(screen.queryByText(/previous conversation/)).toBeNull();
+  });
+
+  it("expands into summary, survivors and raw event, and locates in context", async () => {
+    const user1 = userEvent.setup();
+    const { onLocateInContext } = setupCompact();
+
+    await user1.click(screen.getByRole("button", { name: "展开压缩行" }));
+
+    expect(screen.getByRole("region", { name: "压缩摘要（模型重写）" })).toHaveTextContent(
+      "previous conversation"
+    );
+    expect(screen.getByRole("region", { name: "幸存消息" })).toHaveTextContent(
+      "我先读一下解析器"
+    );
+    expect(screen.getByRole("region", { name: "原始事件" })).toHaveTextContent(
+      "compact_boundary"
+    );
+
+    await user1.click(screen.getByRole("button", { name: "在上下文视图定位" }));
+    expect(onLocateInContext).toHaveBeenCalledWith("bnd-1");
+  });
+
+  it("selects the synthesized system record on click and keyboard activate", async () => {
+    const user1 = userEvent.setup();
+    const { onSelect } = setupCompact();
+
+    await user1.click(screen.getByText("压缩 #1（自动）"));
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    const selected = onSelect.mock.calls[0][0] as SessionRecord;
+    expect(selected.kind).toBe("system");
+    expect(selected.compactEvent?.id).toBe("bnd-1");
+
+    // 键盘同权：压缩行按时间序排在最前（activeIndex 0），tbody 上按 Enter
+    // 激活的也是同一条合成记录。
+    fireEvent.keyDown(screen.getByRole("table").querySelector("tbody")!, { key: "Enter" });
+    expect(onSelect).toHaveBeenCalledTimes(2);
+    expect((onSelect.mock.calls[1][0] as SessionRecord).compactEvent?.id).toBe("bnd-1");
   });
 });

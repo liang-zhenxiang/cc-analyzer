@@ -1,8 +1,9 @@
-import type { SessionRecord, Turn } from "./types";
+import type { CompactEvent, SessionRecord, Turn } from "./types";
 import type { RecordFilter } from "./filters";
+import { formatDuration } from "../../lib/format";
 import { stripAnsi } from "../../lib/ansi";
 
-export type LogRowKind = "user" | "llm" | "tool" | "subagent" | "workflow" | "wait";
+export type LogRowKind = "user" | "llm" | "tool" | "subagent" | "workflow" | "wait" | "compact";
 export type LogRowStatus = "ok" | "error" | "na";
 /**
  * Row-level token counts. `prompt` is **every** token the model received as
@@ -33,7 +34,31 @@ export type LogRow = {
   invokedTools: string[];
   /** Present on synthesised inter-turn wait rows, which carry no record. */
   gap?: { start: number; end: number };
+  /** Present on the full-width compact-boundary band rows (design §3). */
+  compact?: CompactRowData;
   records: SessionRecord[];
+};
+
+/**
+ * Everything the compact band row carries. The boundary itself never becomes a
+ * `SessionRecord` at parse time (J1 consumes it into `compactEvents`), so the
+ * row synthesizes the pieces it needs from the event plus the session's
+ * records — the same synthesis pattern as `buildGapRows`' wait rows.
+ */
+export type CompactRowData = {
+  event: CompactEvent;
+  /** 会话内时间顺序号（#k）——带行、事件条、取证卡用它指同一个事件。 */
+  ordinal: number;
+  /** The folded `isCompactSummary` message (null when the log has none). */
+  summaryRecord: SessionRecord | null;
+  /** Survivors resolvable against this session's records, chronological. */
+  survivors: SessionRecord[];
+  /**
+   * Synthesized boundary record (`kind: "system"`) — the selection target the
+   * detail panel renders. It never enters `records`, so reports and exports
+   * (which are record-based) cannot accidentally count it.
+   */
+  record: SessionRecord;
 };
 
 /**
@@ -47,8 +72,21 @@ export const ROW_KIND_LABELS: Record<LogRowKind, string> = {
   tool: "工具",
   subagent: "子 agent",
   workflow: "workflow",
-  wait: "等用户"
+  wait: "等用户",
+  compact: "压缩"
 };
+
+/**
+ * Trigger is always words, never colour or shape (design §8). Exported beside
+ * `ROW_KIND_LABELS` for the same reason: the band row, the event chips, the
+ * forensic card and the detail panel must call the same trigger the same thing.
+ */
+export function triggerLabel(trigger: string | null): string {
+  if (trigger === "auto") return "自动";
+  if (trigger === "manual") return "手动";
+  if (trigger === null) return "—";
+  return trigger;
+}
 
 const SUMMARY_LIMIT = 72;
 
@@ -219,6 +257,14 @@ function applyActivityDurations(rows: LogRow[], turns: Turn[], sessionStart: num
   let cursor = sessionStart;
   let seenModel = false;
   for (const row of rows) {
+    // The boundary timestamp is when compaction *finished*; its durationMs
+    // elapsed before that moment. Treat it as activity ending at the boundary
+    // (like the llm branch) so the next response's "thinking time" is not
+    // inflated by a span the timeline never had.
+    if (row.kind === "compact") {
+      cursor = Math.max(cursor, row.timestamp);
+      continue;
+    }
     if (row.kind === "llm") {
       if (!seenModel && row.turn !== null) {
         const userTs = userTsOfTurn.get(row.turn);
@@ -334,13 +380,99 @@ export function buildGapRows(turns: Turn[]): LogRow[] {
   return rows;
 }
 
-export function buildLogRows(records: SessionRecord[], turns: Turn[] = []): LogRow[] {
-  const base = records.map(toRow);
-  const turnOf = turnIndexOf(turns);
+/** The band row's one-line reading: `422,858 → 11,359 tok · 丢弃 411,499 · 37.5s`. */
+function compactRowSummary(event: CompactEvent): string {
+  const parts: string[] = [];
+  if (event.preTokens !== null && event.postTokens !== null) {
+    parts.push(
+      `${event.preTokens.toLocaleString("en-US")} → ${event.postTokens.toLocaleString("en-US")} tok · 丢弃 ${(
+        event.preTokens - event.postTokens
+      ).toLocaleString("en-US")}`
+    );
+  }
+  if (event.durationMs !== null) parts.push(formatDuration(event.durationMs));
+  return parts.join(" · ");
+}
+
+/**
+ * Assembles the data behind each compact band row (design §3). The boundary
+ * itself is not a record — J1 consumed it into `compactEvents` — so the row
+ * resolves its pieces against the session's records: the `isCompactSummary`
+ * message (folded into the expanded area, never a user row of its own) and
+ * the survivor list.
+ */
+function buildCompactRowData(
+  events: readonly CompactEvent[],
+  records: readonly SessionRecord[]
+): CompactRowData[] {
+  const byFullId = new Map(records.map((record) => [record.fullId, record]));
+  return events.map((event, index) => ({
+    event,
+    ordinal: index + 1,
+    summaryRecord:
+      event.summaryUuid !== null ? (byFullId.get(event.summaryUuid) ?? null) : null,
+    survivors: event.survivedUuids
+      .map((uuid) => byFullId.get(uuid))
+      .filter((record): record is SessionRecord => record !== undefined),
+    record: {
+      id: `compact-${event.id.slice(0, 8)}`,
+      fullId: event.id,
+      kind: "system",
+      timestamp: event.timestamp,
+      durationMs: event.durationMs ?? 0,
+      text: event.summaryText ?? "",
+      isError: false,
+      compactEvent: event,
+      // Fall back to the retained event fields when the raw line is absent:
+      // the 原始事件 panel then still shows everything the parser kept.
+      raw: event.raw ?? event
+    }
+  }));
+}
+
+function toCompactRow(data: CompactRowData): LogRow {
+  return {
+    id: `compact-${data.event.id}`,
+    kind: "compact",
+    label: ROW_KIND_LABELS.compact,
+    action: `压缩 #${data.ordinal}（${triggerLabel(data.event.trigger)}）`,
+    summary: compactRowSummary(data.event),
+    timestamp: data.event.timestamp,
+    durationMs: data.event.durationMs ?? 0,
+    status: "na",
+    tokens: null,
+    mergedWith: null,
+    turn: null,
+    invokedTools: [],
+    compact: data,
+    records: []
+  };
+}
+
+export function buildLogRows(
+  records: SessionRecord[],
+  turns: Turn[] = [],
+  compactEvents: readonly CompactEvent[] = []
+): LogRow[] {
+  // Compact summaries fold into the boundary band row (design §3 / §9-7): they
+  // are the model's continuation artifact, not user speech, so they leave the
+  // row list *and* the turn list the gap builder reads — a「等用户」row must
+  // not end at a prompt nobody typed. Turn indices stay untouched; turns that
+  // held only the summary drop out entirely.
+  const messageTurns = turns
+    .map((turn) => ({
+      ...turn,
+      records: turn.records.filter((record) => record.compactSummary !== true)
+    }))
+    .filter((turn) => turn.records.length > 0);
+  const messageRecords = records.filter((record) => record.compactSummary !== true);
+
+  const base = messageRecords.map(toRow);
+  const turnOf = turnIndexOf(messageTurns);
   const firstUserOfTurn = new Map<number, LogRow>();
   const firstLlmOfTurn = new Map<number, LogRow>();
 
-  records.forEach((record, index) => {
+  messageRecords.forEach((record, index) => {
     const turn = turnOf.get(record);
     base[index].turn = turn ?? null;
     if (turn === undefined) return;
@@ -349,8 +481,10 @@ export function buildLogRows(records: SessionRecord[], turns: Turn[] = []): LogR
     if (row.kind === "llm" && !firstLlmOfTurn.has(turn)) firstLlmOfTurn.set(turn, row);
   });
 
-  // Row order: sort with gaps, attribute model durations, then merge.
-  const ordered = [...base, ...buildGapRows(turns)]
+  // Row order: sort with gaps and compact bands, attribute model durations,
+  // then merge.
+  const compactRows = buildCompactRowData(compactEvents, records).map(toCompactRow);
+  const ordered = [...base, ...buildGapRows(messageTurns), ...compactRows]
     .map((row, order) => ({ row, order }))
     .sort((a, b) => a.row.timestamp - b.row.timestamp || a.order - b.order)
     .map((entry) => entry.row);
@@ -359,7 +493,7 @@ export function buildLogRows(records: SessionRecord[], turns: Turn[] = []): LogR
     (earliest, record) => Math.min(earliest, record.timestamp),
     Number.POSITIVE_INFINITY
   );
-  applyActivityDurations(ordered, turns, Number.isFinite(sessionStart) ? sessionStart : 0);
+  applyActivityDurations(ordered, messageTurns, Number.isFinite(sessionStart) ? sessionStart : 0);
 
   const mergedByRow = new Map<LogRow, LogRow>();
   const dropped = new Set<LogRow>();
@@ -377,6 +511,10 @@ export function buildLogRows(records: SessionRecord[], turns: Turn[] = []): LogR
 
 function rowSearchText(row: LogRow): string {
   const parts = [row.id, row.action, row.summary];
+  if (row.compact) {
+    parts.push(row.compact.event.id, row.compact.event.trigger ?? "");
+    if (row.compact.summaryRecord) parts.push(row.compact.summaryRecord.text);
+  }
   for (const record of row.records) {
     parts.push(record.fullId, record.text, record.toolName ?? "", record.toolResult ?? "");
     if (record.childSessionPath) parts.push(record.childSessionPath);

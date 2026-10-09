@@ -1,4 +1,11 @@
-export type RecordKind = "user" | "assistant" | "tool" | "wait";
+/**
+ * `"system"` never comes out of the parser: system lines are consumed into
+ * `compactEvents` / `systemTurnDurations` at parse time. The kind exists for
+ * the **synthesized** compact-boundary record the log table's band row hands
+ * to the detail panel (J3) — the boundary is a system record in the log, and
+ * the panel should say so instead of impersonating a message kind.
+ */
+export type RecordKind = "user" | "assistant" | "tool" | "wait" | "system";
 export type ToolCategory = "direct" | "delegated" | "workflow" | "wait";
 
 /**
@@ -62,6 +69,11 @@ export type CompactEvent = {
    * the only usable attachment point onto the message chain.
    */
   logicalParentUuid: string | null;
+  /**
+   * The boundary record as parsed. Optional for backward compatibility with
+   * event literals in tests; the parser always sets it.
+   */
+  raw?: unknown;
 };
 
 /**
@@ -187,6 +199,13 @@ export type SessionRecord = {
    * Derived statistics must exclude it from user-message counts.
    */
   compactSummary?: boolean;
+  /**
+   * Present only on the **synthesized** boundary record the log table's
+   * compact band row selects (J3) — the parser never sets it. Carries the
+   * preserved boundary metadata so RecordDetailPanel can state the numbers
+   * in the forensic card's vocabulary.
+   */
+  compactEvent?: CompactEvent;
   apiError?: { kind: string | null; status: number | null };
   missingTimestamp?: boolean;
   stopReason?: string;
