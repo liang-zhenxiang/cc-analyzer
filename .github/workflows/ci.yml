@@ -283,6 +283,10 @@ jobs:
           # 它也同时是上面缓存键的来源。注释行（# 开头）不算包名。
           packages="$(grep -v '^[[:space:]]*#' .github/ci-tauri-apt-packages.txt | tr '\n' ' ')"
           mkdir -p "$GITHUB_WORKSPACE/.apt-archives"
+          # apt 的下载沙箱用户 `_apt` 要能写这个目录，否则每次安装都留一条
+          # 「Download is performed unsandboxed as root … Permission denied」的告警
+          # （不致命，但让日志看起来像坏了）；末尾再统一把属主交还给 runner。
+          chmod -R 0777 "$GITHUB_WORKSPACE/.apt-archives"
           # 镜像抖动时重试，而不是把一次超时当成失败
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
           # shellcheck disable=SC2086  # 这里需要按空白拆成多个包名
@@ -359,6 +363,10 @@ jobs:
           # 它也同时是上面缓存键的来源。注释行（# 开头）不算包名。
           packages="$(grep -v '^[[:space:]]*#' .github/ci-tauri-apt-packages.txt | tr '\n' ' ')"
           mkdir -p "$GITHUB_WORKSPACE/.apt-archives"
+          # apt 的下载沙箱用户 `_apt` 要能写这个目录，否则每次安装都留一条
+          # 「Download is performed unsandboxed as root … Permission denied」的告警
+          # （不致命，但让日志看起来像坏了）；末尾再统一把属主交还给 runner。
+          chmod -R 0777 "$GITHUB_WORKSPACE/.apt-archives"
           # 镜像抖动时重试，而不是把一次超时当成失败
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
           # shellcheck disable=SC2086  # 这里需要按空白拆成多个包名
@@ -441,6 +449,10 @@ jobs:
           # 它也同时是上面缓存键的来源。注释行（# 开头）不算包名。
           packages="$(grep -v '^[[:space:]]*#' .github/ci-tauri-apt-packages.txt | tr '\n' ' ')"
           mkdir -p "$GITHUB_WORKSPACE/.apt-archives"
+          # apt 的下载沙箱用户 `_apt` 要能写这个目录，否则每次安装都留一条
+          # 「Download is performed unsandboxed as root … Permission denied」的告警
+          # （不致命，但让日志看起来像坏了）；末尾再统一把属主交还给 runner。
+          chmod -R 0777 "$GITHUB_WORKSPACE/.apt-archives"
           # 镜像抖动时重试，而不是把一次超时当成失败
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
           # shellcheck disable=SC2086  # 这里需要按空白拆成多个包名
