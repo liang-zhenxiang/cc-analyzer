@@ -1,6 +1,6 @@
 [package]
 name = "cc-analyzer"
-version = "0.16.0-beta.1"
+version = "0.17.0-beta.1"
 description = "CC Analyzer"
 edition = "2021"
 # 加密链（age → rust-embed-utils → sha2 0.11 → digest / hybrid-array）要求 1.85；
