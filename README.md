@@ -82,6 +82,17 @@ badge. Every screen, in both light and dark themes, is archived in
   recovery**, so a forgotten passphrase means an unopenable bundle; the file is standard
   age, so the `age -d` CLI can decrypt it too. Import writes only into the app's own
   archive directory and never touches `~/.claude`. (Minimum Rust is now 1.85.)
+- **Quota attribution ("who is burning this 5-hour window")** — the two limit layers only
+  ever said *how much*; the next question is *which session*. The 5-hour card now carries
+  a **Top sessions** block: title, tokens consumed inside the window, a share bar and a
+  percentage, and clicking a row opens that session. Past five sessions a trailing
+  "N other sessions" row keeps the shares from looking like they lost money. There is
+  exactly one set of numbers: the window boundaries and the denominator come from the same
+  block the gauge is drawn from (share = of this window's total), and a session that spans
+  a window boundary is **split by record timestamps** rather than counted whole — so the
+  percentages can never disagree with the gauge. Read from local logs only; no inference,
+  no network. v1 covers the 5-hour layer; the weekly window and per-model/tool breakdowns
+  come later.
 - **Global search (⌘K / Ctrl+K)** — message-level search across every project
   and session, results grouped by project → session with the matching snippet
   and a relative time. Enter jumps into the session, opens the record and

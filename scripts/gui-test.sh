@@ -120,13 +120,15 @@ gui-test.sh —— 真机 GUI 冒烟测试
 默认视图清单：会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
 日志视图 → 导出 → 关闭导出窗口 → 压缩夹具会话（/repo/compact-demo）→ 上下文 → 点选第 2 枚压缩
 事件 chip → 改动夹具会话（/repo/changed-demo）→ 改动 → 点选首个文件行 → 用量总览 → 视图=用量 →
-滚到底 → 近 7 天 → 错误档 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→ 实时监控 →
-设置=开 → 导出归档包（口令浮层）→ 取消 → 字号恢复 100%。
+点选配额归因第一行 → 用量总览 → 视图=用量 → 滚到底 → 近 7 天 → 错误档 → 滚到底 →
+全局搜索（开）→ 全局搜索（关）→ 实时监控 → 设置=开 → 导出归档包（口令浮层）→ 取消 →
+字号恢复 100%。
 每张图都配一份几何探针 JSON，脚本据它判定布局不变量（无横向溢出 / 表盘有界且含于卡片 /
 记录表末列可达 / 文字里无 ESC 转义字节 / 两层限额读数在卡内 / 用量页三块面板滚一次可达 /
 上下文曲线有界且命中区与压缩次数一致 / 取证卡在视口内 / 被丢清单不是假列表 / 错误档趋势
 有界且事件列表是真列表 / 改动文件列表是真列表且展开区可达 / 归档包口令浮层在窗口内且
-两份口令输入与「口令无法找回」警告真的渲染出来）。
+两份口令输入与「口令无法找回」警告真的渲染出来 / 配额归因面板是真列表且点行真的打开了
+那个会话）。
 
 `字号=<档位>`（如 `字号=130%`）是一个动作目标：先在设置浮层里把界面字号切到该档，
 再取图与探针——用它验证「放大字号后布局仍然成立」。默认清单末尾会切回 100%，
@@ -667,7 +669,10 @@ else
   # 不画它，证据落在探针上：浮层几何 + 两份 password 字段 + 「口令无法找回」
   # 警告文案（见 lib.rs 的 PROBE_JS dialog 事实）；这一步顺带证明设置面板里
   # 那两个入口在真机上真的渲染出来、也真的点得开。
-  CAPTURE_TARGETS=("会话分析" "字号=130%" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "实时监控" "设置=开" "导出归档包…" "取消" "字号=100%")
+  # 配额归因一步（Round R / #151）插在「视图=用量」之后：点第一行会话 → 之后
+  # **必须**再点回「用量总览」并重置子视图，否则后面的 `滚动=main` 与三块面板
+  # 可达性判定会跑在会话分析页上（点行会切标签页）。
+  CAPTURE_TARGETS=("会话分析" "字号=130%" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "点选=[data-probe='attribution-row']" "用量总览" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "实时监控" "设置=开" "导出归档包…" "取消" "字号=100%")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
@@ -908,6 +913,7 @@ PROBE_REPORT="$(COVERAGE="$COVERAGE" python3 - "${PROBE_ENTRIES[@]}" <<'PY' 2>&1
 import json
 import os
 import pathlib
+import re
 import sys
 
 GAUGE_MAX_WIDTH = 200
@@ -930,6 +936,13 @@ BUNDLE_DIALOG_LABEL = "导出归档包…"
 BUNDLE_DIALOG_PASSWORD_FIELDS = 2
 BUNDLE_DIALOG_WARNING = "口令无法找回"
 BUNDLE_CANCEL_LABEL = "取消"
+# 按会话的配额归因（Round R / #151）。面板挂在 5 小时窗口卡里，「视图=用量」
+# 那一步判定它；`点选=[data-probe='attribution-row']` 那一步判定「点行真的打开
+# 了那个会话」——拿点击前记住的标题与会话分析页当前标题逐字比。行高期望值随
+# 界面字号走，不写死像素（130% 档也要对账）。
+ATTRIBUTION_CLICK_LABEL = "点选=[data-probe='attribution-row']"
+ATTRIBUTION_TOP = 5
+ATTRIBUTION_FOOTNOTE = "占比分母 = 本窗口总消耗（与表盘中心同一个数）。"
 # 用量页下半屏的三块面板。「滚动=main」那一步（且上一步是用量总览）判定
 # 它们滚一次可达；「用量总览」那一步判定它们真的渲染了出来。
 USAGE_PANEL_TITLES = ["按项目分布", "按模型分布", "活跃时段（周 × 小时）"]
@@ -964,6 +977,9 @@ seen_changes = 0
 # 把动作与页面挂上钩（默认清单里它紧跟「用量总���」）。自定义清单把它用在
 # 别处时，三块面板的判定不适用，退化为 NOTE。
 prev_label = None
+# 「点归因行」那一步要比对的标题：归因面板只在用量页存在，点完就跳走了，
+# 所以标题必须先在上一步的探针里存下来。
+attribution_titles = []
 
 for arg in sys.argv[1:]:
     label, _, path = arg.partition("::")
@@ -1426,7 +1442,7 @@ for arg in sys.argv[1:]:
     # 低于窗口化阈值（120），走「无垫片、全量铺开」分支；垫片分支为更大的
     # 清单留判据（事实在应用、断言在此，两个分支都成立才叫防得住）。
     # （改动视图也有自己的「点选=」步骤——由 prev_label 分流，见上面改动档。）
-    if label.startswith("点选=") and prev_label != CHANGES_TAB_LABEL:
+    if label.startswith("点选=") and prev_label != CHANGES_TAB_LABEL and label != ATTRIBUTION_CLICK_LABEL:
         ctx = data.get("context") or {}
         viewport = data.get("viewport") or {}
         card = ctx.get("forensicCard")
@@ -1493,6 +1509,125 @@ for arg in sys.argv[1:]:
             )
         else:
             print(f"OK|{label}：会话行不裁字且行高随档位（{height}px，内容 {sh} ≤ {ch}）")
+
+    # 按会话的配额归因（Round R / #151）：面板在 5 小时窗口卡里，所以判定挂在
+    # 「视图=用量」这一步（显式重置过子视图，面板一定在）。判据分四类：
+    # ① 真列表对账（Σ行高 + 余项 = 列表总高，防「看起来 5 行、容器对不上」）；
+    # ② 行内容（标题 / token / 百分比 / 占比条不越界）；
+    # ③ 余项不是会话（hasRest 时行数恰好 Top 5，文案匹配「其余 N 个会话」）；
+    # ④ 口径与隐私（脚注逐字、可见文本里不出现绝对路径）。
+    attribution = data.get("attribution")
+    if isinstance(attribution, dict) and label == "视图=用量":
+        problems = []
+        row_count = attribution.get("rowCount")
+        heights = [
+            h for h in (attribution.get("rowHeights") or []) if isinstance(h, (int, float))
+        ]
+        titles = [t for t in (attribution.get("titles") or []) if isinstance(t, str)]
+        tokens_text = [t for t in (attribution.get("tokens") or []) if isinstance(t, str)]
+        pcts = attribution.get("pcts") or []
+        fills = attribution.get("barFillWidths") or []
+        tracks = attribution.get("barTrackWidths") or []
+        rest = attribution.get("restRect") or {}
+        rest_height = rest.get("height") if isinstance(rest.get("height"), (int, float)) else 0
+        if not isinstance(row_count, int) or row_count < 1:
+            problems.append(f"一行都没有（rowCount={row_count!r}）——窗口里明明有会话记录")
+        if len(heights) != row_count:
+            problems.append(f"行高事实只有 {len(heights)} 条，与 {row_count!r} 行对不上")
+        if heights and max(heights) - min(heights) > 1:
+            problems.append(
+                f"行高不一致（{min(heights):.1f}–{max(heights):.1f}px）——行盒被内容撑破或塌陷"
+            )
+        # 行高随界面字号走：8 + 16×档位（130% 下 28.8px）。写死 24 会把字号
+        # 那一轮的成果变成假绿——规格只钉「随档位走」，不钉某一档的像素。
+        expected_height = 8 + 16 * (font_scale if font_scale is not None else 1.0)
+        if heights and abs(heights[0] - expected_height) > 2:
+            problems.append(
+                f"行高 {heights[0]:.1f}px ≠ 期望 {expected_height:.1f}px（8 + 16×字号档位）"
+            )
+        scroll_h = attribution.get("listScrollHeight")
+        if isinstance(scroll_h, int) and heights:
+            expected_total = sum(heights) + rest_height
+            if abs(scroll_h - expected_total) > 1:
+                problems.append(
+                    f"列表总高 {scroll_h}px ≠ Σ行高 {sum(heights):.0f}px + 余项 {rest_height:.0f}px"
+                    "——声称的行数没有对应的内容高度（假列表）"
+                )
+        for index, pct in enumerate(pcts):
+            if not isinstance(pct, str) or "%" not in pct:
+                problems.append(f"第 {index + 1} 行的占比不是百分比文案（{pct!r}）")
+        for index, fill in enumerate(fills):
+            track = tracks[index] if index < len(tracks) else None
+            if not isinstance(fill, (int, float)) or not isinstance(track, (int, float)):
+                problems.append(f"第 {index + 1} 行的占比条几何缺失（填充 {fill!r} / 轨道 {track!r}）")
+            elif fill > track + 1:
+                problems.append(f"第 {index + 1} 行的占比条溢出轨道（{fill:.1f}px > {track:.1f}px）")
+            # 「必须真的填充」与「不许溢出」是两条独立的账：占比条的填充是行内
+            # `<span>`，少了 `display: block` 时 width/height 全部失效——轨道还在、
+            # 数值也对，只是**条永远是空的**（Round R 的 e2e 抓到的真缺陷；jsdom
+            # 没有布局、只看溢出的判据也漏过它）。所以这里按「有消耗就必须有条」判。
+            elif index < len(tokens_text) and tokens_text[index] not in ("", "0 tok") and fill <= 0:
+                problems.append(
+                    f"第 {index + 1} 行有消耗（{tokens_text[index]}）但占比条填充宽度为 0"
+                    "——条没画出来（行内元素缺 display: block 就是这个症状）"
+                )
+        if attribution.get("hasRest"):
+            if row_count != ATTRIBUTION_TOP:
+                problems.append(
+                    f"有余项行时真实会话行应为 Top {ATTRIBUTION_TOP} 行，实测 {row_count!r}"
+                )
+            rest_text = attribution.get("restText") or ""
+            if not re.match(r"^其余 \d+ 个会话", rest_text):
+                problems.append(f"余项行文案不是「其余 N 个会话」（{rest_text!r}）")
+        if (attribution.get("footnoteText") or "") != ATTRIBUTION_FOOTNOTE:
+            problems.append(
+                f"分母脚注不是规定原文（实测 {attribution.get('footnoteText')!r}）"
+            )
+        blob = " ".join(titles + [attribution.get("restText") or "", attribution.get("footnoteText") or ""])
+        for pattern in ("/Users/", "~/.claude", "cwd", "/home/"):
+            if pattern in blob:
+                problems.append(f"归因面板里出现了绝对路径或内部字段名（{pattern}）")
+        # 面板必须完整落在计费卡里（与周用量层不重叠由视觉规格负责，这里判归属）。
+        panel_rect = attribution.get("panelRect") or {}
+        billing_el = next(
+            (el for el in (data.get("elements") or []) if el.get("name") == "billing"), None
+        )
+        card = (billing_el or {}).get("card") or {}
+        if isinstance(panel_rect.get("width"), (int, float)) and isinstance(card.get("width"), (int, float)):
+            inside_card = (
+                panel_rect.get("x", 0) >= card.get("x", 0) - 1
+                and panel_rect.get("x", 0) + panel_rect["width"] <= card.get("x", 0) + card["width"] + 1
+            )
+            if not inside_card:
+                problems.append("归因面板横向超出计费卡")
+        if problems:
+            for problem in problems:
+                print(f"BAD|{label}：配额归因——{problem}")
+        else:
+            print(
+                f"OK|{label}：配额归因面板成立（{row_count} 行"
+                f"{' + 余项' if attribution.get('hasRest') else ''}，"
+                f"Σ行高 {sum(heights):.0f}px = 列表总高 {scroll_h}px，脚注逐字一致）"
+            )
+    # 记住点击前那一行的标题：点行会跳到会话分析页，那一步的探针里已经没有
+    # 归因面板了，只有在这里先存下来，点击后才比得了。
+    if isinstance(attribution, dict):
+        attribution_titles = [t for t in (attribution.get("titles") or []) if isinstance(t, str)]
+
+    if label == ATTRIBUTION_CLICK_LABEL:
+        analyzer = data.get("analyzer") or {}
+        session_title = analyzer.get("sessionTitle")
+        if not attribution_titles:
+            print(f"NOTE|{label}：上一步没有读到归因行标题，跳过「点开的是哪个会话」的比对")
+        elif not isinstance(session_title, str) or session_title == "":
+            print(f"BAD|{label}：点击后没读到会话分析页的当前会话——点击没有打开会话")
+        elif session_title != attribution_titles[0]:
+            print(
+                f"BAD|{label}：点的是「{attribution_titles[0]}」，"
+                f"打开的却是「{session_title}」——跳转接错了会话"
+            )
+        else:
+            print(f"OK|{label}：点归因行真的打开了那个会话（标题逐字一致：{session_title}）")
 
     prev_label = label
 
