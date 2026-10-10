@@ -79,6 +79,69 @@ export interface DialogBridge {
     options: { title: string; filterName: string; extensions: string[] }
   ): Promise<string | null>;
   saveMarkdown(defaultName: string, contents: string): Promise<string | null>;
+  /**
+   * 只弹「保存到哪」并把路径交回来，内容由调用方自己写。
+   *
+   * 加密归档包的内容由 Rust 侧流式写出（口令只在原生进程里用），前端拿不到
+   * 明文，也就没法走 `saveText` 那条「先拿路径、再 write_text」的路子。
+   */
+  savePath(
+    defaultName: string,
+    options: { title: string; filterName: string; extensions: string[] }
+  ): Promise<string | null>;
+  /** 弹「打开文件」对话框并返回选中的路径；用户取消时为 null。 */
+  openFile(options: { title: string; filterName: string; extensions: string[] }): Promise<string | null>;
+}
+
+/**
+ * 归档包里的一条：字段与 Rust 侧 `archive_bundle` 的 JSON 线格式逐字对齐。
+ *
+ * `archivePath` 是**导出机器**上的副本路径，只在包里做排查线索；导入落到本机
+ * 时一律按本机目录重算（两台机器路径不同，直接沿用会写歪）。
+ */
+export type BundleEntry = {
+  sourcePath: string;
+  archivePath: string;
+  projectLabel: string;
+  sessionId: string;
+  sizeBytes: number;
+  mtimeMs: number;
+};
+
+/** 包的清单：格式版本 / 导出时刻 / 应用版本 / 条目（每条带用于完整性校验的 sha256）。 */
+export type BundleManifest = {
+  formatVersion: number;
+  exportedAt: number;
+  appVersion: string;
+  entries: Array<BundleEntry & { sha256: string }>;
+};
+
+/** Rust 解包后交回的一条：清单条目 + 临时目录里的明文路径。 */
+export type ImportedBundleFile = {
+  entry: BundleEntry;
+  stagedPath: string;
+};
+
+/**
+ * 加密归档包的桥（Issue #152）。三个方法都只做 I/O，**索引语义全在前端**：
+ * 打哪些条目、导入后算「新增 / 已存在 / 并列」、临时文件怎么搬，都由
+ * `features/archive/bundle.ts` 与 `bundleStore.ts` 决定。
+ */
+export interface ArchiveBundleBridge {
+  /** 把选中的条目打成一个用口令加密的单文件包，写到 `outPath`。 */
+  exportBundle(
+    outPath: string,
+    password: string,
+    entries: BundleEntry[]
+  ): Promise<{ entries: number; bytes: number }>;
+  /** 解密并解包到 `stagingDir`，逐条校验 sha256；口令错 / 校验失败即抛错。 */
+  importBundle(
+    inPath: string,
+    password: string,
+    stagingDir: string
+  ): Promise<{ manifest: BundleManifest; files: ImportedBundleFile[] }>;
+  /** 清掉临时目录——里面是**明文**会话，用完必须删。 */
+  removeStaging(stagingDir: string): Promise<void>;
 }
 
 export interface EventsBridge {
@@ -166,4 +229,9 @@ export type Bridges = {
    * 否则一个旁路能力就能把界面带崩。
    */
   tray?: TrayBridge;
+  /**
+   * 可选：加密归档包（Issue #152）。同样是老宿主 / 老测试可能没有的能力，
+   * 取用一律走 `useArchiveBundleBridge()`，缺了就禁用按钮而不是崩界面。
+   */
+  archiveBundle?: ArchiveBundleBridge;
 };

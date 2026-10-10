@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-remove-import-staging"
+description = "Enables the remove_import_staging command without any pre-configured scope."
+commands.allow = ["remove_import_staging"]
+
+[[permission]]
+identifier = "deny-remove-import-staging"
+description = "Denies the remove_import_staging command without any pre-configured scope."
+commands.deny = ["remove_import_staging"]

@@ -200,3 +200,70 @@
   width: 100%;
   height: 4px;
 }
+
+/* 归档包两个入口：与归档按钮同一行语言（左对齐、随时可点），但不加发丝线——
+   它们和上面的「立即归档」是同一组动作，分两条线反而像两件事。 */
+.bundleRow {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  margin-top: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+/* 口令弹层：设置面板自己 z-index 20，这里必须再高一层，否则遮罩盖不住它。 */
+.bundleBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-5);
+  background: var(--overlay);
+}
+
+.bundlePanel {
+  display: flex;
+  width: min(420px, 100%);
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+  animation: cca-enter var(--dur-enter) var(--ease-out);
+}
+
+.bundleTitle {
+  margin: 0;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  line-height: var(--lh-base);
+}
+
+/* 警告是要读的信息，用 danger 墨色而不是说明字：它说的是「丢了就永远打不开」。 */
+.bundleWarning {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.bundleInput {
+  width: 100%;
+}
+
+.bundleResult {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.bundleActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}

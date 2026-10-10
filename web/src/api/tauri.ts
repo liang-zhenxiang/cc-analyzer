@@ -1,26 +1,43 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { Bridges, DirEntry, ExecTextResult, RunLinesResult, StatInfo } from "./types";
+import type {
+  Bridges,
+  BundleEntry,
+  BundleManifest,
+  DirEntry,
+  ExecTextResult,
+  ImportedBundleFile,
+  RunLinesResult,
+  StatInfo
+} from "./types";
 
 function randomId() {
   return crypto.randomUUID();
 }
 
 export function installTauriBridges(): Bridges {
-  // 保存走同一条原生命令：会话导出与 Markdown 报告只差标题与扩展名，
-  // 各写一份就多一处会漂移的对话框参数。
-  async function saveText(
+  // 只负责弹「保存到哪」：路径交给调用方（前端自己写内容，或让 Rust 侧写包）。
+  // 会话导出与 Markdown 报告只差标题与扩展名，共享这一段就不会有两处会漂移的
+  // 对话框参数。
+  async function savePath(
     defaultName: string,
-    contents: string,
     options: { title: string; filterName: string; extensions: string[] }
   ): Promise<string | null> {
-    const path = await invoke<string | null>("plugin:dialog|save", {
+    return invoke<string | null>("plugin:dialog|save", {
       options: {
         title: options.title,
         defaultPath: defaultName,
         filters: [{ name: options.filterName, extensions: options.extensions }]
       }
     });
+  }
+
+  async function saveText(
+    defaultName: string,
+    contents: string,
+    options: { title: string; filterName: string; extensions: string[] }
+  ): Promise<string | null> {
+    const path = await savePath(defaultName, options);
     if (path) await invoke<void>("write_text", { path, contents });
     return path;
   }
@@ -105,13 +122,40 @@ export function installTauriBridges(): Bridges {
       writeText: (text) => navigator.clipboard.writeText(text)
     },
     dialog: {
+      savePath,
       saveText,
       saveMarkdown: (defaultName, contents) =>
         saveText(defaultName, contents, {
           title: "导出会话分析报告",
           filterName: "Markdown",
           extensions: ["md"]
+        }),
+      openFile: (options) =>
+        invoke<string | null>("plugin:dialog|open", {
+          options: {
+            title: options.title,
+            multiple: false,
+            directory: false,
+            filters: [{ name: options.filterName, extensions: options.extensions }]
+          }
         })
+    },
+    archiveBundle: {
+      // 包内容与口令都只在原生进程里走一圈：前端只递路径与条目，拿不到密文/明文。
+      exportBundle: (outPath: string, password: string, entries: BundleEntry[]) =>
+        invoke<{ entries: number; bytes: number }>("export_archive_bundle", {
+          outPath,
+          password,
+          entries
+        }),
+      importBundle: (inPath: string, password: string, stagingDir: string) =>
+        invoke<{ manifest: BundleManifest; files: ImportedBundleFile[] }>("import_archive_bundle", {
+          inPath,
+          password,
+          stagingDir
+        }),
+      removeStaging: (stagingDir: string) =>
+        invoke<void>("remove_import_staging", { stagingDir })
     },
     events: {
       onSessionImport: (handler) =>

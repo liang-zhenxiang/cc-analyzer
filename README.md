@@ -73,6 +73,15 @@ badge. Every screen, in both light and dark themes, is archived in
   a reading that leans on an estimate says so on its own line instead of passing as fact.
   Read entirely from local logs, never uploaded; hide it in settings and every statistic
   stays exactly as it was.
+- **Encrypted archive bundles (moving machines)** — the local archive lives on one machine.
+  Settings → Local archive can export it as a **single encrypted file** (`.ccabundle` =
+  tar + age passphrase encryption) and import it on another machine. Importing the same
+  bundle twice is **idempotent** (the second run reports everything as already present);
+  a session that moved on in two places keeps both versions rather than overwriting either.
+  The passphrase exists only while you type it — **never stored, never uploaded, no
+  recovery**, so a forgotten passphrase means an unopenable bundle; the file is standard
+  age, so the `age -d` CLI can decrypt it too. Import writes only into the app's own
+  archive directory and never touches `~/.claude`. (Minimum Rust is now 1.85.)
 - **Global search (⌘K / Ctrl+K)** — message-level search across every project
   and session, results grouped by project → session with the matching snippet
   and a relative time. Enter jumps into the session, opens the record and
@@ -157,7 +166,7 @@ choose **Open** to pass Gatekeeper.
 
 ### Build from source
 
-Requirements: Node.js 22 & npm, Rust 1.77+, Xcode Command Line Tools
+Requirements: Node.js 22 & npm, Rust 1.85+, Xcode Command Line Tools
 (macOS) or Visual Studio Build Tools (Windows).
 
 All three platforms go through Tauri's official bundler, so the bundle

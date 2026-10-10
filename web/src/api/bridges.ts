@@ -1,5 +1,5 @@
 import { createContext, createElement, useContext, type ReactNode } from "react";
-import type { Bridges, TrayBridge } from "./types";
+import type { ArchiveBundleBridge, Bridges, TrayBridge } from "./types";
 
 const BridgesContext = createContext<Bridges | null>(null);
 
@@ -26,4 +26,12 @@ export function useBridges(): Bridges {
  */
 export function useTrayBridge(): TrayBridge | undefined {
   return useBridges().tray;
+}
+
+/**
+ * 归档包桥同样可能缺失（老宿主 / 老测试）。保持同样的口径：拿到 `undefined`
+ * 就把两个按钮禁用并说明原因，而不是让整个设置面板跟着崩。
+ */
+export function useArchiveBundleBridge(): ArchiveBundleBridge | undefined {
+  return useBridges().archiveBundle;
 }

@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { ThresholdsPanel } from "./ThresholdsPanel";
 import { BridgesProvider } from "../../api/bridges";
 import { NotificationProvider } from "../../app/NotificationProvider";
-import type { Bridges } from "../../api/types";
+import type { Bridges, BundleEntry, BundleManifest } from "../../api/types";
 import { getArchiveTask, resetArchiveTask } from "../archive/archiveTask";
 import { getPlan, setPlan } from "../usage/planLimits";
 import { getThresholds, resetThresholds, setThreshold } from "./thresholds";
@@ -16,12 +16,25 @@ type BridgeOptions = {
   /** Optional gate so a test can observe the run while it is in flight. */
   holdSourceRead?: () => Promise<void>;
   writeFails?: Error;
+  /** 预置在「盘上」的文件（按绝对路径）——归档索引、临时目录里的明文副本等。 */
+  preWritten?: Record<string, string>;
+  /** `import_archive_bundle` 的返回。 */
+  importResult?: {
+    manifest: BundleManifest;
+    files: Array<{ entry: BundleEntry; stagedPath: string }>;
+  };
+  /** 让导入解包抛错（口令错）。 */
+  importError?: Error;
+  /** `export_archive_bundle` 的返回。 */
+  exportResult?: { entries: number; bytes: number };
+  savePath?: string | null;
+  openPath?: string | null;
 };
 
 /** 归档要用的 fs 面：会话扫描 + 备份副本 + 索引读写，全部走假桥。 */
 function createBridges(options: BridgeOptions = {}) {
   const sourceFiles = options.sourceFiles ?? {};
-  const written: Record<string, string> = {};
+  const written: Record<string, string> = { ...options.preWritten };
   const fs = {
     appDataDir: vi.fn(async () => "/app-data"),
     homeDir: vi.fn(async () => "/home/tester"),
@@ -46,15 +59,31 @@ function createBridges(options: BridgeOptions = {}) {
       written[path] = contents;
     })
   };
+  const archiveBundle = {
+    exportBundle: vi.fn(async () => options.exportResult ?? { entries: 0, bytes: 0 }),
+    importBundle: vi.fn(async () => {
+      if (options.importError) throw options.importError;
+      if (!options.importResult) throw new Error("测试没有配置 importResult");
+      return options.importResult;
+    }),
+    removeStaging: vi.fn(async () => undefined)
+  };
   const bridges = {
     fs,
+    dialog: {
+      savePath: vi.fn(async () => options.savePath ?? null),
+      openFile: vi.fn(async () => options.openPath ?? null),
+      saveText: vi.fn(async () => null),
+      saveMarkdown: vi.fn(async () => null)
+    },
+    archiveBundle,
     updater: {
       appVersion: async () => "0.0.0-test",
       checkUpdates: async () => ({ available: false, currentVersion: "0.0.0-test" }),
       relaunch: async () => undefined
     }
   } as unknown as Bridges;
-  return { bridges, written };
+  return { bridges, written, archiveBundle };
 }
 
 function renderPanel(bridges: Bridges) {
@@ -239,6 +268,165 @@ describe("本地归档 section", () => {
     expect(screen.getByRole("checkbox", { name: "启用本地归档" })).toBeChecked();
     expect(screen.getByRole("button", { name: "立即归档" })).toBeEnabled();
     expect(getArchiveTask().status).toBe("error");
+  });
+});
+
+/**
+ * 「本地归档」里的归档包入口（Issue #152）：口令只在内存里、读数如实、失败就地报。
+ * Rust 侧的建包 / 解包由假 `archiveBundle` 承担，这里验的是**前端语义与编排**。
+ */
+describe("归档包（Issue #152）", () => {
+  const INDEX_PATH = "/app-data/archive/archive-index.json";
+
+  function bundleEntry(sourcePath: string, overrides: Partial<BundleEntry> = {}): BundleEntry {
+    const name = sourcePath.split("/").pop() ?? "";
+    return {
+      sourcePath,
+      archivePath: `/other-machine/archive/-repo-demo/${name}`,
+      projectLabel: "-repo-demo",
+      sessionId: name.replace(/\.jsonl$/, ""),
+      sizeBytes: 12,
+      mtimeMs: 1_700_000_000_000,
+      ...overrides
+    };
+  }
+
+  function indexOf(entries: BundleEntry[]) {
+    const out: Record<string, unknown> = {};
+    for (const item of entries) out[item.sourcePath] = { ...item, archivedAt: 1 };
+    return { version: 1, entries: out };
+  }
+
+  function entryManifest(entries: BundleEntry[]): BundleManifest {
+    return {
+      formatVersion: 1,
+      exportedAt: 0,
+      appVersion: "0.0.0-test",
+      entries: entries.map((item) => ({ ...item, sha256: "a".repeat(64) }))
+    };
+  }
+
+  test("宿主没有归档包桥时：两个按钮禁用并说明原因", () => {
+    const { bridges } = createBridges();
+    delete (bridges as { archiveBundle?: unknown }).archiveBundle;
+    renderPanel(bridges);
+
+    expect(screen.getByRole("button", { name: "导出归档包…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "导入归档包…" })).toBeDisabled();
+    expect(screen.getByText("当前宿主不支持加密归档包")).toBeInTheDocument();
+  });
+
+  test("导出：口令要输两次且一致，读数报条目数与大小", async () => {
+    const user = userEvent.setup();
+    const seeded = [
+      bundleEntry("/other/.claude/projects/-repo-demo/a.jsonl"),
+      bundleEntry("/other/.claude/projects/-repo-demo/b.jsonl")
+    ];
+    const { bridges, archiveBundle } = createBridges({
+      preWritten: { [INDEX_PATH]: JSON.stringify(indexOf(seeded)) },
+      savePath: "/Users/tester/out.ccabundle",
+      exportResult: { entries: 2, bytes: 2048 }
+    });
+    renderPanel(bridges);
+
+    await user.click(screen.getByRole("button", { name: "导出归档包…" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText(/口令无法找回/)).toBeInTheDocument();
+
+    const confirmButton = within(dialog).getByRole("button", { name: "确认" });
+    expect(confirmButton).toBeDisabled();
+
+    await user.type(within(dialog).getByLabelText("口令"), "hunter2");
+    await user.type(within(dialog).getByLabelText(/再输一次/), "hunter3");
+    expect(within(dialog).getByText("两次输入不一致")).toBeInTheDocument();
+    expect(confirmButton).toBeDisabled();
+
+    await user.clear(within(dialog).getByLabelText(/再输一次/));
+    await user.type(within(dialog).getByLabelText(/再输一次/), "hunter2");
+    await user.click(confirmButton);
+
+    expect(archiveBundle.exportBundle).toHaveBeenCalledWith(
+      "/Users/tester/out.ccabundle",
+      "hunter2",
+      seeded
+    );
+    expect(await within(dialog).findByText(/已导出 2 条会话/)).toBeInTheDocument();
+  });
+
+  test("口令只在内存里：跑完不落 localStorage，输入框也清空", async () => {
+    const user = userEvent.setup();
+    const secret = "s3cret-passphrase-9f2";
+    const { bridges } = createBridges({
+      preWritten: {
+        [INDEX_PATH]: JSON.stringify(
+          indexOf([bundleEntry("/other/.claude/projects/-repo-demo/a.jsonl")])
+        )
+      },
+      savePath: "/Users/tester/out.ccabundle",
+      exportResult: { entries: 1, bytes: 512 }
+    });
+    renderPanel(bridges);
+
+    await user.click(screen.getByRole("button", { name: "导出归档包…" }));
+    const dialog = screen.getByRole("dialog");
+    await user.type(within(dialog).getByLabelText("口令"), secret);
+    await user.type(within(dialog).getByLabelText(/再输一次/), secret);
+    await user.click(within(dialog).getByRole("button", { name: "确认" }));
+    await within(dialog).findByText(/已导出 1 条会话/);
+
+    // 输入框已被清空；整份 localStorage 里也找不到口令的痕迹。
+    expect(within(dialog).getByLabelText("口令")).toHaveValue("");
+    expect(within(dialog).getByLabelText(/再输一次/)).toHaveValue("");
+    const stored = Object.keys(localStorage).map((key) => `${key}=${localStorage.getItem(key)}`);
+    expect(stored.join("\n")).not.toContain(secret);
+  });
+
+  test("导入：只输一次口令，读数四类齐全，归档读数跟着变", async () => {
+    const user = userEvent.setup();
+    const staged = bundleEntry("/other/.claude/projects/-repo-demo/imported.jsonl");
+    const { bridges, written } = createBridges({
+      preWritten: { "/app-data/import-staging-1/-repo-demo/imported.jsonl": "hello" },
+      openPath: "/Users/tester/in.ccabundle",
+      importResult: {
+        manifest: entryManifest([staged]),
+        files: [
+          { entry: staged, stagedPath: "/app-data/import-staging-1/-repo-demo/imported.jsonl" }
+        ]
+      }
+    });
+    renderPanel(bridges);
+
+    await user.click(screen.getByRole("button", { name: "导入归档包…" }));
+    const dialog = screen.getByRole("dialog");
+    // 导入只需要知道口令，不问第二遍。
+    expect(within(dialog).queryByLabelText("再输一次")).toBeNull();
+
+    await user.type(within(dialog).getByLabelText("口令"), "hunter2");
+    await user.click(within(dialog).getByRole("button", { name: "确认" }));
+
+    expect(
+      await within(dialog).findByText("新增 1 · 已存在 0 · 并列 0 · 失败 0")
+    ).toBeInTheDocument();
+    expect(written["/app-data/archive/-repo-demo/imported.jsonl"]).toBe("hello");
+    await waitFor(() => expect(getArchiveTask().footprint.count).toBe(1));
+  });
+
+  test("口令错：就地报错、索引未被写、临时目录仍被清掉", async () => {
+    const user = userEvent.setup();
+    const { bridges, written, archiveBundle } = createBridges({
+      openPath: "/Users/tester/in.ccabundle",
+      importError: new Error("口令错误：无法解密归档包")
+    });
+    renderPanel(bridges);
+
+    await user.click(screen.getByRole("button", { name: "导入归档包…" }));
+    const dialog = screen.getByRole("dialog");
+    await user.type(within(dialog).getByLabelText("口令"), "wrong");
+    await user.click(within(dialog).getByRole("button", { name: "确认" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("口令错误");
+    expect(written[INDEX_PATH]).toBeUndefined();
+    expect(archiveBundle.removeStaging).toHaveBeenCalledTimes(1);
   });
 });
 
