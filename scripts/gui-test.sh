@@ -1260,17 +1260,19 @@ for arg in sys.argv[1:]:
         problems = []
         main_info = data.get("main") or {}
         scroll_top, client_height = main_info.get("scrollTop"), main_info.get("clientHeight")
-        viewport_height = (data.get("viewport") or {}).get("height")
         for title in USAGE_PANEL_TITLES:
             hit = next((p for p in panels if p.get("title") == title), None)
             if hit is None:
                 problems.append(f"面板「{title}」不在文档里")
                 continue
-            doc_top, top = hit.get("docTop"), hit.get("top")
+            doc_top = hit.get("docTop")
+            # 不变量是「滚一次可达」（docTop ≤ scrollTop + clientHeight），不是
+            # 「滚到底后恰在视口内」——用量页加长（归因面板、工具普查）之后，
+            # 底部面板在滚到底时会越过视口上缘（N3 对普查面板就是这么判的，
+            # 同一原则统一到三块旧面板：顶部越界 = 途中已见过；真正要防的是
+            # 「还在折叠线下方、到不了」）。
             if isinstance(scroll_top, int) and isinstance(client_height, int) and isinstance(doc_top, (int, float)) and doc_top > scroll_top + client_height + 1:
                 problems.append(f"「{title}」滚一次到不了（docTop {doc_top:.0f} > scrollTop {scroll_top} + clientHeight {client_height}）")
-            if isinstance(viewport_height, (int, float)) and isinstance(top, (int, float)) and (top < -1 or top > viewport_height + 1):
-                problems.append(f"「{title}」滚到底后仍不在视口内（top {top:.0f}，视口高 {viewport_height:.0f}）")
         # 工具与 skill（N3）滚一次可达 + 主榜清单是真列表（行高测 li，账目与
         # <ul> 自己的 scrollHeight 对——被丢清单的判法）。此处不判「滚到底后
         # 在视口内」：面板常高约 300px，若上方内容把它顶出最终视口，那是页面
