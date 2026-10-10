@@ -984,6 +984,14 @@ for arg in sys.argv[1:]:
     else:
         print(f"NOTE|{label}：探针缺少 escaped_text，跳过终端转义判定")
 
+    # 托盘是否真的建起来了：这条事实由应用侧（Rust）在写探针前注入，不靠人眼看
+    # 截图里有没有图标。缺失或为假都算失败——常驻读数是本版的核心改动之一。
+    tray_created = data.get("tray_created")
+    if tray_created is True:
+        print(f"OK|{label}：应用创建了托盘图标（tray_created=true）")
+    else:
+        print(f"BAD|{label}：应用没创建托盘（tray_created={tray_created!r}）——常驻读数没生效")
+
     for el in data.get("elements") or []:
         if el.get("name") != "gauge":
             continue

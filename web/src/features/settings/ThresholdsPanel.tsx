@@ -40,6 +40,7 @@ import {
   setFontScale,
   useFontScale
 } from "./fontScale";
+import { setTrayEnabled, useTrayEnabled } from "../usage/useTrayReadout";
 import type { Bridges, UpdateCheck } from "../../api/types";
 import styles from "./ThresholdsPanel.module.css";
 
@@ -235,6 +236,46 @@ function FontScaleSection() {
       <p className={styles.preview}>12:04:08 · LLM · claude-sonnet-4 · 3.00s</p>
       <p className={styles.previewSub}>提示词 17 / 输出 34 · 2.7% · 正常</p>
     </div>
+  );
+}
+
+/**
+ * 「常驻读数」小节：托盘 / 菜单栏读数的开关。紧挨产生读数的「计费窗口」，
+ * 用户为「从哪来 / 怎么关」而来时顺手就能找到。关掉只隐藏读数，统计口径不变。
+ * 默认开（见 useTrayReadout.ts 的 TRAY_ENABLED_KEY）。
+ */
+function TrayReadoutSection() {
+  const enabled = useTrayEnabled();
+  const titleId = useId();
+  return (
+    <>
+      <h3 className={styles.sectionTitle}>常驻读数</h3>
+      <div className={styles.grid}>
+        {/* aria-labelledby 锁住可见标题本身（照「启用本地归档」）：包一层 label 时
+            说明文字会一起进可访问名，视觉名与朗读名就此分叉。 */}
+        <label className={styles.field}>
+          <span className={styles.label} id={titleId}>
+            显示用量读数
+          </span>
+          <span className={styles.control}>
+            <input
+              type="checkbox"
+              aria-labelledby={titleId}
+              checked={enabled}
+              onChange={(event) => setTrayEnabled(event.target.checked)}
+            />
+          </span>
+          <span className={styles.hint}>
+            在 macOS 菜单栏与 Windows 托盘常驻显示，读自本机日志；关掉只隐藏读数，统计不受影响。
+          </span>
+          {enabled ? null : (
+            <span className={styles.hint}>
+              关掉只是不显示读数；「用量总览」与统计照常，随时可再打开。
+            </span>
+          )}
+        </label>
+      </div>
+    </>
   );
 }
 
@@ -446,6 +487,7 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
           </span>
         </label>
       </div>
+      <TrayReadoutSection />
       <h3 className={styles.sectionTitle}>软件更新</h3>
       <p className={styles.note}>
         更新检查只是读取 GitHub 发布页的一次下载请求，不上传任何数据。稳定版

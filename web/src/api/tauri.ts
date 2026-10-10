@@ -115,7 +115,15 @@ export function installTauriBridges(): Bridges {
     },
     events: {
       onSessionImport: (handler) =>
-        listen<string>("session:import", (event) => handler(event.payload))
+        listen<string>("session:import", (event) => handler(event.payload)),
+      onTrayNavigate: (handler) =>
+        listen<string>("tray:navigate", (event) => handler(event.payload))
+    },
+    tray: {
+      // Rust 侧参数是 snake_case 的 readout / visible；Tauri 的 camelCase→snake_case
+      // 约定与本仓库其它命令（如 read_head 的 maxBytes）一致，单词参数写法两者同形。
+      updateReadout: (readout) => invoke<void>("update_tray_readout", { readout }),
+      setVisible: (visible) => invoke<void>("set_tray_visible", { visible })
     },
     monitor: {
       monitorPort: () => invoke<number>("monitor_port"),

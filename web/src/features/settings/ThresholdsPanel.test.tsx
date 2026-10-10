@@ -359,3 +359,37 @@ describe("界面字号 section", () => {
     ).toBeTruthy();
   });
 });
+
+/**
+ * 「常驻读数」小节（Round P §5）：标题、可见 label 即可访问名、关闭态补充说明，
+ * 以及 `cca-tray-visible` 的持久化。托盘推送本身由 useTrayReadout.test.tsx 覆盖。
+ */
+describe("常驻读数", () => {
+  test("默认开：可访问名就是可见标题，关闭态补充说明不出现", () => {
+    renderPanel(createBridges().bridges);
+
+    expect(screen.getByRole("heading", { name: "常驻读数" })).toBeInTheDocument();
+    // getByLabelText 走的是 aria-labelledby 指向的可见标题，而不是另写的 aria-label。
+    const toggle = screen.getByLabelText("显示用量读数");
+    expect(toggle).toBeChecked();
+    expect(screen.getByText(/在 macOS 菜单栏与 Windows 托盘常驻显示/)).toBeInTheDocument();
+    expect(screen.queryByText(/关掉只是不显示读数/)).not.toBeInTheDocument();
+  });
+
+  test("关掉：补充说明出现并写进 cca-tray-visible；再打开又收回", async () => {
+    const user = userEvent.setup();
+    renderPanel(createBridges().bridges);
+
+    await user.click(screen.getByLabelText("显示用量读数"));
+
+    expect(screen.getByLabelText("显示用量读数")).not.toBeChecked();
+    expect(screen.getByText(/关掉只是不显示读数/)).toBeInTheDocument();
+    expect(localStorage.getItem("cca-tray-visible")).toBe("false");
+
+    await user.click(screen.getByLabelText("显示用量读数"));
+
+    expect(screen.getByLabelText("显示用量读数")).toBeChecked();
+    expect(screen.queryByText(/关掉只是不显示读数/)).not.toBeInTheDocument();
+    expect(localStorage.getItem("cca-tray-visible")).toBe("true");
+  });
+});

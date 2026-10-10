@@ -16,7 +16,10 @@ authors = [
 tauri-build = { version = "2.6.3", features = [] }
 
 [dependencies]
-tauri = { version = "2.11.5", features = [] }
+# `tray-icon`：菜单栏 / 托盘常驻限额读数（Issue #150）。这个 feature 引入的
+# crate（tray-icon / muda / libappindicator 等）本来就已经在 Cargo.lock 里
+# （它们是 tauri 的可选依赖，lock 记录依赖全集），开启后不新增任何供应链面。
+tauri = { version = "2.11.5", features = ["tray-icon"] }
 tauri-plugin-dialog = "2.7.2"
 # 自动更新：updater 负责检查/下载/校验（minisign，公钥在 tauri.conf.json），
 tauri-plugin-updater = "2.9.0"
