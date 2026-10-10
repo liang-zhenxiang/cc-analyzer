@@ -51,6 +51,7 @@ views = [
     "error-view",
     "error-events",
     "settings",
+    "settings-below",
     "monitor",
     "usage",
     "usage-below",

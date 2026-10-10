@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端规范核查"}
+{"file": ".trellis/spec/testing/index.md", "reason": "测试完整性核查"}
+{"file": ".trellis/tasks/10-10-n2-changed-files/prd.md", "reason": "验收标准"}
+{"file": ".trellis/tasks/10-10-n2-changed-files/design.md", "reason": "契约核查（口径、双源、跳转链路）"}
+{"file": ".trellis/tasks/10-10-n2-changed-files/research/design-changes-view.md", "reason": "核查实现逐条照规范（§9 十条不做逐项核对）"}

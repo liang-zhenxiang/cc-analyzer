@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端分层规范"}
+{"file": ".trellis/spec/testing/index.md", "reason": "测试分层与验收"}
+{"file": ".trellis/tasks/10-10-n3-tool-census/prd.md", "reason": "需求与验收"}
+{"file": ".trellis/tasks/10-10-n3-tool-census/design.md", "reason": "技术契约（分桶规则、双口径、接线）"}
+{"file": ".trellis/tasks/10-10-n3-tool-census/research/tool-census-facts.md", "reason": "数据地基（实测分布、可编码分桶、sidechain 风险）"}
+{"file": ".trellis/tasks/10-10-n3-tool-census/research/design-tool-census-view.md", "reason": "视觉规格（唯一视觉权威：分层四栏、双口径、明确不做）"}

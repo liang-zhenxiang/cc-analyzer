@@ -13,7 +13,7 @@ import {
   type ThresholdKey
 } from "./thresholds";
 import { PLAN_PRESETS, setPlan, usePlan, type PlanId } from "../usage/planLimits";
-import { useBridges } from "../../api/bridges";
+import { useArchiveBundleBridge, useBridges } from "../../api/bridges";
 import {
   CHANNEL_LABELS,
   loadAutoCheck,
@@ -26,11 +26,14 @@ import { useNotifications } from "../../app/NotificationProvider";
 import {
   disable as disableArchive,
   enable as enableArchive,
+  refreshAfterImport as refreshArchiveAfterImport,
   refreshStatus as refreshArchiveStatus,
   runNow as runArchiveNow,
   useArchiveTask,
   type ArchiveTaskState
 } from "../archive/archiveTask";
+import { exportArchiveBundle, importArchiveBundle } from "../archive/bundleStore";
+import type { ImportFailure } from "../archive/bundle";
 import { formatBytes, formatDateTime, formatRelativeTime } from "../../lib/format";
 import {
   DEFAULT_FONT_SCALE,
@@ -40,6 +43,7 @@ import {
   setFontScale,
   useFontScale
 } from "./fontScale";
+import { setTrayEnabled, useTrayEnabled } from "../usage/useTrayReadout";
 import type { Bridges, UpdateCheck } from "../../api/types";
 import styles from "./ThresholdsPanel.module.css";
 
@@ -191,6 +195,225 @@ function ArchiveSection({ bridges }: { bridges: Bridges }) {
           />
         ) : null}
       </div>
+      <BundleActions bridges={bridges} />
+    </>
+  );
+}
+
+type BundleMode = "export" | "import";
+
+/**
+ * 「导出归档包…」/「导入归档包…」两个入口与它们的口令弹层（Issue #152）。
+ *
+ * 口令**只活在组件 state 里**：不进 localStorage、不进日志、不回显（input 是
+ * password 类型，提交后立刻清空）。「忘了口令 = 数据永远打不开」这句话要成立，
+ * 前提就是应用这边不替用户留任何副本。
+ */
+function BundleActions({ bridges }: { bridges: Bridges }) {
+  const bundle = useArchiveBundleBridge();
+  const titleId = useId();
+  const [mode, setMode] = useState<BundleMode | null>(null);
+  const [password, setPassword] = useState("");
+  const [confirmText, setConfirmText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [readout, setReadout] = useState<string | null>(null);
+  const [failures, setFailures] = useState<ImportFailure[]>([]);
+  const opener = useRef<HTMLElement | null>(null);
+
+  // Esc 关掉弹层：与「导出会话报告」浮层是同一套键盘语言。捕获阶段拦下，
+  // 免得 Esc 又去触发背后的全局快捷键；跑动中的操作不响应，避免半途收摊。
+  useEffect(() => {
+    if (!mode) return undefined;
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== "Escape" || busy) return;
+      event.stopPropagation();
+      setMode(null);
+      setPassword("");
+      setConfirmText("");
+      opener.current?.focus?.();
+    }
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [mode, busy]);
+
+  // 桥是可选的：老宿主 / 老测试没有它。禁用并说明，而不是让面板崩掉。
+  if (!bundle) {
+    return (
+      <div className={styles.bundleRow}>
+        <Button type="button" disabled>
+          导出归档包…
+        </Button>
+        <Button type="button" disabled>
+          导入归档包…
+        </Button>
+        <span className={styles.hint}>当前宿主不支持加密归档包</span>
+      </div>
+    );
+  }
+
+  function open(next: BundleMode, element: HTMLElement) {
+    opener.current = element;
+    setMode(next);
+    setPassword("");
+    setConfirmText("");
+    setError(null);
+    setReadout(null);
+    setFailures([]);
+  }
+
+  function close() {
+    setMode(null);
+    setPassword("");
+    setConfirmText("");
+    setBusy(false);
+    // 焦点还给触发它的按钮：WebKit 点按钮不给焦点，只能自己记。
+    opener.current?.focus?.();
+  }
+
+  const mismatch = mode === "export" && confirmText.length > 0 && confirmText !== password;
+  const canConfirm = password.length > 0 && (mode === "import" || password === confirmText);
+  const finished = readout !== null;
+
+  async function run() {
+    if (mode === null || !canConfirm) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (mode === "export") {
+        const outcome = await exportArchiveBundle(bridges, password);
+        // 取消系统保存对话框不是失败：直接收起弹层，什么都不说。
+        if (outcome === null) {
+          close();
+          return;
+        }
+        setReadout(`已导出 ${outcome.entries} 条会话 · ${formatBytes(outcome.bytes)}`);
+      } else {
+        const outcome = await importArchiveBundle(bridges, password);
+        if (outcome === null) {
+          close();
+          return;
+        }
+        setReadout(outcome.readout.text);
+        setFailures(outcome.failures);
+        try {
+          // 导入改写了索引：让面板读数与会话列表跟上（running/importing → done 的
+          // 跃迁正是列表重跑发现的触发点）。
+          await refreshArchiveAfterImport(bridges);
+        } catch {
+          // 读数刷新失败不改变导入结论：条目已经落盘、索引已经写回。
+        }
+      }
+    } catch (cause) {
+      setError(String(cause));
+    } finally {
+      setBusy(false);
+      // 口令用完即弃：不留在内存里等下一次误用。
+      setPassword("");
+      setConfirmText("");
+    }
+  }
+
+  return (
+    <>
+      <div className={styles.bundleRow}>
+        <Button type="button" onClick={(event) => open("export", event.currentTarget)}>
+          导出归档包…
+        </Button>
+        <Button type="button" onClick={(event) => open("import", event.currentTarget)}>
+          导入归档包…
+        </Button>
+      </div>
+      {mode ? (
+        <div
+          className={styles.bundleBackdrop}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) close();
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            className={styles.bundlePanel}
+          >
+            <h2 id={titleId} className={styles.bundleTitle}>
+              {mode === "export" ? "导出归档包" : "导入归档包"}
+            </h2>
+            <p className={styles.note}>
+              {mode === "export"
+                ? "把本机归档的会话打成一个口令加密的单文件包（.ccabundle），换到别的机器用同一个口令导入。"
+                : "选一个归档包，用导出时设的口令解开；包里的会话并进本机归档，已存在的跳过，不同版本并列保留。"}
+            </p>
+            <p className={styles.bundleWarning}>
+              口令无法找回：忘记口令，这个包里的数据就永远打不开。应用不留后门，也不上传任何东西。
+            </p>
+            <label className={styles.field}>
+              <span className={styles.label}>口令</span>
+              <TextInput
+                className={styles.bundleInput}
+                type="password"
+                autoComplete="new-password"
+                autoFocus
+                disabled={busy}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </label>
+            {mode === "export" ? (
+              <label className={styles.field}>
+                <span className={styles.label}>再输一次</span>
+                <TextInput
+                  className={styles.bundleInput}
+                  type="password"
+                  autoComplete="new-password"
+                  disabled={busy}
+                  value={confirmText}
+                  onChange={(event) => setConfirmText(event.target.value)}
+                />
+                {mismatch ? <span className={styles.hint}>两次输入不一致</span> : null}
+              </label>
+            ) : null}
+            {error ? (
+              <p className={styles.alert} role="alert">
+                {error}
+              </p>
+            ) : null}
+            {finished ? (
+              <div className={styles.bundleResult}>
+                <p className={styles.readout} role="status">
+                  {readout}
+                </p>
+                {failures.map((failure) => (
+                  <p key={failure.sourcePath} className={styles.alert}>
+                    {failure.sourcePath}：{failure.reason}
+                  </p>
+                ))}
+              </div>
+            ) : null}
+            <div className={styles.bundleActions}>
+              <Button type="button" onClick={close} disabled={busy}>
+                {finished || error ? "关闭" : "取消"}
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                aria-busy={busy || undefined}
+                disabled={busy || (!finished && !canConfirm)}
+                onClick={() => void run()}
+              >
+                {busy
+                  ? mode === "export"
+                    ? "正在导出…"
+                    : "正在导入…"
+                  : finished
+                    ? "完成"
+                    : "确认"}
+              </Button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </>
   );
 }
@@ -235,6 +458,46 @@ function FontScaleSection() {
       <p className={styles.preview}>12:04:08 · LLM · claude-sonnet-4 · 3.00s</p>
       <p className={styles.previewSub}>提示词 17 / 输出 34 · 2.7% · 正常</p>
     </div>
+  );
+}
+
+/**
+ * 「常驻读数」小节：托盘 / 菜单栏读数的开关。紧挨产生读数的「计费窗口」，
+ * 用户为「从哪来 / 怎么关」而来时顺手就能找到。关掉只隐藏读数，统计口径不变。
+ * 默认开（见 useTrayReadout.ts 的 TRAY_ENABLED_KEY）。
+ */
+function TrayReadoutSection() {
+  const enabled = useTrayEnabled();
+  const titleId = useId();
+  return (
+    <>
+      <h3 className={styles.sectionTitle}>常驻读数</h3>
+      <div className={styles.grid}>
+        {/* aria-labelledby 锁住可见标题本身（照「启用本地归档」）：包一层 label 时
+            说明文字会一起进可访问名，视觉名与朗读名就此分叉。 */}
+        <label className={styles.field}>
+          <span className={styles.label} id={titleId}>
+            显示用量读数
+          </span>
+          <span className={styles.control}>
+            <input
+              type="checkbox"
+              aria-labelledby={titleId}
+              checked={enabled}
+              onChange={(event) => setTrayEnabled(event.target.checked)}
+            />
+          </span>
+          <span className={styles.hint}>
+            在 macOS 菜单栏与 Windows 托盘常驻显示，读自本机日志；关掉只隐藏读数，统计不受影响。
+          </span>
+          {enabled ? null : (
+            <span className={styles.hint}>
+              关掉只是不显示读数；「用量总览」与统计照常，随时可再打开。
+            </span>
+          )}
+        </label>
+      </div>
+    </>
   );
 }
 
@@ -446,6 +709,7 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
           </span>
         </label>
       </div>
+      <TrayReadoutSection />
       <h3 className={styles.sectionTitle}>软件更新</h3>
       <p className={styles.note}>
         更新检查只是读取 GitHub 发布页的一次下载请求，不上传任何数据。稳定版

@@ -1,9 +1,11 @@
 [package]
 name = "cc-analyzer"
-version = "0.14.0-beta.1"
+version = "0.17.0-beta.1"
 description = "CC Analyzer"
 edition = "2021"
-rust-version = "1.77"
+# 加密链（age → rust-embed-utils → sha2 0.11 → digest / hybrid-array）要求 1.85；
+# CI 与发布都用 stable，这条声明是给从源码构建的人看的，写低了就是一句假话。
+rust-version = "1.85"
 license = "MIT"
 repository = "https://github.com/liang-zhenxiang/cc-analyzer"
 # 维护者名单；版权归属见仓库根的 LICENSE / NOTICE（署名 CC Analyzer）
@@ -16,13 +18,27 @@ authors = [
 tauri-build = { version = "2.6.3", features = [] }
 
 [dependencies]
-tauri = { version = "2.11.5", features = [] }
+# `tray-icon`：菜单栏 / 托盘常驻限额读数（Issue #150）。这个 feature 引入的
+# crate（tray-icon / muda / libappindicator 等）本来就已经在 Cargo.lock 里
+# （它们是 tauri 的可选依赖，lock 记录依赖全集），开启后不新增任何供应链面。
+tauri = { version = "2.11.5", features = ["tray-icon"] }
 tauri-plugin-dialog = "2.7.2"
 # 自动更新：updater 负责检查/下载/校验（minisign，公钥在 tauri.conf.json），
 tauri-plugin-updater = "2.9.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["process", "io-util", "time", "macros", "rt"] }
+
+# 归档包导出 / 导入（Issue #152）：容器是 tar，加密用 age 的口令收件人
+# （`age::scrypt`，工作因子取库默认值，不自己调参）。
+# `tar` / `sha2` / `base64` 本就在 Cargo.lock 里（tauri-plugin-updater 等已带入），
+# 新增的供应链面只有 `age` 一个。关掉 age 的默认 feature 后不再牵入 ssh / armor /
+# async / cli-common / plugin 那几组（rsa、aes、rpassword…），只留 scrypt 口令加解密
+# 需要的部分——此功能用不到 age 的其它收件人类型。
+tar = "0.4"
+age = { version = "0.11", default-features = false }
+sha2 = "0.10"
+base64 = "0.22"
 
 # 仅 `gui-capture` feature 需要：让应用把自己的 webview 渲染成 PNG，
 # 供真机 GUI 测试取证。**发布构建不启用该 feature**，所以正式产物里既没有

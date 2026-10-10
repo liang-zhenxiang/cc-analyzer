@@ -60,6 +60,32 @@ function sessionItems(page: Page) {
 }
 
 /**
+ * 把设置浮层滚到底，并等它真的滚到位。
+ *
+ * 同样的理由，只是滚动容器不同：设置面板是 `position: fixed` + `overflow: auto`，
+ * 溢出发生在**面板自己**身上，而它贴在顶栏下方——只拍首屏的话，越靠后的小节
+ * 永远进不了归档（本轮新增的「常驻读数」就在最底下）。判据同样是事实而非 sleep。
+ */
+async function scrollSettingsToBottom(page: Page) {
+  const panel = page.getByLabel("阈值设置");
+  await panel.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  await panel.evaluate(async (el) => {
+    // 面板的内容高度会随后面的小节挂载而变（归档读数、更新状态都是异步的），
+    // 赋值一次可能落在「还没长高」的瞬间，所以再等一轮：到底了就返回。
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    el.scrollTop = el.scrollHeight;
+  });
+  await expect
+    .poll(async () =>
+      panel.evaluate((el) => el.scrollTop + el.clientHeight >= el.scrollHeight - 1)
+    )
+    .toBe(true);
+  await page.waitForTimeout(150);
+}
+
+/**
  * 等页面上的图片真正解码完再截。
  *
  * 不等的话会截到「品牌图标是个空方块」的那一帧：`BrandMark` 是张 PNG，
@@ -126,6 +152,10 @@ test.describe("截图归档", () => {
       await page.getByRole("button", { name: "设置" }).click();
       await page.waitForTimeout(250);
       await shot("settings");
+      // 面板下半屏：越靠后的小节（计费窗口之后新增的「常驻读数」等）只拍首屏
+      // 永远看不到，归档里得有一张滚到底的。
+      await scrollSettingsToBottom(page);
+      await shot("settings-below");
       await page.getByRole("button", { name: "设置" }).click();
 
       // 实时监控 —— 截的是**未打开**的默认态，也就是用户切进来第一眼看到的样子。

@@ -10,6 +10,8 @@
  * 本身：命令名拼错、参数名写错，测试同样会发现。
  */
 
+import type { BundleEntry, BundleManifest } from "../src/api/types";
+
 export type MockScenario = {
   /** 家目录；会话从 `<home>/.claude/projects/` 下发现 */
   home: string;
@@ -27,8 +29,28 @@ export type MockScenario = {
   claudeResult?: { ok: boolean; error?: string; stderr?: string };
   /** `plugin:dialog|save` 返回的路径；null 表示用户取消 */
   savePath?: string | null;
+  /** `plugin:dialog|open` 返回的路径；null 表示用户取消 */
+  openPath?: string | null;
+  /**
+   * 导入归档包时 Rust 侧应当交回的清单与解出的文件。
+   *
+   * `stagedPath` 由桩按前端现传的 `stagingDir` 现算——真实 Rust 也只会往那个
+   * 临时目录里写，夹具不能假设一个具体的时间戳目录名。
+   */
+  bundleImport?: {
+    manifest: BundleManifest;
+    files: Array<{ entry: BundleEntry; contents: string }>;
+  };
+  /** 让 `import_archive_bundle` 抛错（口令错 / 校验失败）。 */
+  bundleImportError?: string;
   /** 更新检查：缺省「已是最新」；给版本号则报有更新 */
   updater?: { currentVersion?: string; version?: string; notes?: string | null };
+  /**
+   * 虚拟文件系统的 mtime（毫秒）。缺省是一个固定旧值，够「文件存在且可读」的
+   * 断言用；托盘读数按 mtime 收窄扫描，需要「mtime 近期」的场景（tray-readout）
+   * 才显式给一个贴近 Date.now() 的值。
+   */
+  statMtimeMs?: number;
 };
 
 /** 这个函数体在浏览器里运行，因此必须自包含（不能引用外部作用域） */
@@ -111,7 +133,11 @@ export function installTauriMock(scenario: MockScenario): void {
           return null;
         case "stat": {
           const content = readFile(a.path as unknown as string);
-          return { is_file: true, size: content.length, mtime_ms: 1_700_000_000_000 };
+          return {
+            is_file: true,
+            size: content.length,
+            mtime_ms: scenario.statMtimeMs ?? 1_700_000_000_000
+          };
         }
         case "read_dir": {
           const dir = norm(String(a.path));
@@ -207,8 +233,48 @@ export function installTauriMock(scenario: MockScenario): void {
           return scenario.monitor?.alive ?? false;
         case "plugin:dialog|save":
           return scenario.savePath ?? null;
+        case "plugin:dialog|open":
+          return scenario.openPath ?? null;
+        case "export_archive_bundle": {
+          const entries = (a.entries as BundleEntry[] | undefined) ?? [];
+          // 条目数照实报；字节数用条目大小之和近似——e2e 断言的是「命令收到了什么」，
+          // 真正产物的字节由 Rust 侧负责。
+          return {
+            entries: entries.length,
+            bytes: entries.reduce((sum, entry) => sum + Number(entry.sizeBytes ?? 0), 0)
+          };
+        }
+        case "import_archive_bundle": {
+          if (scenario.bundleImportError) throw new Error(scenario.bundleImportError);
+          const spec = scenario.bundleImport;
+          if (!spec) {
+            throw new Error(
+              "E2E 虚拟文件系统：未配置 bundleImport 夹具——静默返回空清单会把夹具错误伪装成功能缺陷。"
+            );
+          }
+          const staging = norm(String(a.stagingDir));
+          const outFiles = spec.files.map((file) => {
+            const stagedPath = `${staging}/${file.entry.projectLabel}/${baseOf(file.entry.sourcePath)}`;
+            files[norm(stagedPath)] = file.contents;
+            return { entry: file.entry, stagedPath };
+          });
+          return { manifest: spec.manifest, files: outFiles };
+        }
+        case "remove_import_staging": {
+          // 临时目录里是明文会话：桩也照真实语义把它删掉，好让 e2e 能断言「没留下」。
+          const staging = norm(String(a.stagingDir));
+          for (const key of Object.keys(files)) {
+            if (key === staging || key.startsWith(`${staging}/`)) delete files[key];
+          }
+          return null;
+        }
         case "plugin:float|enter":
         case "plugin:float|exit":
+          return null;
+        // 托盘读数：数字全在 web 侧算好再推过来，这里只要接收不报错。
+        // 命令名与 payload 已经由顶部的 `record(cmd, args)` 记账，供 e2e 断言。
+        case "update_tray_readout":
+        case "set_tray_visible":
           return null;
         case "plugin:event|listen": {
           const event = String(a.event);

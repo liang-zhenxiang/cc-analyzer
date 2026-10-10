@@ -160,11 +160,200 @@
 .history {
   display: grid;
   min-width: 0;
-  flex: 2 1 420px;
   gap: var(--sp-1);
 }
 
 .historyLabel {
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
+}
+
+/* 右侧一列：归因面板 + 历史窗口条上下叠。弹性尺寸由这一列承接——
+   两块各自不再 flex，历史图因此只在这 520px 量级的列宽里渲染（它的 SVG 是
+   width:100% + viewBox，独占整行会被放大到约 1.9 倍、纵轴标签互相压住）。 */
+.sideStack {
+  display: grid;
+  min-width: 0;
+  flex: 2 1 520px;
+  align-self: center;
+  align-content: start;
+  gap: var(--sp-3);
+}
+
+/* 本窗口消耗 Top 会话（Issue #151）：和周层一样是「卡里的仪器块」，
+   因此复用内嵌工具块的视觉语言，不再套一层 .panel 变成卡片套卡片。 */
+.attribution {
+  display: grid;
+  min-width: 0;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-inset);
+}
+
+.attributionHead {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.attributionTitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 脚注只放分母定义这一句：完整口径在 title / aria-label 上。
+   宽度不够时省略号截断的是补充说明，不是分母本身。 */
+.attributionFootnote {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 列表 gap 为 0、行高固定：容器高度 = 行数 × 行高（余项行同样一行高），
+   真机门禁按这个等式对账，防止看起来 5 行、实际高度对不上。 */
+.attributionList {
+  display: grid;
+  min-width: 0;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attributionItem {
+  min-width: 0;
+}
+
+/* 真实会话行与余项行共用同一条基线网格：标题 / 消耗 / 占比条 / 占比。
+   行首 4 列宽度里的 56px 是「形」，不参与 --sp-* 间距档位。 */
+.attributionRow,
+.attributionRest {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  height: calc(var(--row-pad-y-tight) * 2 + var(--lh-xs));
+  align-items: center;
+  gap: var(--sp-2);
+  grid-template-columns: minmax(0, 1fr) auto 56px 56px;
+  padding: 0 var(--sp-1);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-align: left;
+}
+
+.attributionRow {
+  cursor: pointer;
+  /* 面板底是 --bg-inset，浅色主题下 --bg-hover 与它同色（悬停看不见），
+     所以这里的悬停台阶用 --bg-active。 */
+  transition: background-color var(--dur-hover) var(--ease-out);
+}
+
+.attributionRow:not(:disabled):hover {
+  background: var(--bg-active);
+}
+
+.attributionRow:not(:disabled):hover .attributionRowTitle {
+  color: var(--text);
+}
+
+.attributionRow:not(:disabled):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* 无元数据的行照列但不可点：不出现悬停底、不出现焦点环、不进 Tab 顺序
+   （原生 disabled 已经做到后两条，这里把指针与悬停也关掉）。 */
+.attributionRow:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.attributionRow:disabled:hover {
+  background: transparent;
+}
+
+.attributionRowTitle,
+.attributionRestTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attributionRowTitle {
+  color: var(--text-secondary);
+}
+
+/* 余项行不是会话：顶部 1px 分隔线用内阴影画，不占布局高度。 */
+.attributionRest {
+  box-shadow: inset 0 1px 0 var(--border);
+  color: var(--text-tertiary);
+}
+
+.attributionToken {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.attributionPct {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.attributionRest .attributionToken,
+.attributionRest .attributionPct {
+  color: var(--text-tertiary);
+}
+
+/* 占比条复刻日志表那一档：56 × 6 轨道 + 实色填充；非零最小 2px，
+   有消耗的行不会因为占比太小被画成空。 */
+.attributionBarTrack {
+  width: 56px;
+  height: var(--sp-15);
+  overflow: hidden;
+  border-radius: var(--r-xs);
+  background: var(--border-strong);
+}
+
+.attributionBarFill {
+  /* 填充是行内 <span>，没有这一行 width/height 全都不生效——占比条会整根消失。 */
+  display: block;
+  height: 100%;
+  min-width: var(--sp-05);
+  border-radius: var(--r-xs);
+  background: var(--chart-1);
+}
+
+/* 余项是合并值，不是单个会话：同一条轨道降一档颜色。 */
+.attributionRestFill {
+  display: block;
+  height: 100%;
+  min-width: var(--sp-05);
+  border-radius: var(--r-xs);
+  background: var(--chart-1-soft);
+}
+
+.attributionBarEmpty {
+  width: 0;
 }

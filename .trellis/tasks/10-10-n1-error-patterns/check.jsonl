@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端规范核查依据"}
+{"file": ".trellis/spec/testing/index.md", "reason": "测试完整性核查依据"}
+{"file": ".trellis/tasks/10-10-n1-error-patterns/prd.md", "reason": "验收标准原文"}
+{"file": ".trellis/tasks/10-10-n1-error-patterns/design.md", "reason": "设计契约核查（口径、排除规则、下钻链路）"}
+{"file": ".trellis/tasks/10-10-n1-error-patterns/research/design-error-view.md", "reason": "核查实现是否逐条照规范走（§9 明确不做清单逐项核对）"}

@@ -7,7 +7,7 @@
 
 ## 环境要求
 
-- Rust 1.77 或更高版本
+- Rust 1.85 或更高版本
 - Xcode Command Line Tools（macOS）
 - Node.js 和 npm，用于构建或开发 Web UI
 - 可选：本机安装 `claude` CLI，用于“生成分析报告”

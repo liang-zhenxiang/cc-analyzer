@@ -27,6 +27,11 @@
     "allow-app-version",
     "allow-check-updates",
     "allow-install-update",
-    "allow-relaunch-app"
+    "allow-relaunch-app",
+    "allow-update-tray-readout",
+    "allow-set-tray-visible",
+    "allow-export-archive-bundle",
+    "allow-import-archive-bundle",
+    "allow-remove-import-staging"
   ]
 }
