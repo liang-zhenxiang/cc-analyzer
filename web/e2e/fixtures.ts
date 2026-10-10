@@ -308,6 +308,85 @@ export function largeScenario(overrides: Partial<MockScenario> = {}): MockScenar
 /** 让窗口化在 20 行就生效——阈值下限，最小的夹具也能触发上下垫片。 */
 export const WINDOW_ROW_THRESHOLDS = JSON.stringify({ logWindowRows: 20 });
 
+/**
+ * 「按会话的配额归因」场景（Issue #151）：**当前 5 小时窗口**里一定有内容。
+ *
+ * 窗口是相对 `Date.now()` 算出来的，夹具就绝不能写死日期——写死的日期过几天
+ * 就把窗内会话甩到窗外，断言会以「面板没渲染」这种毫无线索的方式假红。这里照
+ * `largeScenario` 的做法在内存里合成 JSONL，并且**只用自造会话**（`emptyScenario`
+ * 打底）：默认场景那几个夹具离今天只有几天，机器的当前时刻一旦落进它们的窗口，
+ * 「6 个会话」这类计数就会被多出来的行打乱。空场景 + 自造会话把窗内成员锁死。
+ *
+ * 每个会话两条记录：首条 `user` 定标题，一条 `assistant` 带 usage。时间偏移都在
+ * 4 小时以内、且靠后不超过 30 分钟一格，整段落在同一个 `[now - 4h, now + 1h)`
+ * 窗口里，跨不过 5 小时的边界。会话 i（从 0 数）的 token 总量按阶梯递减
+ * `(sessions - i) * 100_000`：3 个会话是 50.0 / 33.3 / 16.7，6 个会话刚好走
+ * 「Top 5 + 其余 1 个会话」那条分支。
+ *
+ * @param options.sessions 造几个会话，默认 3（超过 5 个才会出现余项行）
+ * @param options.withUsage 给 false 时 assistant 记录不带 usage：窗口里有记录、
+ *   但没有可归因的消耗（窗口总量为 0），覆盖「整块不渲染」那条分支
+ */
+export function quotaAttributionScenario(
+  options: { sessions?: number; withUsage?: boolean } = {}
+): MockScenario {
+  const count = Math.max(1, options.sessions ?? 3);
+  const withUsage = options.withUsage ?? true;
+  const now = Date.now();
+  const files: Record<string, string> = {};
+
+  for (let index = 0; index < count; index += 1) {
+    const ordinal = index + 1;
+    const cwd = `/repo/quota-attr-${ordinal}`;
+    const sessionId = `3d2a5442-9c65-4b28-9c30-bb3d1a1d${String(ordinal).padStart(4, "0")}`;
+    const startedAt = new Date(now - (4 - index * 0.5) * 3_600_000);
+    const repliedAt = new Date(startedAt.getTime() + 90_000);
+    // 四类计数器之和正好是阶梯值：input 20% + output 30% + cache_read 50%。
+    const tokens = (count - index) * 100_000;
+    const lines = [
+      JSON.stringify({
+        type: "user",
+        sessionId,
+        cwd,
+        timestamp: startedAt.toISOString(),
+        uuid: `quota-${ordinal}-user`,
+        parentUuid: null,
+        isSidechain: false,
+        message: { role: "user", content: `窗口归因夹具会话 ${ordinal}` }
+      }),
+      JSON.stringify({
+        type: "assistant",
+        sessionId,
+        cwd,
+        timestamp: repliedAt.toISOString(),
+        uuid: `quota-${ordinal}-assistant`,
+        parentUuid: `quota-${ordinal}-user`,
+        isSidechain: false,
+        message: {
+          id: `quota-msg-${ordinal}`,
+          role: "assistant",
+          model: "claude-sonnet-4",
+          content: [{ type: "text", text: `第 ${ordinal} 个会话的回答` }],
+          ...(withUsage
+            ? {
+                usage: {
+                  input_tokens: tokens / 5,
+                  output_tokens: (tokens * 3) / 10,
+                  cache_read_input_tokens: tokens / 2
+                }
+              }
+            : {})
+        }
+      })
+    ];
+    files[`${HOME}/.claude/projects/${projectDir(cwd)}/${sessionId}.jsonl`] =
+      `${lines.join("\n")}\n`;
+  }
+
+  const base = emptyScenario();
+  return { ...base, files };
+}
+
 type Fixtures = { scenario: MockScenario };
 
 export const test = base.extend<Fixtures>({

@@ -910,6 +910,75 @@ mod gui_probe {
     }
   }
   facts.changes = changesFacts;
+
+  /* 按会话的配额归因（Round R / #151）：5 小时窗口卡里的「本窗口消耗 Top
+     会话」。锚点全是组件自带的 `data-probe`（理由同 Gauge：可见文案会随数据
+     变，靠它匹配等于把断言绑在夹具上）。只收集事实，阈值与判定在脚本里：
+     - 真列表对账要 listScrollHeight ≈ Σ行高（+ 余项行高），防「看起来 5 行、
+       实际容器对不上」的假列表；
+     - 点行开会话要拿点击**之前**那一行的标题（脚本记住，点击后拿 analyzer 的
+       当前会话标题比对）。
+     余项行（`其余 N 个会话`）不是会话：单独一项 restText，且它不在
+     attribution-row 里，所以 rowCount 永远只数真实会话。 */
+  var attributionFacts = null;
+  var attributionPanel = document.querySelector('[data-probe="attribution-panel"]');
+  if (attributionPanel) {
+    var attributionRows = attributionPanel.querySelectorAll('[data-probe="attribution-row"]');
+    var rowHeights = [];
+    var rowTitles = [];
+    var rowTokens = [];
+    var rowPcts = [];
+    var barFillWidths = [];
+    var barTrackWidths = [];
+    for (var a = 0; a < attributionRows.length; a++) {
+      var rowEl = attributionRows[a];
+      rowHeights.push(rowEl.getBoundingClientRect().height);
+      var titleEl = rowEl.querySelector('[data-probe="attribution-row-title"]');
+      var tokenEl = rowEl.querySelector('[data-probe="attribution-row-token"]');
+      var pctEl = rowEl.querySelector('[data-probe="attribution-row-pct"]');
+      var barEl = rowEl.querySelector('[data-probe="attribution-row-bar"]');
+      rowTitles.push(titleEl ? (titleEl.textContent || '').trim() : '');
+      rowTokens.push(tokenEl ? (tokenEl.textContent || '').trim() : '');
+      rowPcts.push(pctEl ? (pctEl.textContent || '').trim() : '');
+      /* 条宽的事实分两半：填充宽度与轨道宽度。占比条是固定像素轨道，
+         填充按占比算——脚本判「填充 ≤ 轨道」与「非零占比至少有最小宽度」，
+         不去反推百分比（那是另一套数字）。 */
+      barFillWidths.push(barEl ? barEl.getBoundingClientRect().width : null);
+      var barTrack = barEl && barEl.parentElement ? barEl.parentElement : null;
+      barTrackWidths.push(barTrack ? barTrack.getBoundingClientRect().width : null);
+    }
+    var attributionList = attributionPanel.querySelector('[data-probe="attribution-list"]');
+    var restEl = attributionPanel.querySelector('[data-probe="attribution-rest"]');
+    var footnoteEl = attributionPanel.querySelector('[data-probe="attribution-footnote"]');
+    attributionFacts = {
+      panelRect: rectOf(attributionPanel),
+      listScrollHeight: attributionList ? attributionList.scrollHeight : null,
+      listClientHeight: attributionList ? attributionList.clientHeight : null,
+      rowCount: attributionRows.length,
+      rowHeights: rowHeights,
+      titles: rowTitles,
+      tokens: rowTokens,
+      pcts: rowPcts,
+      barFillWidths: barFillWidths,
+      barTrackWidths: barTrackWidths,
+      hasRest: !!restEl,
+      restRect: restEl ? rectOf(restEl) : null,
+      restText: restEl ? (restEl.textContent || '').replace(/\s+/g, ' ').trim() : '',
+      footnoteText: footnoteEl ? (footnoteEl.textContent || '').replace(/\s+/g, ' ').trim() : '',
+      footnoteTitle: footnoteEl ? footnoteEl.getAttribute('title') || '' : ''
+    };
+  }
+  facts.attribution = attributionFacts;
+
+  /* 会话分析页当前会话的标题：点归因行之后要拿它跟点击前那一行的标题比对，
+     证「点行真的打开了那个会话」，而不是「页面没崩」。锚点是会话头的
+     `header[aria-label="会话信息"]` 里那枚 title 元素。 */
+  var analyzerHeader = document.querySelector('header[aria-label="会话信息"]');
+  var analyzerTitleEl = analyzerHeader ? analyzerHeader.querySelector('strong[title]') : null;
+  facts.analyzer = {
+    sessionTitle: analyzerTitleEl ? (analyzerTitleEl.textContent || '').trim() : null
+  };
+
   return JSON.stringify(facts);
 })();"##;
 
@@ -1511,6 +1580,30 @@ mod gui_probe {
             assert!(PROBE_JS.contains("facts.changes"));
             // closest('section') 方向相反（子不是祖），出现过就不许再回来。
             assert!(!PROBE_JS.contains("changesView.closest"));
+        }
+
+        #[test]
+        fn the_probe_reports_quota_attribution_and_the_open_session_title() {
+            // 按会话的配额归因（Round R / #151）：面板 / 列表 / 行 / 余项 /
+            // 脚注五个锚点，行内四个字段（标题、token、占比条、百分比）分别取，
+            // 行数与行高给脚本做「真列表对账」（防假列表）。
+            assert!(PROBE_JS.contains("[data-probe=\"attribution-panel\"]"));
+            assert!(PROBE_JS.contains("[data-probe=\"attribution-list\"]"));
+            assert!(PROBE_JS.contains("[data-probe=\"attribution-row\"]"));
+            assert!(PROBE_JS.contains("[data-probe=\"attribution-row-title\"]"));
+            assert!(PROBE_JS.contains("[data-probe=\"attribution-row-token\"]"));
+            assert!(PROBE_JS.contains("[data-probe=\"attribution-row-bar\"]"));
+            assert!(PROBE_JS.contains("[data-probe=\"attribution-row-pct\"]"));
+            assert!(PROBE_JS.contains("[data-probe=\"attribution-rest\"]"));
+            assert!(PROBE_JS.contains("[data-probe=\"attribution-footnote\"]"));
+            assert!(PROBE_JS.contains("rowHeights"));
+            assert!(PROBE_JS.contains("barFillWidths"));
+            assert!(PROBE_JS.contains("footnoteTitle"));
+            assert!(PROBE_JS.contains("facts.attribution"));
+            // 点行之后要比对**会话分析页当前会话的标题**——没有这条事实，
+            // 门禁只能断言「页面没崩」，那就等于没验点击。
+            assert!(PROBE_JS.contains("header[aria-label=\"会话信息\"]"));
+            assert!(PROBE_JS.contains("facts.analyzer"));
         }
 
         #[test]

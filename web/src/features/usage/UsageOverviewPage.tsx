@@ -268,7 +268,8 @@ export function UsageOverviewPage({
         />
       ) : (
         <>
-          <BillingWindowCard inputs={inputs} />
+          {/* 归因行与压缩统计 top3 共用同一个「打开会话」握手，不新开跳转路径。 */}
+          <BillingWindowCard inputs={inputs} onOpenSession={onOpenSession} />
 
           <div className={styles.kpiRow}>
             {/* 来源徽章是标签行末尾的一枚圆点（`.kpi` 的两列网格把它放在第一行的
