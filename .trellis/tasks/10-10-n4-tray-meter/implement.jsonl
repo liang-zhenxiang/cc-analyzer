@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端分层规范"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Tauri/Rust 后端分层规范（N4 是 Rust 为主的一棒）"}
+{"file": ".trellis/spec/testing/index.md", "reason": "测试分层与验收"}
+{"file": ".trellis/tasks/10-10-n4-tray-meter/prd.md", "reason": "需求与验收"}
+{"file": ".trellis/tasks/10-10-n4-tray-meter/design.md", "reason": "定案架构（托盘归 Rust/计算归前端/节拍归 Rust）"}
+{"file": ".trellis/tasks/10-10-n4-tray-meter/research/tray-capability-facts.md", "reason": "Tauri 2 托盘能力清单与跨平台差异（文档逐条核对）"}
+{"file": ".trellis/tasks/10-10-n4-tray-meter/research/design-tray-meter-view.md", "reason": "读数格式与菜单的逐字规格（title/tooltip/菜单/图标/设置文案，红线：托盘侧禁新格式化函数）"}

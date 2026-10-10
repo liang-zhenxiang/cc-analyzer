@@ -213,6 +213,39 @@ describe("useUsageOverview", () => {
     expect(second.result.current.inputs[0]?.errorExtract?.events).toHaveLength(1);
   });
 
+  it("mounts toolCalls on every input, including cache-served mounts", async () => {
+    // 工具普查（N3）同一条规则：提取在扫描循环里做（不进解析缓存），缓存命中
+    // 的会话也必须携带 toolCalls——否则第二次挂载的工具面板静默变空。
+    const path = `${PROJECTS_ROOT}/-repo-census-mount/jjj.jsonl`;
+    const toolUseLine = JSON.stringify({
+      type: "assistant",
+      timestamp: "2026-05-01T10:00:10.000Z",
+      uuid: "j3",
+      message: {
+        id: "msg-j3",
+        role: "assistant",
+        model: "claude-sonnet-4-5-20250929",
+        content: [{ type: "tool_use", id: "j-tool-1", name: "Skill", input: { skill: "git-commit" } }],
+        usage: { input_tokens: 100, output_tokens: 10 }
+      }
+    });
+    const bridges = createUsageBridges({
+      [path]: userLine("j1", "2026-05-01T10:00:00.000Z") + "\n" + assistantLine("j2", "2026-05-01T10:00:05.000Z") + "\n" + toolUseLine
+    });
+
+    const first = renderUsageHook(bridges);
+    await waitFor(() => expect(first.result.current.scanning).toBe(false));
+    const toolCalls = first.result.current.inputs[0]?.toolCalls;
+    expect(toolCalls).toHaveLength(1);
+    expect(toolCalls?.[0]?.key).toEqual({ kind: "skill", skillName: "git-commit" });
+    expect(toolCalls?.[0]?.sidechain).toBe(false);
+    first.unmount();
+
+    const second = renderUsageHook(bridges);
+    await waitFor(() => expect(second.result.current.scanning).toBe(false));
+    expect(second.result.current.inputs[0]?.toolCalls).toHaveLength(1);
+  });
+
   it("drops a superseded scan when the session list changes mid-flight", async () => {
     const goodPath = `${PROJECTS_ROOT}/-repo-race/ggg.jsonl`;
     const extraPath = `${PROJECTS_ROOT}/-repo-race/hhh.jsonl`;

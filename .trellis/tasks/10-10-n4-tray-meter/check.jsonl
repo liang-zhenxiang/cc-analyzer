@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "后端规范核查"}
+{"file": ".trellis/spec/testing/index.md", "reason": "测试完整性核查"}
+{"file": ".trellis/tasks/10-10-n4-tray-meter/prd.md", "reason": "验收标准"}
+{"file": ".trellis/tasks/10-10-n4-tray-meter/design.md", "reason": "架构契约核查"}
+{"file": ".trellis/tasks/10-10-n4-tray-meter/research/design-tray-meter-view.md", "reason": "核查读数与文案逐字照规格"}

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端规范核查"}
+{"file": ".trellis/spec/testing/index.md", "reason": "测试完整性核查"}
+{"file": ".trellis/tasks/10-10-n3-tool-census/prd.md", "reason": "验收标准"}
+{"file": ".trellis/tasks/10-10-n3-tool-census/design.md", "reason": "契约核查"}
+{"file": ".trellis/tasks/10-10-n3-tool-census/research/design-tool-census-view.md", "reason": "核查实现逐条照规范"}

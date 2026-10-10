@@ -1,0 +1,321 @@
+/* 「工具与 skill」面板（N3，design-tool-census-view.md §2）：分层四栏，栏宽随
+   量级递减（1.6fr 1fr 1fr 0.75fr）。行语言与 ErrorRankList / CompactionStatsPanel
+   同族但独立文件（design §8：不泛化共用，既有调用方零改动）。
+   行高不写死裸 26px：li 承载 --lh-sm + 固定衬距的 calc（130% 字号行盒要能长高，
+   N1/N2 教训），button 拉伸填满。间距只用 --sp-* 档位；条高是「形」不受档位约束。 */
+
+/* 体首行（总量双读数）：「41.3% 的调用来自子 agent」这一研究核心发现的常显落点。 */
+.total {
+  margin: 0 0 var(--sp-2);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  font-variant-numeric: tabular-nums;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr 0.75fr;
+  gap: var(--sp-4);
+  align-items: start;
+}
+
+.column {
+  min-width: 0;
+}
+
+/* 栏头是桶身份的唯一载体（design 裁决 9）：右端类数与合计兼作量级锚。 */
+.columnHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-1);
+}
+
+.columnTitle {
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  white-space: nowrap;
+}
+
+.columnMeta {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 桶空态：一行非交互文字——「这一桶为空」与「这一桶有 77 次」同权重呈现。 */
+.columnEmpty {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+}
+
+/* 真列表（真机门禁对账：行数 × 行高 = <ul> 自己的 scrollHeight）——display:
+   block、零 gap，行距全部收进 li 的行高里（ErrorEventList / 被丢清单同款；
+   加 gap 会让「行数 × 行高」的账永远差一截，门禁只能放弃断言）。 */
+.list {
+  display: block;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 行高挂在 li 上（N1/N2 教训）：26 = lh-sm(18) + 8px 衬距，随字号档缩放。 */
+.list li {
+  display: flex;
+  height: calc(var(--lh-sm) + 8px);
+}
+
+.row {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-1);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-hover) var(--ease-out);
+}
+
+/* 主榜行（唯一条形区）：标签 150px 右对齐｜条区 flex｜次数 56px｜会话 60px。 */
+.rank {
+  grid-template-columns: 150px minmax(0, 1fr) 56px 60px;
+}
+
+/* skill / 子 agent 清单行（无条形）：名 flex｜次数 48px｜会话 56px，与主榜等高。 */
+.compact {
+  grid-template-columns: minmax(0, 1fr) 48px 56px;
+}
+
+/* MCP 行：server 名（ellipsis，全名与工具明细进 title）｜一行事实读数。 */
+.mcp {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.row:hover {
+  background: var(--bg-hover);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* 选中 = 下钻中：底色 + 左缘竖条双信号（与 ErrorRankList / 日志表逐字一致）。 */
+.selected {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.rankLabel,
+.compactLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rankLabel {
+  text-align: right;
+}
+
+/* 条区：表面轨道不设底色（面板底就是轨道）；大面积填充只允许 -soft，
+   轮廓由实色描边收（BarChart.bar 同款仪器画法）。 */
+.track {
+  display: flex;
+  height: 14px;
+  min-width: 0;
+}
+
+.bar {
+  height: 100%;
+  border-radius: var(--r-xs);
+  background: var(--chart-1-soft);
+  border: 1px solid var(--chart-1);
+}
+
+/* 「其他」折尾容器：中性台阶色声明「我不是一类」（N1 §1-8 同款）。 */
+.tail .bar {
+  background: var(--bg-active);
+  border-color: var(--border-strong);
+}
+
+.value,
+.secondary {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.secondary {
+  color: var(--text-tertiary);
+}
+
+.mcpName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mcpMeta {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 下钻区（选中后在场）：与四栏隔一条发丝线（kpiFootnote 的 border-top 同语言）。 */
+.drilldown {
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border);
+}
+
+.drillHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-1);
+}
+
+.drillTitle {
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+}
+
+.clear {
+  height: var(--control-h-sm);
+  flex: 0 0 auto;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  cursor: pointer;
+}
+
+.clear:hover {
+  background: var(--bg-hover);
+}
+
+.clear:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* 会话行（CompactionStatsPanel.topSessions 行语言）：行高 --row-h（30，随字号档）。
+   同 .list：block + 零 gap，门禁账目才平。 */
+.sessionList {
+  display: block;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sessionList li {
+  display: flex;
+  height: var(--row-h);
+}
+
+.sessionRow,
+.sessionRowStatic {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-1);
+  border-radius: var(--r-xs);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-align: left;
+}
+
+.sessionRow {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sessionRow:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.sessionRow:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* 装饰性记号走 --text-faint（design §4）。 */
+.diamond {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+
+.sessionName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sessionValue {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* caption 口径常显（design §3.6）。 */
+.caption {
+  margin: var(--sp-3) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+}
+
+/* 全空态事实行（design §6）：0 是检查后的结果。 */
+.zeroState {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+@media (max-width: 900px) {
+  .columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

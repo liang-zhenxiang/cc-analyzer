@@ -132,7 +132,7 @@ test.describe("用量总览", () => {
     }));
     expect(settled.top + settled.view).toBeGreaterThanOrEqual(settled.height - 1);
 
-    for (const title of ["按项目分布", "按模型分布", "活跃时段（周 × 小时）"]) {
+    for (const title of ["按项目分布", "按模型分布", "活跃时段（周 × 小时）", "工具与 skill"]) {
       await expect(page.getByRole("heading", { name: title })).toBeInViewport({ ratio: 1 });
     }
   });

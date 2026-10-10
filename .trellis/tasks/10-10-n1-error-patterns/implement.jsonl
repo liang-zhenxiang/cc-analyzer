@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端分层规范入口，写 web 代码前必读"}
+{"file": ".trellis/spec/testing/index.md", "reason": "测试分层与验收标准（单元/e2e/GUI 三层）"}
+{"file": ".trellis/tasks/10-10-n1-error-patterns/prd.md", "reason": "本任务需求与验收标准"}
+{"file": ".trellis/tasks/10-10-n1-error-patterns/design.md", "reason": "技术设计定案（数据流、契约、sidechain 口径）"}
+{"file": ".trellis/tasks/10-10-n1-error-patterns/research/error-data-facts.md", "reason": "实测数据地基（错误分布、分母结论、固定文案样本）"}
+{"file": ".trellis/tasks/10-10-n1-error-patterns/research/design-error-view.md", "reason": "视觉规范（唯一视觉权威——版式、组件规格、颜色裁决、交互、无障碍、明确不做）"}
