@@ -562,6 +562,10 @@ mod updater;
 // （v0.9.0-beta.1 的 Windows 构建当场拦下）。
 use updater::{app_version, check_updates, install_update, relaunch_app};
 
+mod tray;
+// 同上：托盘读数的两个命令也以裸名注册，好让 build.rs 的权限清单对上。
+use tray::{set_tray_visible, update_tray_readout};
+
 /// 真机门禁里**与平台无关**的那一半：几何探针脚本、目标解析、注入脚本构造与产出文件名派生。
 ///
 /// 这些是纯字符串 / 路径逻辑，没有一行 macOS 依赖。把 `#[cfg(test)] mod tests` 与它们
@@ -1194,9 +1198,49 @@ mod gui_probe {
         )
     }
 
+    /// 给探针 JSON 附加一条 **Rust 侧事实**：托盘是否真的建起来了。
+    ///
+    /// 放在 gui_probe（而不是 macos-only 的 gui_capture）里，是为了让这段纯字符串逻辑
+    /// 在任意平台的 `cargo test` 下都能跑到，不再重演 #160。脚本按字段名取值，
+    /// 所以其余字段一律原样保留；探针 JSON 坏掉时原样返回——不因为这一条附加事实
+    /// 把整份取证丢掉，缺字段自会由脚本判失败。
+    pub(super) fn with_tray_fact(text: &str) -> String {
+        match serde_json::from_str::<serde_json::Value>(text) {
+            Ok(mut value) => {
+                if let Some(object) = value.as_object_mut() {
+                    object.insert(
+                        "tray_created".to_string(),
+                        serde_json::Value::Bool(crate::tray::created()),
+                    );
+                }
+                value.to_string()
+            }
+            Err(_) => text.to_string(),
+        }
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn the_tray_fact_is_injected_without_touching_other_fields() {
+            let injected = with_tray_fact(r#"{"escaped_text":0,"document":{"scrollWidth":10}}"#);
+            let value: serde_json::Value =
+                serde_json::from_str(&injected).expect("注入后仍是合法 JSON");
+            assert!(
+                value.get("tray_created").map(serde_json::Value::is_boolean) == Some(true),
+                "应插入布尔类型的 tray_created：{injected}"
+            );
+            assert_eq!(value["escaped_text"], serde_json::json!(0));
+            assert_eq!(value["document"]["scrollWidth"], serde_json::json!(10));
+        }
+
+        #[test]
+        fn a_broken_probe_payload_is_written_back_verbatim() {
+            // 探针 JSON 坏掉时不能顺手把整份取证也丢了。
+            assert_eq!(with_tray_fact("不是 JSON"), "不是 JSON");
+        }
 
         #[test]
         fn font_scale_target_only_matches_the_action_form() {
@@ -1708,9 +1752,12 @@ mod gui_capture {
                 }
                 // 探针脚本返回 JSON 字符串，桥接过来就是 NSString。
                 let text = unsafe { (*value.cast::<NSString>()).to_string() };
-                match std::fs::write(&target, text.as_bytes()) {
+                // 写盘前插入一条来自 Rust 的事实（托盘是否真建起来了）；
+                // 探针 JSON 坏掉时原样写回，不把取证一起丢掉。
+                let payload = with_tray_fact(&text);
+                match std::fs::write(&target, payload.as_bytes()) {
                     Ok(()) => {
-                        let _ = tx.send(Ok(text.len()));
+                        let _ = tx.send(Ok(payload.len()));
                     }
                     Err(err) => {
                         let _ = tx.send(Err(format!("写文件失败 {err}")));
@@ -1865,6 +1912,8 @@ pub fn run() {
             check_updates,
             install_update,
             relaunch_app,
+            update_tray_readout,
+            set_tray_visible,
         ])
         .setup(|app| {
             use tauri::menu::{MenuBuilder, SubmenuBuilder};
@@ -1882,6 +1931,10 @@ pub fn run() {
                 "quit" => app.exit(0),
                 _ => {}
             });
+
+            // 菜单栏 / 托盘常驻读数（Issue #150）。建不起来只少一个托盘，
+            // 不该拖垮应用——失败原因已在 tray::create 里 eprintln。
+            let _ = tray::create(app.handle());
 
             if let Ok(parent) = app.path().app_data_dir() {
                 let _ = std::fs::create_dir_all(parent);

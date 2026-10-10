@@ -66,6 +66,13 @@ badge. Every screen, in both light and dark themes, is archived in
   plan or budget selected the app shows consumption only, never a percentage it
   cannot stand behind — and a window younger than 30 minutes says "not enough
   data" instead of extrapolating. Derived entirely from the local log.
+- **Menu-bar readout** — both layers can stay visible in the **macOS menu bar / Windows
+  tray**: the label beside the icon carries a single number (a percentage when a budget
+  exists, the consumed tokens when it does not), and hovering shows the full two-layer
+  reading, when the window closes, and **how many minutes ago the reading was computed** —
+  a reading that leans on an estimate says so on its own line instead of passing as fact.
+  Read entirely from local logs, never uploaded; hide it in settings and every statistic
+  stays exactly as it was.
 - **Global search (⌘K / Ctrl+K)** — message-level search across every project
   and session, results grouped by project → session with the matching snippet
   and a relative time. Enter jumps into the session, opens the record and

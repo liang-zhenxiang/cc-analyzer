@@ -13,7 +13,8 @@ import { ErrorBoundary } from "../components/ErrorBoundary";
 import { SearchPalette } from "../features/search/SearchPalette";
 import { VersionBadge } from "./VersionBadge";
 import { loadAutoCheck, loadChannel } from "../features/settings/updateChannel";
-import { BridgesProvider } from "../api/bridges";
+import { BridgesProvider, useBridges } from "../api/bridges";
+import { useTrayReadout } from "../features/usage/useTrayReadout";
 import type { Bridges } from "../api/types";
 import styles from "./AppShell.module.css";
 
@@ -66,6 +67,35 @@ function StartupUpdateCheck({ bridges }: { bridges: Bridges }) {
   return null;
 }
 
+/**
+ * 托盘宿主：驱动常驻读数，并消费 Rust 的 `tray:navigate`（菜单点「用量总览」）。
+ * 放在 BridgesProvider 内部——两个 hook 都要拿 bridges。
+ */
+function TrayHost({ onNavigate }: { onNavigate: (tab: WorkspaceTab) => void }) {
+  const bridges = useBridges();
+  useTrayReadout();
+
+  useEffect(() => {
+    // 老宿主 / 老测试的 bridges 可能没有这条订阅；缺了只是少了跳转能力。
+    const subscribe = bridges.events.onTrayNavigate;
+    if (!subscribe) return undefined;
+    let dispose: (() => void) | undefined;
+    let active = true;
+    void subscribe((target) => {
+      if (target === "usage") onNavigate("usage");
+    }).then((unlisten) => {
+      if (active) dispose = unlisten;
+      else unlisten();
+    });
+    return () => {
+      active = false;
+      dispose?.();
+    };
+  }, [bridges.events, onNavigate]);
+
+  return null;
+}
+
 export function AppShell({ bridges }: { bridges: Bridges }) {
   const [tab, setTab] = useState<WorkspaceTab>(readStoredTab);
   const [floating, setFloating] = useState(false);
@@ -114,6 +144,7 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
       <BridgesProvider bridges={bridges}>
         <NotificationProvider>
           <StartupUpdateCheck bridges={bridges} />
+          <TrayHost onNavigate={setTab} />
           <div className={styles.shell}>
             <header className={styles.topbar}>
               <span className={styles.brand}>

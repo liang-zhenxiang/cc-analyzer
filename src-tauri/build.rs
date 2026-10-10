@@ -19,6 +19,8 @@ fn main() {
                 "check_updates",
                 "install_update",
                 "relaunch_app",
+                "update_tray_readout",
+                "set_tray_visible",
             ]))
             .plugin(
                 "float",

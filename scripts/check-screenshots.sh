@@ -65,6 +65,9 @@ EXPECTED_VIEWS = [
     "analyzer-report",
     "analyzer-report-full",
     "settings",
+    # 设置浮层的下半屏：面板自己有滚动（fixed + overflow auto），只拍首屏会让
+    # 越靠后的小节永远进不了归档（「常驻读数」就在最底下）。
+    "settings-below",
     "monitor",
     "usage",
     "usage-below",

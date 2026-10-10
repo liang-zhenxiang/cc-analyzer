@@ -27,6 +27,8 @@
     "allow-app-version",
     "allow-check-updates",
     "allow-install-update",
-    "allow-relaunch-app"
+    "allow-relaunch-app",
+    "allow-update-tray-readout",
+    "allow-set-tray-visible"
   ]
 }

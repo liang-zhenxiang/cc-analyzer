@@ -1,5 +1,5 @@
 import { createContext, createElement, useContext, type ReactNode } from "react";
-import type { Bridges } from "./types";
+import type { Bridges, TrayBridge } from "./types";
 
 const BridgesContext = createContext<Bridges | null>(null);
 
@@ -18,4 +18,12 @@ export function useBridges(): Bridges {
     throw new Error("useBridges 必须在 BridgesProvider 内使用");
   }
   return bridges;
+}
+
+/**
+ * 托盘桥是可选能力（见 `Bridges.tray`）：老测试 / 老宿主构造的 bridges 没有它。
+ * 取用统一走这里，拿到 `undefined` 就用可选链跳过——托盘是旁路，缺了不能崩界面。
+ */
+export function useTrayBridge(): TrayBridge | undefined {
+  return useBridges().tray;
 }

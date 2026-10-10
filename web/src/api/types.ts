@@ -83,6 +83,11 @@ export interface DialogBridge {
 
 export interface EventsBridge {
   onSessionImport(handler: (path: string) => void): Promise<Unlisten>;
+  /**
+   * 托盘菜单点了「用量总览」时 Rust 发来的 `tray:navigate`。web 侧只负责切标签。
+   * 可选：老宿主 / 老测试构造的 Bridges 可能没有它，调用点一律走可选链。
+   */
+  onTrayNavigate?(handler: (target: string) => void): Promise<Unlisten>;
 }
 
 export interface MonitorBridge {
@@ -113,6 +118,39 @@ export interface CustomBridge {
   exitFloatMode?(): Promise<void>;
 }
 
+/**
+ * 托盘读数：数字全部在 web 侧算好再推给 Rust，Rust 只负责排版。
+ * 见 Issue #150 的契约——Rust 不做任何窗口/百分比计算，否则就是第二套口径。
+ */
+export type TrayReadout = {
+  /** 5 小时计费窗口；没有任何活动时为 null。 */
+  block: {
+    usedTokens: number;
+    /** 没设预算就是 null——没有分母就没有比率，绝不填 0。 */
+    percent: number | null;
+    startsAt: number;
+    endsAt: number;
+  } | null;
+  /** 滚动 7 天窗口。 */
+  weekly: {
+    usedTokens: number;
+    percent: number | null;
+    /** 实际口径的窗口天数（7）。 */
+    days: number;
+  };
+  /** 读数生成时刻：托盘要如实标注「数据时间」。 */
+  computedAt: number;
+  /** 本次读数里是否含估算/推算（provenance 语言，与页面上一致）。 */
+  hasEstimate: boolean;
+};
+
+export interface TrayBridge {
+  /** `null` 表示还没有读数（托盘显示「尚未计算」）。 */
+  updateReadout(readout: TrayReadout | null): Promise<void>;
+  /** 设置里「常驻读数 → 显示用量读数」的开关。 */
+  setVisible(visible: boolean): Promise<void>;
+}
+
 export type Bridges = {
   fs: FsBridge;
   proc: ProcBridge;
@@ -123,4 +161,9 @@ export type Bridges = {
   monitor: MonitorBridge;
   updater: UpdaterBridge;
   custom?: CustomBridge;
+  /**
+   * 可选：仅桌面宿主提供。老测试构造的假 bridge 没有它，调用点必须走可选链，
+   * 否则一个旁路能力就能把界面带崩。
+   */
+  tray?: TrayBridge;
 };

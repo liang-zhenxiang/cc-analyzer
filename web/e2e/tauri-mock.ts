@@ -29,6 +29,12 @@ export type MockScenario = {
   savePath?: string | null;
   /** 更新检查：缺省「已是最新」；给版本号则报有更新 */
   updater?: { currentVersion?: string; version?: string; notes?: string | null };
+  /**
+   * 虚拟文件系统的 mtime（毫秒）。缺省是一个固定旧值，够「文件存在且可读」的
+   * 断言用；托盘读数按 mtime 收窄扫描，需要「mtime 近期」的场景（tray-readout）
+   * 才显式给一个贴近 Date.now() 的值。
+   */
+  statMtimeMs?: number;
 };
 
 /** 这个函数体在浏览器里运行，因此必须自包含（不能引用外部作用域） */
@@ -111,7 +117,11 @@ export function installTauriMock(scenario: MockScenario): void {
           return null;
         case "stat": {
           const content = readFile(a.path as unknown as string);
-          return { is_file: true, size: content.length, mtime_ms: 1_700_000_000_000 };
+          return {
+            is_file: true,
+            size: content.length,
+            mtime_ms: scenario.statMtimeMs ?? 1_700_000_000_000
+          };
         }
         case "read_dir": {
           const dir = norm(String(a.path));
@@ -209,6 +219,11 @@ export function installTauriMock(scenario: MockScenario): void {
           return scenario.savePath ?? null;
         case "plugin:float|enter":
         case "plugin:float|exit":
+          return null;
+        // 托盘读数：数字全在 web 侧算好再推过来，这里只要接收不报错。
+        // 命令名与 payload 已经由顶部的 `record(cmd, args)` 记账，供 e2e 断言。
+        case "update_tray_readout":
+        case "set_tray_visible":
           return null;
         case "plugin:event|listen": {
           const event = String(a.event);
