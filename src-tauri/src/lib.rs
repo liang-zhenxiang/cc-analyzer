@@ -562,6 +562,10 @@ mod updater;
 // （v0.9.0-beta.1 的 Windows 构建当场拦下）。
 use updater::{app_version, check_updates, install_update, relaunch_app};
 
+mod archive_bundle;
+// 同上：归档包的三个命令也以裸名注册，好让 build.rs 的权限清单对上。
+use archive_bundle::{export_archive_bundle, import_archive_bundle, remove_import_staging};
+
 mod tray;
 // 同上：托盘读数的两个命令也以裸名注册，好让 build.rs 的权限清单对上。
 use tray::{set_tray_visible, update_tray_readout};
@@ -644,10 +648,15 @@ mod gui_probe {
   // 只收集几何与 label，判定留在脚本里。
   var dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
   for (var d = 0; d < dialogs.length; d++) {
+    var dialogText = (dialogs[d].textContent || '').replace(/\s+/g, ' ').trim();
     facts.elements.push({
       name: 'dialog',
       label: dialogs[d].getAttribute('aria-label') || dialogs[d].getAttribute('aria-labelledby') || '',
-      rect: rectOf(dialogs[d])
+      rect: rectOf(dialogs[d]),
+      /* 口令字段数与可见文案（截断）：口令无法找回这类警告句是否真的渲染出来，
+         靠它判定——浮层是 fixed，createPDF 不画它，截图上看不到。 */
+      passwordFields: dialogs[d].querySelectorAll('input[type="password"]').length,
+      text: dialogText.slice(0, 300)
     });
   }
   // 限额区：两层限额（5 小时卡 + 周用量层）都要「读数在卡内、卡在内容区」。
@@ -983,6 +992,20 @@ mod gui_probe {
             .filter(|value| !value.is_empty())
     }
 
+    /// 目标是不是「确保设置浮层打开」的动作形式 `设置=开`。
+    ///
+    /// 与 `视图=` 同一类**状态自愈**动作：设置浮层是 toggle（顶栏那枚按钮），
+    /// 面板开着的时候再点一次会把**它关掉**。默认清单里早先的「字号=130%」已经
+    /// 把面板打开且此后没有任何一步会关它，所以按名点「设置」在这里是错的
+    /// ——实测把面板关掉，后面的「导出归档包…」找不到按钮（Round Q 的真机
+    /// 教训）。动作按 `aria-expanded` 判当前状态：已经开着就什么都不做。
+    pub(super) fn settings_target(target: &str) -> Option<&str> {
+        target
+            .strip_prefix("设置=")
+            .map(str::trim)
+            .filter(|value| *value == "开")
+    }
+
     /// 目标是不是「切用量页子视图」的动作形式 `视图=<名>`（`视图=用量` / `视图=错误`）。
     ///
     /// 与 `字号=` 同一动作协议。存在的理由是**状态泄漏自愈**：N1 给用量页加了
@@ -1023,12 +1046,35 @@ mod gui_probe {
             .filter(|value| !value.is_empty())
     }
 
+    /// `设置=开`：确保设置浮层是**打开**的（已经开着就什么都不做）。
+    ///
+    /// 幂等靠顶栏那枚按钮的 `aria-expanded`（React 把 `settingsOpen` 直接写在
+    /// 它上面）。不这么写的话，清单里「打开设置 → 点浮层里的东西」这两步会在
+    /// 「面板本来就开着」时把面板关掉——被点的那个人不是按钮不存在，而是
+    /// 整个浮层被上一步收走了（Round Q 真机上就栽在这上面）。
+    pub(super) fn open_settings_js() -> String {
+        r#"(function () {
+  var button = document.querySelector('button[aria-label="设置"]');
+  if (!button) { console.warn('gui-capture: 找不到顶栏的设置按钮'); return; }
+  if (button.getAttribute('aria-expanded') === 'true') {
+    console.log('gui-capture: 设置浮层已经是打开的，不用再点');
+    return;
+  }
+  button.click();
+  console.log('gui-capture: 已打开设置浮层');
+})();"#
+            .to_string()
+    }
+
     /// 在真机上把界面字号切到指定档位：先点顶栏的「设置」打开浮层，再点「界面字号」
     /// 里对应的一项。**点的是真实控件**，不是直接改 localStorage——要证的正是
     /// 「设置里的控件真的接上了根变量」。`eval` 是单向的（拿不到返回值），所以结果
     /// 写进 console，与其它目标一样可在应用日志里追查。
     ///
     /// 开浮层与点档位之间隔一帧：React 渲染完那一项才存在于 DOM 里。
+    ///
+    /// 档位已经可见时**不再点「设置」**：那枚按钮是 toggle，面板开着再点一次就是
+    /// 关掉它（见 `settings_target` 的注释）。
     pub(super) fn font_scale_js(label: &str) -> String {
         let escaped = js_string(label);
         format!(
@@ -1154,9 +1200,12 @@ mod gui_probe {
         )
     }
 
-    /// `字号=<档位>`、`滚动=<选择器>`、`点选=<选择器>` 与 `视图=<名>` 不是
-    /// 「点一个已有按钮」，各走各的动作。
+    /// `设置=开`、`字号=<档位>`、`滚动=<选择器>`、`点选=<选择器>` 与 `视图=<名>`
+    /// 不是「点一个已有按钮」，各走各的动作。
     pub(super) fn click_target_js(target: &str) -> String {
+        if settings_target(target).is_some() {
+            return open_settings_js();
+        }
         if let Some(label) = font_scale_target(target) {
             return font_scale_js(label);
         }
@@ -1243,6 +1292,29 @@ mod gui_probe {
         }
 
         #[test]
+        fn settings_target_only_matches_the_open_action() {
+            assert_eq!(settings_target("设置=开"), Some("开"));
+            assert_eq!(settings_target("设置= 开 "), Some("开"));
+            // 只认「开」：没有「关」这个动作，写别的值就退化成按名点按钮。
+            assert_eq!(settings_target("设置=关"), None);
+            assert_eq!(settings_target("设置="), None);
+            // 普通目标与另外几个动作都不归它管。
+            assert_eq!(settings_target("设置"), None);
+            assert_eq!(settings_target("字号=130%"), None);
+            assert_eq!(settings_target("视图=用量"), None);
+        }
+
+        #[test]
+        fn the_open_settings_action_is_idempotent_by_aria_expanded() {
+            let js = open_settings_js();
+            assert!(js.contains("aria-label=\"设置\""));
+            // 幂等的关键：先读状态，开着就不再点（toggle 会把面板关掉）。
+            assert!(js.contains("aria-expanded"));
+            assert!(js.contains("已经是打开的"));
+            assert!(click_target_js("设置=开").contains("aria-expanded"));
+        }
+
+        #[test]
         fn font_scale_target_only_matches_the_action_form() {
             assert_eq!(font_scale_target("字号=130%"), Some("130%"));
             assert_eq!(font_scale_target("字号= 110% "), Some("110%"));
@@ -1250,6 +1322,8 @@ mod gui_probe {
             // 普通目标（标签页、会话 cwd）不该被当成动作吞掉。
             assert_eq!(font_scale_target("用量总览"), None);
             assert_eq!(font_scale_target("/repo/demo"), None);
+            // `设置=开` 是另一个动作，不该被字号吞掉。
+            assert_eq!(font_scale_target("设置=开"), None);
         }
 
         #[test]
@@ -1262,6 +1336,7 @@ mod gui_probe {
             assert_eq!(view_target("字号=130%"), None);
             assert_eq!(view_target("滚动=main"), None);
             assert_eq!(view_target("点选=[data-probe='compact-event-2']"), None);
+            assert_eq!(view_target("设置=开"), None);
         }
 
         #[test]
@@ -1272,6 +1347,7 @@ mod gui_probe {
             // 普通目标不该被当成动作吞掉；字号动作也不归它管。
             assert_eq!(scroll_target("用量总览"), None);
             assert_eq!(scroll_target("字号=130%"), None);
+            assert_eq!(scroll_target("设置=开"), None);
         }
 
         #[test]
@@ -1285,6 +1361,7 @@ mod gui_probe {
             assert_eq!(click_query_target("/repo/demo"), None);
             assert_eq!(click_query_target("滚动=main"), None);
             assert_eq!(click_query_target("字号=130%"), None);
+            assert_eq!(click_query_target("设置=开"), None);
         }
 
         #[test]
@@ -1382,6 +1459,11 @@ mod gui_probe {
             // 不再假装全站只有一种 modal。
             assert!(PROBE_JS.contains("name: 'dialog'"));
             assert!(PROBE_JS.contains("aria-labelledby"));
+            // 归档包口令浮层（#152）：浮层是 fixed，不进 PDF，所以字段数与
+            // 警告文案也必须由探针带出来。
+            assert!(PROBE_JS.contains("passwordFields"));
+            assert!(PROBE_JS.contains("input[type=\"password\"]"));
+            assert!(PROBE_JS.contains("text: dialogText.slice("));
         }
 
         #[test]
@@ -1914,6 +1996,9 @@ pub fn run() {
             relaunch_app,
             update_tray_readout,
             set_tray_visible,
+            export_archive_bundle,
+            import_archive_bundle,
+            remove_import_staging,
         ])
         .setup(|app| {
             use tauri::menu::{MenuBuilder, SubmenuBuilder};

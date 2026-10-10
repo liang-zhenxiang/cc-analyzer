@@ -13,7 +13,7 @@ import { archiveDirectory, readArchiveIndex, runArchive, type ArchiveRun } from 
  * never start a parallel run against the same index file.
  */
 
-export type ArchiveRunStatus = "idle" | "running" | "done" | "error";
+export type ArchiveRunStatus = "idle" | "running" | "importing" | "done" | "error";
 
 export type ArchiveTaskState = {
   enabled: boolean;
@@ -129,6 +129,20 @@ export async function refreshStatus(bridges: Bridges): Promise<void> {
     // bridge itself failed. Report it without pretending any files were copied.
     setState({ indexCorrupt: true });
   }
+}
+
+/**
+ * 导入归档包成功后调一次：索引被改写了，读数与「已归档多少」都得跟着更新。
+ *
+ * 中间那一档 `importing` 不是装饰。会话列表只在「归档状态落定到 done」的跃迁上
+ * 重跑发现（见 SessionAnalyzerPage），所以导入也要走一次 `importing → done`，
+ * 新搬进来的会话才会立刻出现在列表里；而 `importing` 又刻意不是 `running`，
+ * 免得面板把归档按钮错标成「正在归档…」。
+ */
+export async function refreshAfterImport(bridges: Bridges): Promise<void> {
+  setState({ status: "importing", progress: null, error: null });
+  await refreshStatus(bridges);
+  setState({ status: "done", lastRun: null, progress: null });
 }
 
 /**

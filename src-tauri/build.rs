@@ -21,6 +21,9 @@ fn main() {
                 "relaunch_app",
                 "update_tray_readout",
                 "set_tray_visible",
+                "export_archive_bundle",
+                "import_archive_bundle",
+                "remove_import_staging",
             ]))
             .plugin(
                 "float",

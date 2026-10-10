@@ -120,15 +120,19 @@ gui-test.sh —— 真机 GUI 冒烟测试
 默认视图清单：会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
 日志视图 → 导出 → 关闭导出窗口 → 压缩夹具会话（/repo/compact-demo）→ 上下文 → 点选第 2 枚压缩
 事件 chip → 改动夹具会话（/repo/changed-demo）→ 改动 → 点选首个文件行 → 用量总览 → 视图=用量 →
-滚到底 → 近 7 天 → 错误档 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→ 实时监控 → 字号恢复 100%。
+滚到底 → 近 7 天 → 错误档 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→ 实时监控 →
+设置=开 → 导出归档包（口令浮层）→ 取消 → 字号恢复 100%。
 每张图都配一份几何探针 JSON，脚本据它判定布局不变量（无横向溢出 / 表盘有界且含于卡片 /
 记录表末列可达 / 文字里无 ESC 转义字节 / 两层限额读数在卡内 / 用量页三块面板滚一次可达 /
 上下文曲线有界且命中区与压缩次数一致 / 取证卡在视口内 / 被丢清单不是假列表 / 错误档趋势
-有界且事件列表是真列表 / 改动文件列表是真列表且展开区可达）。
+有界且事件列表是真列表 / 改动文件列表是真列表且展开区可达 / 归档包口令浮层在窗口内且
+两份口令输入与「口令无法找回」警告真的渲染出来）。
 
 `字号=<档位>`（如 `字号=130%`）是一个动作目标：先在设置浮层里把界面字号切到该档，
 再取图与探针——用它验证「放大字号后布局仍然成立」。默认清单末尾会切回 100%，
 因为 WebKit 的 localStorage 不受 HOME 隔离，不恢复会把这个偏好留给下一次运行与使用者。
+`设置=开` 也是动作目标，且是**幂等**的：设置浮层已经打开就什么都不做，没开才点顶栏那枚
+按钮（它是 toggle，面板开着再点一次会把它关掉——靠 `aria-expanded` 判当前状态）。
 `滚动=<选择器>`（如 `滚动=main`）、`视图=<用量页子视图名>`（如 `视图=用量`，重置 N1 的
 「用量|错误」分段状态——它记在不受 HOME 隔离的真实 WebKit localStorage 里，不重置时上次
 停在错误档的残留会让用量档的判定整段落空）与 `点选=<CSS 选择器>`（如 `点选=[data-probe='compact-event-2']`）
@@ -654,7 +658,16 @@ else
   # 虽也含「改动 N」，但它在第二扫描域（普通按钮），永远轮不到。
   # 点选目标写 `… button` 后缀：data-changes-file 挂在 li 上（行高账由 li 承载），
   # 而 toggle 的 click 在行按钮上——点 li 不会触发 React 的 onClick。
-  CAPTURE_TARGETS=("会话分析" "字号=130%" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "实时监控" "字号=100%")
+  #
+  # 归档包三步（Round Q / #152）插在实时监控之后：`设置=开` 确保设置浮层打开
+  # （**幂等**动作——顶栏那枚按钮是 toggle，面板本来就开着时按名点「设置」会把
+  # 它关掉，这是本轮真机踩到的坑）→ 点「导出归档包…」开**应用内**口令浮层
+  # （导入那一步要开系统文件选择器，探针驱动不了，所以真机只走到这儿）→
+  # 「取消」关掉。浮层是 fixed，createPDF
+  # 不画它，证据落在探针上：浮层几何 + 两份 password 字段 + 「口令无法找回」
+  # 警告文案（见 lib.rs 的 PROBE_JS dialog 事实）；这一步顺带证明设置面板里
+  # 那两个入口在真机上真的渲染出来、也真的点得开。
+  CAPTURE_TARGETS=("会话分析" "字号=130%" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "实时监控" "设置=开" "导出归档包…" "取消" "字号=100%")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
@@ -908,6 +921,15 @@ EXPORT_DIALOG_LABEL = "导出"
 # 去套导出浮层的 480px 上限。
 EXPORT_DIALOG_TAG = "export-dialog-title"
 SEARCH_DIALOG_LABEL = "全局搜索"
+# 归档包口令浮层（Round Q / #152）与它的「取消」步。浮层的可访问名来自 React
+# `useId()`（形如 `:r5:`），格式随版本变，所以不按 label 匹配，而是按「这一步
+# 只可能有一个浮层」的事实归它。判据：完整落在窗口内 + 两份 password 字段
+# （口令 / 再输一次）+「口令无法找回」警告真的渲染出来——浮层是 position:
+# fixed，createPDF 不画它，截图上看不到，这几条就是它的全部证据。
+BUNDLE_DIALOG_LABEL = "导出归档包…"
+BUNDLE_DIALOG_PASSWORD_FIELDS = 2
+BUNDLE_DIALOG_WARNING = "口令无法找回"
+BUNDLE_CANCEL_LABEL = "取消"
 # 用量页下半屏的三块面板。「滚动=main」那一步（且上一步是用量总览）判定
 # 它们滚一次可达；「用量总览」那一步判定它们真的渲染了出来。
 USAGE_PANEL_TITLES = ["按项目分布", "按模型分布", "活跃时段（周 × 小时）"]
@@ -1040,6 +1062,8 @@ for arg in sys.argv[1:]:
 
     export_seen = 0
     search_seen = 0
+    bundle_seen = 0
+    stray_dialog_seen = 0
     viewport = data.get("viewport") or {}
     for el in data.get("elements") or []:
         if el.get("name") != "dialog":
@@ -1070,7 +1094,28 @@ for arg in sys.argv[1:]:
                 print(f"OK|{label}：搜索浮层完整在窗口内（{width:.0f}×{height:.0f}px）")
             else:
                 print(f"BAD|{label}：搜索浮层超出窗口（{width:.0f}×{height:.0f}px，在窗口内={inside}）")
+        elif label == BUNDLE_DIALOG_LABEL:
+            bundle_seen += 1
+            fields = el.get("passwordFields")
+            text = el.get("text") or ""
+            problems = []
+            if not inside:
+                problems.append("浮层超出窗口")
+            if fields != BUNDLE_DIALOG_PASSWORD_FIELDS:
+                problems.append(
+                    f"password 字段 {fields!r} 个 ≠ {BUNDLE_DIALOG_PASSWORD_FIELDS} 个（口令 / 再输一次）"
+                )
+            if BUNDLE_DIALOG_WARNING not in text:
+                problems.append("缺少「口令无法找回」警告")
+            if problems:
+                print(f"BAD|{label}：归档包口令浮层——{'；'.join(problems)}")
+            else:
+                print(
+                    f"OK|{label}：归档包口令浮层完整在窗口内（{width:.0f}×{height:.0f}px），"
+                    "两份口令输入与「口令无法找回」警告都在"
+                )
         else:
+            stray_dialog_seen += 1
             print(f"NOTE|{label}：出现未识别的浮层（label={dialog_label}），只记录几何")
 
     # 目标就是「导出」/「全局搜索」时，浮层出现是这一步的全部意义——没出现比
@@ -1080,6 +1125,13 @@ for arg in sys.argv[1:]:
         print(f"BAD|{label}：探针里没有导出浮层——点击没有打开它，或面板整个没渲染出来")
     if label == SEARCH_DIALOG_LABEL and search_seen == 0 and prev_label != SEARCH_DIALOG_LABEL:
         print(f"BAD|{label}：探针里没有搜索浮层——顶栏按钮没有打开它，或浮层整个没渲染出来")
+    # 点「导出归档包…」的这一步：浮层没出现，说明设置面板里那两个入口没渲染出来，
+    # 或点击没接上（那正是本功能的真机证据）。
+    if label == BUNDLE_DIALOG_LABEL and bundle_seen == 0:
+        print(f"BAD|{label}：探针里没有归档包口令浮层——设置面板的入口没渲染出来，或点击没打开它")
+    # 下一步「取消」必须把它关掉：关不掉的话浮层的遮罩会盖住后面所有视图。
+    if label == BUNDLE_CANCEL_LABEL and stray_dialog_seen > 0:
+        print(f"BAD|{label}：点「取消」后仍有浮层在场——口令浮层没关掉")
     # 浮层是 `position: fixed`，而 `WKWebView.createPDF` **不会把它画进 PDF**：
     # 实测「导出」这一步的 PDF 只比前一张多 117 字节（480×424 的浮层若入图不可能
     # 只差这么点），设置面板同样不入图。所以这张截图的证据价值是「它背后的视图」，
