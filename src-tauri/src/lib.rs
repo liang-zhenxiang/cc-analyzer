@@ -556,79 +556,25 @@ fn import_session_menu(app: &tauri::AppHandle) {
         });
 }
 
-/// 真机 GUI 测试取证：把应用自己的 webview 渲染成 PDF。
-///
 mod updater;
 // 顶层重导出：generate_handler 以裸名注册，build.rs 的权限清单才能用
 // 裸名——带 `::` 的名字会生成 Windows 文件系统非法的权限文件名
 // （v0.9.0-beta.1 的 Windows 构建当场拦下）。
 use updater::{app_version, check_updates, install_update, relaunch_app};
 
-/// **为什么需要它**：macOS 上截取屏幕内容要「屏幕录制」权限，而那只有使用者能在
-/// 系统设置里授予——脚本无法申请。实测过连「进程截自己的窗口」也会拿到一张
-/// 尺寸正确但像素全透明的图（详见 `.trellis/spec/testing/gui-tests.md`）。
+/// 真机门禁里**与平台无关**的那一半：几何探针脚本、目标解析、注入脚本构造与产出文件名派生。
 ///
-/// 这里走的是另一条路：`WKWebView.createPDF` 是 **WebKit 渲染自己的内容**，
-/// 根本不经过截屏通道，因此不受 TCC 限制。拿到 PDF 后由测试脚本转成 PNG。
+/// 这些是纯字符串 / 路径逻辑，没有一行 macOS 依赖。把 `#[cfg(test)] mod tests` 与它们
+/// 留在同一个 `target_os = "macos"` 门后面，代价是**这些单测在 CI 上永远跑不到**——
+/// `ci.yml` 的四个 Rust 作业全在 ubuntu，`target_os` 为假时整个模块连编译都不发生，
+/// 加 `--features gui-capture` 也一样（#160）。
 ///
-/// 只有启用 `gui-capture` feature 才会编译这段代码——**发布构建里没有它**。
-#[cfg(all(target_os = "macos", feature = "gui-capture"))]
-mod gui_capture {
-    use block2::RcBlock;
-    use objc2::runtime::AnyObject;
-    use objc2_foundation::{NSData, NSError, NSString};
-    use objc2_web_kit::WKWebView;
+/// 所以单独成模块，门也单独写：
+/// - **测试时任何平台都编译**——Linux 的现有作业裸跑 `cargo test` 就覆盖到；
+/// - **正式构建里仍然只在 macOS + `gui-capture` 下存在**——发布产物不含任何门禁代码。
+#[cfg(any(test, all(target_os = "macos", feature = "gui-capture")))]
+mod gui_probe {
     use std::path::{Path, PathBuf};
-    use std::sync::mpsc;
-    use std::time::{Duration, Instant};
-    use tauri::Manager;
-
-    /// 应用启动后等这么久再取图：要留出 webview 完成首次渲染的时间。
-    /// 截早了会拿到半张白屏，而那种失败是**静默**的（能生成文件，内容却是空的）。
-    const SETTLE_MS: u64 = 6_000;
-
-    /// 点击目标后等这么久再取图：新视图要先完成一轮渲染（打开会话还要先读文件
-    /// 并解析）。探针与取图都排在这之后。
-    const TAB_SETTLE_MS: u64 = 3_000;
-
-    /// 等一张图落盘的上限。createPDF 的 completion handler 是异步回调，而且它的
-    /// 渲染是**延后**发生的：实测过「探针先于快照求值」——同一张图对应的探针读到的
-    /// 却是点击生效前、快照还没跟上的旧视图。所以探针要等到 PDF 落盘后再求值，
-    /// 落盘即代表快照已完成，两者描述同一视图。点击下一步前也要等，
-    /// 否则下一张截到的还是旧视图。
-    ///
-    /// **但这个上限不再是「探针的开关」**：等超时了也照样取探针（见 `spawn` 的注释）。
-    /// 取 15s 与 `scripts/gui-test.sh` 里每个视图等取图 PDF 的秒数一致——它只决定
-    /// 「正常路径下探针是否等到快照之后」，定大一点只是让正常的对齐更稳，
-    /// 不会因为定大了就把失败藏起来。
-    const PDF_TIMEOUT_MS: u64 = 15_000;
-
-    /// 几何探针求值遇到瞬时失败时的重试次数与间隔。
-    ///
-    /// **只重试「求值本身失败」**（`evaluateJavaScript` 报错、回调没回、写文件失败）。
-    /// 探针一旦**成功写出** JSON 就立刻返回——哪怕那份 JSON 描述的是一个坏布局
-    /// （表盘被撑爆、记录表被裁切），也照样返回、由脚本判定失败。所以重试**不会**
-    /// 掩盖真回归，它只把「页面过渡态 / 主线程忙导致的偶发求值失败」抹平。
-    const PROBE_ATTEMPTS: u32 = 5;
-    const PROBE_RETRY_MS: u64 = 300;
-
-    /// 单次等待求值回调的上限。`with_webview` 是异步投递，回调何时回来由主线程决定；
-    /// 给个上限，主线程若长时间不回来，重试不会被永久卡死。
-    /// 5 × (3s + 0.3s) ≈ 17s 是最坏情况，脚本等探针的超时要盖过它（见 gui-test.sh）。
-    const PROBE_EVAL_TIMEOUT_MS: u64 = 3_000;
-
-    /// 取图前等「视图就绪」的上限与轮询间隔。
-    ///
-    /// `TAB_SETTLE_MS` 是**下限**（给一次渲染的时间），这里补的是**内容就绪**：
-    /// 用量总览要先把本机会话扫一遍才有表盘，扫描期间页面上是进度行。等到页面上
-    /// 没有 `[data-probe-pending]` 再取图，才不会拍到「还没算完」的那一帧。
-    /// 等不到也照常取图（超时不阻断取证），只在日志里说清楚——这是取证旁路，
-    /// 不是断言。
-    const READY_TIMEOUT_MS: u64 = 10_000;
-    const READY_POLL_MS: u64 = 250;
-    /// 必须以**字符串**返回：`evaluateJavaScript` 对数字回的是 NSNumber，
-    /// 而回调侧按 NSString 读——照数字比会永远等不到（第一版就栽在这）。
-    const READY_JS: &str = "String(document.querySelectorAll('[data-probe-pending]').length)";
 
     /// 几何探针脚本：**只收集事实，不含任何断言或阈值**——判定属于测试脚本，
     /// 应用不该携带测试策略。返回一个 JSON 字符串。
@@ -636,7 +582,7 @@ mod gui_capture {
     /// 锚点：`data-probe="gauge"`（仅用于探测的稳定属性；Gauge 的 `aria-label`
     /// 是随读数变化的文案，靠它匹配会在文案改动后**静默失配**），卡片复用既有的
     /// `aria-label="计费窗口"`，记录表复用 `table` / `[data-scroll-hint]` 结构。
-    const PROBE_JS: &str = r##"(function () {
+    pub(super) const PROBE_JS: &str = r##"(function () {
   function rectOf(el) {
     var r = el.getBoundingClientRect();
     return { x: r.left, y: r.top, width: r.width, height: r.height };
@@ -953,6 +899,589 @@ mod gui_capture {
   facts.changes = changesFacts;
   return JSON.stringify(facts);
 })();"##;
+
+    /// 把目标名安全化成文件名片段：保留字母数字（含中文），其余折叠成单个 `-`。
+    /// 与 `scripts/gui-test.sh` 里的 `slug_of` **必须逐字一致**——文件名对不上时
+    /// 脚本会一直等不到文件，而那看起来像「取图失败」。
+    pub(super) fn slug_of(value: &str) -> String {
+        let mut out = String::new();
+        let mut pending_dash = false;
+        for ch in value.chars() {
+            if ch.is_alphanumeric() {
+                if pending_dash && !out.is_empty() {
+                    out.push('-');
+                }
+                pending_dash = false;
+                out.push(ch);
+            } else {
+                pending_dash = true;
+            }
+        }
+        if out.is_empty() {
+            "tab".to_string()
+        } else {
+            out
+        }
+    }
+
+    /// 文件名后缀：**单个**目标沿用旧名 `-tab`（既有文档与脚本依赖它）；
+    /// 多个目标各用 `-<slug>`，文件名能看出是哪张图。同名目标第 2 次及以后
+    /// 再追加 `-<序号>`（如 `-全局搜索-2`），否则后一次会覆盖前一次的产物——
+    /// 「开浮层 → 关浮层」这类成对目标就靠它保住第一次的证据。
+    pub(super) fn tab_suffix(count: usize, tab: &str, nth: usize) -> String {
+        let base = if count == 1 {
+            "-tab".to_string()
+        } else {
+            format!("-{}", slug_of(tab))
+        };
+        if nth > 1 {
+            format!("{base}-{nth}")
+        } else {
+            base
+        }
+    }
+
+    /// 第 N 张图的输出路径：第一张去掉 `.pdf` 后缀再加 `-tab.pdf` / `-<slug>.pdf`。
+    pub(super) fn tab_output_path(first: &Path, count: usize, tab: &str, nth: usize) -> PathBuf {
+        let mut path = first.to_path_buf();
+        path.set_extension("");
+        path.as_mut_os_string()
+            .push(format!("{}.pdf", tab_suffix(count, tab, nth)));
+        path
+    }
+
+    /// 探针 JSON 的输出路径：文件名规则与取图一致，只是后缀换成 `.json`。
+    pub(super) fn probe_output_path(first: &Path, count: usize, tab: &str, nth: usize) -> PathBuf {
+        let mut path = first.to_path_buf();
+        path.set_extension("");
+        path.as_mut_os_string()
+            .push(format!("{}.json", tab_suffix(count, tab, nth)));
+        path
+    }
+
+    /// 把字符串安全地嵌进 JavaScript 的双引号字面量里。
+    pub(super) fn js_string(value: &str) -> String {
+        value
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r")
+    }
+
+    /// 目标是不是「切界面字号」的动作形式 `字号=<档位>`（如 `字号=130%`）。
+    ///
+    /// 字号档位没有稳定的可访问名（按钮里带着视觉隐藏的「（默认）」），而且要先开
+    /// 设置浮层才够得着——所以它不适用通用的「找一个按钮点下去」，单独走一条动作。
+    pub(super) fn font_scale_target(target: &str) -> Option<&str> {
+        target
+            .strip_prefix("字号=")
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    }
+
+    /// 目标是不是「切用量页子视图」的动作形式 `视图=<名>`（`视图=用量` / `视图=错误`）。
+    ///
+    /// 与 `字号=` 同一动作协议。存在的理由是**状态泄漏自愈**：N1 给用量页加了
+    /// 「用量|错误」分段，选择记进真实 WebKit 的 localStorage（不受 HOME 隔离），
+    /// 上一次运行停在错误档时，后续运行点「用量总览」标签页只会得到错误档——
+    /// 表盘与三块面板根本不渲染。默认清单因此在「用量总览」后显式重置一次。
+    pub(super) fn view_target(target: &str) -> Option<&str> {
+        target
+            .strip_prefix("视图=")
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    }
+
+    /// 目标是不是「滚动内容区」的动作形式 `滚动=<选择器>`（如 `滚动=main`）。
+    ///
+    /// 与 `字号=<档位>` 同一动作协议：不是「点一个按钮」，是对滚动容器的操作。
+    /// 用量总览的下半屏（按项目 / 按模型 / 活跃时段三块面板）只有滚过去才
+    /// 看得见——取图与几何探针都要能跟着滚到底，`滚动=main` 就是那一步。
+    pub(super) fn scroll_target(target: &str) -> Option<&str> {
+        target
+            .strip_prefix("滚动=")
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    }
+
+    /// 目标是不是「按选择器点选」的动作形式 `点选=<CSS 选择器>`（如
+    /// `点选=[data-probe='compact-event-2']`）。
+    ///
+    /// 通用按钮扫描靠可访问名**精确**匹配，而有些控件的可访问名带动态数字
+    /// （压缩事件 chip 是「#2 03-01 10:00 · 手动 · 156.2K→9.6K」）——把这种
+    /// 文本当目标名，夹具一改就静默失配。这些控件带 `data-probe` 稳定属性
+    /// （同 Gauge 的 `data-probe="gauge"` 先例），按选择器点它才不脆。
+    /// 选择器里不能含逗号（目标清单以逗号分隔），这是动作协议的边界。
+    pub(super) fn click_query_target(target: &str) -> Option<&str> {
+        target
+            .strip_prefix("点选=")
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    }
+
+    /// 在真机上把界面字号切到指定档位：先点顶栏的「设置」打开浮层，再点「界面字号」
+    /// 里对应的一项。**点的是真实控件**，不是直接改 localStorage——要证的正是
+    /// 「设置里的控件真的接上了根变量」。`eval` 是单向的（拿不到返回值），所以结果
+    /// 写进 console，与其它目标一样可在应用日志里追查。
+    ///
+    /// 开浮层与点档位之间隔一帧：React 渲染完那一项才存在于 DOM 里。
+    pub(super) fn font_scale_js(label: &str) -> String {
+        let escaped = js_string(label);
+        format!(
+            r#"(function () {{
+  var wanted = "{escaped}";
+  function clickRadio() {{
+    var items = document.querySelectorAll('[role="radiogroup"] [role="radio"]');
+    for (var i = 0; i < items.length; i++) {{
+      var text = (items[i].textContent || '').replace(/\s+/g, ' ').trim();
+      if (text.indexOf(wanted) === 0) {{
+        items[i].click();
+        console.log('gui-capture: 已切界面字号 ' + wanted);
+        return true;
+      }}
+    }}
+    return false;
+  }}
+  if (clickRadio()) return;
+  var buttons = document.querySelectorAll('button');
+  for (var i = 0; i < buttons.length; i++) {{
+    if (buttons[i].getAttribute('aria-label') === '设置') {{ buttons[i].click(); break; }}
+  }}
+  setTimeout(function () {{
+    if (!clickRadio()) console.warn('gui-capture: 找不到界面字号档位 ' + wanted);
+  }}, 200);
+}})();"#
+        )
+    }
+
+    /// 找到目标并点击：优先标签页，其次任意按钮。匹配可取访问名的三种来源——
+    /// `aria-label`、`title`、可见文本——所以既能点标签页（文本 / aria-label），
+    /// 也能点会话条目（它的 `title` 是 cwd）。`eval` 是单向的（拿不到脚本返回值），
+    /// 所以点击结果写进 console：成功与失败各一条，都能在测试脚本收集的应用日志里追查。
+    ///
+    /// 把内容区（当前只有 `main` 这一个滚动容器）滚到底。滚动是同步赋值
+    /// （项目样式里没有 `scroll-behavior: smooth`），结果写进 console，
+    /// 与其它动作一样可在应用日志里追查。
+    pub(super) fn scroll_js(selector: &str) -> String {
+        let escaped = js_string(selector);
+        format!(
+            r#"(function () {{
+  var el = document.querySelector("{escaped}");
+  if (!el) {{ console.warn('gui-capture: 找不到要滚动的 {escaped}'); return; }}
+  el.scrollTop = el.scrollHeight;
+  console.log('gui-capture: {escaped} 已滚到底 scrollTop=' + el.scrollTop + ' / scrollHeight=' + el.scrollHeight);
+}})();"#
+        )
+    }
+
+    /// `点选=<选择器>`：点通用扫描够不着的目标（可访问名带动态数字的控件）。
+    ///
+    /// 带回执版本（evaluateJavaScript 通道）：点击后**同步**读一次点击前后的
+    /// aria-pressed（React 18 的离散事件在派发内同步跑 handler，setState 落到
+    /// DOM 要到提交帧，所以同步读的是点击前状态——回执里两者都带，脚本侧
+    /// 拿下一帧的探针对照）。返回字符串，三态：`clicked` / `missing` / 异常。
+    pub(super) fn click_query_receipt_js(target: &str) -> Option<String> {
+        let selector = click_query_target(target)?;
+        let escaped = js_string(selector);
+        Some(format!(
+            r#"(function () {{
+  var el = document.querySelector("{escaped}");
+  if (!el) return 'missing';
+  el.click();
+  return 'clicked';
+}})();"#
+        ))
+    }
+
+    /// eval 通道的点选脚本（现仅由带回执版本取代，保留给潜在的非真机路径）。
+    pub(super) fn click_query_js(selector: &str) -> String {
+        let escaped = js_string(selector);
+        format!(
+            r#"(function () {{
+  var el = document.querySelector("{escaped}");
+  if (!el) {{ console.warn('gui-capture: 找不到点选目标 {escaped}'); return; }}
+  el.click();
+  console.log('gui-capture: 已点选 {escaped}');
+}})();"#
+        )
+    }
+
+    /// `视图=<名>` 的带回执点击脚本（同点选的 receipt 通道——J4 教训：点选类
+    /// 动作别走单向 eval，脚本被丢弃时无从得知）。
+    ///
+    /// 锚点是分段的容器（`aria-label="总览视图"`，全站唯一）+ SegmentedControl
+    /// 的默认角色 `tablist`/`tab`——**不是** radiogroup：那是它的另一种模式
+    /// （设置里的字号档在用），这里不是。按可见文本**精确**匹配目标名，回执
+    /// 带点击前的 aria-selected（泄漏时是 true，回执因此能区分「已在目标档」
+    /// 与「切过去了」）。三态与点选一致：`clicked …` / `missing …` / 异常。
+    pub(super) fn view_click_receipt_js(target: &str) -> Option<String> {
+        let label = view_target(target)?;
+        let escaped = js_string(label);
+        Some(format!(
+            r#"(function () {{
+  var wanted = "{escaped}";
+  var items = document.querySelectorAll('[role="tablist"][aria-label="总览视图"] [role="tab"]');
+  for (var i = 0; i < items.length; i++) {{
+    var text = (items[i].textContent || '').replace(/\s+/g, ' ').trim();
+    if (text === wanted) {{
+      var before = items[i].getAttribute('aria-selected');
+      items[i].click();
+      return 'clicked ' + wanted + ' (was ' + before + ')';
+    }}
+  }}
+  return 'missing ' + wanted;
+}})();"#
+        ))
+    }
+
+    /// eval 通道的视图切换脚本（保留给潜在的非真机路径，同点选的备胎）。
+    pub(super) fn view_click_js(label: &str) -> String {
+        let escaped = js_string(label);
+        format!(
+            r#"(function () {{
+  var wanted = "{escaped}";
+  var items = document.querySelectorAll('[role="tablist"][aria-label="总览视图"] [role="tab"]');
+  for (var i = 0; i < items.length; i++) {{
+    var text = (items[i].textContent || '').replace(/\s+/g, ' ').trim();
+    if (text === wanted) {{ items[i].click(); console.log('gui-capture: 已切总览视图 ' + wanted); return; }}
+  }}
+  console.warn('gui-capture: 找不到总览视图档 ' + wanted);
+}})();"#
+        )
+    }
+
+    /// `字号=<档位>`、`滚动=<选择器>`、`点选=<选择器>` 与 `视图=<名>` 不是
+    /// 「点一个已有按钮」，各走各的动作。
+    pub(super) fn click_target_js(target: &str) -> String {
+        if let Some(label) = font_scale_target(target) {
+            return font_scale_js(label);
+        }
+        if let Some(label) = view_target(target) {
+            return view_click_js(label);
+        }
+        if let Some(selector) = scroll_target(target) {
+            return scroll_js(selector);
+        }
+        if let Some(selector) = click_query_target(target) {
+            return click_query_js(selector);
+        }
+        let escaped = js_string(target);
+        format!(
+            r#"(function () {{
+  var wanted = "{escaped}";
+  var scopes = [
+    document.querySelectorAll('[role="tablist"] button'),
+    document.querySelectorAll('button')
+  ];
+  for (var s = 0; s < scopes.length; s++) {{
+    var buttons = scopes[s];
+    for (var i = 0; i < buttons.length; i++) {{
+      var el = buttons[i];
+      var candidates = [
+        el.getAttribute('aria-label'),
+        el.getAttribute('title'),
+        (el.textContent || '').replace(/\s+/g, ' ').trim()
+      ];
+      if (candidates.indexOf(wanted) >= 0) {{
+        el.click();
+        console.log('gui-capture: 已点击 ' + wanted);
+        return;
+      }}
+    }}
+  }}
+  console.warn('gui-capture: 找不到目标 ' + wanted);
+}})();"#
+        )
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn font_scale_target_only_matches_the_action_form() {
+            assert_eq!(font_scale_target("字号=130%"), Some("130%"));
+            assert_eq!(font_scale_target("字号= 110% "), Some("110%"));
+            assert_eq!(font_scale_target("字号="), None);
+            // 普通目标（标签页、会话 cwd）不该被当成动作吞掉。
+            assert_eq!(font_scale_target("用量总览"), None);
+            assert_eq!(font_scale_target("/repo/demo"), None);
+        }
+
+        #[test]
+        fn view_target_only_matches_the_action_form() {
+            assert_eq!(view_target("视图=用量"), Some("用量"));
+            assert_eq!(view_target("视图= 错误 "), Some("错误"));
+            assert_eq!(view_target("视图="), None);
+            // 普通目标与另外几个动作都不归它管。
+            assert_eq!(view_target("用量总览"), None);
+            assert_eq!(view_target("字号=130%"), None);
+            assert_eq!(view_target("滚动=main"), None);
+            assert_eq!(view_target("点选=[data-probe='compact-event-2']"), None);
+        }
+
+        #[test]
+        fn scroll_target_only_matches_the_action_form() {
+            assert_eq!(scroll_target("滚动=main"), Some("main"));
+            assert_eq!(scroll_target("滚动= main "), Some("main"));
+            assert_eq!(scroll_target("滚动="), None);
+            // 普通目标不该被当成动作吞掉；字号动作也不归它管。
+            assert_eq!(scroll_target("用量总览"), None);
+            assert_eq!(scroll_target("字号=130%"), None);
+        }
+
+        #[test]
+        fn click_query_target_only_matches_the_action_form() {
+            assert_eq!(
+                click_query_target("点选=[data-probe='compact-event-2']"),
+                Some("[data-probe='compact-event-2']")
+            );
+            assert_eq!(click_query_target("点选= "), None);
+            // 普通目标与另外两个动作都不归它管。
+            assert_eq!(click_query_target("/repo/demo"), None);
+            assert_eq!(click_query_target("滚动=main"), None);
+            assert_eq!(click_query_target("字号=130%"), None);
+        }
+
+        #[test]
+        fn the_scroll_action_scrolls_the_container_and_reports() {
+            let js = click_target_js("滚动=main");
+            // 动作滚的是容器（赋值到底），而不是通用按钮扫描。
+            assert!(js.contains("scrollTop = el.scrollHeight"));
+            assert!(js.contains("已滚到底"));
+            assert!(!js.contains("已点击"));
+            assert!(!js.contains("已切界面字号"));
+        }
+
+        #[test]
+        fn the_font_scale_action_clicks_a_radio_and_opens_settings() {
+            let js = click_target_js("字号=130%");
+            // 动作走的是 radiogroup 里的真实控件，而不是通用按钮扫描。
+            assert!(js.contains("[role=\"radiogroup\"] [role=\"radio\"]"));
+            assert!(js.contains("aria-label') === '设置"));
+            assert!(js.contains("已切界面字号"));
+            // 档位文案进的是被转义过的字面量。
+            assert!(js.contains("var wanted = \"130%\""));
+        }
+
+        #[test]
+        fn the_view_action_clicks_the_segment_with_a_receipt() {
+            let js = view_click_receipt_js("视图=用量").expect("视图= 动作应有回执脚本");
+            // 走的是总览视图分段的真实 tab 控件（SegmentedControl 默认 tablist；
+            // radiogroup 是它的另一种模式，这里不是），而不是通用按钮扫描。
+            assert!(js.contains("[role=\"tablist\"][aria-label=\"总览视图\"]"));
+            assert!(js.contains("[role=\"tab\"]"));
+            // 回执带点击前的选中态：泄漏时 was true 能与「已在目标档」区分。
+            assert!(js.contains("aria-selected"));
+            assert!(js.contains("clicked "));
+            assert!(js.contains("missing "));
+            // 目标名进的是被转义过的字面量。
+            assert!(js.contains("var wanted = \"用量\""));
+            // 非视图动作不产回执脚本（交给其它动作处理）。
+            assert!(view_click_receipt_js("字号=130%").is_none());
+            assert!(view_click_receipt_js("用量总览").is_none());
+        }
+
+        #[test]
+        fn the_click_query_action_has_a_receipt_script() {
+            let js = click_query_receipt_js("点选=[data-probe='compact-event-2']")
+                .expect("点选= 动作应有回执脚本");
+            // 选择器进的是被转义过的字面量，脚本按选择器直接取元素。
+            assert!(js.contains("document.querySelector(\"[data-probe='compact-event-2']\")"));
+            // 回执把「点了 / 没这个元素」分开——真机上点选 chip 曾整段静默失效，
+            // 没有回执就分不清是脚本丢了还是元素不在。
+            assert!(js.contains("return 'clicked'"));
+            assert!(js.contains("return 'missing'"));
+            // 非点选动作不产回执脚本（交给其它动作处理）。
+            assert!(click_query_receipt_js("字号=130%").is_none());
+            assert!(click_query_receipt_js("/repo/demo").is_none());
+        }
+
+        #[test]
+        fn an_ordinary_target_still_uses_the_generic_button_scan() {
+            let js = click_target_js("/repo/demo");
+            assert!(js.contains("已点击"));
+            assert!(!js.contains("已切界面字号"));
+            // 目标里的引号必须被转义，否则会提前结束字面量、整段脚本变成语法错误。
+            let quoted = click_target_js("say \"hi\"");
+            assert!(quoted.contains("var wanted = \"say \\\"hi\\\"\""));
+        }
+
+        #[test]
+        fn the_click_query_action_targets_a_selector() {
+            let js = click_target_js("点选=[data-probe='compact-event-2']");
+            // 动作走 querySelector（可访问名带动态数字的控件够不着通用扫描），
+            // 而不是通用按钮扫描。
+            assert!(js.contains("document.querySelector"));
+            assert!(js.contains("已点选"));
+            assert!(!js.contains("已点击"));
+            assert!(!js.contains("已切界面字号"));
+        }
+
+        #[test]
+        fn the_probe_reports_the_font_scale_and_session_rows() {
+            assert!(PROBE_JS.contains("font_scale:"));
+            assert!(PROBE_JS.contains("--font-scale"));
+            assert!(PROBE_JS.contains("session_rows"));
+        }
+
+        #[test]
+        fn the_probe_reports_panels_billing_and_labeled_dialogs() {
+            // 面板标题带文档位置（docTop）——「滚一次可达」的判定靠它。
+            assert!(PROBE_JS.contains("panels"));
+            assert!(PROBE_JS.contains("docTop"));
+            // 限额区：卡、周用量层、卡内读数（<b>）三种矩形都要收集。
+            assert!(PROBE_JS.contains("计费窗口"));
+            assert!(PROBE_JS.contains("周用量（滚动 7 天）"));
+            assert!(PROBE_JS.contains("name: 'billing'"));
+            // 浮层靠 label 分流（导出走 aria-labelledby，搜索走 aria-label），
+            // 不再假装全站只有一种 modal。
+            assert!(PROBE_JS.contains("name: 'dialog'"));
+            assert!(PROBE_JS.contains("aria-labelledby"));
+        }
+
+        #[test]
+        fn the_probe_reports_context_view_anchors() {
+            // 上下文标签页（Round J）的锚点：曲线宿主（role=img + aria-label 前缀）、
+            // 压缩命中区（rect[data-event-id]）、取证卡与被丢清单（data-probe）、
+            // 覆盖率 chip（全站唯一的 aria-haspopup="dialog" 按钮）。
+            assert!(PROBE_JS.contains("上下文压力"));
+            assert!(PROBE_JS.contains("rect[data-event-id]"));
+            assert!(PROBE_JS.contains("forensic-card"));
+            assert!(PROBE_JS.contains("dropped-list"));
+            assert!(PROBE_JS.contains("aria-haspopup=\"dialog\""));
+            assert!(PROBE_JS.contains("declaredCount"));
+            assert!(PROBE_JS.contains("padHeights"));
+        }
+
+        #[test]
+        fn the_probe_reports_error_view_anchors() {
+            // 错误档（Round N / N1）的锚点：容器（data-error-view）、趋势 SVG
+            // （data-error-trend + rect[data-bar]）、事件列表（data-error-events，
+            // 行数 × 行高 = 总高的账目事实）、过滤态（data-error-filter）。
+            assert!(PROBE_JS.contains("[data-error-view]"));
+            assert!(PROBE_JS.contains("[data-error-trend]"));
+            assert!(PROBE_JS.contains("rect[data-bar]"));
+            assert!(PROBE_JS.contains("[data-error-events]"));
+            assert!(PROBE_JS.contains("[data-error-filter]"));
+            assert!(PROBE_JS.contains("facts.error"));
+        }
+
+        #[test]
+        fn the_probe_reports_changes_view_anchors() {
+            // 改动标签页（Round N / N2）的锚点：容器（data-changes-view）、文件
+            // 列表（data-changes-files + li[data-changes-file] 的行高账目）、
+            // 展开区（data-changes-records + 记录行 data-changes-record）、空态
+            // （data-changes-empty）。声明行数读聚合读数自己的
+            // data-changes-aggregate（不借面板结构，理由见 PROBE_JS 注释）。
+            assert!(PROBE_JS.contains("[data-changes-view]"));
+            assert!(PROBE_JS.contains("[data-changes-files]"));
+            assert!(PROBE_JS.contains("li[data-changes-file]"));
+            assert!(PROBE_JS.contains("[data-changes-aggregate]"));
+            assert!(PROBE_JS.contains("[data-changes-records]"));
+            assert!(PROBE_JS.contains("[data-changes-record]"));
+            assert!(PROBE_JS.contains("[data-changes-empty]"));
+            assert!(PROBE_JS.contains("个文件"));
+            assert!(PROBE_JS.contains("facts.changes"));
+            // closest('section') 方向相反（子不是祖），出现过就不许再回来。
+            assert!(!PROBE_JS.contains("changesView.closest"));
+        }
+
+        #[test]
+        fn repeated_targets_get_numbered_suffixes() {
+            // 同名目标的第二次出现必须换文件名，否则会覆盖第一次的产物
+            // （「全局搜索」开与关就是同名的两次点击）。
+            let first = Path::new("/tmp/app-capture.pdf");
+            assert_eq!(
+                tab_output_path(first, 2, "全局搜索", 1),
+                PathBuf::from("/tmp/app-capture-全局搜索.pdf")
+            );
+            assert_eq!(
+                tab_output_path(first, 2, "全局搜索", 2),
+                PathBuf::from("/tmp/app-capture-全局搜索-2.pdf")
+            );
+            // 单个目标与首次出现保持旧规则（`-tab` 与不带序号）。
+            assert_eq!(
+                tab_output_path(first, 1, "用量总览", 1),
+                PathBuf::from("/tmp/app-capture-tab.pdf")
+            );
+            assert_eq!(
+                probe_output_path(first, 2, "全局搜索", 2),
+                PathBuf::from("/tmp/app-capture-全局搜索-2.json")
+            );
+        }
+    }
+}
+
+/// 真机 GUI 测试取证：把应用自己的 webview 渲染成 PDF。
+///
+/// **为什么需要它**：macOS 上截取屏幕内容要「屏幕录制」权限，而那只有使用者能在
+/// 系统设置里授予——脚本无法申请。实测过连「进程截自己的窗口」也会拿到一张
+/// 尺寸正确但像素全透明的图（详见 `.trellis/spec/testing/gui-tests.md`）。
+///
+/// 这里走的是另一条路：`WKWebView.createPDF` 是 **WebKit 渲染自己的内容**，
+/// 根本不经过截屏通道，因此不受 TCC 限制。拿到 PDF 后由测试脚本转成 PNG。
+///
+/// 只有启用 `gui-capture` feature 才会编译这段代码——**发布构建里没有它**。
+#[cfg(all(target_os = "macos", feature = "gui-capture"))]
+mod gui_capture {
+    use block2::RcBlock;
+    use objc2::runtime::AnyObject;
+    use objc2_foundation::{NSData, NSError, NSString};
+    use objc2_web_kit::WKWebView;
+    use std::path::{Path, PathBuf};
+    use std::sync::mpsc;
+    use std::time::{Duration, Instant};
+    use tauri::Manager;
+    // 与平台无关的那一半在 gui_probe 里（单测因此在 Linux 上也会跑）
+    use super::gui_probe::*;
+
+    /// 应用启动后等这么久再取图：要留出 webview 完成首次渲染的时间。
+    /// 截早了会拿到半张白屏，而那种失败是**静默**的（能生成文件，内容却是空的）。
+    const SETTLE_MS: u64 = 6_000;
+
+    /// 点击目标后等这么久再取图：新视图要先完成一轮渲染（打开会话还要先读文件
+    /// 并解析）。探针与取图都排在这之后。
+    const TAB_SETTLE_MS: u64 = 3_000;
+
+    /// 等一张图落盘的上限。createPDF 的 completion handler 是异步回调，而且它的
+    /// 渲染是**延后**发生的：实测过「探针先于快照求值」——同一张图对应的探针读到的
+    /// 却是点击生效前、快照还没跟上的旧视图。所以探针要等到 PDF 落盘后再求值，
+    /// 落盘即代表快照已完成，两者描述同一视图。点击下一步前也要等，
+    /// 否则下一张截到的还是旧视图。
+    ///
+    /// **但这个上限不再是「探针的开关」**：等超时了也照样取探针（见 `spawn` 的注释）。
+    /// 取 15s 与 `scripts/gui-test.sh` 里每个视图等取图 PDF 的秒数一致——它只决定
+    /// 「正常路径下探针是否等到快照之后」，定大一点只是让正常的对齐更稳，
+    /// 不会因为定大了就把失败藏起来。
+    const PDF_TIMEOUT_MS: u64 = 15_000;
+
+    /// 几何探针求值遇到瞬时失败时的重试次数与间隔。
+    ///
+    /// **只重试「求值本身失败」**（`evaluateJavaScript` 报错、回调没回、写文件失败）。
+    /// 探针一旦**成功写出** JSON 就立刻返回——哪怕那份 JSON 描述的是一个坏布局
+    /// （表盘被撑爆、记录表被裁切），也照样返回、由脚本判定失败。所以重试**不会**
+    /// 掩盖真回归，它只把「页面过渡态 / 主线程忙导致的偶发求值失败」抹平。
+    const PROBE_ATTEMPTS: u32 = 5;
+    const PROBE_RETRY_MS: u64 = 300;
+
+    /// 单次等待求值回调的上限。`with_webview` 是异步投递，回调何时回来由主线程决定；
+    /// 给个上限，主线程若长时间不回来，重试不会被永久卡死。
+    /// 5 × (3s + 0.3s) ≈ 17s 是最坏情况，脚本等探针的超时要盖过它（见 gui-test.sh）。
+    const PROBE_EVAL_TIMEOUT_MS: u64 = 3_000;
+
+    /// 取图前等「视图就绪」的上限与轮询间隔。
+    ///
+    /// `TAB_SETTLE_MS` 是**下限**（给一次渲染的时间），这里补的是**内容就绪**：
+    /// 用量总览要先把本机会话扫一遍才有表盘，扫描期间页面上是进度行。等到页面上
+    /// 没有 `[data-probe-pending]` 再取图，才不会拍到「还没算完」的那一帧。
+    /// 等不到也照常取图（超时不阻断取证），只在日志里说清楚——这是取证旁路，
+    /// 不是断言。
+    const READY_TIMEOUT_MS: u64 = 10_000;
+    const READY_POLL_MS: u64 = 250;
+    /// 必须以**字符串**返回：`evaluateJavaScript` 对数字回的是 NSNumber，
+    /// 而回调侧按 NSString 读——照数字比会永远等不到（第一版就栽在这）。
+    const READY_JS: &str = "String(document.querySelectorAll('[data-probe-pending]').length)";
 
     /// 取图线程：默认视图先取一张，然后按 `tabs` 依次点击、每步再取一张。
     /// 每张图都配一份几何探针（若设了 `CCA_GUI_PROBE`），供测试脚本判定布局。
@@ -1280,300 +1809,6 @@ mod gui_capture {
         path.is_file()
     }
 
-    /// 把目标名安全化成文件名片段：保留字母数字（含中文），其余折叠成单个 `-`。
-    /// 与 `scripts/gui-test.sh` 里的 `slug_of` **必须逐字一致**——文件名对不上时
-    /// 脚本会一直等不到文件，而那看起来像「取图失败」。
-    fn slug_of(value: &str) -> String {
-        let mut out = String::new();
-        let mut pending_dash = false;
-        for ch in value.chars() {
-            if ch.is_alphanumeric() {
-                if pending_dash && !out.is_empty() {
-                    out.push('-');
-                }
-                pending_dash = false;
-                out.push(ch);
-            } else {
-                pending_dash = true;
-            }
-        }
-        if out.is_empty() {
-            "tab".to_string()
-        } else {
-            out
-        }
-    }
-
-    /// 文件名后缀：**单个**目标沿用旧名 `-tab`（既有文档与脚本依赖它）；
-    /// 多个目标各用 `-<slug>`，文件名能看出是哪张图。同名目标第 2 次及以后
-    /// 再追加 `-<序号>`（如 `-全局搜索-2`），否则后一次会覆盖前一次的产物——
-    /// 「开浮层 → 关浮层」这类成对目标就靠它保住第一次的证据。
-    fn tab_suffix(count: usize, tab: &str, nth: usize) -> String {
-        let base = if count == 1 {
-            "-tab".to_string()
-        } else {
-            format!("-{}", slug_of(tab))
-        };
-        if nth > 1 {
-            format!("{base}-{nth}")
-        } else {
-            base
-        }
-    }
-
-    /// 第 N 张图的输出路径：第一张去掉 `.pdf` 后缀再加 `-tab.pdf` / `-<slug>.pdf`。
-    fn tab_output_path(first: &Path, count: usize, tab: &str, nth: usize) -> PathBuf {
-        let mut path = first.to_path_buf();
-        path.set_extension("");
-        path.as_mut_os_string()
-            .push(format!("{}.pdf", tab_suffix(count, tab, nth)));
-        path
-    }
-
-    /// 探针 JSON 的输出路径：文件名规则与取图一致，只是后缀换成 `.json`。
-    fn probe_output_path(first: &Path, count: usize, tab: &str, nth: usize) -> PathBuf {
-        let mut path = first.to_path_buf();
-        path.set_extension("");
-        path.as_mut_os_string()
-            .push(format!("{}.json", tab_suffix(count, tab, nth)));
-        path
-    }
-
-    /// 把字符串安全地嵌进 JavaScript 的双引号字面量里。
-    fn js_string(value: &str) -> String {
-        value
-            .replace('\\', "\\\\")
-            .replace('"', "\\\"")
-            .replace('\n', "\\n")
-            .replace('\r', "\\r")
-    }
-
-    /// 目标是不是「切界面字号」的动作形式 `字号=<档位>`（如 `字号=130%`）。
-    ///
-    /// 字号档位没有稳定的可访问名（按钮里带着视觉隐藏的「（默认）」），而且要先开
-    /// 设置浮层才够得着——所以它不适用通用的「找一个按钮点下去」，单独走一条动作。
-    fn font_scale_target(target: &str) -> Option<&str> {
-        target
-            .strip_prefix("字号=")
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-    }
-
-    /// 目标是不是「切用量页子视图」的动作形式 `视图=<名>`（`视图=用量` / `视图=错误`）。
-    ///
-    /// 与 `字号=` 同一动作协议。存在的理由是**状态泄漏自愈**：N1 给用量页加了
-    /// 「用量|错误」分段，选择记进真实 WebKit 的 localStorage（不受 HOME 隔离），
-    /// 上一次运行停在错误档时，后续运行点「用量总览」标签页只会得到错误档——
-    /// 表盘与三块面板根本不渲染。默认清单因此在「用量总览」后显式重置一次。
-    fn view_target(target: &str) -> Option<&str> {
-        target
-            .strip_prefix("视图=")
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-    }
-
-    /// 目标是不是「滚动内容区」的动作形式 `滚动=<选择器>`（如 `滚动=main`）。
-    ///
-    /// 与 `字号=<档位>` 同一动作协议：不是「点一个按钮」，是对滚动容器的操作。
-    /// 用量总览的下半屏（按项目 / 按模型 / 活跃时段三块面板）只有滚过去才
-    /// 看得见——取图与几何探针都要能跟着滚到底，`滚动=main` 就是那一步。
-    fn scroll_target(target: &str) -> Option<&str> {
-        target
-            .strip_prefix("滚动=")
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-    }
-
-    /// 目标是不是「按选择器点选」的动作形式 `点选=<CSS 选择器>`（如
-    /// `点选=[data-probe='compact-event-2']`）。
-    ///
-    /// 通用按钮扫描靠可访问名**精确**匹配，而有些控件的可访问名带动态数字
-    /// （压缩事件 chip 是「#2 03-01 10:00 · 手动 · 156.2K→9.6K」）——把这种
-    /// 文本当目标名，夹具一改就静默失配。这些控件带 `data-probe` 稳定属性
-    /// （同 Gauge 的 `data-probe="gauge"` 先例），按选择器点它才不脆。
-    /// 选择器里不能含逗号（目标清单以逗号分隔），这是动作协议的边界。
-    fn click_query_target(target: &str) -> Option<&str> {
-        target
-            .strip_prefix("点选=")
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-    }
-
-    /// 在真机上把界面字号切到指定档位：先点顶栏的「设置」打开浮层，再点「界面字号」
-    /// 里对应的一项。**点的是真实控件**，不是直接改 localStorage——要证的正是
-    /// 「设置里的控件真的接上了根变量」。`eval` 是单向的（拿不到返回值），所以结果
-    /// 写进 console，与其它目标一样可在应用日志里追查。
-    ///
-    /// 开浮层与点档位之间隔一帧：React 渲染完那一项才存在于 DOM 里。
-    fn font_scale_js(label: &str) -> String {
-        let escaped = js_string(label);
-        format!(
-            r#"(function () {{
-  var wanted = "{escaped}";
-  function clickRadio() {{
-    var items = document.querySelectorAll('[role="radiogroup"] [role="radio"]');
-    for (var i = 0; i < items.length; i++) {{
-      var text = (items[i].textContent || '').replace(/\s+/g, ' ').trim();
-      if (text.indexOf(wanted) === 0) {{
-        items[i].click();
-        console.log('gui-capture: 已切界面字号 ' + wanted);
-        return true;
-      }}
-    }}
-    return false;
-  }}
-  if (clickRadio()) return;
-  var buttons = document.querySelectorAll('button');
-  for (var i = 0; i < buttons.length; i++) {{
-    if (buttons[i].getAttribute('aria-label') === '设置') {{ buttons[i].click(); break; }}
-  }}
-  setTimeout(function () {{
-    if (!clickRadio()) console.warn('gui-capture: 找不到界面字号档位 ' + wanted);
-  }}, 200);
-}})();"#
-        )
-    }
-
-    /// 找到目标并点击：优先标签页，其次任意按钮。匹配可取访问名的三种来源——
-    /// `aria-label`、`title`、可见文本——所以既能点标签页（文本 / aria-label），
-    /// 也能点会话条目（它的 `title` 是 cwd）。`eval` 是单向的（拿不到脚本返回值），
-    /// 所以点击结果写进 console：成功与失败各一条，都能在测试脚本收集的应用日志里追查。
-    ///
-    /// 把内容区（当前只有 `main` 这一个滚动容器）滚到底。滚动是同步赋值
-    /// （项目样式里没有 `scroll-behavior: smooth`），结果写进 console，
-    /// 与其它动作一样可在应用日志里追查。
-    fn scroll_js(selector: &str) -> String {
-        let escaped = js_string(selector);
-        format!(
-            r#"(function () {{
-  var el = document.querySelector("{escaped}");
-  if (!el) {{ console.warn('gui-capture: 找不到要滚动的 {escaped}'); return; }}
-  el.scrollTop = el.scrollHeight;
-  console.log('gui-capture: {escaped} 已滚到底 scrollTop=' + el.scrollTop + ' / scrollHeight=' + el.scrollHeight);
-}})();"#
-        )
-    }
-
-    /// `点选=<选择器>`：点通用扫描够不着的目标（可访问名带动态数字的控件）。
-    ///
-    /// 带回执版本（evaluateJavaScript 通道）：点击后**同步**读一次点击前后的
-    /// aria-pressed（React 18 的离散事件在派发内同步跑 handler，setState 落到
-    /// DOM 要到提交帧，所以同步读的是点击前状态——回执里两者都带，脚本侧
-    /// 拿下一帧的探针对照）。返回字符串，三态：`clicked` / `missing` / 异常。
-    fn click_query_receipt_js(target: &str) -> Option<String> {
-        let selector = click_query_target(target)?;
-        let escaped = js_string(selector);
-        Some(format!(
-            r#"(function () {{
-  var el = document.querySelector("{escaped}");
-  if (!el) return 'missing';
-  el.click();
-  return 'clicked';
-}})();"#
-        ))
-    }
-
-    /// eval 通道的点选脚本（现仅由带回执版本取代，保留给潜在的非真机路径）。
-    fn click_query_js(selector: &str) -> String {
-        let escaped = js_string(selector);
-        format!(
-            r#"(function () {{
-  var el = document.querySelector("{escaped}");
-  if (!el) {{ console.warn('gui-capture: 找不到点选目标 {escaped}'); return; }}
-  el.click();
-  console.log('gui-capture: 已点选 {escaped}');
-}})();"#
-        )
-    }
-
-    /// `视图=<名>` 的带回执点击脚本（同点选的 receipt 通道——J4 教训：点选类
-    /// 动作别走单向 eval，脚本被丢弃时无从得知）。
-    ///
-    /// 锚点是分段的容器（`aria-label="总览视图"`，全站唯一）+ SegmentedControl
-    /// 的默认角色 `tablist`/`tab`——**不是** radiogroup：那是它的另一种模式
-    /// （设置里的字号档在用），这里不是。按可见文本**精确**匹配目标名，回执
-    /// 带点击前的 aria-selected（泄漏时是 true，回执因此能区分「已在目标档」
-    /// 与「切过去了」）。三态与点选一致：`clicked …` / `missing …` / 异常。
-    fn view_click_receipt_js(target: &str) -> Option<String> {
-        let label = view_target(target)?;
-        let escaped = js_string(label);
-        Some(format!(
-            r#"(function () {{
-  var wanted = "{escaped}";
-  var items = document.querySelectorAll('[role="tablist"][aria-label="总览视图"] [role="tab"]');
-  for (var i = 0; i < items.length; i++) {{
-    var text = (items[i].textContent || '').replace(/\s+/g, ' ').trim();
-    if (text === wanted) {{
-      var before = items[i].getAttribute('aria-selected');
-      items[i].click();
-      return 'clicked ' + wanted + ' (was ' + before + ')';
-    }}
-  }}
-  return 'missing ' + wanted;
-}})();"#
-        ))
-    }
-
-    /// eval 通道的视图切换脚本（保留给潜在的非真机路径，同点选的备胎）。
-    fn view_click_js(label: &str) -> String {
-        let escaped = js_string(label);
-        format!(
-            r#"(function () {{
-  var wanted = "{escaped}";
-  var items = document.querySelectorAll('[role="tablist"][aria-label="总览视图"] [role="tab"]');
-  for (var i = 0; i < items.length; i++) {{
-    var text = (items[i].textContent || '').replace(/\s+/g, ' ').trim();
-    if (text === wanted) {{ items[i].click(); console.log('gui-capture: 已切总览视图 ' + wanted); return; }}
-  }}
-  console.warn('gui-capture: 找不到总览视图档 ' + wanted);
-}})();"#
-        )
-    }
-
-    /// `字号=<档位>`、`滚动=<选择器>`、`点选=<选择器>` 与 `视图=<名>` 不是
-    /// 「点一个已有按钮」，各走各的动作。
-    fn click_target_js(target: &str) -> String {
-        if let Some(label) = font_scale_target(target) {
-            return font_scale_js(label);
-        }
-        if let Some(label) = view_target(target) {
-            return view_click_js(label);
-        }
-        if let Some(selector) = scroll_target(target) {
-            return scroll_js(selector);
-        }
-        if let Some(selector) = click_query_target(target) {
-            return click_query_js(selector);
-        }
-        let escaped = js_string(target);
-        format!(
-            r#"(function () {{
-  var wanted = "{escaped}";
-  var scopes = [
-    document.querySelectorAll('[role="tablist"] button'),
-    document.querySelectorAll('button')
-  ];
-  for (var s = 0; s < scopes.length; s++) {{
-    var buttons = scopes[s];
-    for (var i = 0; i < buttons.length; i++) {{
-      var el = buttons[i];
-      var candidates = [
-        el.getAttribute('aria-label'),
-        el.getAttribute('title'),
-        (el.textContent || '').replace(/\s+/g, ' ').trim()
-      ];
-      if (candidates.indexOf(wanted) >= 0) {{
-        el.click();
-        console.log('gui-capture: 已点击 ' + wanted);
-        return;
-      }}
-    }}
-  }}
-  console.warn('gui-capture: 找不到目标 ' + wanted);
-}})();"#
-        )
-    }
-
     /// 由 `setup` 调用：只有设了 `CCA_GUI_CAPTURE` 才生效，否则完全惰性。
     /// - `CCA_GUI_CAPTURE_TAB`：逗号分隔的目标列表（可取访问名或会话 cwd），
     ///   应用依次点击并在每步取一张图；**单个值沿用旧文件名 `-tab.pdf`**。
@@ -1601,209 +1836,6 @@ mod gui_capture {
             .map(PathBuf::from);
         if let Some(webview) = app.get_webview_window("main") {
             spawn(webview.as_ref().clone(), PathBuf::from(target), tabs, probe);
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        #[test]
-        fn font_scale_target_only_matches_the_action_form() {
-            assert_eq!(font_scale_target("字号=130%"), Some("130%"));
-            assert_eq!(font_scale_target("字号= 110% "), Some("110%"));
-            assert_eq!(font_scale_target("字号="), None);
-            // 普通目标（标签页、会话 cwd）不该被当成动作吞掉。
-            assert_eq!(font_scale_target("用量总览"), None);
-            assert_eq!(font_scale_target("/repo/demo"), None);
-        }
-
-        #[test]
-        fn view_target_only_matches_the_action_form() {
-            assert_eq!(view_target("视图=用量"), Some("用量"));
-            assert_eq!(view_target("视图= 错误 "), Some("错误"));
-            assert_eq!(view_target("视图="), None);
-            // 普通目标与另外几个动作都不归它管。
-            assert_eq!(view_target("用量总览"), None);
-            assert_eq!(view_target("字号=130%"), None);
-            assert_eq!(view_target("滚动=main"), None);
-            assert_eq!(view_target("点选=[data-probe='compact-event-2']"), None);
-        }
-
-        #[test]
-        fn scroll_target_only_matches_the_action_form() {
-            assert_eq!(scroll_target("滚动=main"), Some("main"));
-            assert_eq!(scroll_target("滚动= main "), Some("main"));
-            assert_eq!(scroll_target("滚动="), None);
-            // 普通目标不该被当成动作吞掉；字号动作也不归它管。
-            assert_eq!(scroll_target("用量总览"), None);
-            assert_eq!(scroll_target("字号=130%"), None);
-        }
-
-        #[test]
-        fn click_query_target_only_matches_the_action_form() {
-            assert_eq!(
-                click_query_target("点选=[data-probe='compact-event-2']"),
-                Some("[data-probe='compact-event-2']")
-            );
-            assert_eq!(click_query_target("点选= "), None);
-            // 普通目标与另外两个动作都不归它管。
-            assert_eq!(click_query_target("/repo/demo"), None);
-            assert_eq!(click_query_target("滚动=main"), None);
-            assert_eq!(click_query_target("字号=130%"), None);
-        }
-
-        #[test]
-        fn the_scroll_action_scrolls_the_container_and_reports() {
-            let js = click_target_js("滚动=main");
-            // 动作滚的是容器（赋值到底），而不是通用按钮扫描。
-            assert!(js.contains("scrollTop = el.scrollHeight"));
-            assert!(js.contains("已滚到底"));
-            assert!(!js.contains("已点击"));
-            assert!(!js.contains("已切界面字号"));
-        }
-
-        #[test]
-        fn the_font_scale_action_clicks_a_radio_and_opens_settings() {
-            let js = click_target_js("字号=130%");
-            // 动作走的是 radiogroup 里的真实控件，而不是通用按钮扫描。
-            assert!(js.contains("[role=\"radiogroup\"] [role=\"radio\"]"));
-            assert!(js.contains("aria-label') === '设置"));
-            assert!(js.contains("已切界面字号"));
-            // 档位文案进的是被转义过的字面量。
-            assert!(js.contains("var wanted = \"130%\""));
-        }
-
-        #[test]
-        fn the_view_action_clicks_the_segment_with_a_receipt() {
-            let js = view_click_receipt_js("视图=用量").expect("视图= 动作应有回执脚本");
-            // 走的是总览视图分段的真实 tab 控件（SegmentedControl 默认 tablist；
-            // radiogroup 是它的另一种模式，这里不是），而不是通用按钮扫描。
-            assert!(js.contains("[role=\"tablist\"][aria-label=\"总览视图\"]"));
-            assert!(js.contains("[role=\"tab\"]"));
-            // 回执带点击前的选中态：泄漏时 was true 能与「已在目标档」区分。
-            assert!(js.contains("aria-selected"));
-            assert!(js.contains("clicked "));
-            assert!(js.contains("missing "));
-            // 目标名进的是被转义过的字面量。
-            assert!(js.contains("var wanted = \"用量\""));
-            // 非视图动作不产回执脚本（交给其它动作处理）。
-            assert!(view_click_receipt_js("字号=130%").is_none());
-            assert!(view_click_receipt_js("用量总览").is_none());
-        }
-
-        #[test]
-        fn an_ordinary_target_still_uses_the_generic_button_scan() {
-            let js = click_target_js("/repo/demo");
-            assert!(js.contains("已点击"));
-            assert!(!js.contains("已切界面字号"));
-            // 目标里的引号必须被转义，否则会提前结束字面量、整段脚本变成语法错误。
-            let quoted = click_target_js("say \"hi\"");
-            assert!(quoted.contains("var wanted = \"say \\\"hi\\\"\""));
-        }
-
-        #[test]
-        fn the_click_query_action_targets_a_selector() {
-            let js = click_target_js("点选=[data-probe='compact-event-2']");
-            // 动作走 querySelector（可访问名带动态数字的控件够不着通用扫描），
-            // 而不是通用按钮扫描。
-            assert!(js.contains("document.querySelector"));
-            assert!(js.contains("已点选"));
-            assert!(!js.contains("已点击"));
-            assert!(!js.contains("已切界面字号"));
-        }
-
-        #[test]
-        fn the_probe_reports_the_font_scale_and_session_rows() {
-            assert!(PROBE_JS.contains("font_scale:"));
-            assert!(PROBE_JS.contains("--font-scale"));
-            assert!(PROBE_JS.contains("session_rows"));
-        }
-
-        #[test]
-        fn the_probe_reports_panels_billing_and_labeled_dialogs() {
-            // 面板标题带文档位置（docTop）——「滚一次可达」的判定靠它。
-            assert!(PROBE_JS.contains("panels"));
-            assert!(PROBE_JS.contains("docTop"));
-            // 限额区：卡、周用量层、卡内读数（<b>）三种矩形都要收集。
-            assert!(PROBE_JS.contains("计费窗口"));
-            assert!(PROBE_JS.contains("周用量（滚动 7 天）"));
-            assert!(PROBE_JS.contains("name: 'billing'"));
-            // 浮层靠 label 分流（导出走 aria-labelledby，搜索走 aria-label），
-            // 不再假装全站只有一种 modal。
-            assert!(PROBE_JS.contains("name: 'dialog'"));
-            assert!(PROBE_JS.contains("aria-labelledby"));
-        }
-
-        #[test]
-        fn the_probe_reports_context_view_anchors() {
-            // 上下文标签页（Round J）的锚点：曲线宿主（role=img + aria-label 前缀）、
-            // 压缩命中区（rect[data-event-id]）、取证卡与被丢清单（data-probe）、
-            // 覆盖率 chip（全站唯一的 aria-haspopup="dialog" 按钮）。
-            assert!(PROBE_JS.contains("上下文压力"));
-            assert!(PROBE_JS.contains("rect[data-event-id]"));
-            assert!(PROBE_JS.contains("forensic-card"));
-            assert!(PROBE_JS.contains("dropped-list"));
-            assert!(PROBE_JS.contains("aria-haspopup=\"dialog\""));
-            assert!(PROBE_JS.contains("declaredCount"));
-            assert!(PROBE_JS.contains("padHeights"));
-        }
-
-        #[test]
-        fn the_probe_reports_error_view_anchors() {
-            // 错误档（Round N / N1）的锚点：容器（data-error-view）、趋势 SVG
-            // （data-error-trend + rect[data-bar]）、事件列表（data-error-events，
-            // 行数 × 行高 = 总高的账目事实）、过滤态（data-error-filter）。
-            assert!(PROBE_JS.contains("[data-error-view]"));
-            assert!(PROBE_JS.contains("[data-error-trend]"));
-            assert!(PROBE_JS.contains("rect[data-bar]"));
-            assert!(PROBE_JS.contains("[data-error-events]"));
-            assert!(PROBE_JS.contains("[data-error-filter]"));
-            assert!(PROBE_JS.contains("facts.error"));
-        }
-
-        #[test]
-        fn the_probe_reports_changes_view_anchors() {
-            // 改动标签页（Round N / N2）的锚点：容器（data-changes-view）、文件
-            // 列表（data-changes-files + li[data-changes-file] 的行高账目）、
-            // 展开区（data-changes-records + 记录行 data-changes-record）、空态
-            // （data-changes-empty）。声明行数读聚合读数自己的
-            // data-changes-aggregate（不借面板结构，理由见 PROBE_JS 注释）。
-            assert!(PROBE_JS.contains("[data-changes-view]"));
-            assert!(PROBE_JS.contains("[data-changes-files]"));
-            assert!(PROBE_JS.contains("li[data-changes-file]"));
-            assert!(PROBE_JS.contains("[data-changes-aggregate]"));
-            assert!(PROBE_JS.contains("[data-changes-records]"));
-            assert!(PROBE_JS.contains("[data-changes-record]"));
-            assert!(PROBE_JS.contains("[data-changes-empty]"));
-            assert!(PROBE_JS.contains("个文件"));
-            assert!(PROBE_JS.contains("facts.changes"));
-            // closest('section') 方向相反（子不是祖），出现过就不许再回来。
-            assert!(!PROBE_JS.contains("changesView.closest"));
-        }
-
-        #[test]
-        fn repeated_targets_get_numbered_suffixes() {
-            // 同名目标的第二次出现必须换文件名，否则会覆盖第一次的产物
-            // （「全局搜索」开与关就是同名的两次点击）。
-            let first = Path::new("/tmp/app-capture.pdf");
-            assert_eq!(
-                tab_output_path(first, 2, "全局搜索", 1),
-                PathBuf::from("/tmp/app-capture-全局搜索.pdf")
-            );
-            assert_eq!(
-                tab_output_path(first, 2, "全局搜索", 2),
-                PathBuf::from("/tmp/app-capture-全局搜索-2.pdf")
-            );
-            // 单个目标与首次出现保持旧规则（`-tab` 与不带序号）。
-            assert_eq!(
-                tab_output_path(first, 1, "用量总览", 1),
-                PathBuf::from("/tmp/app-capture-tab.pdf")
-            );
-            assert_eq!(
-                probe_output_path(first, 2, "全局搜索", 2),
-                PathBuf::from("/tmp/app-capture-全局搜索-2.json")
-            );
         }
     }
 }

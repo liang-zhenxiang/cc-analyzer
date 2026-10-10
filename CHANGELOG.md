@@ -14,6 +14,16 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **CI 上的门禁单测此前从未真正运行过**（面向贡献者）：`gui_capture` 模块的门是
+  `#[cfg(all(target_os = "macos", feature = "gui-capture"))]`，而 `ci.yml` 的四个
+  Rust 作业全在 ubuntu——`target_os` 为假时整个模块连编译都不发生，于是目标解析 /
+  注入脚本构造 / 产出文件名派生这 15 条单测**在 CI 上一条都没跑过**（`cargo test`
+  的 18 条全是门禁之外的）。现在把与平台无关的那一半拆成 `mod gui_probe`、门写成
+  `any(test, all(target_os = "macos", feature = "gui-capture"))`：**测试时任何平台都
+  编译**（现有 Linux 作业裸跑就覆盖），**正式构建里仍然只在 macOS + feature 下存在**
+  （发布产物不含门禁代码）。顺带给此前只被 macOS 侧调用、在测试构建里成为死代码的
+  `click_query_receipt_js` 补了一条单测。测试数 18 → 34，未新增 runner（#160）。
+
 - **真机门禁的「用量总览 → 滚到底」此前从未真正滚动过**（面向贡献者）：门禁清单
   里「滚动=main」目标在 HEAD 里就是一个坏字节（U+FFFD 替换符），从未匹配过滚动
   动作，静默退化成对同一视图再拍一张图。本轮随 N1 门禁扩展修复，并补上
