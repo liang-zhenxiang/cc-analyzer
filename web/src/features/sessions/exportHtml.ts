@@ -5,6 +5,7 @@ import { ROW_KIND_LABELS, rowKind, tokensOf, type LogRowKind } from "./logRows";
 import { recordSummary } from "./recordSummary";
 import { tokenTotalsOf } from "./tokenTotals";
 import type { SessionRecord } from "./types";
+import { exportShellStyle, WORDMARK_SVG } from "./exportShell";
 import {
   REPO_URL,
   exportId,
@@ -14,77 +15,12 @@ import {
 } from "./exportTypes";
 
 /**
- * The report's stylesheet, inlined. It is a stand-alone asset: no app CSS, no
- * CDN, no font files. Values mirror `web/src/styles/tokens.css` (light segment
- * identical, dark segment taking the same tokens the app uses) so the report
- * reads as a slice of the app — but the report must not depend on the app
- * loading, so every value is a constant here.
+ * 报告自己的规则。页面外壳（token、reset、body、sheet、页头、品牌字形、`.meta`、
+ * 页脚、深色与打印媒体查询，以及共用的读数带条目与表格语言）在 `exportShell.ts`
+ * 里只有一份权威定义——报告与用量快照是同一张纸的两个版次。留在这里的只有这份
+ * 文档自己加的东西：五格读数带、会话概览事实，以及记录表的行类型。
  */
-const STYLE = `
-:root {
-  color-scheme: light dark;
-  --bg: #f4f5f7;
-  --surface: #ffffff;
-  --inset: #f1f3f5;
-  --text: #16181b;
-  --text-secondary: #4a5260;
-  --text-tertiary: #6b7381;
-  --border: rgba(16, 24, 40, 0.1);
-  --border-strong: rgba(16, 24, 40, 0.18);
-  --accent: #2952cc;
-  --danger: #b3261e;
-  --cat-user: #cc79a7;
-  --cat-llm: #009e73;
-  --cat-tool: #0072b2;
-  --cat-agent: #d55e00;
-  --cat-workflow: #6d3bd4;
-  --cat-wait: #6b7280;
-  --font-sans: system-ui, -apple-system, "Segoe UI", "PingFang SC",
-    "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-}
-* { box-sizing: border-box; }
-body {
-  margin: 0;
-  padding: 32px 16px;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-sans);
-  font-size: 13px;
-  line-height: 20px;
-  -webkit-font-smoothing: antialiased;
-}
-.sheet {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 32px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-}
-.head { display: flex; flex-direction: column; gap: 12px; }
-.wordmark {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text);
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 22px;
-  letter-spacing: -0.01em;
-}
-.wordmark svg { display: block; }
-h1 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 28px;
-  letter-spacing: -0.01em;
-  overflow-wrap: anywhere;
-}
-.meta { margin: 0; color: var(--text-tertiary); font-size: 11px; line-height: 16px; }
-.meta code { color: var(--text-secondary); font-family: var(--font-mono); font-size: 11px; }
-.readouts {
+const REPORT_READOUTS = `.readouts {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   margin-top: 4px;
@@ -93,20 +29,12 @@ h1 {
   border-radius: 4px;
   background: var(--inset);
 }
-.readout { display: flex; flex-direction: column; gap: 2px; padding: 0 12px; }
-.readout + .readout { border-left: 1px solid var(--border); }
-.readout dt { color: var(--text-tertiary); font-size: 11px; line-height: 16px; }
-.readout dd {
-  margin: 0;
-  color: var(--text);
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 28px;
-  font-variant-numeric: tabular-nums;
-}
-.summary { margin-top: 32px; }
-h2 { margin: 0 0 8px; font-size: 13px; font-weight: 600; line-height: 20px; }
-.facts {
+`;
+
+const REPORT_SUMMARY = `.summary { margin-top: 32px; }
+`;
+
+const REPORT_FACTS = `.facts {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr);
   column-gap: 16px;
@@ -125,28 +53,9 @@ h2 { margin: 0 0 8px; font-size: 13px; font-weight: 600; line-height: 20px; }
 .facts dd.unknown { color: var(--text-tertiary); font-variant-numeric: normal; }
 .estimate-note { margin: 8px 0 0; color: var(--text-tertiary); font-size: 11px; line-height: 16px; }
 .records { margin-top: 32px; }
-.table-wrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; }
-thead th {
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--border-strong);
-  color: var(--text-tertiary);
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 16px;
-  letter-spacing: 0.04em;
-  text-align: left;
-  white-space: nowrap;
-}
-tbody td {
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
-  line-height: 20px;
-  vertical-align: top;
-}
-.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.mono { font-family: var(--font-mono); font-size: 12px; }
+`;
+
+const REPORT_ROW_TYPES = `.mono { font-family: var(--font-mono); font-size: 12px; }
 .summary-cell { overflow-wrap: anywhere; }
 .failed { color: var(--danger); }
 .muted { color: var(--text-tertiary); }
@@ -166,51 +75,37 @@ tbody td {
   line-height: 16px;
   text-align: center;
 }
-.foot {
-  margin-top: 32px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-  color: var(--text-tertiary);
-  font-size: 11px;
-  line-height: 16px;
-}
-.foot p { margin: 0; }
-.foot p + p { margin-top: 4px; }
-.foot a { color: var(--accent); }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0d0f12;
-    --surface: #1a1d21;
-    --inset: #0a0b0d;
-    --text: #f0f2f5;
-    --text-secondary: #b4bcc6;
-    --text-tertiary: #8b939e;
-    --border: rgba(255, 255, 255, 0.07);
-    --border-strong: rgba(255, 255, 255, 0.14);
-    --accent: #7fa8ff;
-    --danger: #f0776c;
+`;
+
+/**
+ * The report's stylesheet, inlined. A stand-alone asset: no app CSS, no CDN, no
+ * font files. Values mirror `web/src/styles/tokens.css` (light segment identical,
+ * dark segment taking the same tokens the app uses) so the report reads as a
+ * slice of the app — but the report must not depend on the app loading, so every
+ * value stays a constant here.
+ */
+const STYLE = exportShellStyle({
+  // 分类色是报告自己的：快照没有行类型这一层。
+  tokens: `  --danger: #b3261e;
+  --cat-user: #cc79a7;
+  --cat-llm: #009e73;
+  --cat-tool: #0072b2;
+  --cat-agent: #d55e00;
+  --cat-workflow: #6d3bd4;
+  --cat-wait: #6b7280;
+`,
+  beforeReadouts: REPORT_READOUTS,
+  beforeHeading: REPORT_SUMMARY,
+  afterHeading: REPORT_FACTS,
+  afterTable: REPORT_ROW_TYPES,
+  darkTokens: `    --danger: #f0776c;
     --cat-tool: #4da6e0;
     --cat-workflow: #9b7bf0;
     --cat-wait: #8a93a0;
-  }
-}
-@media print {
-  :root { --bg: #ffffff; --surface: #ffffff; }
-  body { padding: 0; }
-  .sheet { max-width: none; padding: 0; border: 0; border-radius: 0; }
-  thead { display: table-header-group; }
-  tr { break-inside: avoid; }
-  .foot a { color: inherit; }
-}
-`.trim();
-
-/** The brand mark, redrawn inline — the packaged PNG is not available here. */
-const WORDMARK_SVG =
-  '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" focusable="false">' +
-  '<rect x="0" y="0" width="18" height="18" rx="4" fill="#16181b"/>' +
-  '<rect x="4" y="4" width="4" height="10" fill="#ffffff"/>' +
-  '<rect x="10" y="7" width="4" height="7" fill="#ffffff"/>' +
-  "</svg>";
+`,
+  printRoot: `  :root { --bg: #ffffff; --surface: #ffffff; }
+`
+});
 
 const KIND_COLORS: Record<LogRowKind, string> = {
   user: "var(--cat-user)",

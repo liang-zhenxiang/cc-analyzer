@@ -413,6 +413,64 @@ export function quotaAttributionScenario(
   return { ...base, files };
 }
 
+/**
+ * 「本机有会话、但所选区间里一条都没有」场景（Issue #149 用量快照的 e2e）。
+ *
+ * 快照的整篇空态分支（`range.kpi.sessions === 0`）只在**区间为空**时成立，
+ * 而 `emptyScenario()` 是「一条会话都没有」——那一档页面走的是整页空态
+ * 「还没有可统计的会话」，连页头带导出按钮都不渲染，按钮能不能点根本无从谈起。
+ * 要覆盖空态产物，就必须让**扫描有结果、区间为空**同时成立。
+ *
+ * 时间戳相对 `Date.now()` 取 200 天前：7 / 30 / 90 三档都够不着它，断言因此
+ * 不随运行日期漂移（写死日期的夹具过几个月会自己走进窗口，把空态断言变成假红）。
+ */
+export function staleActivityScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  const cwd = "/repo/stale";
+  const sessionId = "3d2a5442-9c65-4b28-9c30-bb3d1a1e0001";
+  const startedAt = new Date(Date.now() - 200 * 24 * 3_600_000);
+  const repliedAt = new Date(startedAt.getTime() + 90_000);
+  const lines = [
+    JSON.stringify({
+      type: "user",
+      sessionId,
+      cwd,
+      timestamp: startedAt.toISOString(),
+      uuid: "stale-user",
+      parentUuid: null,
+      isSidechain: false,
+      message: { role: "user", content: "区间外夹具会话" }
+    }),
+    JSON.stringify({
+      type: "assistant",
+      sessionId,
+      cwd,
+      timestamp: repliedAt.toISOString(),
+      uuid: "stale-assistant",
+      parentUuid: "stale-user",
+      isSidechain: false,
+      message: {
+        id: "stale-msg",
+        role: "assistant",
+        model: "claude-sonnet-4",
+        content: [{ type: "text", text: "这条记录只在近 7 / 30 / 90 天窗口之外" }],
+        usage: { input_tokens: 120, output_tokens: 240, cache_read_input_tokens: 1_000 }
+      }
+    })
+  ];
+
+  const base = emptyScenario(overrides);
+  return {
+    ...base,
+    // 快照页脚会印版本号；不给 updater 会落到桩的兜底值 v0.0.0-mock，
+    // 空态产物就成了唯一一份「版本是假的」快照。与 defaultScenario 同源，
+    // 调用方显式传入的 updater 仍然优先。
+    updater: { currentVersion: APP_VERSION, ...overrides.updater },
+    files: {
+      [`${HOME}/.claude/projects/${projectDir(cwd)}/${sessionId}.jsonl`]: `${lines.join("\n")}\n`
+    }
+  };
+}
+
 type Fixtures = { scenario: MockScenario };
 
 export const test = base.extend<Fixtures>({

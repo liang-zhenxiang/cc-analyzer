@@ -93,6 +93,16 @@ badge. Every screen, in both light and dark themes, is archived in
   percentages can never disagree with the gauge. Read from local logs only; no inference,
   no network. v1 covers the 5-hour layer; the weekly window and per-model/tool breakdowns
   come later.
+- **Usage snapshot (shareable single file)** — the Usage tab's header carries **Export
+  snapshot**: the current range's KPIs, daily trend, per-project and per-model
+  distributions, activity heatmap, both limit layers and the window's top sessions are
+  drawn into **one self-contained HTML file** — no scripts, no external resources, every
+  value escaped, project directory names only. The provenance travels with the numbers
+  (read from the log / estimated / pricing snapshot date) and the generation time is
+  stated separately from the data window, so "generated at" is not read as "data ends at".
+  The document also says plainly what it does **not** contain (tool & skill census,
+  compaction stats, error view) so a colleague does not take it for the whole dashboard.
+  Nothing is uploaded and there is no share link — you carry the file yourself.
 - **Global search (⌘K / Ctrl+K)** — message-level search across every project
   and session, results grouped by project → session with the matching snippet
   and a relative time. Enter jumps into the session, opens the record and

@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
+import { useBridges } from "../../api/bridges";
+import { useNotifications } from "../../app/NotificationProvider";
+import { Button } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
 import { Panel } from "../../components/Panel";
 import { SegmentedControl, type SegmentedItem } from "../../components/SegmentedControl";
 import { formatModelId, formatProjectPath, formatTokenCount, formatUsd } from "../../lib/format";
 import type { SessionMeta } from "../sessions/metadataCache";
+import type { SessionRecord } from "../sessions/types";
+import { clusterBillingBlocks, currentBlock } from "./billingWindow";
+import { attributeQuota } from "./quotaAttribution";
+import { usePlan } from "./planLimits";
 import { PRICING_AS_OF, estimateCost } from "./pricingSnapshot";
 import { ProvenanceBadge } from "./ProvenanceBadge";
 import { useUsageOverview } from "./useUsageOverview";
@@ -25,6 +32,8 @@ import { BarChart } from "./charts/BarChart";
 import { HBarChart } from "./charts/HBarChart";
 import { StackedBar } from "./charts/StackedBar";
 import { Heatmap } from "./charts/Heatmap";
+import { usageSnapshotFileName, usageSnapshotHtml } from "./usageSnapshot";
+import { weeklyWindow } from "./weeklyWindow";
 import styles from "./UsageOverviewPage.module.css";
 
 const RANGE_KEY = "cca-usage-range";
@@ -110,6 +119,13 @@ export function UsageOverviewPage({
   const [days, setDays] = useState<UsageRange>(readStoredRange);
   const [tokenClass, setTokenClass] = useState<TokenClass>("total");
   const [view, setView] = useState<UsageView>(readStoredView);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  // 报告落款要写版本号；取不到就留空（宁可少一行信息，也不写一个假版本）。
+  const [appVersion, setAppVersion] = useState("");
+  const bridges = useBridges();
+  const { notify } = useNotifications();
+  const plan = usePlan();
 
   useEffect(() => {
     try {
@@ -126,6 +142,19 @@ export function UsageOverviewPage({
       // See readStoredView: persistence is optional.
     }
   }, [view]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const pending = bridges.updater?.appVersion();
+    pending
+      ?.then((value) => {
+        if (!cancelled) setAppVersion(value);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [bridges]);
 
   const range = useMemo(() => aggregateRange(inputs, days), [inputs, days]);
   // 压缩统计与 aggregateRange 同一口径的时间窗（周期口径与页面控件一致）。
@@ -198,6 +227,59 @@ export function UsageOverviewPage({
     [range.topModels]
   );
 
+  /**
+   * 用量总览 → 单文件 HTML 快照（Issue #149）。
+   *
+   * 窗口与归因用**与计费卡同一批纯函数**、同一个 `now` 算一次（`clusterBillingBlocks`
+   * → `currentBlock` / `weeklyWindow` / `attributeQuota`），生成器只负责排版：它
+   * 不重算边界、不重新加总（`usageSnapshot.ts` 的契约）。区间口径与 KPI 都取自
+   * 页面上那份 `range`，所以文件里的数与屏幕上不可能对不上。
+   */
+  async function handleExportSnapshot() {
+    // 扫描是渐进的：中途导出会得到一份看不出缺口的半份统计。禁用在按钮上，
+    // 这里再挡一次（快速双击 / 键盘回车都走这条路）。
+    if (scanning || exporting) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      // 一个 now 贯穿文件名、窗口、归因与文档落款，四者不许各读一次钟。
+      const now = Date.now();
+      const records: SessionRecord[] = [];
+      for (const input of inputs) records.push(...input.records);
+      records.sort((a, b) => a.timestamp - b.timestamp);
+      const block = currentBlock(clusterBillingBlocks(records), now);
+      const html = usageSnapshotHtml({
+        days,
+        now,
+        appVersion,
+        range,
+        projectPaths,
+        billing: {
+          block,
+          weekly: weeklyWindow(records, plan.weeklyLimitTokens, now),
+          planLimitTokens: plan.limitTokens
+        },
+        attribution: block ? attributeQuota(inputs, block) : null
+      });
+      const path = await bridges.dialog.savePath(usageSnapshotFileName(now), {
+        title: "导出用量快照（单文件 HTML）",
+        filterName: "HTML",
+        extensions: ["html"]
+      });
+      // 取消不是失败：不写文件、不报错、不提示。
+      if (path === null) return;
+      await bridges.fs.writeText(path, html);
+      notify("已导出用量快照", "success");
+    } catch (cause) {
+      // toast 会消失，错误不该跟着消失：就地那行 `role="alert"` 才是主声明。
+      const message = `导出失败：${String(cause)}`;
+      setExportError(message);
+      notify(message, "error");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   // 加载 / 空 / 出错共用同一块舞台（`stage` 把内容压在主区中线上）：
   // 三者是同一件事的三个阶段，位置不该跟着语义跳。
   if (error) {
@@ -254,13 +336,41 @@ export function UsageOverviewPage({
             ariaLabel="时间范围"
           />
         </div>
-        <span className={styles.progress} {...(scanning ? { "data-probe-pending": true } : {})}>
-          {scanning
-            ? `已分析 ${progress.done} / ${progress.total} 个会话`
-            : `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计`}
-          {skipped > 0 ? ` · ${skipped} 个会话读取失败已跳过` : ""}
-        </span>
+        {/* 右簇：进度文本在前、导出按钮在后——右簇贴右，进度变长时向左生长，
+            按钮的右边缘固定不动。快照描述的就是「用量」这个视图，所以按钮
+            只在用量档渲染。 */}
+        <div className={styles.headerActions}>
+          <span
+            className={styles.progress}
+            data-probe="usage-progress"
+            {...(scanning ? { "data-probe-pending": true } : {})}
+          >
+            {scanning
+              ? `已分析 ${progress.done} / ${progress.total} 个会话`
+              : `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计`}
+            {skipped > 0 ? ` · ${skipped} 个会话读取失败已跳过` : ""}
+          </span>
+          {view === "usage" ? (
+            <Button
+              type="button"
+              variant="secondary"
+              data-probe="usage-snapshot-export"
+              aria-label="导出用量快照（单文件 HTML）"
+              title={scanning ? "正在扫描会话，扫描完成后可导出" : "导出用量快照（单文件 HTML）"}
+              disabled={scanning || exporting}
+              onClick={() => void handleExportSnapshot()}
+            >
+              导出快照
+            </Button>
+          ) : null}
+        </div>
       </div>
+
+      {exportError ? (
+        <p className={styles.actionError} role="alert">
+          {exportError}
+        </p>
+      ) : null}
 
       {view === "errors" ? (
         <ErrorOverviewSection
