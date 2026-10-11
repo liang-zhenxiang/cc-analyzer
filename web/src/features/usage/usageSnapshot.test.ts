@@ -613,3 +613,16 @@ test("生成器里没有时钟、随机数与环境读取", () => {
   // 传进来的时刻才决定时间戳：差一天必然写出不同的日期。
   expect(usageSnapshotFileName(NOW)).not.toBe(usageSnapshotFileName(NOW + DAY));
 });
+
+test("落款用 generatedAt（缺省回落到 now）：窗口时刻与文档时刻分开", () => {
+  // 窗口数学跟着屏幕的 tick 值走，「生成于」必须是点击那一刻——两者可以不同。
+  const generatedAt = NOW + 42_000;
+  const stamped = parse(usageSnapshotHtml(base({ generatedAt })));
+  expect(stamped.querySelector(".meta")?.textContent).toContain(formatDateTime(generatedAt));
+  expect(stamped.querySelector(".foot")?.textContent).toContain(formatDateTime(generatedAt));
+
+  // 不传 generatedAt：落款就是 now——既有调用点的行为一字未变。
+  const legacy = parse(usageSnapshotHtml(base()));
+  expect(legacy.querySelector(".meta")?.textContent).toContain(formatDateTime(NOW));
+  expect(legacy.querySelector(".foot")?.textContent).toContain(formatDateTime(NOW));
+});

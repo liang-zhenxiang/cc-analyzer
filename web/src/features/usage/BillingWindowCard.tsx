@@ -1,25 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { formatClock, formatProjectPath, formatTokenCount } from "../../lib/format";
 import type { SessionMeta } from "../sessions/metadataCache";
-import type { SessionRecord } from "../sessions/types";
 import { totalsSum, type UsageSessionInput } from "./usageAggregations";
-import {
-  burnRateOf,
-  clusterBillingBlocks,
-  currentBlock,
-  predictLimitReach,
-  type BillingBlock
-} from "./billingWindow";
-import { predictWeeklyLimitReach, weeklyWindow } from "./weeklyWindow";
-import { PLAN_LIMITS_AS_OF, usePlan } from "./planLimits";
+import { burnRateOf, predictLimitReach } from "./billingWindow";
+import { predictWeeklyLimitReach } from "./weeklyWindow";
+import { PLAN_LIMITS_AS_OF } from "./planLimits";
 import { ProvenanceBadge } from "./ProvenanceBadge";
 import { Gauge } from "./charts/Gauge";
 import { BarChart } from "./charts/BarChart";
-import { attributeQuota, type QuotaAttributionRow } from "./quotaAttribution";
+import type { QuotaAttribution, QuotaAttributionRow } from "./quotaAttribution";
+import type { BillingReadouts } from "./billingReadouts";
 import styles from "./BillingWindowCard.module.css";
-
-/** Countdown freshness: the window close time moves, the readout must too. */
-const CLOCK_TICK_MS = 30_000;
 
 function formatCountdown(ms: number): string {
   if (ms <= 0) return "已关闭";
@@ -110,21 +101,21 @@ function AttributionSessionRow({
 /**
  * 「本窗口消耗 Top 会话」面板（Issue #151）：表盘中心那个数摊到会话上是谁在烧。
  *
- * 数据只有一条来源——调用方手上那个 `block`：窗口边界与分母都由它给出
- * （`attributeQuota` 内部取 `totalsSum(block.totals)`），组件不重算窗口、不另
- * 加总，因此面板的百分比与表盘不可能对不上。空窗口或分母为 0 时整块不渲染：
- * 没有分母就没有比率，不画 0 行空列表。
+ * 数据只有一条来源——页面那份 `readouts.attribution`（Issue #174 起，
+ * `billingReadoutsOf` 用同一个 `active` 调一次 `attributeQuota`，面板与快照导出
+ * 共用它）。面板**只展示**：不重算窗口、不另加总，因此百分比与表盘不可能对不上。
+ * 没有归因、空窗口或分母为 0 时整块不渲染：没有分母就没有比率，不画 0 行空列表。
  */
 function QuotaAttributionPanel({
   inputs,
-  block,
+  attribution,
   onOpenSession
 }: {
   inputs: readonly UsageSessionInput[];
-  block: BillingBlock;
+  /** 页面唯一那份读数算好的归因；没有窗口时为 `null`。 */
+  attribution: QuotaAttribution | null;
   onOpenSession?: (session: SessionMeta) => void;
 }) {
-  const attribution = useMemo(() => attributeQuota(inputs, block), [inputs, block]);
   // 行只带 path；点行要交回完整 SessionMeta（与压缩统计 top3 同一条握手协议）。
   const sessionsByPath = useMemo(() => {
     const map = new Map<string, SessionMeta>();
@@ -135,7 +126,9 @@ function QuotaAttributionPanel({
     return map;
   }, [inputs]);
 
-  if (attribution.sessionsInWindow === 0 || attribution.windowTokens <= 0) return null;
+  if (!attribution || attribution.sessionsInWindow === 0 || attribution.windowTokens <= 0) {
+    return null;
+  }
 
   return (
     <section
@@ -208,46 +201,24 @@ function QuotaAttributionPanel({
  * 7-day window: consumption read from the log, an optional self-set budget to
  * compare against, and — the honest sentence this layer must always show —
  * the note that it is a rolling window, not Anthropic's official weekly reset.
+ *
+ * 从 Issue #174 起这是一块**展示型**组件：窗口数学、`now` 与订阅计划都来自
+ * 页面传进来的 `readouts`（`useBillingReadouts` 的唯一实例），卡自身不取时钟、
+ * 不取计划、不 import 任何窗口函数——同屏所有数字因此必然同源。
  */
 export function BillingWindowCard({
   inputs,
-  now: nowProp,
+  readouts,
   onOpenSession
 }: {
   inputs: readonly UsageSessionInput[];
-  now?: number;
+  /** 页面唯一一份计费读数：窗口数学、`now` 与订阅计划都已算好。 */
+  readouts: BillingReadouts;
   /** 归因行点击 → 打开会话分析并落到该会话（与压缩统计 top3 同一条握手）。 */
   onOpenSession?: (session: SessionMeta) => void;
 }) {
-  const plan = usePlan();
-  const [, setTick] = useState(0);
-  const now = nowProp ?? Date.now();
+  const { now, plan, blocks, active, week, attribution } = readouts;
 
-  useEffect(() => {
-    if (nowProp !== undefined) return;
-    const timer = window.setInterval(() => setTick((value) => value + 1), CLOCK_TICK_MS);
-    return () => window.clearInterval(timer);
-  }, [nowProp]);
-
-  // 5h 窗口与滚动 7 天共用同一条记录流：两层数字必须出自同一份日志，
-  // 否则「本窗口消耗」与「7 天消耗」会在同屏互相打架。
-  const records = useMemo(() => {
-    // Interleave every session's records into one time-ordered stream:
-    // billing windows are machine-wide, not per-session.
-    const all: SessionRecord[] = [];
-    for (const input of inputs) all.push(...input.records);
-    all.sort((a, b) => a.timestamp - b.timestamp);
-    return all;
-  }, [inputs]);
-
-  const blocks = useMemo(() => clusterBillingBlocks(records), [records]);
-
-  const week = useMemo(
-    () => weeklyWindow(records, plan.weeklyLimitTokens, now),
-    [records, plan.weeklyLimitTokens, now]
-  );
-
-  const active = currentBlock(blocks, now);
   const history = blocks.slice(-8, -1).map((block) => ({
     label: formatClock(block.start),
     value: totalsSum(block.totals)
@@ -389,12 +360,16 @@ export function BillingWindowCard({
               滚动值，不能让用户把它当成官方窗口读数。 */}
           <span className={styles.weeklyNote}>滚动 7 天累计，不是官方重置窗口，两者不逐分钟吻合</span>
         </section>
-        {/* 归因与历史条共用右侧一列：归因用的就是上面这同一个 active 块（窗口与
-            分母各只有一份），DOM 顺序也保持「归因在前、历史条在后」。
+        {/* 归因与历史条共用右侧一列：归因来自同一份 readouts（窗口与分母各只有
+            一份），DOM 顺序也保持「归因在前、历史条在后」。
             历史图不能独占整行——它的 SVG 是 width:100% + viewBox，被拉到 1390px
             宽会把整张图放大到约 1.9 倍，纵轴标签当场互相压住。 */}
         <div className={styles.sideStack}>
-          <QuotaAttributionPanel inputs={inputs} block={active} onOpenSession={onOpenSession} />
+          <QuotaAttributionPanel
+            inputs={inputs}
+            attribution={attribution}
+            onOpenSession={onOpenSession}
+          />
           {history.length > 0 ? (
             <div className={styles.history}>
               <span className={styles.historyLabel}>近几个窗口</span>

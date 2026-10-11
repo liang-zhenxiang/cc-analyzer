@@ -8,10 +8,7 @@ import { Panel } from "../../components/Panel";
 import { SegmentedControl, type SegmentedItem } from "../../components/SegmentedControl";
 import { formatModelId, formatProjectPath, formatTokenCount, formatUsd } from "../../lib/format";
 import type { SessionMeta } from "../sessions/metadataCache";
-import type { SessionRecord } from "../sessions/types";
-import { clusterBillingBlocks, currentBlock } from "./billingWindow";
-import { attributeQuota } from "./quotaAttribution";
-import { usePlan } from "./planLimits";
+import { useBillingReadouts } from "./billingReadouts";
 import { PRICING_AS_OF, estimateCost } from "./pricingSnapshot";
 import { ProvenanceBadge } from "./ProvenanceBadge";
 import { useUsageOverview } from "./useUsageOverview";
@@ -33,7 +30,6 @@ import { HBarChart } from "./charts/HBarChart";
 import { StackedBar } from "./charts/StackedBar";
 import { Heatmap } from "./charts/Heatmap";
 import { usageSnapshotFileName, usageSnapshotHtml } from "./usageSnapshot";
-import { weeklyWindow } from "./weeklyWindow";
 import styles from "./UsageOverviewPage.module.css";
 
 const RANGE_KEY = "cca-usage-range";
@@ -125,7 +121,9 @@ export function UsageOverviewPage({
   const [appVersion, setAppVersion] = useState("");
   const bridges = useBridges();
   const { notify } = useNotifications();
-  const plan = usePlan();
+  // 计费读数的唯一实例：计费卡与「导出快照」共用同一份 `now` 与同一批窗口
+  // 数学（Issue #174），同屏与文件里不可能各算一套。
+  const readouts = useBillingReadouts(inputs);
 
   useEffect(() => {
     try {
@@ -230,10 +228,10 @@ export function UsageOverviewPage({
   /**
    * 用量总览 → 单文件 HTML 快照（Issue #149）。
    *
-   * 窗口与归因用**与计费卡同一批纯函数**、同一个 `now` 算一次（`clusterBillingBlocks`
-   * → `currentBlock` / `weeklyWindow` / `attributeQuota`），生成器只负责排版：它
-   * 不重算边界、不重新加总（`usageSnapshot.ts` 的契约）。区间口径与 KPI 都取自
-   * 页面上那份 `range`，所以文件里的数与屏幕上不可能对不上。
+   * 窗口与归因直接吃页面那一份 `readouts`（`useBillingReadouts`，Issue #174）——
+   * 归因也已经在 `billingReadoutsOf` 里算好，这里不再自己调 `attributeQuota`。
+   * 生成器只负责排版：它不重算边界、不重新加总（`usageSnapshot.ts` 的契约）。
+   * 区间口径与 KPI 取自页面上那份 `range`，所以文件里的数与屏幕上不可能对不上。
    */
   async function handleExportSnapshot() {
     // 扫描是渐进的：中途导出会得到一份看不出缺口的半份统计。禁用在按钮上，
@@ -242,26 +240,24 @@ export function UsageOverviewPage({
     setExporting(true);
     setExportError(null);
     try {
-      // 一个 now 贯穿文件名、窗口、归因与文档落款，四者不许各读一次钟。
-      const now = Date.now();
-      const records: SessionRecord[] = [];
-      for (const input of inputs) records.push(...input.records);
-      records.sort((a, b) => a.timestamp - b.timestamp);
-      const block = currentBlock(clusterBillingBlocks(records), now);
+      // 窗口数学与文件名用 readouts.now（= 屏幕上那组读数用的 tick 值，两者
+      // 必须逐字一致）；文档落款用点击这一刻——「生成于」不该写在 30 秒前。
+      const generatedAt = Date.now();
       const html = usageSnapshotHtml({
         days,
-        now,
+        now: readouts.now,
+        generatedAt,
         appVersion,
         range,
         projectPaths,
         billing: {
-          block,
-          weekly: weeklyWindow(records, plan.weeklyLimitTokens, now),
-          planLimitTokens: plan.limitTokens
+          block: readouts.active,
+          weekly: readouts.week,
+          planLimitTokens: readouts.plan.limitTokens
         },
-        attribution: block ? attributeQuota(inputs, block) : null
+        attribution: readouts.attribution
       });
-      const path = await bridges.dialog.savePath(usageSnapshotFileName(now), {
+      const path = await bridges.dialog.savePath(usageSnapshotFileName(readouts.now), {
         title: "导出用量快照（单文件 HTML）",
         filterName: "HTML",
         extensions: ["html"]
@@ -383,7 +379,7 @@ export function UsageOverviewPage({
       ) : (
         <>
           {/* 归因行与压缩统计 top3 共用同一个「打开会话」握手，不新开跳转路径。 */}
-          <BillingWindowCard inputs={inputs} onOpenSession={onOpenSession} />
+          <BillingWindowCard inputs={inputs} readouts={readouts} onOpenSession={onOpenSession} />
 
           <div className={styles.kpiRow}>
             {/* 来源徽章是标签行末尾的一枚圆点（`.kpi` 的两列网格把它放在第一行的
