@@ -43,8 +43,15 @@ import type { WeeklyWindow } from "./weeklyWindow";
 export type UsageSnapshotInput = {
   /** 区间档位（7 / 30 / 90），只用来印「近 N 天」。 */
   days: number;
-  /** 生成时刻，由调用方给（本模块不读时钟）。 */
+  /** 窗口数学用的时刻（= 屏幕上那组读数用的 tick 值），由调用方给（本模块不读时钟）。 */
   now: number;
+  /**
+   * 文档落款时刻（「生成于」与页脚），缺省取 `now`。
+   *
+   * 与 `now` 分开是因为窗口数学现在跟着屏幕走（最多 30 秒前的 tick 值，好处是
+   * 文件与屏幕逐字一致），而落款必须是点击那一刻——否则「生成于」是一句假话。
+   */
+  generatedAt?: number;
   appVersion: string;
   /** 页面当时那份聚合结果。 */
   range: RangeAggregate;
@@ -727,7 +734,9 @@ export function usageSnapshotFileName(now: number): string {
  * 目录名出现，路径与日志文件名一个都不上文件。
  */
 export function usageSnapshotHtml(input: UsageSnapshotInput): string {
-  const { range, now, days, appVersion } = input;
+  const { range, days, appVersion } = input;
+  // `now` 只喂窗口数学（在调用方）；文档上的时刻一律用落款时刻。
+  const generatedAt = input.generatedAt ?? input.now;
   const cost = costOf(range.models);
   const empty = range.kpi.sessions === 0;
 
@@ -741,7 +750,7 @@ export function usageSnapshotHtml(input: UsageSnapshotInput): string {
     `<header class="head">` +
     `<span class="wordmark">${WORDMARK_SVG} CC Analyzer</span>` +
     `<h1>${escapeHtml(SNAPSHOT_TITLE)}</h1>` +
-    `<p class="meta">区间 <code>近 ${escapeHtml(String(days))} 天</code> · 生成于 ${escapeHtml(formatDateTime(now))} · CC Analyzer v${escapeHtml(appVersion)} · 定价快照 <code>${escapeHtml(PRICING_AS_OF)}</code></p>` +
+    `<p class="meta">区间 <code>近 ${escapeHtml(String(days))} 天</code> · 生成于 ${escapeHtml(formatDateTime(generatedAt))} · CC Analyzer v${escapeHtml(appVersion)} · 定价快照 <code>${escapeHtml(PRICING_AS_OF)}</code></p>` +
     `<p class="coverage">本快照的数字取自用量总览当时的聚合结果，生成时未重算；${escapeHtml(SNAPSHOT_SCOPE_NOTE)}</p>` +
     `</header>`;
 
@@ -783,7 +792,7 @@ export function usageSnapshotHtml(input: UsageSnapshotInput): string {
     <footer class="foot">
       <p>本快照由 CC Analyzer 生成，数据未上传至任何服务器。</p>
       <p>CC Analyzer v${escapeHtml(appVersion)} · <a href="${REPO_URL}" rel="noreferrer">github.com/liang-zhenxiang/cc-analyzer</a></p>
-      <p>快照生成于 ${escapeHtml(formatDateTime(now))}</p>
+      <p>快照生成于 ${escapeHtml(formatDateTime(generatedAt))}</p>
     </footer>
   </main>
 </body>

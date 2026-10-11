@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
@@ -15,6 +17,11 @@ import { UsageOverviewPage } from "./UsageOverviewPage";
  */
 
 const PROJECTS_ROOT = "/home/tester/.claude/projects";
+
+const pageSource = readFileSync(
+  resolve(process.cwd(), "src/features/usage/UsageOverviewPage.tsx"),
+  "utf8"
+);
 
 function iso(msAgo: number): string {
   return new Date(Date.now() - msAgo).toISOString();
@@ -452,5 +459,48 @@ describe("UsageOverviewPage", () => {
     expect(contents).toContain("所选区间内没有会话记录");
     // 没有记录时成本是「未知」，不是 $0.00。
     expect(contents).not.toContain("$0.0000");
+  });
+
+  it("快照的「本窗口消耗」与屏幕上表盘读数逐字一致（同源证明）", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl(
+        "a2",
+        "claude-sonnet-4-5-20250929",
+        6 * 3_600_000
+      )
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+    const button = await screen.findByRole("button", { name: "导出用量快照（单文件 HTML）" });
+    await waitFor(() => expect(button).not.toBeDisabled());
+
+    // 屏幕上表盘中心那个数（1000 + 200 + 3000 + 40000 = 44,200）。
+    const gauge = document.querySelector('[data-probe="gauge"]');
+    expect(gauge).not.toBeNull();
+    const centerValue = gauge!.querySelector("text")!.textContent;
+    expect(centerValue).toBe("44,200");
+
+    await userEvent.click(button);
+
+    const writeText = vi.mocked(bridges.fs.writeText);
+    await waitFor(() =>
+      expect(writeText.mock.calls.filter(([path]) => path.endsWith(".html"))).toHaveLength(1)
+    );
+    const [, contents] = writeText.mock.calls.find(([path]) => path.endsWith(".html"))!;
+    // 同一条 readouts 既喂表盘也喂快照：文件里的读数必须与屏幕上逐字相同。
+    expect(contents).toContain(`<dt>本窗口消耗</dt><dd>${centerValue} tok</dd>`);
+  });
+
+  it("页面只装一处计费读数：useBillingReadouts 只调用一次（结构性守卫）", () => {
+    // 同一份 readouts 同时喂计费卡与「导出快照」——再冒出一处就是第二套窗口数学。
+    expect(pageSource.match(/useBillingReadouts\(/g) ?? []).toHaveLength(1);
+    // 卡是展示型组件：页面把 readouts 传下去，不再自己切窗口。
+    expect(pageSource).toContain("<BillingWindowCard inputs={inputs} readouts={readouts}");
+  });
+
+  it("页面不自己算归因：源码里没有 attributeQuota 调用（结构性守卫）", () => {
+    // 归因与窗口数学一样只有一份，住在 `billingReadoutsOf`；页面只能经 readouts 拿。
+    expect(pageSource).not.toMatch(/\battributeQuota\s*\(/);
   });
 });
