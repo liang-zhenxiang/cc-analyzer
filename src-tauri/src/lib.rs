@@ -1033,6 +1033,25 @@ mod gui_probe {
   facts.analyzer = {
     sessionTitle: analyzerTitleEl ? (analyzerTitleEl.textContent || '').trim() : null
   };
+
+  /* 用量快照导出入口（Round S / #149）。只收集「按钮在不在、可不可点、在哪」
+     这三件事，**不去点它**：点了会弹系统保存对话框，探针驱动不了那一步
+     （同归档导入的限制）。内容层的证据在单测与 e2e（共用同一个生成器）。
+     锚点是按钮自己的 data-probe——可访问名会随文案改，靠它匹配会静默失配。 */
+  var snapshotEl = document.querySelector('[data-probe="usage-snapshot-export"]');
+  var usageProgressEl = document.querySelector('[data-probe="usage-progress"]');
+  facts.snapshot_export = snapshotEl
+    ? {
+        rect: rectOf(snapshotEl),
+        /* 同一行的扫描进度文本：门禁要判「按钮与它不重叠」（窄视口允许换行，
+           但不能压字）。两条事实一起给，判定留给脚本。 */
+        progressRect: usageProgressEl ? rectOf(usageProgressEl) : null,
+        label: snapshotEl.getAttribute('aria-label') || '',
+        text: (snapshotEl.textContent || '').replace(/\s+/g, ' ').trim(),
+        disabled: snapshotEl.disabled === true
+      }
+    : null;
+
   return JSON.stringify(facts);
 })();"##;
 
@@ -1673,6 +1692,16 @@ mod gui_probe {
             // 门禁只能断言「页面没崩」，那就等于没验点击。
             assert!(PROBE_JS.contains("header[aria-label=\"会话信息\"]"));
             assert!(PROBE_JS.contains("facts.analyzer"));
+        }
+
+        #[test]
+        fn the_probe_reports_the_usage_snapshot_export_entry() {
+            // 用量快照入口（Round S / #149）：探针只回答「按钮在不在、可不可点」，
+            // 不去点它——点了会弹系统保存对话框、探针驱动不了那一步。锚点用
+            // 按钮自己的 data-probe，可访问名会随文案改。
+            assert!(PROBE_JS.contains("[data-probe=\"usage-snapshot-export\"]"));
+            assert!(PROBE_JS.contains("facts.snapshot_export"));
+            assert!(PROBE_JS.contains("disabled: snapshotEl.disabled === true"));
         }
 
         #[test]

@@ -41,6 +41,26 @@
   line-height: var(--lh-xs);
 }
 
+/* 页头右簇：进度文本在前、导出按钮在后（按钮是最后一个子元素）。整簇靠
+   `justify-content: flex-end` 贴右，进度文本变长时向左生长；窄窗口 / 放大
+   字号下整簇换行，按钮仍留在右端点，不裁切、不缩成图标。 */
+.headerActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2) var(--sp-3);
+  margin-left: auto;
+}
+
+/* 导出失败就地说一声：toast 会消失，错误不该跟着消失（design §7.5）。 */
+.actionError {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
 /* KPI 读数行：设计 §6 的「读数行语言」——数值并排站在浅台阶上，
    标签小字、数值 --fs-lg/600 + tabular-nums，来源徽章收在标签行上。
    免责说明跨列收在底部，不再撑高单列。 */

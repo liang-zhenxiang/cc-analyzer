@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BridgesProvider } from "../../api/bridges";
 import type { Bridges } from "../../api/types";
+import { NotificationProvider } from "../../app/NotificationProvider";
 import { UsageOverviewPage } from "./UsageOverviewPage";
 
 /**
@@ -57,6 +58,13 @@ function createUsageBridges(files: Record<string, string>): Bridges {
   }
   const projectDirs = [...byDir.keys()].filter((dir) => dir.startsWith(`${PROJECTS_ROOT}/`));
 
+  // 快照导出走的正是生产里那条路：`dialog.savePath` 拿路径 → `fs.writeText` 写内容。
+  // 默认一路成功；取消 / 写入失败由各用例按需覆写。
+  const savePath = vi.fn(async () => "/tmp/cc-analyzer-usage.html");
+  const writeText = vi.fn(async (path: string, contents: string) => {
+    files[path] = contents;
+  });
+
   return {
     fs: {
       homeDir: vi.fn(async () => "/home/tester"),
@@ -76,22 +84,29 @@ function createUsageBridges(files: Record<string, string>): Bridges {
         return content;
       }),
       readHead: vi.fn(async (path: string) => files[path] ?? ""),
-      writeText: vi.fn(async (path: string, contents: string) => {
-        files[path] = contents;
-      }),
+      writeText,
       stat: vi.fn(async (path: string) => ({
         is_file: true,
         size: (files[path] ?? "").length,
         mtime_ms: 1_700_000_000_000
       }))
     },
+    dialog: {
+      saveText: vi.fn(async () => null),
+      saveMarkdown: vi.fn(async () => null),
+      savePath,
+      openFile: vi.fn(async () => null)
+    },
+    updater: { appVersion: vi.fn(async () => "0.18.0") },
     events: { onSessionImport: vi.fn(async () => () => undefined) }
   } as unknown as Bridges;
 }
 
 function renderPage(bridges: Bridges) {
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <BridgesProvider bridges={bridges}>{children}</BridgesProvider>
+    <NotificationProvider>
+      <BridgesProvider bridges={bridges}>{children}</BridgesProvider>
+    </NotificationProvider>
   );
   return render(<UsageOverviewPage />, { wrapper });
 }
@@ -274,5 +289,168 @@ describe("UsageOverviewPage", () => {
     // 重试成功后回到仪表盘本体——错误态与数据不该同屏。
     expect(await screen.findByRole("region", { name: "用量总览" })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("导出快照按钮只在用量档出现，锚点与进度行同处页头", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 3_600_000)
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+
+    const button = await screen.findByRole("button", { name: "导出用量快照（单文件 HTML）" });
+    expect(button).toHaveTextContent("导出快照");
+    // 真机门禁靠这两个锚点判「按钮在进度文本右侧且不重叠」。
+    expect(button).toHaveAttribute("data-probe", "usage-snapshot-export");
+    const progress = document.querySelector('[data-probe="usage-progress"]');
+    expect(progress).not.toBeNull();
+    await waitFor(() => expect(button).not.toBeDisabled());
+
+    // 错误档描述的不是同一个视图，快照入口不该在那里出现。
+    await userEvent.click(screen.getByRole("tab", { name: "错误" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "导出用量快照（单文件 HTML）" })).toBeNull()
+    );
+    expect(document.querySelector('[data-probe="usage-progress"]')).not.toBeNull();
+  });
+
+  it("扫描中途禁用导出，并用 title 说明原因", async () => {
+    const files: Record<string, string> = {};
+    for (let index = 0; index < 8; index += 1) {
+      files[`${PROJECTS_ROOT}/-repo-alpha/session-${index}.jsonl`] = sessionJsonl(
+        `s${index}`,
+        "claude-sonnet-4-5-20250929",
+        (index + 1) * 3_600_000
+      );
+    }
+    // 第 9 个会话永远读不完：扫描停在「已发布 8 条、还剩 1 条」。页面已经能渲染
+    // 仪表盘，但扫描态仍在——那正是按钮必须禁用、且必须说明原因的那一刻。
+    files[`${PROJECTS_ROOT}/-repo-alpha/hangs.jsonl`] = sessionJsonl(
+      "hang",
+      "claude-sonnet-4-5-20250929",
+      3_600_000
+    );
+    const bridges = createUsageBridges(files);
+    const readText = bridges.fs.readText;
+    bridges.fs.readText = vi.fn(async (path: string) => {
+      if (path.endsWith("hangs.jsonl")) return new Promise<string>(() => undefined);
+      return readText(path);
+    }) as typeof bridges.fs.readText;
+
+    renderPage(bridges);
+
+    const button = await screen.findByRole("button", { name: "导出用量快照（单文件 HTML）" });
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(button).toHaveAttribute("title", "正在扫描会话，扫描完成后可导出");
+    expect(screen.getByText(/已分析 \d+ \/ 9 个会话/)).toBeInTheDocument();
+  });
+
+  it("导出快照：文件名与扩展名交给保存对话框，产物写入那个路径", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 6 * 3_600_000)
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+    const button = await screen.findByRole("button", { name: "导出用量快照（单文件 HTML）" });
+    await waitFor(() => expect(button).not.toBeDisabled());
+
+    await userEvent.click(button);
+
+    const savePath = vi.mocked(bridges.dialog.savePath);
+    await waitFor(() => expect(savePath).toHaveBeenCalledTimes(1));
+    const [defaultName, options] = savePath.mock.calls[0];
+    expect(defaultName).toMatch(/^cc-analyzer-usage-\d{4}-\d{2}-\d{2}\.html$/);
+    expect(options.extensions).toEqual(["html"]);
+    expect(options.title).toContain("用量快照");
+
+    const writeText = vi.mocked(bridges.fs.writeText);
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    const written = writeText.mock.calls.filter(([path]) => path.endsWith(".html"));
+    expect(written).toHaveLength(1);
+    const [path, contents] = written[0];
+    expect(path).toBe("/tmp/cc-analyzer-usage.html");
+    // 自包含的单文件文档：KPI 正文在场，且没有完整路径漏出来（隐私红线）。
+    expect(contents).toContain("<!doctype html>");
+    expect(contents).toContain("Tokens 总量");
+    expect(contents).not.toContain("/home/tester");
+    expect(contents).not.toContain(".jsonl");
+    // 成功给一条与按钮同名的 toast。
+    expect(await screen.findByText("已导出用量快照")).toBeInTheDocument();
+  });
+
+  it("用户取消保存时不写文件、不报错、不提示", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 3_600_000)
+    });
+    vi.mocked(bridges.dialog.savePath).mockResolvedValue(null);
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+    const button = await screen.findByRole("button", { name: "导出用量快照（单文件 HTML）" });
+    await waitFor(() => expect(button).not.toBeDisabled());
+
+    await userEvent.click(button);
+
+    const savePath = vi.mocked(bridges.dialog.savePath);
+    await waitFor(() => expect(savePath).toHaveBeenCalledTimes(1));
+    // 元数据缓存那条 writeText 不算数：只数写进 .html 的那一次。
+    const writeText = vi.mocked(bridges.fs.writeText);
+    expect(writeText.mock.calls.filter(([path]) => path.endsWith(".html"))).toHaveLength(0);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText(/导出失败/)).toBeNull();
+    expect(screen.queryByText("已导出用量快照")).toBeNull();
+    expect(button).not.toBeDisabled();
+  });
+
+  it("写入失败时就地给出可见错误，并放出错误 toast", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 3_600_000)
+    });
+    bridges.fs.writeText = vi.fn(async (path: string) => {
+      if (path.endsWith(".html")) throw new Error("磁盘只读");
+    }) as typeof bridges.fs.writeText;
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+    const button = await screen.findByRole("button", { name: "导出用量快照（单文件 HTML）" });
+    await waitFor(() => expect(button).not.toBeDisabled());
+
+    await userEvent.click(button);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("导出失败：Error: 磁盘只读");
+    // 失败不是卡死：按钮要复原，用户可以换一个路径再试。
+    await waitFor(() => expect(button).not.toBeDisabled());
+  });
+
+  it("区间内 0 会话不禁用：导出的是「这个区间没有记录」这份正确产物", async () => {
+    // 默认档位是近 30 天；这条会话在 40 天前——本机有数据，所选区间没有。
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/old.jsonl`]: sessionJsonl(
+        "old",
+        "claude-sonnet-4-5-20250929",
+        40 * 24 * 3_600_000
+      )
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+    const button = await screen.findByRole("button", { name: "导出用量快照（单文件 HTML）" });
+    // 扫描结束、区间为空，都不是禁用的理由：空态文档是一份正确产物。
+    await waitFor(() => expect(button).not.toBeDisabled());
+    expect(screen.getByText("近 30 天内 0 个会话纳入统计")).toBeInTheDocument();
+
+    await userEvent.click(button);
+
+    const writeText = vi.mocked(bridges.fs.writeText);
+    await waitFor(() =>
+      expect(writeText.mock.calls.filter(([path]) => path.endsWith(".html"))).toHaveLength(1)
+    );
+    const [, contents] = writeText.mock.calls.find(([path]) => path.endsWith(".html"))!;
+    expect(contents).toContain("所选区间内没有会话记录");
+    // 没有记录时成本是「未知」，不是 $0.00。
+    expect(contents).not.toContain("$0.0000");
   });
 });

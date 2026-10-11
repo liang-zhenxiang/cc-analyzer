@@ -1729,6 +1729,54 @@ for arg in sys.argv[1:]:
         else:
             print(f"OK|{label}：点归因行真的打开了那个会话（标题逐字一致：{session_title}）")
 
+    # 用量快照导出入口（Round S / #149）：这一步只判「入口在真机上真的渲染、
+    # 真的可点」。**刻意不点它**——点了会弹系统保存对话框，探针驱动不了那一步
+    # （同归档导入的限制）；快照内容层由单测与 e2e 覆盖，两边共用同一个生成器。
+    if label == "视图=用量":
+        snapshot = data.get("snapshot_export")
+        if not isinstance(snapshot, dict):
+            print(f"BAD|{label}：没有找到用量快照导出入口——按钮没渲染，或锚点被改名")
+        else:
+            rect = snapshot.get("rect") or {}
+            label_text = snapshot.get("label") or snapshot.get("text") or ""
+            problems = []
+            if snapshot.get("disabled") is True:
+                problems.append("按钮处于禁用态（扫描已结束，不该禁用）")
+            if "快照" not in label_text:
+                problems.append(f"可访问名里没有「快照」（实测 {label_text!r}）")
+            width, height = rect.get("width"), rect.get("height")
+            if not isinstance(width, (int, float)) or not isinstance(height, (int, float)):
+                problems.append("按钮矩形缺失")
+            elif width < 1 or height < 1:
+                problems.append(f"按钮尺寸为零（{width}×{height}）")
+            # 同一行还有扫描进度文本：两者不许压字。窄视口允许换行，所以判的是
+            # 「矩形不相交」而不是「按钮一定在右边」——把布局自由度留给样式，
+            # 把不变量（不重叠）留给门禁。
+            progress = snapshot.get("progressRect")
+            if isinstance(progress, dict) and all(
+                isinstance(v, (int, float))
+                for v in (progress.get("x"), progress.get("y"), progress.get("width"), progress.get("height"))
+            ) and isinstance(width, (int, float)) and isinstance(height, (int, float)):
+                overlap_x = min(rect.get("x", 0) + width, progress["x"] + progress["width"]) - max(
+                    rect.get("x", 0), progress["x"]
+                )
+                overlap_y = min(rect.get("y", 0) + height, progress["y"] + progress["height"]) - max(
+                    rect.get("y", 0), progress["y"]
+                )
+                if overlap_x > 1 and overlap_y > 1:
+                    problems.append(
+                        f"按钮与扫描进度文本重叠（横 {overlap_x:.0f}px × 纵 {overlap_y:.0f}px）"
+                    )
+            if problems:
+                for problem in problems:
+                    print(f"BAD|{label}：用量快照入口——{problem}")
+            else:
+                print(
+                    f"OK|{label}：用量快照入口在真机上可点"
+                    f"（{width:.0f}×{height:.0f}px，可访问名「{label_text}」）"
+                    "；不点它——系统保存对话框探针驱动不了，内容层由单测与 e2e 覆盖"
+                )
+
     prev_label = label
 
 if coverage and seen_gauge == 0:
