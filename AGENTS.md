@@ -112,6 +112,11 @@ CI 不跑打包，所以下面这些**只有发布时才会炸**。改完打包�
   ——报的是解析错误，与真正的原因（编码）隔了好几层。`./scripts/lint.sh` 已加检查
 - **产物文件名不含空格**。Tauri 按 `productName`（"CC Analyzer"）命名，而 GitHub
   上传 release 产物时把空格换成点，会让本地、文档、用户下载到的是三个名字
+- **`date -r <epoch>` 是 BSD 专有语法**。GNU date（Linux CI）的 `-r` 是「读文件
+  mtime」，`date -u -r 1791814669` 会报 `No such file or directory`——本地 macOS
+  全绿，CI 上 `set -e` 直接把脚本打死在夹具段。跨平台脚本里格式化「现在」直接
+  `date -u +格式串`，不要做 epoch 往返；要日期算术用 python3 或 node（门禁里
+  两者都已在用）。shellcheck 抓不到这类运行时差异
 
 ## Project Structure & Module Organization
 

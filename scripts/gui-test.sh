@@ -586,9 +586,12 @@ install_fixture "${FIXTURE_SRC}/tool-census-session.jsonl" "-repo-census-demo" "
 # 600K input。它不带 tool_use / 错误信号，工具普查与错误档的夹具账不动；
 # 归因面板的当前 5h 窗口会多一行（判据按「≥1 行 / 有余项时恰 5 行」对账，
 # 加一个会话只会让无余项变有余项，两分支都兼容）。
-NOW_S="$(date -u +%s)"
-CALENDAR_T0="$(date -u -r "$NOW_S" +%Y-%m-%dT%H:%M:%S.000Z)"
-CALENDAR_T1="$(date -u -r "$((NOW_S + 5))" +%Y-%m-%dT%H:%M:%S.000Z)"
+# 直接格式化「现在」，不做 epoch 往返——`date -r <epoch>` 是 BSD 语法，GNU date
+# 的 `-r` 是「读文件 mtime」，CI（Linux）上会报 "date: <epoch>: No such file or
+# directory" 并被 set -e 放大成「假应用没启动」。两次调用几乎同秒（assistant
+# 与 user 时间非递减即可，解析按行序），不需要严格 +5s。
+CALENDAR_T0="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+CALENDAR_T1="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
 mkdir -p "${HOME_DIR}/.claude/projects/-repo-calendar-demo"
 cat >"${HOME_DIR}/.claude/projects/-repo-calendar-demo/calendar-today-0001.jsonl" <<JSONL
 {"type":"user","sessionId":"calendar-today-0001","cwd":"/repo/calendar","timestamp":"${CALENDAR_T0}","uuid":"cal-today-user-1","parentUuid":null,"isSidechain":false,"message":{"role":"user","content":"日历门禁的今天会话"}}
