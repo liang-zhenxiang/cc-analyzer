@@ -414,5 +414,5 @@
 tbody tr:focus-visible {
   outline: none;
   background: var(--bg-hover);
-  box-shadow: inset 2px 0 0 var(--accent);
+  box-shadow: inset var(--focus-ring-width) 0 0 var(--accent);
 }

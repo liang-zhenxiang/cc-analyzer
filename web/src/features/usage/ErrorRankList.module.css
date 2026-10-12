@@ -47,8 +47,8 @@
 }
 
 .row:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
 }
 
 /* 选中 = 过滤中：底色 + 左缘竖条双信号（日志表选中行同语言）。 */

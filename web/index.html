@@ -33,6 +33,25 @@
         }
       })();
     </script>
+    <script>
+      // 预绘制对比度：与 --font-scale 同款。命中白名单才采用；没写过才看系统偏好。
+      (() => {
+        const root = document.documentElement;
+        try {
+          const saved = localStorage.getItem("cca-contrast");
+          if (saved === "high") {
+            root.dataset.contrast = "high";
+            return;
+          }
+          if (saved === "normal") return;
+          if (window.matchMedia("(prefers-contrast: more)").matches) {
+            root.dataset.contrast = "high";
+          }
+        } catch {
+          // storage / matchMedia 不可用时停在普通档：这与 resolveContrast 的兜底一致。
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

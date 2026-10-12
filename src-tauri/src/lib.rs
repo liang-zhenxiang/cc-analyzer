@@ -623,6 +623,9 @@ mod gui_probe {
     /* 界面字号当前档位（"1" / "1.3"）。缩放是否真的落到根元素上，这是唯一的事实
        来源；阈值与判定留给脚本。 */
     font_scale: getComputedStyle(document.documentElement).getPropertyValue('--font-scale').trim(),
+    /* 界面当前是不是高对比度档（Round U / #73）。`""` = 普通档（属性被清掉，
+       不是留着 "normal"）；阈值与判定留给脚本。 */
+    contrast: document.documentElement.getAttribute('data-contrast') || '',
     main: boxOf(mainEl),
     /* main 自身的视口矩形：限额卡「含于内容区」的横向判定要用它。 */
     mainRect: mainEl ? rectOf(mainEl) : null,
@@ -1134,6 +1137,18 @@ mod gui_probe {
             .filter(|value| !value.is_empty())
     }
 
+    /// 目标是不是「切界面对比度」的动作形式 `对比度=高` / `对比度=普通`（Round U / #73）。
+    ///
+    /// 与 `字号=` 同一动作协议：档位控件藏在设置浮层里，通用「找一个按钮点下去」
+    /// 够不着，而且要在**同一个浮层里区分两个 radiogroup**（字号一档、对比度一档），
+    /// 所以点选按容器锚点走（见 `contrast_js`），不靠「全文档第一枚 radio」。
+    pub(super) fn contrast_target(target: &str) -> Option<&str> {
+        target
+            .strip_prefix("对比度=")
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    }
+
     /// 目标是不是「确保设置浮层打开」的动作形式 `设置=开`。
     ///
     /// 与 `视图=` 同一类**状态自愈**动作：设置浮层是 toggle（顶栏那枚按钮），
@@ -1246,6 +1261,48 @@ mod gui_probe {
         )
     }
 
+    /// 在真机上把界面对比度切到指定档位（`对比度=高` / `对比度=普通`）。
+    ///
+    /// 与 `font_scale_js` 同一条动作协议，只有两处不同：一是**先按容器锚点收窄**
+    /// （设置浮层里现在有两个 radiogroup——界面字号与界面对比度，全文档扫 radio
+    /// 会按 DOM 顺序撞上另一档），二是面板本来就开着时不再点「设置」（那枚按钮是
+    /// toggle，点一次就把面板关了）。
+    pub(super) fn contrast_js(label: &str) -> String {
+        let escaped = js_string(label);
+        format!(
+            r#"(function () {{
+  var wanted = "{escaped}";
+  function group() {{
+    return document.querySelector('[data-probe="contrast-group"]')
+      || document.querySelector('[data-probe="contrast-group"] [role="radiogroup"]')
+      || document.querySelector('[role="radiogroup"][aria-label="界面对比度"]');
+  }}
+  function clickRadio() {{
+    var box = group();
+    if (!box) return false;
+    var items = box.querySelectorAll('[role="radio"]');
+    for (var i = 0; i < items.length; i++) {{
+      var text = (items[i].textContent || '').replace(/\s+/g, ' ').trim();
+      if (text.indexOf(wanted) === 0) {{
+        items[i].click();
+        console.log('gui-capture: 已切界面对比度 ' + wanted);
+        return true;
+      }}
+    }}
+    return false;
+  }}
+  if (clickRadio()) return;
+  var buttons = document.querySelectorAll('button');
+  for (var i = 0; i < buttons.length; i++) {{
+    if (buttons[i].getAttribute('aria-label') === '设置') {{ buttons[i].click(); break; }}
+  }}
+  setTimeout(function () {{
+    if (!clickRadio()) console.warn('gui-capture: 找不到界面对比度档位 ' + wanted);
+  }}, 200);
+}})();"#
+        )
+    }
+
     /// 找到目标并点击：优先标签页，其次任意按钮。匹配可取访问名的三种来源——
     /// `aria-label`、`title`、可见文本——所以既能点标签页（文本 / aria-label），
     /// 也能点会话条目（它的 `title` 是 cwd）。`eval` 是单向的（拿不到脚本返回值），
@@ -1350,6 +1407,9 @@ mod gui_probe {
         }
         if let Some(label) = font_scale_target(target) {
             return font_scale_js(label);
+        }
+        if let Some(label) = contrast_target(target) {
+            return contrast_js(label);
         }
         if let Some(label) = view_target(target) {
             return view_click_js(label);
@@ -1528,6 +1588,32 @@ mod gui_probe {
         }
 
         #[test]
+        fn contrast_target_only_matches_the_action_form() {
+            assert_eq!(contrast_target("对比度=高"), Some("高"));
+            assert_eq!(contrast_target("对比度= 普通 "), Some("普通"));
+            assert_eq!(contrast_target("对比度="), None);
+            // 普通目标与另外几个动作都不归它管。
+            assert_eq!(contrast_target("设置=开"), None);
+            assert_eq!(contrast_target("字号=130%"), None);
+            assert_eq!(contrast_target("用量总览"), None);
+            // 字号动作也不该被对比度吞掉（两条动作名字相邻，最易写错）。
+            assert_eq!(font_scale_target("对比度=高"), None);
+        }
+
+        #[test]
+        fn the_contrast_action_targets_its_own_group() {
+            let js = click_target_js("对比度=高");
+            // 设置浮层里有两个 radiogroup（界面字号 / 界面对比度），所以点选必须
+            // 按容器锚点收窄——直接扫全文档 radio 会按 DOM 顺序撞上另一档。
+            assert!(js.contains("[data-probe=\"contrast-group\"]"));
+            assert!(js.contains("[role=\"radio\"]"));
+            assert!(js.contains("已切界面对比度"));
+            assert!(js.contains("var wanted = \"高\""));
+            // 面板本来就开着时不许再点「设置」——那是 toggle，会把面板关掉。
+            assert!(js.contains("aria-label') === '设置"));
+        }
+
+        #[test]
         fn the_view_action_clicks_the_segment_with_a_receipt() {
             let js = view_click_receipt_js("视图=用量").expect("视图= 动作应有回执脚本");
             // 走的是总览视图分段的真实 tab 控件（SegmentedControl 默认 tablist；
@@ -1585,6 +1671,9 @@ mod gui_probe {
         fn the_probe_reports_the_font_scale_and_session_rows() {
             assert!(PROBE_JS.contains("font_scale:"));
             assert!(PROBE_JS.contains("--font-scale"));
+            // 高对比度档：根元素属性是「档位真的落地了」的唯一事实来源。
+            assert!(PROBE_JS
+                .contains("contrast: document.documentElement.getAttribute('data-contrast')"));
             assert!(PROBE_JS.contains("session_rows"));
         }
 

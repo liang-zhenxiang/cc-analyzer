@@ -47,6 +47,16 @@
   font-weight: 600;
 }
 
+/* 高对比度：滑块与凹槽只差 1.13:1（浅）/ 1.12:1（深），阴影在纯白/纯黑底上
+   不构成边界，选中与未选中的分界改由 1px 描边承担（Round U 设计规格 §4.3）。
+   用 `inset` 内描边而不是 `border`：`.item` 是内容自适应宽度，`border` 会把外框
+   撑大 2px（实测 Chromium 60×36 → 62×38、WebKit 58.55×36 → 60.55×38），
+   而 `inset` 跨档 delta = 0——这条只换颜色边界，不动尺寸。 */
+:global([data-contrast="high"]) .item[aria-selected="true"],
+:global([data-contrast="high"]) .item[aria-checked="true"] {
+  box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--border-strong);
+}
+
 /* wide：顶栏页面切换专用。88px 是**宽度**不是高度/颜色/圆角/时长，
    不违反 tokens 纪律。 */
 .wide .item {

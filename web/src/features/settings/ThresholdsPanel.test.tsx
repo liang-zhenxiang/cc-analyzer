@@ -9,6 +9,7 @@ import { getArchiveTask, resetArchiveTask } from "../archive/archiveTask";
 import { getPlan, setPlan } from "../usage/planLimits";
 import { getThresholds, resetThresholds, setThreshold } from "./thresholds";
 import { resetFontScaleForTest } from "./fontScale";
+import { applyContrast, initContrast, resetContrastForTest } from "./contrast";
 
 type BridgeOptions = {
   /** Source transcripts keyed by file name, as the fake ~/.claude scan sees them. */
@@ -579,5 +580,166 @@ describe("常驻读数", () => {
     expect(screen.getByLabelText("显示用量读数")).toBeChecked();
     expect(screen.queryByText(/关掉只是不显示读数/)).not.toBeInTheDocument();
     expect(localStorage.getItem("cca-tray-visible")).toBe("true");
+  });
+});
+
+/**
+ * 「界面对比度」一节（Issue #73 / Round U）：普通 / 高对比度两档，只写根元素的
+ * `data-contrast`，持久化到 `cca-contrast`，未知值回落普通，系统 `prefers-contrast:
+ * more` 只在没写过时跟随。
+ */
+describe("界面对比度 section", () => {
+  function contrastGroup() {
+    return screen.getByRole("radiogroup", { name: "界面对比度" });
+  }
+
+  /** 让 `prefers-contrast: more` 为真跑一段；结束后还原 window.matchMedia。 */
+  function withSystemHighContrast(run: () => void) {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) =>
+      query === "(prefers-contrast: more)"
+        ? { matches: true, addEventListener: () => undefined }
+        : { matches: false, addEventListener: () => undefined }) as unknown as typeof window.matchMedia;
+    try {
+      run();
+    } finally {
+      window.matchMedia = original;
+    }
+  }
+
+  afterEach(() => {
+    // 这一节会改根属性与内存 store：每个用例后都清干净，别影响同文件的其他用例。
+    resetContrastForTest();
+    applyContrast("normal");
+    localStorage.clear();
+  });
+
+  test("是一个两档 radiogroup，默认「普通」选中且根元素没有 data-contrast", () => {
+    resetContrastForTest();
+    renderPanel(createBridges().bridges);
+
+    const radios = within(contrastGroup()).getAllByRole("radio");
+    expect(radios).toHaveLength(2);
+    expect(radios[0]).toHaveTextContent("普通");
+    expect(radios[1]).toHaveTextContent("高对比度");
+    expect(radios[0]).toHaveAttribute("aria-checked", "true");
+    expect(radios[1]).toHaveAttribute("aria-checked", "false");
+    // 普通档是「属性不存在」，不是留着 "normal"。
+    expect(document.documentElement.hasAttribute("data-contrast")).toBe(false);
+  });
+
+  test("控件外框挂着真机门禁用的锚点", () => {
+    resetContrastForTest();
+    renderPanel(createBridges().bridges);
+
+    const group = contrastGroup();
+    expect(group.closest('[data-probe="contrast-group"]')).not.toBeNull();
+  });
+
+  test("点「高对比度」写根属性并落盘；点回「普通」把属性删掉", async () => {
+    const user = userEvent.setup();
+    resetContrastForTest();
+    localStorage.removeItem("cca-contrast");
+    renderPanel(createBridges().bridges);
+
+    const radios = within(contrastGroup()).getAllByRole("radio");
+    await user.click(radios[1]);
+
+    expect(radios[1]).toHaveAttribute("aria-checked", "true");
+    expect(document.documentElement.getAttribute("data-contrast")).toBe("high");
+    expect(localStorage.getItem("cca-contrast")).toBe("high");
+
+    await user.click(radios[0]);
+
+    expect(radios[0]).toHaveAttribute("aria-checked", "true");
+    expect(document.documentElement.hasAttribute("data-contrast")).toBe(false);
+    expect(localStorage.getItem("cca-contrast")).toBe("normal");
+  });
+
+  test("持久化里是未知值时按实际生效档选中（回落普通）", () => {
+    localStorage.setItem("cca-contrast", "max");
+    resetContrastForTest();
+    initContrast();
+    renderPanel(createBridges().bridges);
+
+    const radios = within(contrastGroup()).getAllByRole("radio");
+    expect(radios[0]).toHaveAttribute("aria-checked", "true");
+    expect(document.documentElement.hasAttribute("data-contrast")).toBe(false);
+  });
+
+  test("系统 prefers-contrast: more 且没写过时，默认就是高对比度", () => {
+    localStorage.removeItem("cca-contrast");
+    withSystemHighContrast(() => {
+      resetContrastForTest();
+      initContrast();
+      renderPanel(createBridges().bridges);
+
+      const radios = within(contrastGroup()).getAllByRole("radio");
+      expect(radios[1]).toHaveAttribute("aria-checked", "true");
+      expect(document.documentElement.getAttribute("data-contrast")).toBe("high");
+    });
+  });
+
+  test("显式选过之后系统偏好不再影响结果", () => {
+    localStorage.setItem("cca-contrast", "normal");
+    withSystemHighContrast(() => {
+      resetContrastForTest();
+      initContrast();
+      renderPanel(createBridges().bridges);
+
+      const radios = within(contrastGroup()).getAllByRole("radio");
+      expect(radios[0]).toHaveAttribute("aria-checked", "true");
+      expect(document.documentElement.hasAttribute("data-contrast")).toBe(false);
+    });
+  });
+
+  test("说明句是定稿原文，本节不新增 live region 与确认框", () => {
+    resetContrastForTest();
+    renderPanel(createBridges().bridges);
+
+    const heading = screen.getByRole("heading", { name: "界面对比度" });
+    const section = heading.parentElement as HTMLElement;
+    expect(
+      within(section).getByText(
+        "提高文字、边框与图形的对比度，不改字号与间距。默认跟随系统设置。"
+      )
+    ).toBeInTheDocument();
+    expect(within(section).queryAllByRole("status")).toHaveLength(0);
+    expect(within(section).queryAllByRole("alert")).toHaveLength(0);
+    expect(screen.queryAllByRole("dialog")).toHaveLength(0);
+  });
+
+  test("是面板内的第二个分区标题，位于「界面字号」之后、「Prompt 上限」之前", () => {
+    resetContrastForTest();
+    renderPanel(createBridges().bridges);
+
+    const panel = screen.getByLabelText("阈值设置");
+    const titles = [...panel.querySelectorAll("h3")];
+    expect(titles[0]).toHaveTextContent("界面字号");
+    expect(titles[1]).toHaveTextContent("界面对比度");
+
+    const promptField = screen.getByLabelText("Prompt 上限");
+    expect(
+      titles[1].compareDocumentPosition(promptField) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    // 两节顺序即「看得清」偏好组：对比度不能排在字号之前。
+    expect(
+      titles[0].compareDocumentPosition(titles[1]) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  test("方向键切档并停在新的那一档，控件本身不重挂载", async () => {
+    const user = userEvent.setup();
+    resetContrastForTest();
+    renderPanel(createBridges().bridges);
+
+    const before = contrastGroup();
+    const radios = within(before).getAllByRole("radio");
+    radios[0].focus();
+    await user.keyboard("{ArrowRight}");
+
+    expect(radios[1]).toHaveAttribute("aria-checked", "true");
+    expect(document.activeElement).toBe(radios[1]);
+    expect(contrastGroup().isSameNode(before)).toBe(true);
   });
 });
