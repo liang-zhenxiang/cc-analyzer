@@ -41,7 +41,9 @@ test.describe("用量总览", () => {
     await expect(kpiTile(page, "会话数").getByText("2", { exact: true })).toBeVisible();
     // 计费窗口卡的「窗口开启」也标「读自日志」，按 KPI 行作用域数 3 枚。
     await expect(dashboard.locator("div[class*='kpiRow']").getByText("读自日志")).toHaveCount(3);
-    await expect(dashboard.getByText("按定价快照估算")).toBeVisible();
+    // 「按定价快照估算」两枚（Round V 起）：KPI 的估算成本瓦片一枚，消耗日历
+    // 的色深口径徽章一枚——色深是估算值，来源徽章说清口径。
+    await expect(dashboard.getByText("按定价快照估算")).toHaveCount(2);
     await expect(dashboard.getByText(/快照日期 \d{4}-\d{2}-\d{2}/)).toBeVisible();
     await expect(dashboard.getByText(/\$\d+\.\d{2}/)).toBeVisible();
   });
@@ -95,9 +97,10 @@ test.describe("用量总览", () => {
     await expect(page.getByText(/已分析/)).toHaveCount(0);
   });
 
-  test("1440×900 不滚动时三块面板的标题都在首屏", async ({ page }) => {
-    // 这条是本任务的硬约束：仪表盘曾经比视口高 43%，「按项目分布」「按模型分布」
-    // 「活跃时段」三块从来没进过首屏，也没进过任何一张归档截图。
+  test("1440×900 不滚动时首屏有「按项目分布」与消耗日历", async ({ page }) => {
+    // 这条曾是「三块面板都在首屏」的硬约束（仪表盘曾比视口高 43%）。Round V 起
+    // 消耗日历作为整行面板插进第二行——它进首屏本身就是产品决策，代价是
+    // 「按模型分布」「活跃时段」下移一档，改由下一条用例断言滚一次可达。
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
     await page.getByRole("tab", { name: DASHBOARD }).click();
@@ -106,15 +109,17 @@ test.describe("用量总览", () => {
     // 「不滚动」要成立：主区必须还在顶端（内容区在自己的滚动容器里）。
     expect(await page.locator("main").evaluate((element) => element.scrollTop)).toBe(0);
 
-    for (const title of ["按项目分布", "按模型分布", "活跃时段（周 × 小时）"]) {
+    for (const title of ["按项目分布", "消耗日历（近 12 个月）"]) {
       await expect(page.getByRole("heading", { name: title })).toBeInViewport({ ratio: 1 });
     }
   });
 
-  test("滚到下半屏后三块面板的标题仍然可达", async ({ page }) => {
+  test("滚到下半屏后各面板的标题仍然可达", async ({ page }) => {
     // 截图脚本负责「把下半屏拍下来」（usage-below 视图），这条负责「有人断言过」：
     // 标题滚一次就能进视口 = 面板内容离首屏不超过一屏。面板被懒加载吞掉、或
     // 页面重新长过一屏（标题滚到底也回不来）都会在这里红。
+    // 「按项目分布」在首屏（上一条已断言）；页面变长后滚到底，第一行会越过
+    // 视口上缘（途中已见过），这里断言的是第二屏以下的面板。
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
     await page.getByRole("tab", { name: DASHBOARD }).click();
@@ -132,7 +137,7 @@ test.describe("用量总览", () => {
     }));
     expect(settled.top + settled.view).toBeGreaterThanOrEqual(settled.height - 1);
 
-    for (const title of ["按项目分布", "按模型分布", "活跃时段（周 × 小时）", "工具与 skill"]) {
+    for (const title of ["按模型分布", "活跃时段（周 × 小时）", "工具与 skill"]) {
       await expect(page.getByRole("heading", { name: title })).toBeInViewport({ ratio: 1 });
     }
   });

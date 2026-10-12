@@ -19,6 +19,7 @@ import { mergeErrorStats } from "./errorStats";
 import { ErrorOverviewSection } from "./ErrorOverviewSection";
 import { toolCensus } from "./toolCensus";
 import { ToolCensusPanel } from "./ToolCensusPanel";
+import { UsageCalendarPanel } from "./UsageCalendarPanel";
 import {
   aggregateRange,
   formatDayLabel,
@@ -124,6 +125,10 @@ export function UsageOverviewPage({
   // 计费读数的唯一实例：计费卡与「导出快照」共用同一份 `now` 与同一批窗口
   // 数学（Issue #174），同屏与文件里不可能各算一套。
   const readouts = useBillingReadouts(inputs);
+  // 消耗日历的窗口终点（Issue #187）：readouts 之外另取一个时钟实例——日历
+  // 不参与计费对账，滚动 365 天窗口不需要 30 秒 tick；取挂载那一刻并保持
+  // 稳定，memo 才不会每帧失效（跨天挂机不重算，与其它面板同一取舍）。
+  const [calendarNow] = useState(() => Date.now());
 
   useEffect(() => {
     try {
@@ -440,6 +445,19 @@ export function UsageOverviewPage({
             <Panel title="按项目分布">
               <HBarChart data={projectData} ariaLabel="按项目分布" emptyText="所选范围内暂无项目消耗" />
             </Panel>
+
+            {/* 消耗日历住满第二行整行（Issue #187）：53 列的网格不可能塞进半宽
+                列，插在「每日 Token 消耗 | 按项目分布」之后也让第一行不留半宽
+                空洞（compactionRow 的立身之本）。它是全应用最具传播力的一张图，
+                占住第二行整行、进首屏，位置本身是产品决策。聚合依赖只有
+                `inputs`——7/30/90 区间选择器与它正交（面板脚注声明）。 */}
+            <div className={styles.compactionRow}>
+              <UsageCalendarPanel
+                inputs={inputs}
+                now={calendarNow}
+                onOpenSession={onOpenSession}
+              />
+            </div>
 
             <Panel title="按模型分布">
               <StackedBar data={modelData} ariaLabel="按模型分布" emptyText="所选范围内暂无模型消耗" />

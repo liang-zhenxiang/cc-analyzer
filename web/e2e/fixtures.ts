@@ -471,6 +471,89 @@ export function staleActivityScenario(overrides: Partial<MockScenario> = {}): Mo
   };
 }
 
+/**
+ * 「消耗日历」场景（Issue #187）：**内存合成**（照 `quotaAttributionScenario`
+ * 的做法），时间戳相对 `Date.now()`，断言不随运行日期漂移。
+ *
+ * 只用自造会话（`emptyScenario` 打底）：日历的窗口是滚动 365 天，默认场景
+ * 那几个写死日期的夹具平移后会零散落进窗口，档位分布就不确定了。
+ *
+ * 布景（sonnet，$3/MTok input）：now−300 / −200 / −100 / −30 / −8 天各一个
+ * 会话、token 阶梯 200K / 400K / 600K / 1M / 2M（成本 $0.6 / $1.2 / $1.8 /
+ * $3 / $6）；now−1 天 4 个会话合计 4M（$12，全窗最大 → level 4）；今天
+ * 3 个会话合计 1M（$3）。非零成本 7 天的分布（Type 7）给出
+ * q1=$1.5 / q2=$3 / q3=$4.5，于是昨天恰落 4 档、今天恰落 3 档、
+ * now−100（$1.8）落 2 档——档位断言因此是确定值。
+ */
+export function calendarScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  const now = Date.now();
+  const dayMs = 24 * 3_600_000;
+  // 锚定本地日历日：偏移天 + 当天时刻从今天 00:00 起算——「now − 24h − 3h」
+  // 这种相对写法在清晨 / 深夜运行时会落到错误的日历日，档位断言就漂了。
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const dayAt = (offsetDays: number, hour: number) =>
+    todayStart.getTime() - offsetDays * dayMs + hour * 3_600_000;
+  // 今天的会话要落在「今天的 00:00 之后、几乎不越到未来」的区间里：
+  // 取两者较大者（凌晨运行时宁可晚一分钟，也不落到昨天）。
+  const todaySafe = Math.max(todayStart.getTime() + 60_000, now - 60_000);
+  const files: Record<string, string> = {};
+
+  /** 一个会话两条记录：user 定标题，assistant 带 usage（input 单类即可定档）。 */
+  const seed = (startedAt: number, ordinal: number, tokens: number) => {
+    const cwd = `/repo/calendar-${ordinal}`;
+    const sessionId = `3d2a5442-9c65-4b28-9c30-bb3d1a1f${String(ordinal).padStart(4, "0")}`;
+    const repliedAt = new Date(startedAt + 90_000);
+    const lines = [
+      JSON.stringify({
+        type: "user",
+        sessionId,
+        cwd,
+        timestamp: new Date(startedAt).toISOString(),
+        uuid: `cal-${ordinal}-user`,
+        parentUuid: null,
+        isSidechain: false,
+        message: { role: "user", content: `消耗日历夹具会话 ${ordinal}` }
+      }),
+      JSON.stringify({
+        type: "assistant",
+        sessionId,
+        timestamp: repliedAt.toISOString(),
+        uuid: `cal-${ordinal}-assistant`,
+        parentUuid: `cal-${ordinal}-user`,
+        isSidechain: false,
+        message: {
+          id: `cal-msg-${ordinal}`,
+          role: "assistant",
+          model: "claude-sonnet-4",
+          content: [{ type: "text", text: `第 ${ordinal} 个会话的回答` }],
+          usage: { input_tokens: tokens }
+        }
+      })
+    ];
+    files[`${HOME}/.claude/projects/${projectDir(cwd)}/${sessionId}.jsonl`] =
+      `${lines.join("\n")}\n`;
+  };
+
+  // 各天的会话布景；序号全局唯一（sessionId / uuid 不能撞）。
+  seed(dayAt(300, 10), 1, 200_000);
+  seed(dayAt(200, 10), 2, 400_000);
+  seed(dayAt(100, 10), 3, 600_000);
+  seed(dayAt(30, 10), 4, 1_000_000);
+  seed(dayAt(8, 10), 5, 2_000_000);
+  seed(dayAt(1, 10), 6, 1_000_000);
+  seed(dayAt(1, 11), 7, 1_000_000);
+  seed(dayAt(1, 12), 8, 1_000_000);
+  seed(dayAt(1, 13), 9, 1_000_000);
+  // 今天的三个会话各错开 1 秒（落在同一天的区间里，不给凌晨边界留缝隙）。
+  seed(todaySafe, 10, 600_000);
+  seed(todaySafe + 1_000, 11, 300_000);
+  seed(todaySafe + 2_000, 12, 100_000);
+
+  const base = emptyScenario();
+  return { ...base, files, ...overrides };
+}
+
 type Fixtures = { scenario: MockScenario };
 
 export const test = base.extend<Fixtures>({

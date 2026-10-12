@@ -141,7 +141,7 @@ function tokenNames(source: string): string[] {
 
 /** 名字像颜色的令牌（`--shadow-*` / `--overlay` 是层级语言，不在其列）。 */
 const COLOR_TOKEN_SHAPE =
-  /^--(text|bg|border|accent|ring|ink|on-ink|success|warning|danger|cat-|chart-)/;
+  /^--(text|bg|border|accent|ring|ink|on-ink|success|warning|danger|cat-|chart-|cal-)/;
 
 const CATEGORY_TOKENS = ["wait", "direct", "delegated", "compute", "user", "workflow"].map(
   (name) => `--cat-${name}`
@@ -174,6 +174,7 @@ const REQUIRED_HIGH_CONTRAST_TOKENS = [
   "--danger-soft",
   ...CATEGORY_TOKENS,
   ...[1, 2, 3, 4, 5, 6].flatMap((index) => [`--chart-${index}`, `--chart-${index}-soft`]),
+  ...[1, 2, 3, 4].map((index) => `--cal-${index}`),
   "--focus-ring-width",
   "--focus-ring-offset",
   "--focus-ring-inset"
@@ -195,11 +196,13 @@ test("两块高对比度色板都覆盖语义色与类别色两套", () => {
     for (const name of REQUIRED_HIGH_CONTRAST_TOKENS) {
       expect(names, `${label}块缺 ${name}`).toContain(name);
     }
-    // 两套资产各有若干条：类别色 6 条、图表色板 12 条（实色 + 面积底）。
+    // 两套资产各有若干条：类别色 6 条、图表色板 12 条（实色 + 面积底），
+    // 加消耗日历色带 4 条（Round V）。
     expect(names.filter((name) => name.startsWith("--cat-"))).toHaveLength(6);
     expect(names.filter((name) => name.startsWith("--chart-") && !name.endsWith("-soft"))).toHaveLength(6);
     expect(names.filter((name) => name.startsWith("--chart-") && name.endsWith("-soft"))).toHaveLength(6);
-    expect(names).toHaveLength(45);
+    expect(names.filter((name) => name.startsWith("--cal-"))).toHaveLength(4);
+    expect(names).toHaveLength(49);
   }
 });
 
@@ -309,5 +312,47 @@ test("换到高对比度的面板底色后，终端 16 色仍然达标", () => {
         `${label}下 --ansi-${index} 在面板底上不达标`
       ).toBeGreaterThanOrEqual(4.5);
     }
+  }
+});
+
+/**
+ * 消耗日历色带（Issue #187 / Round V）：`--cal-1..--cal-4` 在四块主题里各一组。
+ * 色带格子是面积填充，不适用 3:1（同 `-soft` 豁免）；「色即消耗」的前提押在
+ * 两条日历自设门槛上，必须真算：
+ * - 相邻档分得开（普通 ≥1.3 / 高对比度 ≥1.7）——档位是色带的全部信息；
+ * - 最浅非空档 cal-1 与空格 `--bg-inset` 分得开（普通 ≥1.2 / HC ≥1.3）——
+ *   「这格有没有数据」的唯一编码，塌了就等于丢数据。
+ * HC 的 `--border` vs `--bg-subtle` ≥3 已由「高对比度色板实测达标」那条
+ * 顺带覆盖（--cal 描边用的就是 --border），这里不重复。
+ */
+test("消耗日历色带四块齐全，值都是 6 位十六进制", () => {
+  const blocks: Array<[string, string]> = [
+    ["普通浅", block(":root {")],
+    ["普通深", block('[data-theme="dark"] {')],
+    ...highContrastBlocks()
+  ];
+  for (const [label, source] of blocks) {
+    for (let index = 1; index <= 4; index += 1) {
+      expect(hexIn(source, `cal-${index}`), `${label}块里 --cal-${index} 不是 #rrggbb`).toBeTruthy();
+    }
+  }
+});
+
+test("日历色带对比度实测：相邻档与空格区分度达标", () => {
+  const cases = [
+    { label: "普通浅", source: block(":root {"), adjacent: 1.3, inset: 1.2 },
+    { label: "普通深", source: block('[data-theme="dark"] {'), adjacent: 1.3, inset: 1.2 },
+    ...highContrastBlocks().map(([label, source]) => ({ label, source, adjacent: 1.7, inset: 1.3 }))
+  ];
+  for (const { label, source, adjacent, inset } of cases) {
+    const cal = (index: number) => hexIn(source, `cal-${index}`);
+    const emptyCell = hexIn(source, "bg-inset");
+    for (let index = 1; index <= 3; index += 1) {
+      expect(
+        contrast(cal(index), cal(index + 1)),
+        `${label}相邻档 cal-${index}→cal-${index + 1} 分不开`
+      ).toBeGreaterThanOrEqual(adjacent);
+    }
+    expect(contrast(cal(1), emptyCell), `${label}最浅档 cal-1 与空格分不开`).toBeGreaterThanOrEqual(inset);
   }
 });

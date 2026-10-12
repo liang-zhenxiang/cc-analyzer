@@ -210,7 +210,12 @@ export function LogView({
 
   return (
     <ScrollArea scrollerRef={containerRef} className={styles.container} onScroll={onScroll}>
-      <table>
+      {/* data-probe="record-table"：真机门禁「末列可达」检查的锚点（主日志表）。
+          此前探针是裸 querySelector('table')，依赖「文档第一个 table 恰是这张表」
+          的旧假设——消耗日历（Round V）给用量页带来了 table，探针在用量页误捕
+          它（日历无 thead → lastColumnRight 为 null → 误报「末列被裁切」）。
+          锚点收紧后检查只认这张表，侧栏 / 浮层里的小表本就不在意图内。 */}
+      <table data-probe="record-table">
         {/* 列预算（令牌见 tokens.css）：除「操作 / 摘要」外每一列都写死宽度，
             筛选前后列位置因此不动。 */}
         <colgroup>

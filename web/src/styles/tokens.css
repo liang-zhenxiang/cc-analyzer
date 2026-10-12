@@ -88,6 +88,16 @@
   --chart-6: #bf4a78;
   --chart-6-soft: rgba(191, 74, 120, 0.24);
 
+  /* 消耗日历色带（Issue #187）：色深 = 当日估算成本四分位，靛蓝单色相明度阶梯。
+     不复用 --chart-*（图表色板严禁借给日期维度）也不复用 opacity 台阶
+     （高对比度下要实色，同 -soft 改实色的理由）。1 最浅、4 最深；
+     空格直接用 --bg-inset，不设 --cal-0。逐条对比度与豁免见
+     .trellis/workspace/liangyuxiang/design-round-v1-usage-calendar.md §3.3。 */
+  --cal-1: #cfdaf5;
+  --cal-2: #a9bdeb;
+  --cal-3: #7c97e0;
+  --cal-4: #4063c6;
+
   --code-comment: #69707d;
   --code-keyword: #a626a4;
   --code-string: #2f7d32;
@@ -313,6 +323,12 @@
   --chart-6: #ef8ab3;
   --chart-6-soft: rgba(239, 138, 179, 0.3);
 
+  /* 消耗日历色带深色版：同色相提明度，4 最亮 = 消耗最多（深色下亮即多）。 */
+  --cal-1: #232a4d;
+  --cal-2: #33407a;
+  --cal-3: #4d5fa8;
+  --cal-4: #7e93e0;
+
   --code-comment: #7f848e;
   --code-keyword: #c678dd;
   --code-string: #98c379;
@@ -382,6 +398,14 @@
   --chart-6: #932a56;
   --chart-6-soft: #ead7df;
 
+  /* 消耗日历色带高对比度浅色版：档间拉大（相邻 ≥1.7，实算见规格 §3.3），
+     并给每格 1px --border 实色描边（组件侧）——半透明阶梯在纯白上
+     相邻档塌缩，描边承担「格线可辨」，填充承担档位。 */
+  --cal-1: #c1d1f6;
+  --cal-2: #7f9be6;
+  --cal-3: #4a68cd;
+  --cal-4: #142e8c;
+
   /* 焦点环：颜色来自上面的 --ring / --accent，这里只把「形」加粗并让环离开控件。 */
   --focus-ring-width: 3px;
   --focus-ring-offset: 2px;
@@ -446,6 +470,12 @@
   --chart-5-soft: #50455f;
   --chart-6: #ff9dc4;
   --chart-6-soft: #5f414d;
+
+  /* 消耗日历色带高对比度深色版：同上，4 最亮。 */
+  --cal-1: #31407a;
+  --cal-2: #5062b0;
+  --cal-3: #7a90d6;
+  --cal-4: #b3c5f6;
 
   --focus-ring-width: 3px;
   --focus-ring-offset: 2px;

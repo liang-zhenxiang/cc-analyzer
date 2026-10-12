@@ -1,0 +1,352 @@
+/* 消耗日历（Issue #187）：GitHub 贡献图形态的滚动 365 天网格。
+   格子几何（12px 格、3px 缝）是「形」不进 --sp-* 间距档位（tokens.css 头部的
+   形距豁免），也不随 --font-scale 缩放（间距、图形不缩放是字号那轮的既定
+   红线）——字号放大只影响标签文本，格子阵形状稳定，这是「一眼可读的形状」
+   的前提。两个数定义成局部变量：格子、缝、图例格、网格固有宽都从这里派生。 */
+.calendar {
+  --cal-cell: 12px;
+  --cal-gap: 3px;
+  display: grid;
+  min-width: 0;
+  gap: var(--sp-2);
+}
+
+/* 横向滚动收在容器内部：用量页没有侧栏，Tauri 窗口 minWidth 960 下内容区约
+   910px，已放得下网格固有宽（53×12 + 52×3 + 标签列 ≈ 816px）——再窄的
+   浏览器视口（e2e 用 800px 验证）或窗口拖到极限时在这里滚动；文档与 main
+   的 `scrollWidth ≤ clientWidth` 判定不被破坏。竖向不滚。 */
+.scroll {
+  overflow-x: auto;
+}
+
+.table {
+  border-collapse: separate;
+  border-spacing: var(--cal-gap);
+}
+
+/* 月份标签行：跨列、左对齐、不占高度预算（--lh-xs = 16px @100%）。 */
+.monthMark {
+  height: var(--lh-xs);
+  padding: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-weight: 400;
+  text-align: left;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.corner {
+  padding: 0;
+}
+
+/* 星期标签 7 行全标（Monday-first，与 Heatmap 同一序列）：复用 tick 的
+   文本语言，但这里是 DOM 不是 SVG。 */
+.weekdayLabel {
+  padding: 0 var(--sp-1) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-weight: 400;
+  text-align: right;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* 行高由标签的 --lh-xs 承担（130% 字号下格子行随标签长高，格子自身恒 12px）。 */
+.dayCell,
+.padCell {
+  height: var(--lh-xs);
+  padding: 0;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.dayButton {
+  display: inline-block;
+  width: var(--cal-cell);
+  height: var(--cal-cell);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: var(--bg-inset);
+  cursor: pointer;
+}
+
+/* 色即成本：档位只由填充色承载（0 档 = 空格语义，与 Heatmap.emptyCell
+   同一个「凹槽 = 没有数据」）。 */
+.dayButton[data-cal-level="0"] {
+  background: var(--bg-inset);
+}
+.dayButton[data-cal-level="1"] {
+  background: var(--cal-1);
+}
+.dayButton[data-cal-level="2"] {
+  background: var(--cal-2);
+}
+.dayButton[data-cal-level="3"] {
+  background: var(--cal-3);
+}
+.dayButton[data-cal-level="4"] {
+  background: var(--cal-4);
+}
+
+/* 无会话的格子不是控件：不出现手型、不进点击（色块就是全部信息）。 */
+.dayButton[data-sessions="0"] {
+  cursor: default;
+}
+
+/* 悬停描边是瞬态冗余通道（tooltip 同时弹出），允许弱（同 Heatmap .cell:hover）。 */
+.dayButton:hover {
+  outline: 1px solid var(--border-strong);
+}
+
+/* 今天标记：外扩 1px 描边压在缝隙上、与面板底相邻（四态 ≥7.8），不用内描边
+   ——内描边要与格子填充比对比度（普通浅 cal-4 上只有 1.43），数值会被档位
+   绑架。 */
+.dayCell[data-probe="calendar-today"] .dayButton {
+  box-shadow: 0 0 0 1px var(--text-secondary);
+}
+
+/* 选中格（展开中）持续标记：与焦点环同款，画在缝隙上（四态 ≥6.6）；
+   与焦点环重合时视觉同一圈，可接受。 */
+.dayButton[aria-expanded="true"] {
+  outline: 2px solid var(--accent);
+}
+
+/* 焦点环走令牌：高对比度档自动 3px / 2px 间隙，组件零分支（Round U 的
+   既定机制，规格契约「焦点环宽度随对比度档」由令牌兑现）。 */
+.dayButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* 高对比度：每格 1px --border 实色描边（半透明阶梯在纯白上相邻档塌缩，
+   描边承担「格线可辨」，填充承担档位）。普通档刻意不加——365 格 × 1px
+   描边会把色块阵列变成表格，GitHub 式的「形状感」就没了。
+   [data-contrast] 在根元素上，是格子的祖先——这里只换描边，颜色仍走令牌。 */
+:global([data-contrast="high"]) .dayButton {
+  border: 1px solid var(--border);
+  box-sizing: border-box;
+}
+
+/* 图例（刻度是组件的一部分，同 Heatmap）：5 格与格子同一套令牌，
+   0 档格带「无消耗」标注（title）。 */
+.legend {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.legendText {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.legendCell {
+  width: var(--cal-cell);
+  height: var(--cal-cell);
+  border-radius: var(--r-xs);
+}
+
+.legendCell[data-legend-level="0"] {
+  background: var(--bg-inset);
+}
+.legendCell[data-legend-level="1"] {
+  background: var(--cal-1);
+}
+.legendCell[data-legend-level="2"] {
+  background: var(--cal-2);
+}
+.legendCell[data-legend-level="3"] {
+  background: var(--cal-3);
+}
+.legendCell[data-legend-level="4"] {
+  background: var(--cal-4);
+}
+
+/* 展开区（点击格子后的当天会话 Top 清单）：复用归因面板的「卡里的仪器块」
+   语言——内嵌底色 + 发丝边框，不再套一层卡片。 */
+.sessions {
+  display: grid;
+  min-width: 0;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-inset);
+}
+
+.sessionsHead {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.sessionsTitle {
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+}
+
+/* 「× 清除」（同 ToolCensus 下钻区的清除按钮）。 */
+.clear {
+  height: var(--control-h-sm);
+  flex: 0 0 auto;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  cursor: pointer;
+}
+
+.clear:hover {
+  background: var(--bg-hover);
+}
+
+.clear:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.sessionList {
+  display: grid;
+  min-width: 0;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sessionItem {
+  min-width: 0;
+}
+
+/* 会话行与余项行共用同一条基线网格（抄 BillingWindowCard 的归因行）：
+   标题 / 读数 / 占比条 / 占比。56px 是占比条轨道宽，属「形」不参与
+   --sp-* 档位（同归因面板的先例注释）。 */
+.sessionRow,
+.sessionRest {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  height: calc(var(--row-pad-y-tight) * 2 + var(--lh-xs));
+  align-items: center;
+  gap: var(--sp-2);
+  grid-template-columns: minmax(0, 1fr) auto 56px 56px;
+  padding: 0 var(--sp-1);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-align: left;
+}
+
+.sessionRow {
+  cursor: pointer;
+  /* 面板底是 --bg-inset，浅色主题下 --bg-hover 与它同色（悬停看不见），
+     所以这里的悬停台阶用 --bg-active（同归因行的注释）。 */
+  transition: background-color var(--dur-hover) var(--ease-out);
+}
+
+.sessionRow:not(:disabled):hover {
+  background: var(--bg-active);
+}
+
+.sessionRow:not(:disabled):hover .sessionRowTitle {
+  color: var(--text);
+}
+
+.sessionRow:not(:disabled):focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* 无元数据的行照列但不可点：不出现悬停底、不出现焦点环、不进 Tab 顺序。 */
+.sessionRow:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.sessionRow:disabled:hover {
+  background: transparent;
+}
+
+.sessionRowTitle {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 行读数是「$X · N tok」双数：色深是成本口径，行给双数呼应（归因面板的
+   单 token 读数是窗口口径，两处不同是有意的）。 */
+.sessionReading {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sessionPct {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* 余项行不是会话：顶部 1px 分隔线用内阴影画，不占布局高度。 */
+.sessionRest {
+  box-shadow: inset 0 1px 0 var(--border);
+  color: var(--text-tertiary);
+}
+
+.sessionRest .sessionReading,
+.sessionRest .sessionPct {
+  color: var(--text-tertiary);
+}
+
+/* 占比条复刻归因面板那一档：56 × 6 轨道 + 实色填充；非零最小 2px。 */
+.barTrack {
+  width: 56px;
+  height: var(--sp-15);
+  overflow: hidden;
+  border-radius: var(--r-xs);
+  background: var(--border-strong);
+}
+
+.barFill {
+  display: block;
+  height: 100%;
+  min-width: var(--sp-05);
+  border-radius: var(--r-xs);
+  background: var(--chart-1);
+}
+
+/* 余项是合并值，不是单个会话：同一条轨道降一档颜色。 */
+.barRestFill {
+  display: block;
+  height: 100%;
+  min-width: var(--sp-05);
+  border-radius: var(--r-xs);
+  background: var(--chart-1-soft);
+}
+
+.sessionsFootnote,
+.footnote {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
