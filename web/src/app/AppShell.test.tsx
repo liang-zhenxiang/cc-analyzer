@@ -65,7 +65,7 @@ test("⌘K 唤起全局搜索面板，Esc 关闭；顶栏按钮亦可唤起", as
   fireEvent.keyDown(window, { key: "k", metaKey: true });
   const dialog = screen.getByRole("dialog", { name: "全局搜索" });
   expect(dialog).toBeInTheDocument();
-  expect(screen.getByLabelText("搜索消息")).toHaveFocus();
+  expect(screen.getByLabelText("搜索会话记录")).toHaveFocus();
 
   // Esc 关闭
   await user.keyboard("{Escape}");
