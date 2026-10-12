@@ -43,6 +43,7 @@ import {
   setFontScale,
   useFontScale
 } from "./fontScale";
+import { CONTRAST_MODES, parseContrast, setContrast, useContrast } from "./contrast";
 import { setTrayEnabled, useTrayEnabled } from "../usage/useTrayReadout";
 import type { Bridges, UpdateCheck } from "../../api/types";
 import styles from "./ThresholdsPanel.module.css";
@@ -443,7 +444,7 @@ function FontScaleSection() {
   }));
 
   return (
-    <div className={styles.fontScaleSection}>
+    <div className={styles.preferenceSection}>
       <h3 className={styles.sectionTitle}>界面字号</h3>
       <p className={styles.note}>默认 100%，随时可改回。</p>
       <SegmentedControl
@@ -457,6 +458,45 @@ function FontScaleSection() {
       {/* 一行固定示例读数（真实字段形状，非真实数据）：给五档一个稳定的密度参照。 */}
       <p className={styles.preview}>12:04:08 · LLM · claude-sonnet-4 · 3.00s</p>
       <p className={styles.previewSub}>提示词 17 / 输出 34 · 2.7% · 正常</p>
+    </div>
+  );
+}
+
+/**
+ * 「界面对比度」一节：普通 / 高对比度两档，即时生效并持久化。
+ *
+ * 紧挨「界面字号」，两节构成一组「看得清」偏好：需要它的人不该先滚过几段读不清的
+ * 文字。本节只写 `data-contrast`，颜色全部由 `tokens.css` 的两块色板承担——
+ * 不改字号与间距，所以没有预览行（对比度是全局即时效果，做一行样例只会造出
+ * 「样例 vs 实际」两处真相），也不加确认框与 live region。
+ */
+function ContrastSection() {
+  const contrast = useContrast();
+  // 档位文案与顺序跟着 CONTRAST_MODES 走：加档位时这里只改文案表。
+  const labels: Record<(typeof CONTRAST_MODES)[number], string> = {
+    normal: "普通",
+    high: "高对比度"
+  };
+  const items = CONTRAST_MODES.map((mode) => ({ value: mode, label: labels[mode] }));
+
+  return (
+    <div className={styles.preferenceSection}>
+      <h3 className={styles.sectionTitle}>界面对比度</h3>
+      <p className={styles.note}>
+        提高文字、边框与图形的对比度，不改字号与间距。默认跟随系统设置。
+      </p>
+      {/* 真机门禁按这个锚点收窄 radiogroup：设置浮层里现在有两个 radiogroup
+          （界面字号 / 界面对比度），全文档扫 radio 会按 DOM 顺序撞上另一档。 */}
+      <div className={styles.preferenceControl} data-probe="contrast-group">
+        <SegmentedControl
+          role="radiogroup"
+          ariaLabel="界面对比度"
+          variant="equal"
+          items={items}
+          value={contrast}
+          onChange={(next) => setContrast(parseContrast(next))}
+        />
+      </div>
     </div>
   );
 }
@@ -610,6 +650,7 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
         控制报告与日志表的规模，改动立即生效并保存在本机。
       </p>
       <FontScaleSection />
+      <ContrastSection />
       <div className={styles.grid}>
         {THRESHOLD_KEYS.map((key) => (
           <ThresholdField key={key} thresholdKey={key} />

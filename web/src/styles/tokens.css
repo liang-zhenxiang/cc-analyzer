@@ -102,6 +102,16 @@
      默认 1（100%）。 */
   --font-scale: 1;
 
+  /* 焦点环的几何：颜色只有 --ring 与 --accent 两个来源（与主题无关地复用），
+     宽度与偏移走这三个令牌——高对比度只改令牌值，30 处 :focus-visible 选择器
+     一行都不用动。--focus-ring-inset 是「环画在控件内部」那几处（全宽输入框、
+     整行按钮）用的负偏移。
+     偏移必须与宽度成对加：高对比度下深蓝环压在高对比度档的纯黑主按钮上只有
+     2.21:1，2px 的底色间隙把环的两侧边界还回来。 */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 1px;
+  --focus-ring-inset: -2px;
+
   /* 字号：4 级 + 1 保留级。任何 font-size 必须与同级的 line-height 成对出现，
      不得依赖 body 上的全局 line-height。
      **字号与行高必须成对乘同一个 `--font-scale`**：只缩字号会让行盒装不下降部
@@ -312,4 +322,132 @@
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* 高对比度（浅色底）：把「氛围」全部换成「边界」。
+   表面塌成纯白，层级交给 --border / --border-strong 的发丝线与更深的边框；
+   文字提到纯黑，次要文字也过 7:1；所有 -soft 从半透明改成不透明的浅色——
+   高对比度要的是确定的边界，不是叠出来的氛围。
+   逐条对比度见 .trellis/workspace/liangyuxiang/design-round-u-high-contrast.md §3.3。 */
+[data-contrast="high"] {
+  color-scheme: light;
+
+  --bg: #ffffff;
+  --bg-subtle: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-inset: #eef1f5;
+  --bg-hover: #e7ecf2;
+  --bg-active: #d8e0ea;
+
+  --text: #000000;
+  --text-secondary: #1f2b3a;
+  --text-tertiary: #33414f;
+  --text-faint: #4a5866;
+
+  --border: #6b7280;
+  --border-strong: #3f4854;
+
+  --ink: #000000;
+  --on-ink: #ffffff;
+
+  --accent: #0b3f9c;
+  --accent-hover: #062c73;
+  --accent-soft: #d7e2fb;
+  --ring: #0b3f9c;
+
+  --success: #0a5a33;
+  --success-soft: #d5ecdf;
+  --warning: #7a4f00;
+  --warning-soft: #f7e6c4;
+  --danger: #a11208;
+  --danger-soft: #fbdbd8;
+
+  --cat-wait: #4b5563;
+  --cat-direct: #005b8f;
+  --cat-delegated: #a33d00;
+  --cat-compute: #00705a;
+  --cat-user: #9c2f6f;
+  --cat-workflow: #4b21a8;
+
+  --chart-1: #1c567f;
+  --chart-1-soft: #d2dde5;
+  --chart-2: #00606e;
+  --chart-2-soft: #ccdfe2;
+  --chart-3: #45631a;
+  --chart-3-soft: #d8decf;
+  --chart-4: #7a5200;
+  --chart-4-soft: #e3dbc9;
+  --chart-5: #5a3fa8;
+  --chart-5-soft: #ded9ee;
+  --chart-6: #932a56;
+  --chart-6-soft: #ead7df;
+
+  /* 焦点环：颜色来自上面的 --ring / --accent，这里只把「形」加粗并让环离开控件。 */
+  --focus-ring-width: 3px;
+  --focus-ring-offset: 2px;
+  --focus-ring-inset: -4px;
+}
+
+/* 高对比度（深色底）：页面塌成纯黑、文字提到纯白。
+   三档表面（subtle / elevated / inset）保留，因为终端输出、代码块与表格凹槽
+   都靠它们分层；但边框全部从不透明白升成实色灰——
+   「层级从背景台阶改为描边承担」这条在深色下尤其重要，纯黑叠纯黑是读不出来的。
+   --bg-elevated 取 #1a1a1a 是实算出来的上限：再亮一档，未覆盖的终端调色板
+   （--ansi-0 #7d8492）与代码注释（--code-comment #7f848e）就掉到 4.5 门槛之下。 */
+[data-theme="dark"][data-contrast="high"] {
+  color-scheme: dark;
+
+  --bg: #000000;
+  --bg-subtle: #121212;
+  --bg-elevated: #1a1a1a;
+  --bg-inset: #000000;
+  --bg-hover: #262626;
+  --bg-active: #343434;
+
+  --text: #ffffff;
+  --text-secondary: #dcdcdc;
+  --text-tertiary: #c4c4c4;
+  --text-faint: #a8a8a8;
+
+  --border: #767676;
+  --border-strong: #9e9e9e;
+
+  --ink: #ffffff;
+  --on-ink: #000000;
+
+  --accent: #8ab4ff;
+  --accent-hover: #b9d0ff;
+  --accent-soft: #16264a;
+  --ring: #8ab4ff;
+
+  --success: #6ee7a0;
+  --success-soft: #0d2a1b;
+  --warning: #ffc75e;
+  --warning-soft: #2e230a;
+  --danger: #ff9d94;
+  --danger-soft: #331412;
+
+  --cat-wait: #c0c0c0;
+  --cat-direct: #6cb6ff;
+  --cat-delegated: #ff9a4d;
+  --cat-compute: #3fd39a;
+  --cat-user: #ff9ecb;
+  --cat-workflow: #b795ff;
+
+  --chart-1: #7cb8f0;
+  --chart-1-soft: #394c5d;
+  --chart-2: #5fd0dd;
+  --chart-2-soft: #2e4f53;
+  --chart-3: #a3d97a;
+  --chart-3-soft: #3f4e34;
+  --chart-4: #ffd166;
+  --chart-4-soft: #54492d;
+  --chart-5: #c9a6f7;
+  --chart-5-soft: #50455f;
+  --chart-6: #ff9dc4;
+  --chart-6-soft: #5f414d;
+
+  --focus-ring-width: 3px;
+  --focus-ring-offset: 2px;
+  --focus-ring-inset: -4px;
 }

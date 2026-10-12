@@ -135,6 +135,18 @@ badge. Every screen, in both light and dark themes, is archived in
   line heights scale **together**, so tables, readout rows and chart labels
   grow while spacing, icons and the gauge keep their size — legibility, not a
   zoomed page. The chosen step survives a restart; pick 100% to go back.
+- **High-contrast mode** — settings → interface contrast offers *normal* and
+  *high contrast*. High contrast swaps **both palettes** (semantic colours and the
+  category/chart colours), and the values are computed, not eyeballed: body text
+  reaches at least 17.4:1, secondary text 7.29:1 and borders 3.83:1 against their
+  backgrounds (WCAG 2.1 relative luminance; thresholds 7 / 4.5 / 3). Focus rings
+  grow to 3px with a 2px offset — on a dark button the offset is what keeps the
+  ring readable from both sides. Only colours and focus rings move: font sizes,
+  spacing and control sizes stay put, because high contrast is not a zoom. With no
+  explicit choice the app follows the system's `prefers-contrast: more`; once you
+  pick a step, your choice wins and is remembered on this machine. Exported
+  documents (session report / usage snapshot) keep their own palettes in this
+  round, and Windows `forced-colors` is not handled yet.
 - **Log view with one row model** — user / LLM / tool / agent / workflow /
   wait rows plus a full-width **compact-boundary band row** (the compaction
   summary is folded into its expandable section, never counted as user

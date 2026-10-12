@@ -118,6 +118,7 @@ gui-test.sh —— 真机 GUI 冒烟测试
   -h, --help                           # 显示帮助
 
 默认视图清单：会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
+（切成高对比度后，余下每个视图都在 130% + 高对比度下重验）→
 日志视图 → 导出 → 关闭导出窗口 → 压缩夹具会话（/repo/compact-demo）→ 上下文 → 点选第 2 枚压缩
 事件 chip → 改动夹具会话（/repo/changed-demo）→ 改动 → 点选首个文件行 → 用量总览 → 视图=用量 →
 滚到底 → 点选工具普查榜首行 → 点选配额归因第一行 → 用量总览 → 视图=用量 → 滚到底 →
@@ -136,6 +137,9 @@ gui-test.sh —— 真机 GUI 冒烟测试
 因为 WebKit 的 localStorage 不受 HOME 隔离，不恢复会把这个偏好留给下一次运行与使用者。
 `设置=开` 也是动作目标，且是**幂等**的：设置浮层已经打开就什么都不做，没开才点顶栏那枚
 按钮（它是 toggle，面板开着再点一次会把它关掉——靠 `aria-expanded` 判当前状态）。
+`对比度=高` / `对比度=普通` 与 `字号=<档位>` 同一动作协议：先在设置浮层里把界面对比度
+切到该档，再取图与探针——默认清单在 130% 之后切一次高对比度，末尾切回普通（两枚旋钮
+各恢复各的）。
 `滚动=<选择器>`（如 `滚动=main`）、`视图=<用量页子视图名>`（如 `视图=用量`，重置 N1 的
 「用量|错误」分段状态——它记在不受 HOME 隔离的真实 WebKit localStorage 里，不重置时上次
 停在错误档的残留会让用量档的判定整段落空）与 `点选=<CSS 选择器>`（如 `点选=[data-probe='compact-event-2']`）
@@ -688,7 +692,10 @@ else
   # 配额归因一步（Round R / #151）插在工具普查之后：点第一行会话 → 之后
   # **必须**再点回「用量总览」并重置子视图，否则后面的 `滚动=main` 与三块面板
   # 可达性判定会跑在会话分析页上（点行会切标签页）。
-  CAPTURE_TARGETS=("会话分析" "字号=130%" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "点选=[data-tool-census-row='Bash']" "点选=[data-probe='attribution-row']" "用量总览" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "实时监控" "设置=开" "导出归档包…" "取消" "字号=100%")
+  # 高对比度（Round U / #73）跟在 `字号=130%` 之后：此后**每一个视图都在 130% +
+  # 高对比度下重验一遍**（几何不变量与颜色无关，但「切档之后界面仍成立」要真验），
+  # 末尾在字号恢复前先切回普通对比度——两枚旋钮各恢复各的，别互相盖。
+  CAPTURE_TARGETS=("会话分析" "字号=130%" "对比度=高" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "点选=[data-tool-census-row='Bash']" "点选=[data-probe='attribution-row']" "用量总览" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "实时监控" "设置=开" "导出归档包…" "取消" "对比度=普通" "字号=100%")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
@@ -959,6 +966,10 @@ BUNDLE_CANCEL_LABEL = "取消"
 ATTRIBUTION_CLICK_LABEL = "点选=[data-probe='attribution-row']"
 ATTRIBUTION_TOP = 5
 ATTRIBUTION_FOOTNOTE = "占比分母 = 本窗口总消耗（与表盘中心同一个数）。"
+# 高对比度档（Round U / #73）：`对比度=高` / `对比度=普通` 两个动作目标。
+# 事实来自根元素 `data-contrast`（普通档必须**没有**这个属性，不是留着 "normal"）。
+CONTRAST_HIGH_LABEL = "对比度=高"
+CONTRAST_NORMAL_LABEL = "对比度=普通"
 # 用量页下半屏的三块面板。「滚动=main」那一步（且上一步是用量总览）判定
 # 它们滚一次可达；「用量总览」那一步判定它们真的渲染了出来。
 USAGE_PANEL_TITLES = ["按项目分布", "按模型分布", "活跃时段（周 × 小时）"]
@@ -1323,6 +1334,25 @@ for arg in sys.argv[1:]:
             print(f"OK|{label}：界面字号已切到 {expected}（根元素 --font-scale={font_scale_raw}）")
         else:
             print(f"BAD|{label}：字号没切过去（根元素 --font-scale={font_scale_raw!r}，期望 {want!r}）")
+
+    # 高对比度档（Round U / #73）：动作目标必须真的把根元素属性切过去——高对比度
+    # 写 `data-contrast="high"`，切回普通必须把属性**删掉**（留着 "normal" 会让
+    # `[data-contrast]` 类选择器误命中，也会让「当前是不是高对比度」多出一种表示法）。
+    if label.startswith("对比度="):
+        contrast_raw = data.get("contrast")
+        expected = label.split("=", 1)[1].strip()
+        if expected == "高":
+            if contrast_raw == "high":
+                print(f"OK|{label}：界面对比度已切到高对比度（根元素 data-contrast={contrast_raw!r}）")
+            else:
+                print(f"BAD|{label}：高对比度没生效（根元素 data-contrast={contrast_raw!r}，期望 'high'）")
+        elif expected == "普通":
+            if contrast_raw in (None, ""):
+                print(f"OK|{label}：界面对比度已切回普通（根元素没有 data-contrast）")
+            else:
+                print(f"BAD|{label}：切回普通后根元素仍留着 data-contrast={contrast_raw!r}")
+        else:
+            print(f"NOTE|{label}：未知对比度档位「{expected}」，只记录事实（data-contrast={contrast_raw!r}）")
 
     # 上下文标签页（Round J）：曲线 SVG 存在且 viewBox 有界、压缩命中区数量与
     # 夹具的压缩次数一致、M>0 的会话上覆盖率 chip 真的在场。

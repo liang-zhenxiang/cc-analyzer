@@ -34,8 +34,8 @@
 }
 
 .input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-inset);
 }
 
 /* 过滤条在输入框**下方**：打开浮层第一件事是打字，输入框必须紧贴顶边；
@@ -76,8 +76,8 @@
 }
 
 .chip:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .status {

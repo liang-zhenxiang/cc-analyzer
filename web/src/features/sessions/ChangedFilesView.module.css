@@ -59,8 +59,8 @@
 }
 
 .scroller:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-inset);
 }
 
 /* 文件行 / 表头共用的列模板（§3.1）：记号 24px ｜ 路径 1fr ｜ 改动 4ch ｜
@@ -158,9 +158,9 @@
 }
 
 .row:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-  box-shadow: inset 2px 0 0 var(--accent);
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-inset);
+  box-shadow: inset var(--focus-ring-width) 0 0 var(--accent);
 }
 
 /* 展开中（选中）：底色 + 左缘竖条 + 路径 600 字重——三通道，灰度截图可辨
@@ -331,9 +331,9 @@
 }
 
 .recordRow:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-  box-shadow: inset 2px 0 0 var(--accent);
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-inset);
+  box-shadow: inset var(--focus-ring-width) 0 0 var(--accent);
 }
 
 /* 时间列（N1 教训 #4）：nowrap + min-width——写死 px 在 130% 下装不下 mono
