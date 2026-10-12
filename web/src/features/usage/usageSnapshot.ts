@@ -75,9 +75,16 @@ export type UsageSnapshotInput = {
  */
 export const SNAPSHOT_TITLE = "用量总览";
 
-/** 单句自述：不含的那几块来自 Issue #149 的原句，不得改写（设计规格 §1.3）。 */
+/**
+ * 单句自述：不含的那几块来自 Issue #149 的原句，不得改写（设计规格 §1.3）。
+ * Round V（Issue #187）补上「消耗日历」：日历上线后这句若不跟着改，「不含」
+ * 清单就成了漏报——读者会以为快照是整页仪表盘，而日历恰恰是页面新添的门面图。
+ * 快照导出日历本身（SVG 化 / 打印矩阵）留待后续棒；这里的修改只是文案诚实性。
+ * e2e 的 usage-snapshot.spec.ts 有一份逐字契约常量（SCOPE_NOTE），两处只能有
+ * 一个原文。
+ */
 export const SNAPSHOT_SCOPE_NOTE =
-  "本快照包含用量总览的读数与图表；不含工具与 skill 普查、压缩统计、错误档。";
+  "本快照包含用量总览的读数与图表；不含消耗日历、工具与 skill 普查、压缩统计、错误档。";
 
 /** 空态标题与正文（设计规格 §6.2）。`{days}` 由 `snapshotEmptyText` 填。 */
 export const SNAPSHOT_EMPTY_TITLE = "所选区间内没有会话记录";

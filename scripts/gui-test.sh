@@ -579,6 +579,21 @@ install_fixture "${FIXTURE_SRC}/changed-files-session.jsonl" "-repo-changed-demo
 # changed-files，其 Edit/Read/Write 与前两者重类不重名），榜单行数恒为
 # Top-6 + 折尾（8 类内置），榜首恒为 Bash（7 次并列时按名字稳定排序胜出）。
 install_fixture "${FIXTURE_SRC}/tool-census-session.jsonl" "-repo-census-demo" "tool-census-session"
+# 消耗日历（Round V / #187）：门禁要 `点选=[data-probe='calendar-today'] button`
+# 展开当天清单，而上面全部夹具统一平移到「最新活动日 = 昨天」——今天的格子
+# 恒无数据、点不开。这里**在内存里合成**一个「今天」的会话补上（时间戳相对
+# now 取值、不参与平移，同 e2e quotaAttributionScenario 的做法）：sonnet
+# 600K input。它不带 tool_use / 错误信号，工具普查与错误档的夹具账不动；
+# 归因面板的当前 5h 窗口会多一行（判据按「≥1 行 / 有余项时恰 5 行」对账，
+# 加一个会话只会让无余项变有余项，两分支都兼容）。
+NOW_S="$(date -u +%s)"
+CALENDAR_T0="$(date -u -r "$NOW_S" +%Y-%m-%dT%H:%M:%S.000Z)"
+CALENDAR_T1="$(date -u -r "$((NOW_S + 5))" +%Y-%m-%dT%H:%M:%S.000Z)"
+mkdir -p "${HOME_DIR}/.claude/projects/-repo-calendar-demo"
+cat >"${HOME_DIR}/.claude/projects/-repo-calendar-demo/calendar-today-0001.jsonl" <<JSONL
+{"type":"user","sessionId":"calendar-today-0001","cwd":"/repo/calendar","timestamp":"${CALENDAR_T0}","uuid":"cal-today-user-1","parentUuid":null,"isSidechain":false,"message":{"role":"user","content":"日历门禁的今天会话"}}
+{"type":"assistant","sessionId":"calendar-today-0001","timestamp":"${CALENDAR_T1}","uuid":"cal-today-llm-1","parentUuid":"cal-today-user-1","isSidechain":false,"message":{"id":"cal-today-msg-1","role":"assistant","model":"claude-sonnet-4","content":[{"type":"text","text":"日历门禁夹具"}],"usage":{"input_tokens":600000}}}
+JSONL
 # 归档夹具：源文件**不在**隔离家目录里（模拟 Claude Code 已清理），只有副本与索引。
 # 应用若真的把副本并回列表并解析，元数据缓存里会出现一条**键为副本路径**的条目——
 # 这是「归档 → 发现 → 解析 → 缓存」整条真机链路的直接证据。
@@ -605,7 +620,7 @@ cat >"${ARCHIVE_ROOT}/archive-index.json" <<JSON
 }
 JSON
 printf '  隔离家目录：%s\n' "$HOME_DIR"
-printf '  夹具会话：9 个（另有 1 个只剩归档副本的会话）\n'
+printf '  夹具会话：10 个（含 1 个内存合成的「今天」日历会话；另有 1 个只剩归档副本的会话）\n'
 
 CACHE_PATH="${HOME_DIR}/Library/Application Support/${BUNDLE_ID}/meta-cache-v2.json"
 
@@ -695,7 +710,13 @@ else
   # 高对比度（Round U / #73）跟在 `字号=130%` 之后：此后**每一个视图都在 130% +
   # 高对比度下重验一遍**（几何不变量与颜色无关，但「切档之后界面仍成立」要真验），
   # 末尾在字号恢复前先切回普通对比度——两枚旋钮各恢复各的，别互相盖。
-  CAPTURE_TARGETS=("会话分析" "字号=130%" "对比度=高" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "点选=[data-tool-census-row='Bash']" "点选=[data-probe='attribution-row']" "用量总览" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "实时监控" "设置=开" "导出归档包…" "取消" "对比度=普通" "字号=100%")
+  # 消耗日历两步（Round V / #187）插在「滚动=main」之后：滚到底让日历面板
+  # 渲染完成，`点选=[data-probe='calendar-today'] button` 展开「当天会话 Top
+  # 清单」（展开态截图 + 几何事实落在这一步），紧接一步同名点选收起——避免
+  # 污染后续步骤的截图（同「对比度=普通」清理动作的先例逻辑）。选择器写
+  # `td button` 后代形式：今天标记挂在 td、data-probe="calendar-day" 挂按钮，
+  # 点击要落在按钮上才触发 React 的 onClick（同 data-changes-file 的先例）。
+  CAPTURE_TARGETS=("会话分析" "字号=130%" "对比度=高" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "点选=[data-probe='calendar-today'] button" "点选=[data-probe='calendar-today'] button" "点选=[data-tool-census-row='Bash']" "点选=[data-probe='attribution-row']" "用量总览" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "实时监控" "设置=开" "导出归档包…" "取消" "对比度=普通" "字号=100%")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
@@ -834,10 +855,10 @@ PY
   COUNT="$(printf '%s\n' "$CACHE_REPORT" | grep '^COUNT ' | awk '{print $2}')"
   OUTSIDE="$(printf '%s\n' "$CACHE_REPORT" | grep '^OUTSIDE ' | awk '{print $2}')"
 
-  if [[ "${COUNT:-}" == "10" ]]; then
-    ok "缓存条目数 = 10（9 个夹具 + 1 个归档副本）"
+  if [[ "${COUNT:-}" == "11" ]]; then
+    ok "缓存条目数 = 11（10 个夹具 + 1 个归档副本；含消耗日历的「今天」合成会话）"
   else
-    bad "缓存条目数 = ${COUNT:-解析失败}，期望 10"
+    bad "缓存条目数 = ${COUNT:-解析失败}，期望 11"
     printf '  %s  %s%s\n' "$C_YELLOW" "$CACHE_REPORT" "$C_RESET"
   fi
 
@@ -999,6 +1020,14 @@ CENSUS_PANEL_TITLE = "工具与 skill"
 CENSUS_RANK_LABEL = "内置工具调用排行"
 CENSUS_RANK_ROWS = 7
 CENSUS_TOP_ROW = "Bash"
+# 消耗日历（Round V / #187）。365 是全链条的几何锚（53 列恒等式：365 天格 +
+# 6 pad）；门禁清单里两次同名点选分别判「展开态在场且高度有界」与「收起态
+# 离场」——滚动收在容器内部（overflowX=auto）由 calendarFacts.container 出证，
+# 文档 / main 无横向溢出由上方通用判定自动覆盖。
+CALENDAR_PANEL_TITLE = "消耗日历（近 12 个月）"
+CALENDAR_DAY_COUNT = 365
+CALENDAR_CLICK_LABEL = "点选=[data-probe='calendar-today'] button"
+CALENDAR_SESSIONS_MAX_HEIGHT = 400
 coverage = os.environ.get("COVERAGE") == "1"
 seen_gauge = 0
 seen_table = 0
@@ -1009,6 +1038,8 @@ seen_census = 0
 seen_context = 0
 seen_error = 0
 seen_changes = 0
+seen_calendar = 0
+calendar_clicks = 0
 
 # 「滚动=main」的判定要知道滚的是哪个页面：清单是有序的，靠上一步的 label
 # 把动作与页面挂上钩（默认清单里它紧跟「用量总���」）。自定义清单把它用在
@@ -1256,6 +1287,31 @@ for arg in sys.argv[1:]:
         else:
             seen_usage_panels += 1
             print(f"OK|{label}：三块用量面板都在文档里（标题齐全）")
+        # 消耗日历（Round V / #187）同档在场：面板标题 + 365 天格 + 今天格唯一 +
+        # 滚动容器是 overflow-x:auto（滚动收在日历内部，文档 / main 的无溢出
+        # 判定已由上方通用段覆盖）。
+        calendar = data.get("calendar") or {}
+        cal_problems = []
+        if CALENDAR_PANEL_TITLE not in titles:
+            cal_problems.append("面板标题不在文档里")
+        if calendar.get("view") is not True:
+            cal_problems.append("探针锚点缺失（data-usage-calendar）")
+        else:
+            if calendar.get("dayCount") != CALENDAR_DAY_COUNT:
+                cal_problems.append(
+                    f"天格 {calendar.get('dayCount')!r} 个，期望 {CALENDAR_DAY_COUNT}（53 列恒等式）"
+                )
+            if calendar.get("todayCount") != 1:
+                cal_problems.append(f"今天格 {calendar.get('todayCount')!r} 个，期望恰 1")
+            container = calendar.get("container") or {}
+            if container.get("overflowX") != "auto":
+                cal_problems.append(f"滚动容器 overflowX={container.get('overflowX')!r}，期望 auto")
+        if cal_problems:
+            for problem in cal_problems:
+                print(f"BAD|{label}：消耗日历——{problem}")
+        else:
+            seen_calendar += 1
+            print(f"OK|{label}：消耗日历在场（{CALENDAR_DAY_COUNT} 天格，今天格唯一，滚动收在容器内）")
         # 工具与 skill 面板（N3）同档在场：面板标题 + 体首行双读数（夹具保证
         # 窗内必有工具调用，全空态在这里就是失败——面板没接上聚合）。
         census = data.get("toolCensus") or {}
@@ -1531,6 +1587,46 @@ for arg in sys.argv[1:]:
             seen_changes += 1
             print(f"OK|{label}：展开区可达（{records['rows']} 条记录，高 {records['height']}px），账目含展开高度")
 
+    # 消耗日历点选（Round V / #187）：两次同名点选按计数分流——第 1 次判展开态
+    # （清单在场、行数 ≥ 1、展开区高度有界，防长清单把后续面板顶出可滚范围），
+    # 第 2 次判收起态（清单离场，后续步骤的截图不被展开区污染）。日历的滚动
+    # 容器几何与「文档 / main 无横向溢出」由「视图=用量」与通用判定覆盖。
+    if label == CALENDAR_CLICK_LABEL:
+        calendar_clicks += 1
+        calendar = data.get("calendar") or {}
+        sessions = calendar.get("sessions")
+        if calendar.get("view") is not True:
+            print(f"BAD|{label}：用量档状态丢了（data-usage-calendar 不见了）")
+        elif calendar_clicks == 1:
+            problems = []
+            if not isinstance(sessions, dict):
+                problems.append("展开区没有渲染（data-calendar-sessions）——今天格点击没生效")
+            else:
+                rect = sessions.get("rect") or {}
+                height = rect.get("height")
+                rows = sessions.get("rows")
+                if not isinstance(rows, int) or rows < 1:
+                    problems.append(f"展开区行数 {rows!r}，期望 ≥ 1（今天格有夹具会话）")
+                if not isinstance(height, (int, float)) or height <= 0:
+                    problems.append("展开区高度缺失")
+                elif height >= CALENDAR_SESSIONS_MAX_HEIGHT:
+                    problems.append(f"展开区高度失界（{height:.0f}px ≥ {CALENDAR_SESSIONS_MAX_HEIGHT}px）")
+            if problems:
+                for problem in problems:
+                    print(f"BAD|{label}（展开）：{problem}")
+            else:
+                seen_calendar += 1
+                print(
+                    f"OK|{label}（展开）：当天会话清单在场"
+                    f"（{sessions['rows']} 行，高 {sessions['rect']['height']:.0f}px < {CALENDAR_SESSIONS_MAX_HEIGHT}px）"
+                )
+        else:
+            if isinstance(sessions, dict):
+                print(f"BAD|{label}（收起）：展开区仍在场——第二次点击没有收起它")
+            else:
+                seen_calendar += 1
+                print(f"OK|{label}（收起）：展开区已离场，后续截图不被污染")
+
     # 工具普查点选（Round N / N3）：点榜单首行（data-tool-census-row，值 = 行
     # label）后下钻区要在场——过滤态锚点的值就是被点的行名（「点击没落地」与
     # 「落地了但列表没渲染」靠它分辨），会话行是真列表（行高 × 行数对 <ul>
@@ -1572,7 +1668,7 @@ for arg in sys.argv[1:]:
     # （改动视图、工具普查与配额归因各有自己的「点选=」步骤——改动档由
     #   prev_label 分流（见上面改动档），工具普查由选择器里的 tool-census 分流，
     #   配额归因由 ATTRIBUTION_CLICK_LABEL 分流（见各自段落）。）
-    if label.startswith("点选=") and "tool-census" not in label and prev_label != CHANGES_TAB_LABEL and label != ATTRIBUTION_CLICK_LABEL:
+    if label.startswith("点选=") and "tool-census" not in label and prev_label != CHANGES_TAB_LABEL and label != ATTRIBUTION_CLICK_LABEL and label != CALENDAR_CLICK_LABEL:
         ctx = data.get("context") or {}
         viewport = data.get("viewport") or {}
         card = ctx.get("forensicCard")
@@ -1827,6 +1923,8 @@ if coverage and seen_error == 0:
     print("BAD|视图覆盖：没有任何视图产出错误档几何——「错误」分段没被覆盖")
 if coverage and seen_changes == 0:
     print("BAD|视图覆盖：没有任何视图产出改动档几何——「改动」标签页没被覆盖")
+if coverage and seen_calendar == 0:
+    print("BAD|视图覆盖：没有任何视图产出消耗日历几何——日历面板没被覆盖")
 PY
 )" || PROBE_STATUS=$?
 

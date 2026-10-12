@@ -122,6 +122,12 @@ badge. Every screen, in both light and dark themes, is archived in
   provenance badge (read from the log / estimated), the estimated cost is
   priced per model against an offline pricing snapshot (date shown), and
   everything is aggregated locally — nothing is uploaded.
+- **Usage calendar** — a GitHub-contribution-graph grid over a rolling
+  12 months: cell shade = the day's estimated cost quartile (level 0 = no
+  spend), hovering shows cost / tokens / sessions / project, and clicking a
+  day expands that day's top sessions — click a row to open the session. The
+  window is a fixed rolling 365 days and does not follow the range selector;
+  on narrow windows the grid scrolls inside its own container.
 - **Session explorer** — sessions grouped by timeline (today / yesterday /
   this week / this month / earlier) and by project, with incrementally
   scanned titles and relative times.

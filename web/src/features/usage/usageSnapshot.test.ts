@@ -468,7 +468,7 @@ test("口径脚注写明数字未经重算，并逐字说明包含与不含", ()
   const document = parse(html);
   const note = document.querySelector(".coverage")?.textContent ?? "";
   expect(note).toContain("本快照包含");
-  expect(note).toContain("不含工具与 skill 普查、压缩统计、错误档");
+  expect(note).toContain("不含消耗日历、工具与 skill 普查、压缩统计、错误档");
   expect(note).toContain("未重算");
   expect(document.querySelector(".foot")?.textContent).toContain(REPO_URL.split("//")[1]);
 });

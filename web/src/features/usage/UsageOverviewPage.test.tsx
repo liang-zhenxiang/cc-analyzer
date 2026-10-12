@@ -153,7 +153,9 @@ describe("UsageOverviewPage", () => {
     const kpiRow = dashboard.querySelector("div[class*='kpiRow']");
     expect(kpiRow).not.toBeNull();
     expect(await within(kpiRow as HTMLElement).findAllByText("读自日志")).toHaveLength(3);
-    expect(within(dashboard).getByText("按定价快照估算")).toBeInTheDocument();
+    // 「按定价快照估算」的徽章至少一枚（KPI 的估算成本）；消耗日历的色深
+    // 口径也是估算（Round V），面板 actions 上会再多一枚——这里只锁「在场」。
+    expect((await within(dashboard).findAllByText("按定价快照估算")).length).toBeGreaterThanOrEqual(1);
     // 免责说明收在 KPI 卡底部的跨列脚注里，日期仍是看得见的正文。
     expect(within(dashboard).getByText(/定价快照（\d{4}-\d{2}-\d{2}）/)).toBeInTheDocument();
     expect(within(dashboard).getByText(/不是账单/)).toBeInTheDocument();

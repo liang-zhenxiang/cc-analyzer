@@ -677,7 +677,10 @@ mod gui_probe {
       values: valueRects
     });
   }
-  var table = document.querySelector('table');
+  /* 锚点是 data-probe="record-table"：裸 'table' 依赖「同屏唯一 table」的旧假设，
+     消耗日历（Round V）给用量页带来第二个 table 后它会被误捕（日历无 thead，
+     lastColumnRight 为 null → 门禁误报「末列被裁切」）。 */
+  var table = document.querySelector('table[data-probe="record-table"]');
   if (table) {
     var container = table.parentElement;
     var headers = table.querySelectorAll('thead th');
@@ -1027,6 +1030,31 @@ mod gui_probe {
     };
   }
   facts.attribution = attributionFacts;
+
+  /* 消耗日历（Round V / #187）：网格几何与展开区的原始事实。锚点是组件自带
+     的 data-usage-calendar / data-probe / data-calendar-sessions 稳定属性
+     （同 data-tool-census 先例，不碰 CSS Module 哈希类名）；不在用量档时
+     view 为 null，判定在脚本。容器滚动几何（overflowX / scrollWidth vs
+     clientWidth）走 boxOf——「滚动收在日历容器内部、文档与 main 不溢出」
+     的事实来源。 */
+  var calendarFacts = { view: null, dayCount: null, todayCount: null, container: null, sessions: null };
+  var calendarEl = document.querySelector('[data-usage-calendar]');
+  if (calendarEl) {
+    calendarFacts.view = true;
+    /* 365 是全链条的几何锚（53 列恒等式）：pad 不挂 probe，今天标记挂 td
+       不挤占这个计数。 */
+    calendarFacts.dayCount = calendarEl.querySelectorAll('[data-probe="calendar-day"]').length;
+    calendarFacts.todayCount = document.querySelectorAll('[data-probe="calendar-today"]').length;
+    calendarFacts.container = boxOf(calendarEl);
+    var calendarSessionsEl = document.querySelector('[data-calendar-sessions]');
+    if (calendarSessionsEl) {
+      calendarFacts.sessions = {
+        rect: rectOf(calendarSessionsEl),
+        rows: calendarSessionsEl.querySelectorAll('li').length
+      };
+    }
+  }
+  facts.calendar = calendarFacts;
 
   /* 会话分析页当前会话的标题：点归因行之后要拿它跟点击前那一行的标题比对，
      证「点行真的打开了那个会话」，而不是「页面没崩」。锚点是会话头的
@@ -1791,6 +1819,28 @@ mod gui_probe {
             assert!(PROBE_JS.contains("[data-probe=\"usage-snapshot-export\"]"));
             assert!(PROBE_JS.contains("facts.snapshot_export"));
             assert!(PROBE_JS.contains("disabled: snapshotEl.disabled === true"));
+        }
+
+        #[test]
+        fn the_probe_targets_the_main_log_table_by_anchor_not_by_tag() {
+            // 「记录表末列可达」检查的采集锚点（Round V / #187 期间修正）：此前是
+            // 裸 querySelector('table')，依赖「文档第一个 table 恰是主日志表」的
+            // 旧假设——消耗日历给用量页带来 table 后在用量页被误捕（日历无
+            // thead → lastColumnRight 为 null → 误报「末列被裁切」）。锚点收紧到
+            // LogView 主表的 data-probe，侧栏 / 浮层小表与日历都不再进这条检查。
+            assert!(PROBE_JS.contains("table[data-probe=\"record-table\"]"));
+        }
+
+        #[test]
+        fn the_probe_reports_the_usage_calendar_facts() {
+            // 消耗日历（Round V / #187）的锚点：滚动容器（data-usage-calendar，
+            // overflowX / 滚动几何走 boxOf）、365 天格计数（data-probe，pad 不挂）、
+            // 今天格唯一性（挂在 td 上）、展开区（data-calendar-sessions）。
+            assert!(PROBE_JS.contains("[data-usage-calendar]"));
+            assert!(PROBE_JS.contains("calendar-day"));
+            assert!(PROBE_JS.contains("calendar-today"));
+            assert!(PROBE_JS.contains("facts.calendar = calendarFacts"));
+            assert!(PROBE_JS.contains("data-calendar-sessions"));
         }
 
         #[test]
