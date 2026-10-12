@@ -103,11 +103,19 @@ badge. Every screen, in both light and dark themes, is archived in
   The document also says plainly what it does **not** contain (tool & skill census,
   compaction stats, error view) so a colleague does not take it for the whole dashboard.
   Nothing is uploaded and there is no share link — you carry the file yourself.
-- **Global search (⌘K / Ctrl+K)** — message-level search across every project
-  and session, results grouped by project → session with the matching snippet
-  and a relative time. Enter jumps into the session, opens the record and
-  expands its detail panel, so a hit is always reachable, not merely listed.
-  The index is built in the background and lives in memory only.
+- **Global search (⌘K / Ctrl+K)** — search across every project and session covers
+  **four kinds of content**: your prompts and the assistant's replies, **tool output,
+  file paths and error text**. Every hit carries a source label (me / assistant / tool
+  output / file path / error) and you can filter by source — the most useful being
+  "file paths only" when you are hunting for a file — or type a `路径:` style prefix to
+  switch filters as you type. Terminal escape sequences are stripped before indexing, so
+  searching `[31m` no longer matches control bytes, and a single tool output is capped at
+  2000 indexed characters. Matching stays plain case-insensitive substring: the problem
+  being solved is "I cannot find it at all". Results are grouped by project → session
+  with the matching snippet and a relative time; Enter jumps into the session, opens the
+  record and expands its detail panel. The index is built in the background and lives in
+  memory only — never written to disk, never uploaded (path hits are shown as-is inside
+  the app precisely because search is not exported and not logged).
 - **Usage overview** — token consumption trends for the last 7 / 30 / 90 days,
   per-project and per-model distributions, and a 7×24 activity heatmap, all
   visible without scrolling on a 1440×900 screen. Every figure carries a

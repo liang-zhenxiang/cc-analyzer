@@ -38,6 +38,48 @@
   outline-offset: -2px;
 }
 
+/* 过滤条在输入框**下方**：打开浮层第一件事是打字，输入框必须紧贴顶边；
+   过滤是第二次动作，往下放一档不会打断打字流。横向滚动兜底 130% 字号——
+   折成两行会顶掉一屏结果。 */
+.filters {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--sp-15);
+  overflow-x: auto;
+  padding: var(--sp-1) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+}
+
+/* 多选 chips：与契约的 `ReadonlySet<SearchSource>` 一一对应，「不要看工具输出」
+   这种集合运算靠单选或分段控件都做不到。 */
+.chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: var(--control-h-sm);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chipActive {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .status {
   margin: 0;
   padding: var(--sp-1) var(--sp-3);
@@ -76,7 +118,8 @@
   display: flex;
   width: 100%;
   gap: var(--sp-2);
-  align-items: baseline;
+  /* 来源标签是固定高的盒子，baseline 对齐会让它浮起来。 */
+  align-items: center;
   justify-content: space-between;
   padding: var(--sp-1) var(--sp-2);
   border: 0;
@@ -95,9 +138,48 @@
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
+/* 来源标签：分类不是状态，所以「错误」不着 --danger，也不借 --cat-*。
+   五类一律有标签——只标新三类会让老命中看起来「没有来源」。 */
+.source {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: var(--control-h-sm);
+  padding: 0 var(--sp-1);
+  border-radius: var(--r-xs);
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+/* 唯一着强调色的一类：新来源里用户最想一眼扫到的「我改过哪个文件」。 */
+.sourceFilePath {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .snippet {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 路径命中：等宽 + 降一档字号（等宽字形本来就宽），单行省略。
+   明确不用 `direction: rtl` 的右截断——那会把开头的 `/` 重排到尾部，
+   产出 `/Users/me/a.ts` → `Users/me/a.ts/` 这种语义错误的路径。
+   左截断的兜底是整行的 `title`（完整片段）。 */
+.snippetPath {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
