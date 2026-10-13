@@ -6,7 +6,8 @@ import {
   toolCensusScenario,
   compactScenario,
   errorScenario,
-  changedFilesScenario
+  changedFilesScenario,
+  calendarScenario
 } from "./fixtures";
 import type { Page } from "@playwright/test";
 
@@ -361,6 +362,61 @@ test.describe("截图归档 · 改动", () => {
       await page.waitForTimeout(250);
       await settleImages(page);
       await page.screenshot({ path: path.join(OUT_DIR, `changed-files-${theme}${suffix}.png`) });
+    });
+  }
+});
+
+// 一日回望（Round V · 第二棒，#192）需要「今天真的有会话」的夹具：
+// calendarScenario() 给今天排了四个会话（跨午夜一条 + 09:20 / 13:05 / 18:40），
+// 展开今天格就得到日摘要 + 24h 时间线。
+// 同一份夹具也被 usage-calendar.spec.ts 用来打几何与交互断言——截图只是把同一
+// 形态归档，不另造数据。视图名 `usage-day` 与 check-screenshots.sh 的独立清单
+// 一一对应（两处必须同步，否则 lint 报「截图套缺视图」）。
+test.describe("截图归档 · 一日回望", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: calendarScenario() });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`一日回望 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+
+      await page.goto("/");
+      await page.getByRole("tab", { name: "用量总览" }).click();
+      // 等扫描收口成统计口径，避免截到「已分析 3 / 7」的中间帧。
+      await expect(page.getByText(/纳入统计/)).toBeVisible({ timeout: 15_000 });
+
+      await page.locator('[data-probe="calendar-today"] button').click();
+      await expect(page.locator('[data-probe="day-summary"]')).toBeVisible();
+      await expect(page.locator('[data-probe="day-timeline"]')).toBeVisible();
+
+      // 整个日历面板 + 展开区落在一屏内：把 main 滚到日历网格顶之上 8px。
+      // 用事实量（两个矩形之差），而不是猜一个 offsetTop——网格的 offsetParent
+      // 未必是 main。
+      await page.locator("main").evaluate((el) => {
+        const panel = el.querySelector("[data-usage-calendar]");
+        if (!panel) return;
+        const elRect = el.getBoundingClientRect();
+        const panelRect = panel.getBoundingClientRect();
+        el.scrollTop += panelRect.top - elRect.top - 8;
+      });
+      // 布局晚一拍才定高的话，这一拍之后再截，防的是过渡态。
+      await page.evaluate(
+        () =>
+          new Promise((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve(null)))
+          )
+      );
+      await page.waitForTimeout(150);
+
+      await settleImages(page);
+      await page.screenshot({ path: path.join(OUT_DIR, `usage-day-${theme}${suffix}.png`) });
     });
   }
 });

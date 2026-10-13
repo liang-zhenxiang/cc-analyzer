@@ -1031,6 +1031,10 @@ CALENDAR_PANEL_TITLE = "消耗日历（近 12 个月）"
 CALENDAR_DAY_COUNT = 365
 CALENDAR_CLICK_LABEL = "点选=[data-probe='calendar-today'] button"
 CALENDAR_SESSIONS_MAX_HEIGHT = 400
+# 「一日回望」（Round V2 / #192）：日摘要必须含六项标签逐字；时间线整块高度
+# 上界 = 轴（≤20.8，130% 字号）+ gap 4 + 行区内部上限 144 ≈ 169，取 180 留余量。
+DAY_SUMMARY_LABELS = ["当日消耗", "会话数", "消息数", "活跃跨度", "最常用模型", "涉及项目"]
+DAY_TIMELINE_MAX_HEIGHT = 180
 coverage = os.environ.get("COVERAGE") == "1"
 seen_gauge = 0
 seen_table = 0
@@ -1614,14 +1618,90 @@ for arg in sys.argv[1:]:
                     problems.append("展开区高度缺失")
                 elif height >= CALENDAR_SESSIONS_MAX_HEIGHT:
                     problems.append(f"展开区高度失界（{height:.0f}px ≥ {CALENDAR_SESSIONS_MAX_HEIGHT}px）")
+            # 「一日回望」（Round V2 / #192）：展开区里除了会话行，还要有日摘要行与
+            # 24h 时间线。契约（设计规格 §10.4）：① 摘要含六项标签逐字；② **时间线条数
+            # = 声明会话数 = 展开区行数**（夹具今天恰 1 个会话，三方都 = 1；谁折尾或谁在
+            # `data-session-count` 上撒谎都过不去）；③ 每条横条带会话键、可点名以
+            # 「打开会话：」开头（今天会话必有元数据 → 必然可点）；④ 时间线含于展开区、
+            # 每条含于时间线，且时间线高度有界（轴 + 行区上限）。
+            def rect_inside(outer, inner, tol=1.0):
+                keys = ("x", "y", "width", "height")
+                if not isinstance(outer, dict) or not isinstance(inner, dict):
+                    return False
+                if not all(isinstance(outer.get(k), (int, float)) for k in keys):
+                    return False
+                if not all(isinstance(inner.get(k), (int, float)) for k in keys):
+                    return False
+                return (
+                    inner["x"] >= outer["x"] - tol
+                    and inner["y"] >= outer["y"] - tol
+                    and inner["x"] + inner["width"] <= outer["x"] + outer["width"] + tol
+                    and inner["y"] + inner["height"] <= outer["y"] + outer["height"] + tol
+                )
+
+            review = calendar.get("dayReview")
+            if not isinstance(review, dict):
+                problems.append("「一日回望」没有渲染（探针里没有 dayReview）——摘要行与时间线都不在")
+            else:
+                summary = review.get("summary")
+                if not isinstance(summary, dict):
+                    problems.append("日摘要行没有渲染（data-probe='day-summary' 不在）")
+                else:
+                    summary_text = summary.get("text") or ""
+                    missing_labels = [name for name in DAY_SUMMARY_LABELS if name not in summary_text]
+                    if missing_labels:
+                        problems.append(
+                            "日摘要行缺标签：" + "，".join(missing_labels) + f"（text={summary_text!r}）"
+                        )
+                timeline = review.get("timeline")
+                if not isinstance(timeline, dict):
+                    problems.append("24h 时间线没有渲染（data-probe='day-timeline' 不在）")
+                else:
+                    timeline_rect = timeline.get("rect") or {}
+                    bars = timeline.get("bars")
+                    declared = timeline.get("declaredSessions")
+                    bar_list = review.get("bars") or []
+                    # 夹具今天**恰 1 个会话**（见本文件顶部合成的那份 JSONL）。
+                    if bars != 1:
+                        problems.append(f"时间线条数 {bars!r}，期望 1（夹具今天恰 1 个会话）")
+                    if declared is None:
+                        problems.append("时间线容器缺少 data-session-count 声明")
+                    elif declared != bars:
+                        problems.append(f"声明会话数 {declared} ≠ 实测条数 {bars}——声明与实车不一致")
+                    if isinstance(sessions, dict) and sessions.get("rows") != bars:
+                        problems.append(
+                            f"时间线条数 {bars} ≠ 展开区行数 {sessions.get('rows')}——时间线不完整或有行被折尾"
+                        )
+                    if len(bar_list) != bars:
+                        problems.append(f"横条明细 {len(bar_list)} 条 ≠ 时间线条数 {bars}")
+                    if not rect_inside(sessions.get("rect"), timeline_rect):
+                        problems.append("时间线跑出展开区（timeline.rect 不在 sessions.rect 内）")
+                    timeline_h = timeline_rect.get("height")
+                    if isinstance(timeline_h, (int, float)) and timeline_h > DAY_TIMELINE_MAX_HEIGHT:
+                        problems.append(
+                            f"时间线高度失界（{timeline_h:.0f}px > {DAY_TIMELINE_MAX_HEIGHT}px）"
+                        )
+                    for index, bar in enumerate(bar_list):
+                        if not bar.get("sessionPath"):
+                            problems.append(f"第 {index + 1} 条横条缺少 data-session-path（点不可点无从判定）")
+                        if not str(bar.get("label") or "").startswith("打开会话："):
+                            problems.append(
+                                f"第 {index + 1} 条横条可访问名不以「打开会话：」开头"
+                                f"（label={bar.get('label')!r}）"
+                            )
+                        if not rect_inside(timeline_rect, bar.get("rect")):
+                            problems.append(f"第 {index + 1} 条横条跑出时间线（bar.rect 不在 timeline.rect 内）")
             if problems:
                 for problem in problems:
                     print(f"BAD|{label}（展开）：{problem}")
             else:
                 seen_calendar += 1
+                review_bars = ((calendar.get("dayReview") or {}).get("timeline") or {}).get("bars")
                 print(
-                    f"OK|{label}（展开）：当天会话清单在场"
-                    f"（{sessions['rows']} 行，高 {sessions['rect']['height']:.0f}px < {CALENDAR_SESSIONS_MAX_HEIGHT}px）"
+                    f"OK|{label}（展开）：一日回望在场"
+                    f"（摘要含 {len(DAY_SUMMARY_LABELS)} 项标签；时间线 {review_bars} 条 = 展开区 "
+                    f"{sessions['rows']} 行 = 声明会话数，每条含于时间线且可点；"
+                    f"展开区高 {sessions['rect']['height']:.0f}px < {CALENDAR_SESSIONS_MAX_HEIGHT}px）"
                 )
         else:
             if isinstance(sessions, dict):

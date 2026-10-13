@@ -75,7 +75,7 @@ function usageTokens(usage: SessionUsage): number {
 }
 
 /** 记录是否属于日历口径（与 aggregateSession 的过滤逐字相同）。 */
-function countsAsMessage(record: SessionRecord): boolean {
+export function countsAsMessage(record: SessionRecord): boolean {
   return (record.kind === "user" || record.kind === "assistant") && record.compactSummary !== true;
 }
 
@@ -84,7 +84,7 @@ function countsAsMessage(record: SessionRecord): boolean {
  * `SessionMeta.path`（与「点击开会话」同一个键），无元数据按数组位置分行——
  * 它们是彼此独立的会话，不能因为缺元数据被合并，也不能因此漏账。
  */
-function sessionKeyOf(source: UsageSessionInput, index: number): string {
+export function sessionKeyOf(source: UsageSessionInput, index: number): string {
   return source.session ? `path:${source.session.path}` : `anonymous:${index}`;
 }
 
@@ -358,7 +358,11 @@ export function daySessionsOf(
   inputs.forEach((source, index) => {
     const session: SessionMeta | undefined = source.session;
     const key = sessionKeyOf(source, index);
-    let tally: SessionTally | undefined;
+    // 同键复用：同一会话出现在多份输入里时，后来的记录并入已有 tally。
+    // 旧写法在这里 `let tally` 恒为 undefined，每份输入各建一个新对象再
+    // `tallies.set(key, ...)`，第二份会连模型桶一起把第一份的账覆盖掉
+    // （真出现重复路径时日历展开区会静默少算 token）。
+    let tally: SessionTally | undefined = tallies.get(key);
 
     for (const record of source.records) {
       if (!countsAsMessage(record)) continue;

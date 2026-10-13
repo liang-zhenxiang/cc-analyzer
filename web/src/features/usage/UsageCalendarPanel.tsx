@@ -1,24 +1,46 @@
-import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Panel } from "../../components/Panel";
-import { formatProjectPath, formatTokenCount, formatUsd } from "../../lib/format";
+import {
+  formatClock,
+  formatDuration,
+  formatModelId,
+  formatProjectPath,
+  formatTokenCount,
+  formatUsd
+} from "../../lib/format";
 import type { SessionMeta } from "../sessions/metadataCache";
+import {
+  clockAt,
+  dayFractionOf,
+  dayReviewOf,
+  densityLevelOf,
+  type DayReview,
+  type DaySessionSpan,
+  type DaySummary
+} from "./dayReview";
 import { PRICING_AS_OF } from "./pricingSnapshot";
 import { ProvenanceBadge } from "./ProvenanceBadge";
+import type { Provenance } from "./provenance";
 import { WEEKDAY_LABELS } from "./charts/chartPrimitives";
 import { addLocalDays, dayStartOf, type UsageSessionInput } from "./usageAggregations";
-import {
-  buildUsageCalendar,
-  daySessionsOf,
-  type CalendarSessionRow
-} from "./usageCalendar";
+import { buildUsageCalendar } from "./usageCalendar";
 import styles from "./UsageCalendarPanel.module.css";
 
 /** 面板脚注：窗口正交（Issue 原话「固定滚动 12 个月，不随区间选择器变」）。 */
 const FOOTNOTE =
   "窗口固定滚动近 12 个月（365 天），不随上方区间选择器变化；色深 = 当日估算成本的四分位档，0 档 = 无消耗。";
 
-/** 展开区脚注：分母口径与「成本是估算」两条都写在明处（同归因面板的先例）。 */
-const SESSIONS_FOOTNOTE = "占比分母 = 当日 token 总量；成本为估算值。";
+/**
+ * 展开区脚注（Round V2 §4.3 逐字）：四条口径都写在明处——活跃跨度的定义、
+ * 占比分母、成本是估算、项目色的取色档位。快照日期只有 PRICING_AS_OF 一个来源。
+ */
+const DAY_FOOTNOTE = `活跃跨度 = 当天首条至末条记录的时刻，不是有活动的小时数；占比分母 = 当日 token 总量。成本为估算值（定价快照 ${PRICING_AS_OF}），token、会话数、消息数读自本机日志；项目色按当日 token 降序取前 5 名，其余项目并入「其他」。`;
+
+/** 轴刻度的小时（0/3/…/21）；第 9 个刻度是 `24:00`（一天的终点）。 */
+const AXIS_HOURS = [0, 3, 6, 9, 12, 15, 18, 21] as const;
+
+/** 摘要行的六项，顺序即契约（门禁数 items === 6，键写死）。 */
+type SummaryKey = "cost" | "sessions" | "messages" | "span" | "model" | "projects";
 
 /**
  * 格子的可访问名 / 悬停说明——一份格式函数两处用，不许分叉。日期永远带年
@@ -70,61 +92,162 @@ function formatShareText(row: { tokens: number; share: number }): string {
   return `${(row.share * 100).toFixed(1)}%`;
 }
 
+/** 项目展示名（未知项目兜底与行可访问名同一口径）。 */
+function projectNameOf(label: string, path?: string): string {
+  return formatProjectPath(label, path) || "未知项目";
+}
+
+/** 活跃跨度的中文话术（摘要 title 用）：`18 小时 15 分` / `45 分`。 */
+function spanWords(ms: number): string {
+  const minutes = Math.floor(Math.max(0, ms) / 60_000);
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return hours > 0 ? `${hours} 小时 ${rest} 分` : `${rest} 分`;
+}
+
+const pad2 = (value: number): string => String(value).padStart(2, "0");
+
+/** 活动块：一个「有记录的整点小时」在轨道上的落地几何。 */
+type HourBlock = { hour: number; left: number; width: number; level: 1 | 2 | 3; count: number };
+
 /**
- * 展开区的一个会话行：四件套复用归因面板的形态（标题 / 读数 / 占比条 / 占比），
- * 但读数列是「$X · N tok」双数——色深是成本口径，行给双数呼应。无元数据的行
- * 照列但不可点（同归因面板的 canOpen 逻辑）。
+ * 逐小时块 = 该 clock hour 与 [start, end] 的交集；无记录的整点小时不产块。
+ * 时间是几何，`left / width` 都是 0..1 的比例（分母 = 本地日长，DST 安全）。
+ * 一天 24 桶（clock hour），所以 DST 重复的那一小时天然合并成一块。
  */
-function CalendarSessionListRow({
-  row,
-  session,
-  onOpenSession
+function hourBlocksOf(row: DaySessionSpan, dayStart: number, dayEnd: number): HourBlock[] {
+  const blocks: HourBlock[] = [];
+  row.hourly.forEach((count, hour) => {
+    if (count <= 0) return;
+    const level = densityLevelOf(count);
+    if (level === 0) return;
+    const from = Math.max(clockAt(dayStart, hour), row.start);
+    const to = Math.max(Math.min(clockAt(dayStart, hour + 1), row.end), from);
+    const left = dayFractionOf(from, dayStart, dayEnd);
+    const right = dayFractionOf(to, dayStart, dayEnd);
+    blocks.push({ hour, left, width: right - left, level, count });
+  });
+  return blocks;
+}
+
+/** 日摘要的一格：第一行「标签 + 出处圆点」，第二行数值（双数格多一段副读数）。 */
+function SummaryItem({
+  itemKey,
+  label,
+  title,
+  provenance,
+  detail,
+  value,
+  sub,
+  mono
 }: {
-  row: CalendarSessionRow;
-  session: SessionMeta | undefined;
-  onOpenSession?: (session: SessionMeta) => void;
+  itemKey: SummaryKey;
+  label: string;
+  title: string;
+  provenance: Provenance;
+  detail?: string;
+  value: ReactNode;
+  sub?: ReactNode;
+  mono?: boolean;
 }) {
-  const canOpen = session !== undefined && onOpenSession !== undefined;
-  const project = formatProjectPath(row.projectLabel, row.projectPath);
-  const pctText = formatShareText(row);
-  const reading = `${formatUsd(row.costUsd)} · ${formatTokenCount(row.tokens)} tok${
-    row.hasUnknownCost ? " · 部分未知" : ""
-  }`;
-  const spoken = `${row.title}（项目：${project}）· 当日消耗 ${formatUsd(row.costUsd)} · ${formatTokenCount(
-    row.tokens
-  )} tok · 占当日 ${pctText}`;
-  const label = canOpen ? `打开会话：${spoken}` : `${spoken} · 当前不可打开`;
+  return (
+    <div
+      className={styles.summaryItem}
+      data-probe="day-summary-item"
+      data-summary-key={itemKey}
+      title={title}
+    >
+      <span className={styles.summaryLabel}>{label}</span>
+      <ProvenanceBadge provenance={provenance} {...(detail ? { detail } : {})} />
+      <span className={`${styles.summaryValue}${mono ? ` ${styles.summaryMono}` : ""}`}>
+        {value}
+        {sub ? <span className={styles.summarySub}>{sub}</span> : null}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * 日摘要（§4）：六项读数带，项数恒 6、键写死。双数格（当日消耗）取两侧里较
+ * 弱的那一侧作徽章——成本是估算、token 是读数，所以这一格挂 estimated，token
+ * 的 logged 由脚注兜住。
+ */
+function DaySummaryRow({ summary }: { summary: DaySummary }) {
+  const costText = formatUsd(summary.costUsd);
+  const tokenText = formatTokenCount(summary.tokens);
+  const hasSpan = summary.firstAt !== null && summary.lastAt !== null;
+  const spanValue = hasSpan
+    ? `${formatClock(summary.firstAt!)}–${formatClock(summary.lastAt!)}`
+    : "—";
+  const spanTitle = hasSpan
+    ? `活跃跨度：当天首条记录 ${formatClock(summary.firstAt!)}，末条 ${formatClock(
+        summary.lastAt!
+      )}，跨度 ${spanWords(summary.spanMs)}（不是有活动的小时数）`
+    : "当天没有可统计的记录";
+  const modelTitle = summary.topModel
+    ? `${summary.topModel.id} · ${formatTokenCount(summary.topModel.tokens)} tok`
+    : "当天没有可归因的模型用量";
 
   return (
-    <li className={styles.sessionItem}>
-      <button
-        type="button"
-        className={styles.sessionRow}
-        title={label}
-        aria-label={label}
-        disabled={!canOpen}
-        onClick={canOpen ? () => onOpenSession(session) : undefined}
-      >
-        <span className={styles.sessionRowTitle}>{row.title}</span>
-        <span className={styles.sessionReading}>{reading}</span>
-        <span className={styles.barTrack} aria-hidden="true">
-          {row.tokens > 0 ? (
-            <span className={styles.barFill} style={{ width: `${row.share * 100}%` }} />
-          ) : null}
-        </span>
-        <span className={styles.sessionPct}>{pctText}</span>
-      </button>
-    </li>
+    <div className={styles.daySummary} data-probe="day-summary">
+      <SummaryItem
+        itemKey="cost"
+        label="当日消耗"
+        title={`当日估算成本 ${costText}（定价快照 ${PRICING_AS_OF}）；token 合计 ${tokenText}，读自本机日志`}
+        provenance="estimated"
+        detail={`成本按定价快照 ${PRICING_AS_OF}`}
+        value={costText}
+        sub={` · ${tokenText} tok`}
+      />
+      <SummaryItem
+        itemKey="sessions"
+        label="会话数"
+        title="当天有记录的会话数"
+        provenance="logged"
+        value={summary.sessions.toLocaleString("en-US")}
+      />
+      <SummaryItem
+        itemKey="messages"
+        label="消息数"
+        title="当天 user / assistant 记录的条数（不含压缩摘要）"
+        provenance="logged"
+        value={summary.messages.toLocaleString("en-US")}
+      />
+      <SummaryItem
+        itemKey="span"
+        label="活跃跨度"
+        title={spanTitle}
+        provenance="logged"
+        value={spanValue}
+        mono
+      />
+      <SummaryItem
+        itemKey="model"
+        label="最常用模型"
+        title={modelTitle}
+        provenance="logged"
+        value={summary.topModel ? formatModelId(summary.topModel.id) : "—"}
+      />
+      <SummaryItem
+        itemKey="projects"
+        label="涉及项目"
+        title="当天涉及的项目数（按项目标签去重）"
+        provenance="logged"
+        value={summary.projects.toLocaleString("en-US")}
+      />
+    </div>
   );
 }
 
 /**
  * 消耗日历（Issue #187）：近 12 个月的 GitHub 式滚动 365 天网格。色深 = 当日
- * 估算成本四分位（数据层 `usageCalendar.ts`），点击行内展开当天会话 Top 清单，
- * 键盘可达（roving tabindex：整个网格一个 Tab stop，初始焦点 = 今天）。
+ * 估算成本四分位（数据层 `usageCalendar.ts`），点击行内展开**一日回望**
+ * （Round V2）：日摘要 + 24 小时时间线（一行一会话，形状与账目同处一行）。
+ * 键盘可达（roving tabindex：网格一个 Tab stop、时间线一个 Tab stop）。
  *
  * 聚合只依赖 `inputs`——7/30/90 区间选择器与它正交（脚注声明）。
  * `now` 由页面注入（日历不参与计费对账，与 `readouts.now` 各算各的）。
+ * 展开区的账全部来自 `dayReviewOf`（它自己不重算当天消耗，见 dayReview.ts）。
  */
 export function UsageCalendarPanel({
   inputs,
@@ -144,12 +267,18 @@ export function UsageCalendarPanel({
   const [selected, setSelected] = useState<number | null>(null);
   // roving tabindex 的逻辑焦点。初始 = 今天：用户最关心的位置，省一次导航。
   const [focusDay, setFocusDay] = useState<number>(todayStart);
+  // 时间线的 roving 焦点（`rows` 里的下标；展开新的一天时回到 0 = 起点最早那行）。
+  const [focusRow, setFocusRow] = useState<number>(0);
   const buttonByDay = useRef(new Map<number, HTMLButtonElement>());
+  const rowByIndex = useRef(new Map<number, HTMLButtonElement>());
 
-  const detail = useMemo(
-    () => (selected === null ? null : daySessionsOf(inputs, selected)),
+  const review: DayReview | null = useMemo(
+    () => (selected === null ? null : dayReviewOf(inputs, selected)),
     [inputs, selected]
   );
+  const rows = review?.rows ?? [];
+  /** 当天段的右端（本地日长，不是 86400000——DST 切换日 23 / 25 小时）。 */
+  const dayEnd = useMemo(() => (selected === null ? 0 : addLocalDays(selected, 1)), [selected]);
 
   // 行只带 path；点行要交回完整 SessionMeta（与归因 / 压缩 top3 同一条握手协议）。
   const sessionsByPath = useMemo(() => {
@@ -160,6 +289,16 @@ export function UsageCalendarPanel({
     }
     return map;
   }, [inputs]);
+
+  // 键盘在时间线里只走「可打开」的行（无元数据的行照列但 disabled，不能停）。
+  const openableIndexes = useMemo(
+    () =>
+      rows
+        .map((row, index) => (row.path !== "" && sessionsByPath.has(row.path) ? index : -1))
+        .filter((index) => index >= 0),
+    [rows, sessionsByPath]
+  );
+  const tabStop = openableIndexes.includes(focusRow) ? focusRow : (openableIndexes[0] ?? -1);
 
   // 键盘移动：目标是 pad 或越界则不动（不环绕）。所有窗口内天都有格子，
   // 只需按窗口边界判。物理焦点直接落到目标按钮（它已渲染，tabIndex 随后跟上），
@@ -213,7 +352,49 @@ export function UsageCalendarPanel({
     // 物理焦点已由浏览器落到按钮；这里同步逻辑焦点，Tab 离开网格后回来不跳。
     setFocusDay(dayStart);
     if (sessions === 0) return;
+    setFocusRow(0);
     setSelected((current) => (current === dayStart ? null : dayStart));
+  };
+
+  /** 时间线内的物理焦点移动（不环绕）。 */
+  const moveRowFocus = (target: number): void => {
+    setFocusRow(target);
+    const button = rowByIndex.current.get(target);
+    if (!button) return;
+    button.focus();
+    if (typeof button.scrollIntoView === "function") {
+      button.scrollIntoView({ block: "nearest" });
+    }
+  };
+
+  const onRowKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number): void => {
+    const position = openableIndexes.indexOf(index);
+    switch (event.key) {
+      case "ArrowDown":
+        if (position >= 0 && position < openableIndexes.length - 1) {
+          moveRowFocus(openableIndexes[position + 1]);
+        }
+        break;
+      case "ArrowUp":
+        if (position > 0) moveRowFocus(openableIndexes[position - 1]);
+        break;
+      case "Home":
+        if (openableIndexes.length > 0) moveRowFocus(openableIndexes[0]);
+        break;
+      case "End":
+        if (openableIndexes.length > 0) moveRowFocus(openableIndexes[openableIndexes.length - 1]);
+        break;
+      case "Escape": {
+        // 焦点现在能进展开区，就得有条路回到网格：Escape 收起并把焦点还给选中的天格。
+        const dayStart = selected;
+        setSelected(null);
+        if (dayStart !== null) buttonByDay.current.get(dayStart)?.focus();
+        break;
+      }
+      default:
+        return;
+    }
+    event.preventDefault();
   };
 
   return (
@@ -314,50 +495,187 @@ export function UsageCalendarPanel({
           ))}
           <span className={styles.legendText}>多</span>
         </div>
-        {detail ? (
+        {selected !== null && review !== null ? (
           <section
             className={styles.sessions}
-            aria-label={`${shortDateOf(selected!)}会话清单`}
+            aria-label={`${shortDateOf(selected)}会话清单`}
             data-calendar-sessions
           >
             <div className={styles.sessionsHead}>
-              <span className={styles.sessionsTitle}>{`${shortDateOf(
-                selected!
-              )}消耗 Top 会话 · 共 ${detail.sessions} 个`}</span>
+              <span className={styles.sessionsTitle}>{`${shortDateOf(selected)} · ${
+                review.summary.sessions
+              } 个会话`}</span>
               <button type="button" className={styles.clear} onClick={() => setSelected(null)}>
                 × 清除
               </button>
             </div>
-            <ol className={styles.sessionList} aria-label={`${shortDateOf(selected!)}消耗最多的会话`}>
-              {detail.rows.map((row, index) => (
-                <CalendarSessionListRow
-                  key={row.path === "" ? `anonymous:${index}` : row.path}
-                  row={row}
-                  session={row.path === "" ? undefined : sessionsByPath.get(row.path)}
-                  onOpenSession={onOpenSession}
-                />
-              ))}
-              {detail.remainder ? (
-                <li className={styles.sessionRest}>
-                  <span className={styles.sessionRowTitle}>
-                    {`其余 ${detail.remainder.sessions} 个会话`}
-                  </span>
-                  <span className={styles.sessionReading}>
-                    {`${formatTokenCount(detail.remainder.tokens)} tok`}
-                  </span>
-                  <span className={styles.barTrack} aria-hidden="true">
-                    {detail.remainder.tokens > 0 ? (
+            {review.summary.sessions === 0 ? (
+              // 防御态：正常路径不可达（色即消耗，0 档格子不可展开），但数据在
+              // 渐进扫描里被刷新掉时可能走到——只留一行实话。
+              <p className={styles.dayEmpty}>这一天没有会话记录</p>
+            ) : (
+              <>
+                <DaySummaryRow summary={review.summary} />
+                <div
+                  className={styles.dayTimeline}
+                  data-probe="day-timeline"
+                  data-session-count={review.summary.sessions}
+                >
+                  <div className={styles.dayAxis} aria-hidden="true">
+                    <span />
+                    <div className={styles.axisTrack}>
+                      {AXIS_HOURS.map((hour, index) => (
+                        <span
+                          key={hour}
+                          className={`${styles.axisTick}${index === 0 ? ` ${styles.axisTickStart}` : ""}`}
+                          data-probe="day-timeline-tick"
+                          style={{ left: `${dayFractionOf(clockAt(selected, hour), selected, dayEnd) * 100}%` }}
+                        >
+                          {formatClock(clockAt(selected, hour))}
+                        </span>
+                      ))}
                       <span
-                        className={styles.barRestFill}
-                        style={{ width: `${detail.remainder.share * 100}%` }}
-                      />
-                    ) : null}
-                  </span>
-                  <span className={styles.sessionPct}>{formatShareText(detail.remainder)}</span>
-                </li>
-              ) : null}
-            </ol>
-            <p className={styles.sessionsFootnote}>{SESSIONS_FOOTNOTE}</p>
+                        className={`${styles.axisTick} ${styles.axisTickEnd}`}
+                        data-probe="day-timeline-tick"
+                      >
+                        24:00
+                      </span>
+                    </div>
+                    <span />
+                    <span />
+                  </div>
+                  <ol
+                    className={styles.dayRows}
+                    data-probe="day-timeline-list"
+                    aria-label={`${shortDateOf(selected)}会话时间线`}
+                  >
+                    {rows.map((row, index) => {
+                      const session = sessionsByPath.get(row.path);
+                      const canOpen =
+                        row.path !== "" && session !== undefined && onOpenSession !== undefined;
+                      const color = review.colorOf.get(row.path) ?? 1;
+                      const project = projectNameOf(row.projectLabel, row.projectPath);
+                      const shareText = formatShareText(row);
+                      const spoken =
+                        `${row.title}（项目：${project}）· ${formatClock(row.start)}–${formatClock(
+                          row.end
+                        )} · 时长 ${formatDuration(row.durationMs)} · 当日消耗 ${formatUsd(
+                          row.costUsd
+                        )} · ${formatTokenCount(row.tokens)} tok · 占当日 ${shareText}` +
+                        (row.crossDay ? " · 跨天" : "");
+                      const label = canOpen ? `打开会话：${spoken}` : `${spoken} · 当前不可打开`;
+                      // 行按起点升序（数据层已排）；这里是纯几何，分母是本地日长。
+                      const left = dayFractionOf(row.start, selected, dayEnd) * 100;
+                      const width =
+                        (dayFractionOf(row.end, selected, dayEnd) -
+                          dayFractionOf(row.start, selected, dayEnd)) *
+                        100;
+                      return (
+                        <li key={row.path === "" ? `anonymous:${index}` : row.path}>
+                          <button
+                            type="button"
+                            ref={(element) => {
+                              if (element) {
+                                rowByIndex.current.set(index, element);
+                              } else {
+                                rowByIndex.current.delete(index);
+                              }
+                            }}
+                            className={styles.dayRow}
+                            data-probe="day-timeline-bar"
+                            data-session-path={row.path}
+                            {...(row.crossDay ? { "data-cross-day": "true" } : {})}
+                            title={label}
+                            aria-label={label}
+                            disabled={!canOpen}
+                            tabIndex={index === tabStop ? 0 : -1}
+                            onClick={
+                              canOpen
+                                ? () => {
+                                    setFocusRow(index);
+                                    onOpenSession(session);
+                                  }
+                                : undefined
+                            }
+                            onKeyDown={(event) => onRowKeyDown(event, index)}
+                          >
+                            <span className={styles.rowLabel}>
+                              <span
+                                className={styles.projectDot}
+                                data-probe="day-project-dot"
+                                data-project-index={color}
+                                aria-hidden="true"
+                                style={{ background: `var(--chart-${color})` }}
+                              />
+                              <span className={styles.rowTitle}>{row.title}</span>
+                              {row.crossDay ? (
+                                <span
+                                  className={styles.crossDay}
+                                  title="该会话在当天之外还有记录，这里只画落在当天的那一段"
+                                >
+                                  跨天
+                                </span>
+                              ) : null}
+                            </span>
+                            <span className={styles.track} aria-hidden="true">
+                              <span
+                                className={styles.rail}
+                                style={{
+                                  left: `${left}%`,
+                                  width: `${width}%`,
+                                  background: `var(--chart-${color})`
+                                }}
+                              />
+                              {hourBlocksOf(row, selected, dayEnd).map((block) => (
+                                <span
+                                  key={block.hour}
+                                  className={styles.block}
+                                  data-probe="day-timeline-density"
+                                  data-density-level={block.level}
+                                  title={`${pad2(block.hour)}:00–${pad2(block.hour + 1)}:00 · ${
+                                    block.count
+                                  } 条记录`}
+                                  style={{
+                                    left: `${block.left * 100}%`,
+                                    width: `${block.width * 100}%`,
+                                    background: `var(--chart-${color})`
+                                  }}
+                                />
+                              ))}
+                            </span>
+                            <span className={styles.rowTime}>{`${formatClock(
+                              row.start
+                            )}–${formatClock(row.end)}`}</span>
+                            <span className={styles.rowRead}>{`${formatUsd(
+                              row.costUsd
+                            )} · ${formatTokenCount(row.tokens)} tok · ${shareText}`}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </div>
+                {review.key.length > 0 ? (
+                  <ul className={styles.projectKey} data-probe="day-project-key">
+                    {review.key.map((entry) => (
+                      <li key={`${entry.color}:${entry.label}`} className={styles.projectKeyItem}>
+                        <span
+                          className={styles.projectDot}
+                          data-probe="day-project-dot"
+                          data-project-index={entry.color}
+                          aria-hidden="true"
+                          style={{ background: `var(--chart-${entry.color})` }}
+                        />
+                        {entry.folded > 0
+                          ? `其他 ${entry.folded} 个项目`
+                          : projectNameOf(entry.label, entry.path)}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                <p className={styles.sessionsFootnote}>{DAY_FOOTNOTE}</p>
+              </>
+            )}
           </section>
         ) : null}
         <p className={styles.footnote}>{FOOTNOTE}</p>
