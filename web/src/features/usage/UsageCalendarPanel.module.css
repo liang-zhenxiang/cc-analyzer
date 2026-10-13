@@ -167,6 +167,66 @@
   background: var(--cal-4);
 }
 
+/* 一年洞察（Round V3 / #199）：图例与展开区之间的脚注级句列表——主图的
+   「读后感」，不是第二张仪表盘。flex-wrap 折行消化高度（同 daySummary 的
+   取舍），不设 max-height、不内部滚动；句子是语义单元（white-space: nowrap
+   整句折行），最坏 3 行 ≈ 76px 仍在面板预算内。零新令牌：正文走
+   --text-secondary（比脚注的 --text-tertiary 高一档——洞察是内容，脚注是
+   口径），数字与日期提 --text + tabular-nums，可点日期走 --accent 的
+   「链接」语义位（hover 下划线）。 */
+.insights {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.insightItem {
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+.insightNum {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 日期按钮：可下钻（点击 = 格子点击的同一条 state）。真空白天的日期落回
+   .insightNum 纯文本——点了没有反馈的控件是坏交互。 */
+.insightDate {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.insightDate:hover {
+  text-decoration: underline;
+}
+
+.insightDate:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* 全 0 年的空态句：一句实话占位（V1「不整块消失」的同款立场），无日期无按钮。 */
+.insightEmpty {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
 /* 展开区（一日回望，Round V2）：头部 + 日摘要 + 24 小时时间线 + 项目色键 +
    脚注。复用归因面板的「卡里的仪器块」语言——内嵌底色 + 发丝边框，不再套
    一层卡片。

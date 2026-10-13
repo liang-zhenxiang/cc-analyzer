@@ -132,8 +132,13 @@ badge. Every screen, in both light and dark themes, is archived in
   that clock hour was, start–end plus duration, and the day's cost / tokens /
   share. Rows run in start order and clicking one opens that session; a session
   that crossed midnight is drawn as the part that falls inside the day and says
-  so. The window is a fixed rolling 365 days and does not follow the range
-  selector; on narrow windows the grid scrolls inside its own container.
+  so. Below the legend sits a **year in insights**: six factual sentences —
+  longest / current streak, priciest day, longest gap, active share, and this
+  month vs. the same days last month — all on the same scale as the cells
+  (days with unknown pricing never count as spend), with dates that drill into
+  the day-in-review. The window is a fixed rolling 365 days and does not follow
+  the range selector; on narrow windows the grid scrolls inside its own
+  container.
 - **Session explorer** — sessions grouped by timeline (today / yesterday /
   this week / this month / earlier) and by project, with incrementally
   scanned titles and relative times.

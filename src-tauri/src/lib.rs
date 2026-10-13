@@ -1037,7 +1037,7 @@ mod gui_probe {
      view 为 null，判定在脚本。容器滚动几何（overflowX / scrollWidth vs
      clientWidth）走 boxOf——「滚动收在日历容器内部、文档与 main 不溢出」
      的事实来源。 */
-  var calendarFacts = { view: null, dayCount: null, todayCount: null, container: null, sessions: null, dayReview: null };
+  var calendarFacts = { view: null, dayCount: null, todayCount: null, container: null, sessions: null, dayReview: null, insights: null };
   var calendarEl = document.querySelector('[data-usage-calendar]');
   if (calendarEl) {
     calendarFacts.view = true;
@@ -1093,6 +1093,23 @@ mod gui_probe {
             }
           : null,
         bars: barFacts
+      };
+    }
+    /* 「一年洞察」（Round V3 / #199）：图例之下的六句实事。只收集事实，判定在
+       脚本：容器在否、键序列（data-insight-key，Issue 契约顺序）与压平文本。
+       空 0 年的空态句不带键 → keys 为空数组、count 为 0，脚本按布景判定。 */
+    var insightsEl = document.querySelector('[data-probe="calendar-insights"]');
+    if (insightsEl) {
+      var insightKeyNodes = insightsEl.querySelectorAll('[data-insight-key]');
+      var insightKeys = [];
+      for (var ik = 0; ik < insightKeyNodes.length; ik++) {
+        insightKeys.push(insightKeyNodes[ik].getAttribute('data-insight-key') || '');
+      }
+      calendarFacts.insights = {
+        present: true,
+        count: insightKeyNodes.length,
+        keys: insightKeys,
+        text: (insightsEl.textContent || '').replace(/\s+/g, ' ').trim()
       };
     }
   }
@@ -1863,6 +1880,16 @@ mod gui_probe {
             assert!(PROBE_JS.contains("data-session-path"));
             assert!(PROBE_JS.contains("data-session-count"));
             assert!(PROBE_JS.contains("calendarFacts.dayReview"));
+        }
+
+        #[test]
+        fn the_probe_reports_the_calendar_insights_facts() {
+            // 「一年洞察」（Round V3 / #199）：六句实事的容器锚点（data-probe）
+            // 与键序列（data-insight-key）——门禁把键序与六个稳定词逐字对账
+            // （DAY_SUMMARY_LABELS 的同款做法）。
+            assert!(PROBE_JS.contains("[data-probe=\"calendar-insights\"]"));
+            assert!(PROBE_JS.contains("data-insight-key"));
+            assert!(PROBE_JS.contains("calendarFacts.insights"));
         }
 
         #[test]
