@@ -167,9 +167,36 @@
   background: var(--cal-4);
 }
 
-/* 展开区（点击格子后的当天会话 Top 清单）：复用归因面板的「卡里的仪器块」
-   语言——内嵌底色 + 发丝边框，不再套一层卡片。 */
+/* 展开区（一日回望，Round V2）：头部 + 日摘要 + 24 小时时间线 + 项目色键 +
+   脚注。复用归因面板的「卡里的仪器块」语言——内嵌底色 + 发丝边框，不再套
+   一层卡片。
+
+   形距豁免（同 .calendar）：摘要最小列宽、时间线四列预算、内容最小宽、轨道
+   高、基线/块的最小宽、块高三档、色点 10px、行区上限 144px 都是「形」，不进
+   --sp-* 间距档位，也不随 --font-scale 缩放——字号放大只让文本长高，轨道与块
+   尺寸稳定，「同样 8px 的块」才在每一天里表示同一件事。全部定义在这一处：
+   组件里没有第二份 200 / 240 / 104 / 216 / 14 / 4 / 8 / 12。 */
 .sessions {
+  --day-summary-min: 132px;
+  --day-col-label: 200px;
+  --day-col-track-min: 240px;
+  --day-col-time: 104px;
+  --day-col-read: 216px;
+  --day-content-min: 800px;
+  --day-track-h: 14px;
+  --day-rail-h: 1px;
+  --day-rail-min-w: 3px;
+  --day-block-min-w: 2px;
+  --day-block-h1: 4px;
+  --day-block-h2: 8px;
+  --day-block-h3: 12px;
+  --day-dot: 10px;
+  --day-rows-max: 144px;
+  /* 3 小时一根的竖线要贯穿整个行区：轨道只有 14px 高（居中于行），向外各撑
+     「行高减轨道高」的一半，相邻两行的线就接上了。 */
+  --day-grid-bleed: calc(
+    (var(--row-pad-y-tight) * 2 + var(--lh-xs) - var(--day-track-h)) / 2
+  );
   display: grid;
   min-width: 0;
   gap: var(--sp-1);
@@ -216,31 +243,135 @@
   outline-offset: var(--focus-ring-offset);
 }
 
-.sessionList {
+/* 当天无会话（防御态，正常不可达）：只有一行实话，不造空轴、不造 0 行。 */
+.dayEmpty {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 日摘要：展开区内的一条读数带（不是卡中卡）。auto-fit 自动折行而不是横向
+   滚动——高度预算靠折行消化，横向滚动留给时间线一块。 */
+.daySummary {
   display: grid;
   min-width: 0;
-  gap: 0;
+  grid-template-columns: repeat(auto-fit, minmax(var(--day-summary-min), 1fr));
+  gap: var(--sp-2) var(--sp-3);
+}
+
+.summaryItem {
+  display: grid;
+  min-width: 0;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0 var(--sp-1);
+}
+
+.summaryLabel {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 数值独占第二行（跨两列）：瓦片里先看到数字，再看标签与出处。 */
+.summaryValue {
+  min-width: 0;
+  grid-column: 1 / -1;
+  color: var(--text);
+  font-size: var(--fs-md);
+  line-height: var(--lh-md);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 双数格的第二段（` · 1.3M tok`）：降一档，与主数同行基线对齐。 */
+.summarySub {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.summaryMono {
+  font-family: var(--font-mono);
+}
+
+/* 时间线：轴 + 行区共用一个横向滚动容器（内容最小宽 800px）。窄窗口下横向
+   滚动收在这里，文档与 main 的 scrollWidth ≤ clientWidth 判定不被破坏。 */
+.dayTimeline {
+  display: grid;
+  min-width: 0;
+  gap: var(--sp-1);
+  overflow-x: auto;
+}
+
+/* 轴与行共用同一套列预算：刻度才对得上行的轨道。 */
+.dayAxis {
+  display: grid;
+  min-width: var(--day-content-min);
+  grid-template-columns:
+    var(--day-col-label) minmax(var(--day-col-track-min), 1fr)
+    var(--day-col-time) var(--day-col-read);
+  gap: var(--sp-2);
+  padding: 0 var(--sp-1);
+}
+
+.axisTrack {
+  position: relative;
+  height: var(--lh-xs);
+}
+
+.axisTick {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+/* 首尾两个刻度贴边对齐：任何视口都不越界（`24:00` 是「一天的终点」，不是
+   新一天的开始）。 */
+.axisTickStart {
+  transform: none;
+}
+
+.axisTickEnd {
+  right: 0;
+  transform: none;
+}
+
+/* 行区：>6 个会话时内部竖滚（不折尾、不虚拟化）。 */
+.dayRows {
+  display: grid;
+  min-width: var(--day-content-min);
+  max-height: var(--day-rows-max);
   margin: 0;
   padding: 0;
+  overflow-y: auto;
   list-style: none;
 }
 
-.sessionItem {
-  min-width: 0;
+/* 行间发丝线用内阴影画，不占布局高度。 */
+.dayRows li + li {
+  box-shadow: inset 0 1px 0 var(--border);
 }
 
-/* 会话行与余项行共用同一条基线网格（抄 BillingWindowCard 的归因行）：
-   标题 / 读数 / 占比条 / 占比。56px 是占比条轨道宽，属「形」不参与
-   --sp-* 档位（同归因面板的先例注释）。 */
-.sessionRow,
-.sessionRest {
+.dayRow {
   display: grid;
   width: 100%;
   min-width: 0;
   height: calc(var(--row-pad-y-tight) * 2 + var(--lh-xs));
   align-items: center;
+  grid-template-columns:
+    var(--day-col-label) minmax(var(--day-col-track-min), 1fr)
+    var(--day-col-time) var(--day-col-read);
   gap: var(--sp-2);
-  grid-template-columns: minmax(0, 1fr) auto 56px 56px;
   padding: 0 var(--sp-1);
   border: 0;
   border-radius: var(--r-xs);
@@ -249,39 +380,51 @@
   font-size: var(--fs-xs);
   line-height: var(--lh-xs);
   text-align: left;
-}
-
-.sessionRow {
   cursor: pointer;
   /* 面板底是 --bg-inset，浅色主题下 --bg-hover 与它同色（悬停看不见），
      所以这里的悬停台阶用 --bg-active（同归因行的注释）。 */
   transition: background-color var(--dur-hover) var(--ease-out);
 }
 
-.sessionRow:not(:disabled):hover {
+.dayRow:hover:not(:disabled) {
   background: var(--bg-active);
 }
 
-.sessionRow:not(:disabled):hover .sessionRowTitle {
+.dayRow:hover:not(:disabled) .rowTitle {
   color: var(--text);
 }
 
-.sessionRow:not(:disabled):focus-visible {
+/* 整行按钮用负偏移：行是全宽控件，正偏移的环会被行区的 overflow 裁掉。 */
+.dayRow:focus-visible {
   outline: var(--focus-ring-width) solid var(--accent);
-  outline-offset: var(--focus-ring-offset);
+  outline-offset: var(--focus-ring-inset);
 }
 
-/* 无元数据的行照列但不可点：不出现悬停底、不出现焦点环、不进 Tab 顺序。 */
-.sessionRow:disabled {
+/* 无元数据的行照列但不可点：不出现悬停底与焦点环，不进 Tab 顺序。 */
+.dayRow:disabled {
   cursor: default;
-  opacity: 1;
 }
 
-.sessionRow:disabled:hover {
+.dayRow:disabled:hover {
   background: transparent;
 }
 
-.sessionRowTitle {
+.rowLabel {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.projectDot {
+  width: var(--day-dot);
+  height: var(--day-dot);
+  flex: 0 0 auto;
+  border-radius: var(--r-xs);
+}
+
+/* 标题省略号收窄，跨天标记永不被压掉。 */
+.rowTitle {
   min-width: 0;
   overflow: hidden;
   color: var(--text-secondary);
@@ -289,9 +432,63 @@
   white-space: nowrap;
 }
 
-/* 行读数是「$X · N tok」双数：色深是成本口径，行给双数呼应（归因面板的
-   单 token 读数是窗口口径，两处不同是有意的）。 */
-.sessionReading {
+.crossDay {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+}
+
+/* 轨道：一条会话的当天段。竖线是 3 小时一根的时间网格（只画在轨道列，
+   标签列没有线），用向外撑开的伪元素贯穿整个行区。 */
+.track {
+  position: relative;
+  align-self: center;
+  height: var(--day-track-h);
+  min-width: 0;
+}
+
+.track::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--day-grid-bleed) * -1);
+  bottom: calc(var(--day-grid-bleed) * -1);
+  background-image: linear-gradient(to right, var(--border) 0 1px, transparent 1px);
+  background-size: calc(100% / 8) 100%;
+}
+
+/* 基线：1px 实色，贴在轨道下缘，宽 = 当天段。零跨度会话靠 min-width 兜成
+   一个 3px 刻痕（「形」，不随 --font-scale 变）。 */
+.rail {
+  position: absolute;
+  bottom: 0;
+  min-width: var(--day-rail-min-w);
+  height: var(--day-rail-h);
+}
+
+/* 活动块：每个有记录的整点小时一块，底边贴在基线上，**高**编码密度（4 / 8 /
+   12px）——密度是几何而不是颜色，四块主题共用一个值、不需要 opacity 台阶。
+   没有记录的整点小时不画块，基线上的空缺就是「间歇」。 */
+.block {
+  position: absolute;
+  bottom: var(--day-rail-h);
+  min-width: var(--day-block-min-w);
+  border-radius: var(--r-xs) var(--r-xs) 0 0;
+}
+
+.block[data-density-level="1"] {
+  height: var(--day-block-h1);
+}
+
+.block[data-density-level="2"] {
+  height: var(--day-block-h2);
+}
+
+.block[data-density-level="3"] {
+  height: var(--day-block-h3);
+}
+
+.rowTime {
   color: var(--text-secondary);
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
@@ -299,48 +496,35 @@
   white-space: nowrap;
 }
 
-.sessionPct {
+/* 行读数是「$X · N tok · 占比」三合一：成本口径与占比分母都在脚注写着。 */
+.rowRead {
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
 }
 
-/* 余项行不是会话：顶部 1px 分隔线用内阴影画，不占布局高度。 */
-.sessionRest {
-  box-shadow: inset 0 1px 0 var(--border);
-  color: var(--text-tertiary);
+/* 项目色键：只在 ≥2 个项目时渲染（单项目日不给唯一的项目一个随机色——
+   此时颜色不承载任何信息）。色点几何沿用模型图例的 .swatch。 */
+.projectKey {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+  margin: 0;
+  padding: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  list-style: none;
 }
 
-.sessionRest .sessionReading,
-.sessionRest .sessionPct {
-  color: var(--text-tertiary);
-}
-
-/* 占比条复刻归因面板那一档：56 × 6 轨道 + 实色填充；非零最小 2px。 */
-.barTrack {
-  width: 56px;
-  height: var(--sp-15);
-  overflow: hidden;
-  border-radius: var(--r-xs);
-  background: var(--border-strong);
-}
-
-.barFill {
-  display: block;
-  height: 100%;
-  min-width: var(--sp-05);
-  border-radius: var(--r-xs);
-  background: var(--chart-1);
-}
-
-/* 余项是合并值，不是单个会话：同一条轨道降一档颜色。 */
-.barRestFill {
-  display: block;
-  height: 100%;
-  min-width: var(--sp-05);
-  border-radius: var(--r-xs);
-  background: var(--chart-1-soft);
+.projectKeyItem {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-1);
 }
 
 .sessionsFootnote,

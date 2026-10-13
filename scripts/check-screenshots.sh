@@ -83,6 +83,8 @@ EXPECTED_VIEWS = [
     # Round N / N2：改动标签页——展开首文件后的完整形态（行、徽标、
     # 展开区记录清单与口径脚注）。
     "changed-files",
+    # Round V / V2：一日回望——日历下钻展开区的当天摘要 + 24h 时间线。
+    "usage-day",
 ]
 THEMES = ["light", "dark"]
 ENGINES = ["chromium", "webkit"]

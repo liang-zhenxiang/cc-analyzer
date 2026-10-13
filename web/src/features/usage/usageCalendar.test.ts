@@ -440,6 +440,30 @@ describe("daySessionsOf", () => {
     expect(rows[0].title).toBe("-repo-anon");
   });
 
+  it("同键复数输入并入一行：token 是两段之和，不是后者覆盖前者", () => {
+    // 同一个 session.path 出现在两份输入里（当前数据流按路径唯一，这里是
+    // 硬化隐患：同键必须合并成一行，与配额归因的口径一致）。
+    const shared = meta("/sessions/dup.jsonl", { customTitle: "重复会话" });
+    const inputs = [
+      input([record(at(day, 9), 100_000)], "-repo-dup", shared),
+      input([record(at(day, 14), 200_000)], "-repo-dup", shared)
+    ];
+
+    const result = daySessionsOf(inputs, day);
+    expect(result.sessions).toBe(1);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].path).toBe("/sessions/dup.jsonl");
+    expect(result.rows[0].tokens).toBe(300_000);
+    expect(result.rows[0].share).toBe(1);
+    expect(result.dayTokens).toBe(300_000);
+    expect(result.remainder).toBeNull();
+
+    // 副作用就是这条：展开区的当日总量必须与同一个格子的 tokens 对得上。
+    const cell = cellOf(buildUsageCalendar(inputs, NOW), day);
+    expect(cell.sessions).toBe(1);
+    expect(result.dayTokens).toBe(cell.tokens);
+  });
+
   it("并列时按标题、再按路径稳定排序", () => {
     const sessions = [
       input([record(at(day), 500)], "-repo-b", meta("/sessions/beta.jsonl", { customTitle: "beta" })),

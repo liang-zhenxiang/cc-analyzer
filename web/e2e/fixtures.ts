@@ -472,70 +472,89 @@ export function staleActivityScenario(overrides: Partial<MockScenario> = {}): Mo
 }
 
 /**
- * 「消耗日历」场景（Issue #187）：**内存合成**（照 `quotaAttributionScenario`
- * 的做法），时间戳相对 `Date.now()`，断言不随运行日期漂移。
+ * 「消耗日历」场景（Issue #187）+「一日回望」场景（Issue #192）：**内存合成**
+ * （照 `quotaAttributionScenario` 的做法），时间戳按**本地日历日的固定时刻**
+ * 锚定，断言不随运行日期 / 清晨深夜漂移。
  *
  * 只用自造会话（`emptyScenario` 打底）：日历的窗口是滚动 365 天，默认场景
  * 那几个写死日期的夹具平移后会零散落进窗口，档位分布就不确定了。
  *
- * 布景（sonnet，$3/MTok input）：now−300 / −200 / −100 / −30 / −8 天各一个
- * 会话、token 阶梯 200K / 400K / 600K / 1M / 2M（成本 $0.6 / $1.2 / $1.8 /
- * $3 / $6）；now−1 天 4 个会话合计 4M（$12，全窗最大 → level 4）；今天
- * 3 个会话合计 1M（$3）。非零成本 7 天的分布（Type 7）给出
- * q1=$1.5 / q2=$3 / q3=$4.5，于是昨天恰落 4 档、今天恰落 3 档、
- * now−100（$1.8）落 2 档——档位断言因此是确定值。
+ * 成本布景（sonnet，$3/MTok input）决定四分位档位：now−300 / −200 / −100 /
+ * −30 / −8 天各一个会话、token 阶梯 200K / 400K / 600K / 1M / 2M（成本 $0.6 /
+ * $1.2 / $1.8 / $3 / $6）；now−1 天 4 个会话合计 4M（$12，全窗最大 → 4 档）；
+ * today 4 个会话合计 1.15M（$3.45）。非零成本 7 天的 Type 7 分布给出
+ * q1=$1.5 / q2=$3 / q3=$4.725 → 昨天恰 4 档、今天恰 3 档、now−100（$1.8）2 档、
+ * now−15（无活动）0 档——档位断言因此是确定值。
+ *
+ * 「一日回望」布景（#192）：
+ *  - today 4 个会话，起点升序 = 跨午夜（00:25–01:10，150K）+ 09:20（600K）+
+ *    13:05（300K）+ 18:40（100K）；日摘要 6 项与时间线 4 条由此确定
+ *    （今日 token 合计 1,150,000 → 09:20 那条占 52.2%）。
+ *  - 跨午夜会话（序号 13）：昨天 23:40 一条 user（定标题、无 usage）→ 今天段
+ *    00:25 / 00:52 / 01:10 三条（hourly[0]=2、hourly[1]=1），crossDay=true。
+ *  - now−2 密集日（序号 14–21）：1 个 09:00–17:00 每小时 1 条的长会话 + 1 个
+ *    13:30–13:45 + 6 个短会话 = 8 个会话（>6 → 时间线行区内部竖滚）。
+ *  - now−3 稀疏日（序号 22–23）：08:10–08:30 / 14:05–14:50，只有两个整点有块。
+ *
+ *  密集 / 稀疏日**刻意不带 usage**：它们只服务「时间线几何 / 逐小时块 / 竖滚」，
+ *  写进 token 会多出两个非零成本日、把上面的四分位搅动（今天会从 3 档跳到
+ *  4 档）。0 成本但有记录的日子照样能点开——展开看的是**会话数**（`onCellClick`
+ *  只拦 `sessions === 0`），不是成本档位。
  */
 export function calendarScenario(overrides: Partial<MockScenario> = {}): MockScenario {
-  const now = Date.now();
   const dayMs = 24 * 3_600_000;
   // 锚定本地日历日：偏移天 + 当天时刻从今天 00:00 起算——「now − 24h − 3h」
   // 这种相对写法在清晨 / 深夜运行时会落到错误的日历日，档位断言就漂了。
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
-  const dayAt = (offsetDays: number, hour: number) =>
-    todayStart.getTime() - offsetDays * dayMs + hour * 3_600_000;
-  // 今天的会话要落在「今天的 00:00 之后、几乎不越到未来」的区间里：
-  // 取两者较大者（凌晨运行时宁可晚一分钟，也不落到昨天）。
-  const todaySafe = Math.max(todayStart.getTime() + 60_000, now - 60_000);
+  const dayAt = (offsetDays: number, hour: number, minute = 0) =>
+    todayStart.getTime() - offsetDays * dayMs + hour * 3_600_000 + minute * 60_000;
   const files: Record<string, string> = {};
 
-  /** 一个会话两条记录：user 定标题，assistant 带 usage（input 单类即可定档）。 */
-  const seed = (startedAt: number, ordinal: number, tokens: number) => {
+  /**
+   * 一份会话文件：`cwd` / `sessionId` 都由会话序号派生（全局唯一）。`kind`
+   * 决定行类型；只有带 `tokens` 的 assistant 记录写 usage（input 单类即可定档）。
+   * 会话标题 = 首条 user 记录的文本（`metadataScanner` 的口径）。
+   */
+  type SeedRecord = { kind: "user" | "assistant"; at: number; text?: string; tokens?: number };
+  const writeSession = (ordinal: number, records: SeedRecord[]) => {
     const cwd = `/repo/calendar-${ordinal}`;
     const sessionId = `3d2a5442-9c65-4b28-9c30-bb3d1a1f${String(ordinal).padStart(4, "0")}`;
-    const repliedAt = new Date(startedAt + 90_000);
-    const lines = [
-      JSON.stringify({
-        type: "user",
+    const lines = records.map((record, index) => {
+      const uuid = `cal-${ordinal}-${index}`;
+      const message =
+        record.kind === "user"
+          ? { role: "user", content: record.text ?? `消耗日历夹具会话 ${ordinal}` }
+          : {
+              id: `cal-msg-${ordinal}-${index}`,
+              role: "assistant",
+              model: "claude-sonnet-4",
+              content: [{ type: "text", text: record.text ?? `第 ${ordinal} 个会话的回答` }],
+              ...(record.tokens ? { usage: { input_tokens: record.tokens } } : {})
+            };
+      return JSON.stringify({
+        type: record.kind,
         sessionId,
         cwd,
-        timestamp: new Date(startedAt).toISOString(),
-        uuid: `cal-${ordinal}-user`,
-        parentUuid: null,
+        timestamp: new Date(record.at).toISOString(),
+        uuid,
+        parentUuid: index === 0 ? null : `cal-${ordinal}-${index - 1}`,
         isSidechain: false,
-        message: { role: "user", content: `消耗日历夹具会话 ${ordinal}` }
-      }),
-      JSON.stringify({
-        type: "assistant",
-        sessionId,
-        timestamp: repliedAt.toISOString(),
-        uuid: `cal-${ordinal}-assistant`,
-        parentUuid: `cal-${ordinal}-user`,
-        isSidechain: false,
-        message: {
-          id: `cal-msg-${ordinal}`,
-          role: "assistant",
-          model: "claude-sonnet-4",
-          content: [{ type: "text", text: `第 ${ordinal} 个会话的回答` }],
-          usage: { input_tokens: tokens }
-        }
-      })
-    ];
+        message
+      });
+    });
     files[`${HOME}/.claude/projects/${projectDir(cwd)}/${sessionId}.jsonl`] =
       `${lines.join("\n")}\n`;
   };
 
-  // 各天的会话布景；序号全局唯一（sessionId / uuid 不能撞）。
+  /** 两记录骨架：user 定标题，assistant 90s 后带 usage（历史各天的定档会话用）。 */
+  const seed = (startedAt: number, ordinal: number, tokens: number) =>
+    writeSession(ordinal, [
+      { kind: "user", at: startedAt },
+      { kind: "assistant", at: startedAt + 90_000, tokens }
+    ]);
+
+  // 定档会话（序号 1–12）：序号即项目名（`/repo/calendar-N`）。
   seed(dayAt(300, 10), 1, 200_000);
   seed(dayAt(200, 10), 2, 400_000);
   seed(dayAt(100, 10), 3, 600_000);
@@ -545,10 +564,48 @@ export function calendarScenario(overrides: Partial<MockScenario> = {}): MockSce
   seed(dayAt(1, 11), 7, 1_000_000);
   seed(dayAt(1, 12), 8, 1_000_000);
   seed(dayAt(1, 13), 9, 1_000_000);
-  // 今天的三个会话各错开 1 秒（落在同一天的区间里，不给凌晨边界留缝隙）。
-  seed(todaySafe, 10, 600_000);
-  seed(todaySafe + 1_000, 11, 300_000);
-  seed(todaySafe + 2_000, 12, 100_000);
+  // 今天三个会话：本地日历日的固定时刻 09:20 / 13:05 / 18:40（token 不变）。
+  seed(dayAt(0, 9, 20), 10, 600_000);
+  seed(dayAt(0, 13, 5), 11, 300_000);
+  seed(dayAt(0, 18, 40), 12, 100_000);
+
+  // 跨午夜会话（序号 13）：昨天 23:40 一条 user 定标题、无 usage；今天 00:25 /
+  // 00:52 / 01:10 三条。今天段 = 00:25–01:10（150K），crossDay = true。
+  writeSession(13, [
+    { kind: "user", at: dayAt(1, 23, 40), text: "跨午夜夹具会话 13" },
+    { kind: "assistant", at: dayAt(0, 0, 25), tokens: 90_000 },
+    { kind: "user", at: dayAt(0, 0, 52), text: "继续" },
+    { kind: "assistant", at: dayAt(0, 1, 10), tokens: 60_000 }
+  ]);
+
+  // now−2 密集日（序号 14–21）：1 个 09:00–17:00 每小时 1 条的长会话 + 1 个
+  // 13:30–13:45 + 6 个短会话 —— 共 8 个会话（>6 → 时间线行区内部竖滚）。
+  const longHourly: SeedRecord[] = [];
+  for (let hour = 9; hour <= 17; hour += 1) {
+    longHourly.push({ kind: hour === 9 ? "user" : "assistant", at: dayAt(2, hour, 0) });
+  }
+  writeSession(14, longHourly);
+  writeSession(15, [
+    { kind: "user", at: dayAt(2, 13, 30), text: "密集日会话 15" },
+    { kind: "assistant", at: dayAt(2, 13, 45) }
+  ]);
+  [10, 11, 12, 14, 15, 16].forEach((hour, index) => {
+    const ordinal = 16 + index;
+    writeSession(ordinal, [
+      { kind: "user", at: dayAt(2, hour, 15), text: `密集日短会话 ${ordinal}` },
+      { kind: "assistant", at: dayAt(2, hour, 35) }
+    ]);
+  });
+
+  // now−3 稀疏日（序号 22–23）：08:xx 与 14:xx 两个有活动的小时，各一个会话。
+  writeSession(22, [
+    { kind: "user", at: dayAt(3, 8, 10), text: "稀疏日会话 22" },
+    { kind: "assistant", at: dayAt(3, 8, 30) }
+  ]);
+  writeSession(23, [
+    { kind: "user", at: dayAt(3, 14, 5), text: "稀疏日会话 23" },
+    { kind: "assistant", at: dayAt(3, 14, 50) }
+  ]);
 
   const base = emptyScenario();
   return { ...base, files, ...overrides };

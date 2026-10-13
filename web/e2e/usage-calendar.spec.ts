@@ -4,12 +4,16 @@ import { test, expect, calendarScenario } from "./fixtures";
 /**
  * Issue #187「消耗日历」的端到端覆盖，跑在生产构建产物上（Chromium + WebKit）。
  *
- * 数据来自 `calendarScenario()`（见 fixtures.ts）：内存合成、时间戳相对
- * `Date.now()` 按本地日历日锚定，所以「哪天是几档、今天有几个会话」是确定值。
+ * 数据来自 `calendarScenario()`（见 fixtures.ts）：内存合成、时间戳按本地日历日
+ * 的固定时刻锚定，所以「哪天是几档、今天有几个会话」是确定值。
  *
  * 主线：365 天格 + 53 列几何；档位着色真算（计算样式 vs 令牌解析值，不是文本
- * 匹配）；点击今天格展开当天会话 Top 清单、行点击真的打开会话；滚动收在日历
- * 容器内部（960 视口下文档 / main 不横向溢出）；130% 字号与高对比度两档换挡。
+ * 匹配）；滚动收在日历容器内部（800 视口下文档 / main 不横向溢出）；130% 字号
+ * 与高对比度两档换挡。
+ *
+ * 下钻展开区（Issue #192「一日回望」：日摘要 + 24h 时间线的结构、几何、交互与
+ * 换挡）在 `day-review.spec.ts`——V1 的「Top 清单」形态已被融合时间线取代，
+ * 那条用例随形态一起搬了过去。
  */
 
 const USAGE_TAB = "用量总览";
@@ -110,37 +114,21 @@ test.describe("消耗日历", () => {
     await expect(legend.locator("[data-legend-level]")).toHaveCount(5);
   });
 
-  test("点击今天格展开当天 Top 会话，行点击真的打开那个会话", async ({ page }) => {
+  test("点今天格展开 / 再点收起：aria-expanded 两个方向都被跟踪", async ({ page }) => {
+    // 展开区的**形态**断言（摘要六项、时间线条数、几何、点击开会话）在
+    // day-review.spec.ts；这里只保留 V1 就有的「格子 → 展开区」开合闭环，
+    // 它验证的是 aria-expanded 的状态机，与展开区长什么样无关。
     await openUsage(page);
 
     const todayCell = page.locator('[data-probe="calendar-today"] button');
     await expect(todayCell).toHaveAttribute("aria-expanded", "false");
     await todayCell.click();
+    await expect(todayCell).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator("[data-calendar-sessions]")).toBeVisible();
 
-    const detail = page.locator("[data-calendar-sessions]");
-    await expect(detail).toBeVisible();
-    // 夹具今天 3 个会话（600K / 300K / 100K）。行按列表自身的可访问名圈定
-    // （今天日期拼进名字——归因面板的列表也叫「消耗最多的会话」，模糊匹配会撞），
-    // 「× 清除」是头部按钮、不数进行。
-    await expect(detail.getByText(/消耗 Top 会话 · 共 3 个/)).toBeVisible();
-    const now = new Date();
-    const rows = page
-      .getByRole("list", { name: `${now.getMonth() + 1}月${now.getDate()}日消耗最多的会话` })
-      .getByRole("button");
-    await expect(rows).toHaveCount(3);
-    // 行读数是「$X · N tok」双数：600,000 tok × $3/MTok = $1.80。
-    await expect(rows.first()).toContainText("$1.80 · 600,000 tok");
-
-    // 行点击 → 会话分析，当前会话与行标题逐字一致。
-    await rows.first().click();
-    await expect(page.getByRole("tab", { name: "会话分析", exact: true })).toHaveAttribute(
-      "aria-selected",
-      "true"
-    );
-    await expect(page.getByLabel("会话信息").locator("strong")).toHaveText("消耗日历夹具会话 10");
-    await expect(page.getByLabel("会话图状态")).toContainText("会话图已加载", {
-      timeout: 15_000
-    });
+    await todayCell.click();
+    await expect(todayCell).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator("[data-calendar-sessions]")).toHaveCount(0);
   });
 
   test("滚动收在日历容器内：窄视口下容器横向滚、文档与 main 都不溢出", async ({ page }) => {

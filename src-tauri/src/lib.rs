@@ -1037,7 +1037,7 @@ mod gui_probe {
      view 为 null，判定在脚本。容器滚动几何（overflowX / scrollWidth vs
      clientWidth）走 boxOf——「滚动收在日历容器内部、文档与 main 不溢出」
      的事实来源。 */
-  var calendarFacts = { view: null, dayCount: null, todayCount: null, container: null, sessions: null };
+  var calendarFacts = { view: null, dayCount: null, todayCount: null, container: null, sessions: null, dayReview: null };
   var calendarEl = document.querySelector('[data-usage-calendar]');
   if (calendarEl) {
     calendarFacts.view = true;
@@ -1048,9 +1048,51 @@ mod gui_probe {
     calendarFacts.container = boxOf(calendarEl);
     var calendarSessionsEl = document.querySelector('[data-calendar-sessions]');
     if (calendarSessionsEl) {
+      /* 「展开区行数」= 时间线里的会话行。V2 起展开区还含项目色键，色键也是
+         `<li>` 列表——直接数 section 下的 `li` 会把色键项算成会话。收窄到时间线
+         列表（`day-timeline-list`），门禁才拿得到真正的「会话行数」；时间线不在
+         （防御态）时退回整段，取的是 0。 */
+      var calendarDayRowsEl = calendarSessionsEl.querySelector('[data-probe="day-timeline-list"]');
+      var calendarRowsEl = calendarDayRowsEl || calendarSessionsEl;
       calendarFacts.sessions = {
         rect: rectOf(calendarSessionsEl),
-        rows: calendarSessionsEl.querySelectorAll('li').length
+        rows: calendarRowsEl.querySelectorAll('li').length
+      };
+    }
+    /* 「一日回望」（Round V2 / #192）：展开区里的日摘要行与 24h 时间线。只收集
+       事实，判定在脚本：
+       - 摘要行在不在、有没有读数（textContent）；
+       - 时间线 rect 与每条横条的 rect + 会话键（点击 / 归属判定要用）；
+       - 组件声明的会话数（容器上的 `data-session-count`）——门禁把它与**实测
+         条数**对账，声明与实车不一致就红（谁在「声明」上撒谎都过不去）。 */
+    var daySummaryEl = document.querySelector('[data-probe="day-summary"]');
+    var timelineEl = document.querySelector('[data-probe="day-timeline"]');
+    if (daySummaryEl || timelineEl) {
+      var barNodes = document.querySelectorAll('[data-probe="day-timeline-bar"]');
+      var barFacts = [];
+      for (var b = 0; b < barNodes.length; b++) {
+        barFacts.push({
+          rect: rectOf(barNodes[b]),
+          sessionPath: barNodes[b].getAttribute('data-session-path') || '',
+          label: barNodes[b].getAttribute('aria-label') || ''
+        });
+      }
+      var declared = timelineEl ? Number(timelineEl.getAttribute('data-session-count')) : NaN;
+      calendarFacts.dayReview = {
+        summary: daySummaryEl
+          ? {
+              rect: rectOf(daySummaryEl),
+              text: (daySummaryEl.textContent || '').replace(/\s+/g, ' ').trim()
+            }
+          : null,
+        timeline: timelineEl
+          ? {
+              rect: rectOf(timelineEl),
+              bars: barFacts.length,
+              declaredSessions: isNaN(declared) ? null : declared
+            }
+          : null,
+        bars: barFacts
       };
     }
   }
@@ -1809,6 +1851,18 @@ mod gui_probe {
             // 门禁只能断言「页面没崩」，那就等于没验点击。
             assert!(PROBE_JS.contains("header[aria-label=\"会话信息\"]"));
             assert!(PROBE_JS.contains("facts.analyzer"));
+        }
+
+        #[test]
+        fn the_probe_reports_the_day_review_summary_and_timeline() {
+            // 「一日回望」（Round V2 / #192）：摘要行、时间线 rect、每条横条的
+            // 会话键，以及组件声明的会话数——门禁拿**实测条数**跟它对账。
+            assert!(PROBE_JS.contains("[data-probe=\"day-summary\"]"));
+            assert!(PROBE_JS.contains("[data-probe=\"day-timeline\"]"));
+            assert!(PROBE_JS.contains("[data-probe=\"day-timeline-bar\"]"));
+            assert!(PROBE_JS.contains("data-session-path"));
+            assert!(PROBE_JS.contains("data-session-count"));
+            assert!(PROBE_JS.contains("calendarFacts.dayReview"));
         }
 
         #[test]

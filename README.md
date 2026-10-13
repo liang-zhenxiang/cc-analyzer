@@ -125,9 +125,15 @@ badge. Every screen, in both light and dark themes, is archived in
 - **Usage calendar** — a GitHub-contribution-graph grid over a rolling
   12 months: cell shade = the day's estimated cost quartile (level 0 = no
   spend), hovering shows cost / tokens / sessions / project, and clicking a
-  day expands that day's top sessions — click a row to open the session. The
-  window is a fixed rolling 365 days and does not follow the range selector;
-  on narrow windows the grid scrolls inside its own container.
+  day expands **a day in review**: a summary line (spend as cost *and* tokens,
+  sessions, messages, the active span from first to last record, top model,
+  projects touched) above a **24-hour timeline**, one row per session — project
+  colour dot, a solid track with activity blocks whose height encodes how busy
+  that clock hour was, start–end plus duration, and the day's cost / tokens /
+  share. Rows run in start order and clicking one opens that session; a session
+  that crossed midnight is drawn as the part that falls inside the day and says
+  so. The window is a fixed rolling 365 days and does not follow the range
+  selector; on narrow windows the grid scrolls inside its own container.
 - **Session explorer** — sessions grouped by timeline (today / yesterday /
   this week / this month / earlier) and by project, with incrementally
   scanned titles and relative times.
