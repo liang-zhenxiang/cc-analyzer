@@ -1,6 +1,13 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Panel } from "../../components/Panel";
-import { formatProjectPath, formatTokenCount, formatUsd } from "../../lib/format";
+import {
+  formatClock,
+  formatDuration,
+  formatModelId,
+  formatProjectPath,
+  formatTokenCount,
+  formatUsd
+} from "../../lib/format";
 import type { SessionMeta } from "../sessions/metadataCache";
 import { PRICING_AS_OF } from "./pricingSnapshot";
 import { ProvenanceBadge } from "./ProvenanceBadge";
@@ -9,7 +16,9 @@ import { addLocalDays, dayStartOf, type UsageSessionInput } from "./usageAggrega
 import {
   buildUsageCalendar,
   daySessionsOf,
-  type CalendarSessionRow
+  dayTimelineOf,
+  type CalendarSessionRow,
+  type DayTimeline
 } from "./usageCalendar";
 import styles from "./UsageCalendarPanel.module.css";
 
@@ -19,6 +28,19 @@ const FOOTNOTE =
 
 /** 展开区脚注：分母口径与「成本是估算」两条都写在明处（同归因面板的先例）。 */
 const SESSIONS_FOOTNOTE = "占比分母 = 当日 token 总量；成本为估算值。";
+
+/**
+ * 摘要行旁的口径脚注：时间线的三条事实（本地时区 / 跨午夜切分 / 估算）。
+ * 「条 = 当天首末记录」是时间线最容易误读的口径，必须在图旁边说清楚。
+ */
+const TIMELINE_NOTE =
+  "时刻为本地时间；跨午夜会话按当天记录切分（条 = 当天首末记录，不是会话真实起止）；成本为估算值。";
+
+/**
+ * 小时轴刻度：4 小时一格，照抄 Heatmap 的 HOUR_STRIDE——同一应用里两张
+ * 「小时 × 活动」的图用同一刻度节奏，用户只需要学一次（24 与 0 重合不标）。
+ */
+const HOUR_TICKS = [0, 4, 8, 12, 16, 20];
 
 /**
  * 格子的可访问名 / 悬停说明——一份格式函数两处用，不许分叉。日期永远带年
@@ -118,9 +140,225 @@ function CalendarSessionListRow({
   );
 }
 
+/** 摘要行的活跃段：首末同刻（全天一个瞬时会话）显示单时刻。 */
+function activeSpanOf(summary: DayTimeline["summary"]): string {
+  if (summary.firstTs === null || summary.lastTs === null) return "—";
+  if (summary.firstTs === summary.lastTs) return formatClock(summary.firstTs);
+  return `${formatClock(summary.firstTs)}–${formatClock(summary.lastTs)}`;
+}
+
+/**
+ * 时间线条的可访问名 / 悬停说明（§5.2）：一份格式函数 title 与 aria-label
+ * 两处用。与清单行 `spoken` 有意不同（清单有占比、条有起止），但共享
+ * 「标题（项目）· …」的前缀语序，同一家族。时长照 formatDuration 的实际值
+ * （`0ms` / `1.5s`），不把瞬时会话粉饰成「<1 分钟」。
+ */
+function barLabelOf(session: DayTimeline["sessions"][number]): string {
+  const project = formatProjectPath(session.projectLabel, session.projectPath);
+  return (
+    `${session.title}（项目：${project}）· ` +
+    `${formatClock(session.startTs)}–${formatClock(session.endTs)} · ` +
+    `时长 ${formatDuration(session.endTs - session.startTs)} · ` +
+    `当日消耗 ${formatUsd(session.costUsd)} · ${formatTokenCount(session.tokens)} tok` +
+    (session.hasUnknownCost ? " · 部分未知" : "")
+  );
+}
+
+/**
+ * 24h 甘特式时间线（Issue #192）：条 = 会话当天跨度（首末记录），色 = 项目
+ * 槽位（`--cat-*`），条内密度段 = 逐小时 token（max 归一 4 档，与 Heatmap 同
+ * 公式）。坐标系用**真实天长** daySpan（DST 天 23/25 小时时条仍铺满全天、与
+ * 「次日 0 点」刻度对齐），x% = (ts − dayStart) / daySpan × 100。
+ *
+ * 键盘：整个时间线一个 Tab stop（roving tabindex），←/→ 按 startTs 序移动、
+ * 首尾越界不环绕、Home/End 时间序首尾——泳道是防重叠的布局产物，不是用户
+ * 的导航语义（用户想的是「下一个会话」，不是「上一泳道」），所以不做 ↑/↓。
+ * 初始焦点 = 第一条（时间最早）。组件经 key={dayStart} 重挂：切天即重置 roving。
+ */
+function DayTimelineChart({
+  dayStart,
+  timeline,
+  sessionsByPath,
+  onOpenSession
+}: {
+  dayStart: number;
+  timeline: DayTimeline;
+  sessionsByPath: Map<string, SessionMeta>;
+  onOpenSession?: (session: SessionMeta) => void;
+}) {
+  const [focusIndex, setFocusIndex] = useState(0);
+  const buttonByIndex = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const daySpan = addLocalDays(dayStart, 1) - dayStart;
+  // 项目 → 槽位：彩槽才有专属映射，落选（含无 usage 的项目）一律 "other" 灰。
+  const slotByLabel = new Map(
+    timeline.projectSlots
+      .filter((slot) => slot.slot !== "other")
+      .map((slot) => [slot.label, slot.slot as string])
+  );
+
+  const onLanesKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    const count = timeline.sessions.length;
+    if (count === 0) return;
+    let target: number;
+    switch (event.key) {
+      case "ArrowLeft":
+        target = Math.max(0, focusIndex - 1);
+        break;
+      case "ArrowRight":
+        target = Math.min(count - 1, focusIndex + 1);
+        break;
+      case "Home":
+        target = 0;
+        break;
+      case "End":
+        target = count - 1;
+        break;
+      default:
+        return;
+    }
+    // 越界（首尾）也吞掉按键：不环绕（同 V1 网格的纪律）。
+    event.preventDefault();
+    if (target === focusIndex) return;
+    setFocusIndex(target);
+    const button = buttonByIndex.current[target];
+    if (!button) return;
+    button.focus();
+    if (typeof button.scrollIntoView === "function") {
+      // 泳道内竖滚与窄条横向都要跟随，不跳动（同 V1 网格的做法）。
+      button.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+  };
+
+  const otherSlot = timeline.projectSlots.find((slot) => slot.slot === "other");
+
+  return (
+    <div
+      className={styles.timeline}
+      role="group"
+      aria-label={`${shortDateOf(dayStart)}会话时间线`}
+    >
+      <div className={styles.chartArea}>
+        {/* 轴标签是装饰性 tick（条的可访问名里已有精确 HH:mm），左缘对齐刻度
+            线（同 Heatmap 的 SVG text 默认锚点）。 */}
+        <div className={styles.axis} aria-hidden="true">
+          {HOUR_TICKS.map((hour) => (
+            <span
+              key={hour}
+              className={styles.axisLabel}
+              style={{ left: `${(hour / 24) * 100}%` }}
+            >
+              {hour}
+            </span>
+          ))}
+        </div>
+        {/* 竖刻度线画在轴 + 泳道的公共容器上：贯穿可视泳道区，不随泳道竖滚
+            （时间是横轴，滚动是纵轴，两者正交）。0 点在容器左缘，不另画。 */}
+        {HOUR_TICKS.slice(1).map((hour) => (
+          <span
+            key={hour}
+            aria-hidden="true"
+            className={styles.axisTick}
+            style={{ left: `${(hour / 24) * 100}%` }}
+          />
+        ))}
+        {/* 行内 height 按数据层 laneCount 设：条全是 absolute 定位，不撑容器
+            高度——没有这一行，.lanes 的 clientHeight 恒 0（max-height 只封顶
+            不给高度），泳道区的可视高/滚动几何全部失真。视觉上限仍由 CSS 的
+            max-height（7 行）截，超出内滚。 */}
+        <div
+          className={styles.lanes}
+          data-calendar-lanes
+          onKeyDown={onLanesKeyDown}
+          style={{ height: `calc(${timeline.laneCount} * var(--control-h-sm))` }}
+        >
+          {timeline.sessions.map((session, index) => {
+            const sessionMeta =
+              session.path === "" ? undefined : sessionsByPath.get(session.path);
+            const canOpen = sessionMeta !== undefined && onOpenSession !== undefined;
+            const label = barLabelOf(session);
+            const leftPct = ((session.startTs - dayStart) / daySpan) * 100;
+            // instant 条宽 0，视觉宽度由 CSS 的 min-width（2px）兜底——一条
+            // 竖线短杠，如实表达「这里有一个瞬时会话」。
+            const widthPct = Math.max(0, ((session.endTs - session.startTs) / daySpan) * 100);
+            const maxHour = Math.max(...session.hourlyTokens);
+            return (
+              <button
+                type="button"
+                key={session.path === "" ? `anonymous:${index}` : session.path}
+                ref={(element) => {
+                  buttonByIndex.current[index] = element;
+                }}
+                className={styles.bar}
+                data-probe="calendar-bar"
+                data-lane={session.lane}
+                data-slot={slotByLabel.get(session.projectLabel) ?? "other"}
+                data-instant={session.instant}
+                tabIndex={index === focusIndex ? 0 : -1}
+                disabled={!canOpen}
+                style={{
+                  left: `${leftPct}%`,
+                  width: `${widthPct}%`,
+                  top: `calc(${session.lane} * var(--control-h-sm))`
+                }}
+                title={label}
+                aria-label={label}
+                onClick={canOpen ? () => onOpenSession(sessionMeta) : undefined}
+              >
+                {/* barFrame 是 16px 可视层（描边 + 裁剪窗）；button 自己 24px
+                    高撑满行高——击中目标 24px 对齐 WCAG 2.5.8 最小目标尺寸。 */}
+                <span className={styles.barFrame} aria-hidden="true">
+                  {session.hourlyTokens.map((value, hour) => {
+                    if (value <= 0) return null;
+                    // 密度档：该会话当天自己的最大小时归一（「高峰在它自己的
+                    // 哪个时刻」，跨会话不比），与 Heatmap 的档位公式同式。
+                    const level = Math.min(4, Math.max(1, Math.ceil((value / maxHour) * 4)));
+                    return (
+                      <span
+                        key={hour}
+                        className={styles.seg}
+                        data-seg-hour={hour}
+                        data-seg-level={level}
+                        style={{ left: `${(hour / 24) * 100}%`, width: `${100 / 24}%` }}
+                      />
+                    );
+                  })}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {/* 项目图例：「条色 ↔ 项目」的唯一静态对照（条上无文字），槽位不足 5 时
+          只列在场的槽，不造空槽位占位；other 在场时末尾声明折叠数。 */}
+      <div className={styles.projLegend}>
+        {timeline.projectSlots
+          .filter((slot) => slot.slot !== "other")
+          .map((slot) => (
+            <span key={slot.label} className={styles.projLegendItem}>
+              <span
+                className={styles.swatch}
+                data-slot={slot.slot}
+                aria-hidden="true"
+              />
+              {formatProjectPath(slot.label, slot.path)}
+            </span>
+          ))}
+        {otherSlot ? (
+          <span className={styles.projLegendItem}>
+            <span className={styles.swatch} data-slot="other" aria-hidden="true" />
+            {`其他 ${timeline.summary.projects - 5} 个项目`}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 /**
  * 消耗日历（Issue #187）：近 12 个月的 GitHub 式滚动 365 天网格。色深 = 当日
- * 估算成本四分位（数据层 `usageCalendar.ts`），点击行内展开当天会话 Top 清单，
+ * 估算成本四分位（数据层 `usageCalendar.ts`），点击行内展开「一日回望」
+ * （Issue #192：日摘要行 + 24h 时间线 + 保留的当天会话 Top 清单），
  * 键盘可达（roving tabindex：整个网格一个 Tab stop，初始焦点 = 今天）。
  *
  * 聚合只依赖 `inputs`——7/30/90 区间选择器与它正交（脚注声明）。
@@ -148,6 +386,14 @@ export function UsageCalendarPanel({
 
   const detail = useMemo(
     () => (selected === null ? null : daySessionsOf(inputs, selected)),
+    [inputs, selected]
+  );
+
+  // 一日回望的时间形状（Issue #192）。与 detail 同款依赖：`now` 不进展开区
+  // 数据层——时间线是纯历史事实，没有「现在进行时」的推算（今天进行中的
+  // 会话条到当前末条记录为止，不画虚线延伸）。
+  const timeline = useMemo(
+    () => (selected === null ? null : dayTimelineOf(inputs, selected)),
     [inputs, selected]
   );
 
@@ -314,20 +560,45 @@ export function UsageCalendarPanel({
           ))}
           <span className={styles.legendText}>多</span>
         </div>
-        {detail ? (
+        {detail && timeline ? (
           <section
             className={styles.sessions}
-            aria-label={`${shortDateOf(selected!)}会话清单`}
+            aria-label={`${shortDateOf(selected!)}一日回望`}
             data-calendar-sessions
           >
             <div className={styles.sessionsHead}>
               <span className={styles.sessionsTitle}>{`${shortDateOf(
                 selected!
-              )}消耗 Top 会话 · 共 ${detail.sessions} 个`}</span>
+              )} · 共 ${detail.sessions} 个会话`}</span>
               <button type="button" className={styles.clear} onClick={() => setSelected(null)}>
                 × 清除
               </button>
             </div>
+            {/* 摘要行：读数行语言，不做六张 KPI 卡（高度有界，卡片会把一行
+                信息撑成三行高）。首末同刻（全天一个瞬时会话）显示单时刻。 */}
+            <p className={styles.summary} data-calendar-summary>
+              消耗 <span className={styles.summaryNum}>{formatUsd(timeline.summary.costUsd)}</span>{" "}
+              · <span className={styles.summaryNum}>{formatTokenCount(timeline.summary.tokens)}</span>{" "}
+              tok · <span className={styles.summaryNum}>{timeline.summary.sessions}</span> 个会话 ·{" "}
+              <span className={styles.summaryNum}>{timeline.summary.messages}</span> 条消息 · 活跃{" "}
+              <span className={styles.summaryNum}>{activeSpanOf(timeline.summary)}</span>{" "}
+              · 主力{" "}
+              <span className={styles.summaryNum}>
+                {timeline.summary.topModel === null
+                  ? "—"
+                  : formatModelId(timeline.summary.topModel)}
+              </span>{" "}
+              · <span className={styles.summaryNum}>{timeline.summary.projects}</span> 个项目
+              {timeline.summary.hasUnknownCost ? " · 部分未知价" : null}
+            </p>
+            <p className={styles.summaryNote}>{TIMELINE_NOTE}</p>
+            <DayTimelineChart
+              key={selected}
+              dayStart={selected!}
+              timeline={timeline}
+              sessionsByPath={sessionsByPath}
+              onOpenSession={onOpenSession}
+            />
             <ol className={styles.sessionList} aria-label={`${shortDateOf(selected!)}消耗最多的会话`}>
               {detail.rows.map((row, index) => (
                 <CalendarSessionListRow

@@ -1030,7 +1030,15 @@ CENSUS_TOP_ROW = "Bash"
 CALENDAR_PANEL_TITLE = "消耗日历（近 12 个月）"
 CALENDAR_DAY_COUNT = 365
 CALENDAR_CLICK_LABEL = "点选=[data-probe='calendar-today'] button"
-CALENDAR_SESSIONS_MAX_HEIGHT = 400
+# 展开区高度上限（Issue #192 一日回望后从 400 放宽）。@130% 字号的最坏账：
+# padding(--sp-2×2) 16 + 头部(--control-h-sm) 24 + 摘要行+口径脚注(--lh-base+
+# --lh-xs 各 ×1.3) 52 + 时间线(轴 --lh-xs + 泳道 7×24 + 图例 --lh-xs + 内距) 212
+# + 清单(5 行 × 行高 + 折尾 1 行，文本行 ×1.3) 202 + 脚注(2×--lh-xs) 42
+# + 区间 gap(--sp-1×5) 20 ≈ 568；640 = 568 × 1.13 余量。摘要 + 时间线是
+# Issue #192 契约要求的新增内容（不是清单膨胀），两条折叠机制（清单恒 Top5 +
+# 折尾、泳道可视 7 行内滚）保证 640 是够不着的天花板——断言语义不变，防的
+# 仍然是无约束膨胀。
+CALENDAR_SESSIONS_MAX_HEIGHT = 640
 coverage = os.environ.get("COVERAGE") == "1"
 seen_gauge = 0
 seen_table = 0
@@ -1590,8 +1598,9 @@ for arg in sys.argv[1:]:
             seen_changes += 1
             print(f"OK|{label}：展开区可达（{records['rows']} 条记录，高 {records['height']}px），账目含展开高度")
 
-    # 消耗日历点选（Round V / #187）：两次同名点选按计数分流——第 1 次判展开态
-    # （清单在场、行数 ≥ 1、展开区高度有界，防长清单把后续面板顶出可滚范围），
+    # 消耗日历点选（Round V / #187，#192 扩展）：两次同名点选按计数分流——
+    # 第 1 次判展开态（清单在场、行数 ≥ 1、展开区高度有界、时间线条数对账、
+    # 泳道区可视高有界、瞬时条最小宽 ≥ 2px，防长清单把后续面板顶出可滚范围），
     # 第 2 次判收起态（清单离场，后续步骤的截图不被展开区污染）。日历的滚动
     # 容器几何与「文档 / main 无横向溢出」由「视图=用量」与通用判定覆盖。
     if label == CALENDAR_CLICK_LABEL:
@@ -1614,14 +1623,36 @@ for arg in sys.argv[1:]:
                     problems.append("展开区高度缺失")
                 elif height >= CALENDAR_SESSIONS_MAX_HEIGHT:
                     problems.append(f"展开区高度失界（{height:.0f}px ≥ {CALENDAR_SESSIONS_MAX_HEIGHT}px）")
+                # 一日回望（Issue #192）：时间线条数 === 夹具今天会话数（夹具是
+                # 两条同秒记录的 1 个会话 → 1 条瞬时会话）；泳道区可视高有界
+                # （7 × 24 + 余量 = 170）；瞬时条的最小可视宽 2px 由 min-width
+                # 兜底，探针量真实布局宽。
+                timeline = calendar.get("timeline") or {}
+                bars = timeline.get("bars")
+                if not isinstance(bars, int) or bars < 1:
+                    problems.append(f"时间线条数 {bars!r}，期望 ≥ 1（今天格有夹具会话）")
+                elif bars != 1:
+                    problems.append(f"时间线条数 {bars!r} ≠ 夹具今天会话数 1")
+                lanes_h = timeline.get("lanesH")
+                if not isinstance(lanes_h, (int, float)) or lanes_h <= 0:
+                    problems.append("泳道区可视高缺失（data-calendar-lanes 不在场？）")
+                elif lanes_h > 170:
+                    problems.append(f"泳道区可视高失界（{lanes_h:.0f}px > 170px）")
+                first_bar_width = timeline.get("firstBarWidth")
+                if not isinstance(first_bar_width, (int, float)):
+                    problems.append("首条宽度缺失（calendar-bar 不在场？）")
+                elif first_bar_width < 2:
+                    problems.append(f"瞬时会话最小可视宽失守（{first_bar_width}px < 2px）")
             if problems:
                 for problem in problems:
                     print(f"BAD|{label}（展开）：{problem}")
             else:
                 seen_calendar += 1
+                timeline = calendar.get("timeline") or {}
                 print(
-                    f"OK|{label}（展开）：当天会话清单在场"
-                    f"（{sessions['rows']} 行，高 {sessions['rect']['height']:.0f}px < {CALENDAR_SESSIONS_MAX_HEIGHT}px）"
+                    f"OK|{label}（展开）：一日回望在场"
+                    f"（清单 {sessions['rows']} 行 · 时间线 {timeline.get('bars')} 条 · "
+                    f"泳道 {timeline.get('lanesH'):.0f}px，高 {sessions['rect']['height']:.0f}px < {CALENDAR_SESSIONS_MAX_HEIGHT}px）"
                 )
         else:
             if isinstance(sessions, dict):

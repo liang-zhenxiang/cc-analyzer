@@ -102,6 +102,75 @@ function mixedInputs() {
   ];
 }
 
+const HOUR = 3_600_000;
+
+/**
+ * 一日回望（Issue #192）的时间线布景（昨天 2026-10-11，sonnet $3/MTok）：
+ * 密度会话 09–12 时四条记录（token 100K/400K/200K/800K，档位手算 1/2/1/4）、
+ * 瞬时会话 14:00 单记录带 usage、无 usage 会话 16:00 单条 user、部分未知会话
+ * 17:00（unknown 模型）。4 个会话 → 时间线 4 条、摘要行字段全可断。
+ */
+function timelineInputs() {
+  const day = addLocalDays(TODAY, -1);
+  return [
+    {
+      records: [
+        record(day + 9 * HOUR, { model: "claude-sonnet-4-5", usage: { inputTokens: 100_000 } }),
+        record(day + 10 * HOUR, { model: "claude-sonnet-4-5", usage: { inputTokens: 400_000 } }),
+        record(day + 11 * HOUR, { model: "claude-sonnet-4-5", usage: { inputTokens: 200_000 } }),
+        record(day + 12 * HOUR, { model: "claude-sonnet-4-5", usage: { inputTokens: 800_000 } })
+      ],
+      projectLabel: "-repo-cal",
+      projectPath: "/repo/cal",
+      session: metaOf("/sessions/density.jsonl", "密度会话")
+    },
+    {
+      records: [
+        record(day + 14 * HOUR, {
+          model: "claude-sonnet-4-5",
+          usage: { inputTokens: 1_000 }
+        })
+      ],
+      projectLabel: "-repo-cal",
+      projectPath: "/repo/cal",
+      session: metaOf("/sessions/instant.jsonl", "瞬时会话")
+    },
+    {
+      records: [record(day + 16 * HOUR, { kind: "user", usage: undefined })],
+      projectLabel: "-repo-cal",
+      projectPath: "/repo/cal",
+      session: metaOf("/sessions/quiet.jsonl", "无用量会话")
+    },
+    {
+      records: [
+        record(day + 17 * HOUR, {
+          model: "gpt-unknown-9",
+          usage: { inputTokens: 500 }
+        })
+      ],
+      projectLabel: "-repo-cal",
+      projectPath: "/repo/cal",
+      session: metaOf("/sessions/unknown.jsonl", "未知价会话")
+    }
+  ];
+}
+
+/** N 个同刻瞬时会话（全重叠 → N 条泳道，测泳道折叠的布景）。 */
+function overlappingInputs(count: number) {
+  const day = addLocalDays(TODAY, -1);
+  return Array.from({ length: count }, (_, index) => ({
+    records: [
+      record(day + 10 * HOUR, {
+        model: "claude-sonnet-4-5",
+        usage: { inputTokens: 1_000 }
+      })
+    ],
+    projectLabel: "-repo-cal",
+    projectPath: "/repo/cal",
+    session: metaOf(`/sessions/overlap-${index}.jsonl`, `并行会话 ${index}`)
+  }));
+}
+
 function calendarTable() {
   return screen.getByRole("table", { name: "消耗日历（近 12 个月）" });
 }
@@ -169,7 +238,7 @@ describe("UsageCalendarPanel", () => {
     const detail = document.querySelector("[data-calendar-sessions]") as HTMLElement;
     expect(detail).not.toBeNull();
     expect(
-      screen.getByText("10月11日消耗 Top 会话 · 共 8 个")
+      screen.getByText("10月11日 · 共 8 个会话")
     ).toBeVisible();
     // 行数 = min(5, 8)；行读数是「$X · N tok」双数。列表按自身的 aria 名圈定，
     // 「× 清除」是头部按钮，不数进行。
@@ -304,6 +373,240 @@ describe("UsageCalendarPanel", () => {
   });
 });
 
+describe("UsageCalendarPanel · 一日回望（Issue #192）", () => {
+  const YESTERDAY = addLocalDays(TODAY, -1);
+  const DAY_SPAN = addLocalDays(YESTERDAY, 1) - YESTERDAY;
+  /** 昨天 8 会话格的 aria-label（ladder 与 timeline 布景共用昨天，注意区分）。 */
+  const dayLabelOf = (costText: string, tokText: string, sessions: number) =>
+    `2026年10月11日 · ${costText} · ${tokText} · ${sessions} 个会话 · cal`;
+
+  /** 展开昨天（timeline 布景）并等待展开区渲染。 */
+  async function openYesterdayWithTimeline() {
+    const user = userEvent.setup();
+    render(<UsageCalendarPanel inputs={timelineInputs()} now={NOW} />);
+    // 4 会话 × sonnet：(1.5M + 1K + 0 + 500) tok ≈ $4.50。
+    const yesterday = dayButton(dayLabelOf("估算成本 $4.50", "1.5M tok", 4) + " · 部分会话未知价");
+    await user.click(yesterday);
+    const detail = document.querySelector("[data-calendar-sessions]") as HTMLElement;
+    expect(detail).not.toBeNull();
+    return { user, detail };
+  }
+
+  it("摘要行：消耗 / token / 会话数 / 消息数 / 跨度 / 主力模型 / 项目数；口径脚注在场", async () => {
+    const { detail } = await openYesterdayWithTimeline();
+
+    const summary = detail.querySelector("[data-calendar-summary]") as HTMLElement;
+    expect(summary).not.toBeNull();
+    expect(summary).toHaveTextContent("消耗 $4.50");
+    expect(summary).toHaveTextContent("1.5M tok");
+    expect(summary).toHaveTextContent("4 个会话");
+    expect(summary).toHaveTextContent("7 条消息");
+    // 跨度 09:00–17:00（首末记录）；主力 sonnet → formatModelId。
+    expect(summary).toHaveTextContent("活跃 09:00–17:00");
+    expect(summary).toHaveTextContent("主力 Sonnet 4.5");
+    expect(summary).toHaveTextContent("1 个项目");
+    // 500 tok 的 unknown 记录 → 部分未知价追加段。
+    expect(summary).toHaveTextContent("部分未知价");
+
+    expect(detail).toHaveTextContent("时刻为本地时间");
+    expect(detail).toHaveTextContent("跨午夜会话按当天记录切分");
+  });
+
+  it("时间线：条数 === 会话数；left/width 百分比真算；instant 探针；密度段档位手算", async () => {
+    const { detail } = await openYesterdayWithTimeline();
+
+    const bars = detail.querySelectorAll('[data-probe="calendar-bar"]');
+    expect(bars).toHaveLength(4);
+
+    const byLabel = new Map(
+      Array.from(bars).map((bar) => [
+        bar.getAttribute("aria-label")!.split("（")[0],
+        bar as HTMLElement
+      ])
+    );
+    const density = byLabel.get("密度会话")!;
+    // left = (startTs − dayStart) / daySpan；width = (endTs − startTs) / daySpan。
+    expect(parseFloat(density.style.left)).toBeCloseTo(((9 * HOUR) / DAY_SPAN) * 100, 2);
+    expect(parseFloat(density.style.width)).toBeCloseTo(((3 * HOUR) / DAY_SPAN) * 100, 2);
+
+    const instant = byLabel.get("瞬时会话")!;
+    expect(instant.getAttribute("data-instant")).toBe("true");
+    // 零跨度条宽 0%，视觉宽度由 CSS min-width 兜底。
+    expect(parseFloat(instant.style.width)).toBe(0);
+    expect(density.getAttribute("data-instant")).toBe("false");
+
+    // 密度段：4 个非零小时，档位 = ceil(v / max × 4) 手算 1/2/1/4。
+    const segs = density.querySelectorAll("[data-seg-level]");
+    expect(segs).toHaveLength(4);
+    expect(Array.from(segs).map((seg) => seg.getAttribute("data-seg-hour"))).toEqual([
+      "9",
+      "10",
+      "11",
+      "12"
+    ]);
+    expect(Array.from(segs).map((seg) => seg.getAttribute("data-seg-level"))).toEqual([
+      "1",
+      "2",
+      "1",
+      "4"
+    ]);
+    // 无 usage 会话：条只有描边、零密度段。
+    expect(byLabel.get("无用量会话")!.querySelectorAll("[data-seg-level]")).toHaveLength(0);
+  });
+
+  it("条 title / aria-label 逐字等于 §5.2 格式（普通 / instant / 无 usage / 部分未知）", async () => {
+    const { detail } = await openYesterdayWithTimeline();
+
+    const expected: Array<[string, string]> = [
+      // 普通：3h 跨度、$4.50（1.5M × $3/MTok）、1.5M tok。
+      [
+        "密度会话",
+        "密度会话（项目：cal）· 09:00–12:00 · 时长 3h0m0s · 当日消耗 $4.50 · 1.5M tok"
+      ],
+      // instant：单记录，时长如实 0ms。
+      [
+        "瞬时会话",
+        "瞬时会话（项目：cal）· 14:00–14:00 · 时长 0ms · 当日消耗 $0.00 · 1,000 tok"
+      ],
+      // 无 usage：$0.00 · 0 tok，不装作没有活动。
+      [
+        "无用量会话",
+        "无用量会话（项目：cal）· 16:00–16:00 · 时长 0ms · 当日消耗 $0.00 · 0 tok"
+      ],
+      // 部分未知：末尾追加段。
+      [
+        "未知价会话",
+        "未知价会话（项目：cal）· 17:00–17:00 · 时长 0ms · 当日消耗 $0.00 · 500 tok · 部分未知"
+      ]
+    ];
+    const bars = detail.querySelectorAll('[data-probe="calendar-bar"]');
+    for (const [name, label] of expected) {
+      const bar = Array.from(bars).find((item) => item.getAttribute("aria-label")!.startsWith(name));
+      expect(bar, `找不到 ${name} 的条`).toBeDefined();
+      expect(bar!.getAttribute("title")).toBe(label);
+      expect(bar!.getAttribute("aria-label")).toBe(label);
+    }
+  });
+
+  it("条点击握手：onOpenSession 收到正确 SessionMeta；无元数据条 disabled", async () => {
+    const user = userEvent.setup();
+    const onOpenSession = vi.fn();
+    const day = addLocalDays(TODAY, -1);
+    render(
+      <UsageCalendarPanel
+        inputs={[
+          ...timelineInputs().slice(0, 2),
+          {
+            records: [
+              record(day + 15 * HOUR, {
+                model: "claude-sonnet-4-5",
+                usage: { inputTokens: 100 }
+              })
+            ],
+            projectLabel: "-repo-anon"
+          }
+        ]}
+        now={NOW}
+        onOpenSession={onOpenSession}
+      />
+    );
+    await user.click(dayButton(dayLabelOf("估算成本 $4.50", "1.5M tok", 3)));
+
+    const bars = Array.from(
+      document.querySelectorAll('[data-probe="calendar-bar"]')
+    ) as HTMLButtonElement[];
+    expect(bars).toHaveLength(3);
+    const density = bars.find((bar) => bar.getAttribute("aria-label")!.startsWith("密度会话"))!;
+    await user.click(density);
+    expect(onOpenSession).toHaveBeenCalledTimes(1);
+    expect(onOpenSession).toHaveBeenCalledWith(
+      expect.objectContaining({ path: "/sessions/density.jsonl" })
+    );
+
+    // 无元数据（path === ""）的条照画但不可点，同清单行的 canOpen 逻辑。
+    const anon = bars.find((bar) => bar.getAttribute("aria-label")!.startsWith("-repo-anon"));
+    expect(anon).toBeDefined();
+    expect(anon!.disabled).toBe(true);
+  });
+
+  it("键盘 roving：Tab 进时间线落在第一条；←/→ 移动、首尾不动；Home/End；恰一个 tabindex=0", async () => {
+    const user = userEvent.setup();
+    // 传 onOpenSession：条才可聚焦（canOpen 同清单行），roving 才有意义。
+    render(<UsageCalendarPanel inputs={timelineInputs()} now={NOW} onOpenSession={vi.fn()} />);
+    const yesterday = dayButton(dayLabelOf("估算成本 $4.50", "1.5M tok", 4) + " · 部分会话未知价");
+    await user.click(yesterday);
+
+    // DOM 序：格子 → × 清除 → 时间线条 → 清单行。Tab 两次落到时间线第一条。
+    await user.tab();
+    expect(document.activeElement).toHaveTextContent("× 清除");
+    await user.tab();
+    expect(document.activeElement).toHaveAttribute("data-probe", "calendar-bar");
+    expect(document.activeElement).toHaveAttribute("aria-label", expect.stringContaining("密度会话"));
+
+    const lanes = document.querySelector("[data-calendar-lanes]") as HTMLElement;
+    expect(lanes.querySelectorAll('[tabindex="0"]')).toHaveLength(1);
+
+    // → 到第二条、End 到最后一条、Home 回第一条、← 在第一条不动（不环绕）。
+    await user.keyboard("{ArrowRight}");
+    expect(document.activeElement).toHaveAttribute(
+      "aria-label",
+      expect.stringContaining("瞬时会话")
+    );
+    await user.keyboard("{ArrowLeft}");
+    expect(document.activeElement).toHaveAttribute(
+      "aria-label",
+      expect.stringContaining("密度会话")
+    );
+    await user.keyboard("{ArrowLeft}");
+    expect(document.activeElement).toHaveAttribute(
+      "aria-label",
+      expect.stringContaining("密度会话")
+    );
+    await user.keyboard("{End}");
+    expect(document.activeElement).toHaveAttribute(
+      "aria-label",
+      expect.stringContaining("未知价会话")
+    );
+    await user.keyboard("{ArrowRight}");
+    expect(document.activeElement).toHaveAttribute(
+      "aria-label",
+      expect.stringContaining("未知价会话")
+    );
+    await user.keyboard("{Home}");
+    expect(document.activeElement).toHaveAttribute(
+      "aria-label",
+      expect.stringContaining("密度会话")
+    );
+    // roving 状态仍只有一个 Tab 止点。
+    expect(lanes.querySelectorAll('[tabindex="0"]')).toHaveLength(1);
+  });
+
+  it("泳道折叠：9 会话全重叠 → 9 泳道数据层真值 + .lanes 的 max-height 规则在 CSS", async () => {
+    const user = userEvent.setup();
+    render(<UsageCalendarPanel inputs={overlappingInputs(9)} now={NOW} />);
+    await user.click(dayButton(dayLabelOf("估算成本 $0.03", "9,000 tok", 9)));
+
+    const bars = document.querySelectorAll('[data-probe="calendar-bar"]');
+    expect(bars).toHaveLength(9);
+    // 同刻瞬时会话经 effectiveEnd 必然逐条分泳道（§2.2）。
+    expect(
+      new Set(Array.from(bars).map((bar) => bar.getAttribute("data-lane"))).size
+    ).toBe(9);
+
+    const lanes = document.querySelector("[data-calendar-lanes]") as HTMLElement;
+    expect(lanes).not.toBeNull();
+    // 行内 height 按 laneCount 设：条全是 absolute，不撑容器——没有这一行
+    // .lanes 的 clientHeight 恒 0（真机门禁抓到过的回归，见 Issue #192）。
+    expect(lanes.style.height).toBe("calc(9 * var(--control-h-sm))");
+    // 几何断言留给 e2e / 门禁；这里钉「折叠规则存在且上限是 7 行」。
+    const css = readFileSync(
+      resolve(process.cwd(), "src/features/usage/UsageCalendarPanel.module.css"),
+      "utf8"
+    );
+    expect(css).toMatch(/\.lanes\s*\{[^}]*max-height:\s*calc\(7 \* var\(--control-h-sm\)\)/);
+  });
+});
+
 describe("UsageCalendarPanel · 样式纪律（读 CSS 文件断言，同 Heatmap 先例）", () => {
   // 注释先剥掉：「12px 格、3px 缝」的豁免说明写在注释里，不剥会误伤字面量检查。
   const css = readFileSync(
@@ -316,6 +619,12 @@ describe("UsageCalendarPanel · 样式纪律（读 CSS 文件断言，同 Heatma
     expect(rule).not.toBeNull();
     expect(rule![1]).toContain("var(--focus-ring-width)");
     expect(rule![1]).toContain("var(--focus-ring-offset)");
+
+    // 时间线条同款（Issue #192）：焦点环宽度随对比度档由令牌兑现。
+    const barRule = /\.bar:focus-visible\s*\{([^}]*)\}/.exec(css);
+    expect(barRule).not.toBeNull();
+    expect(barRule![1]).toContain("var(--focus-ring-width)");
+    expect(barRule![1]).toContain("var(--focus-ring-offset)");
   });
 
   it("无颜色字面量（--cal-* 与语义令牌只以 var() 引用，值在 tokens.css）", () => {
@@ -324,9 +633,9 @@ describe("UsageCalendarPanel · 样式纪律（读 CSS 文件断言，同 Heatma
     expect(css).not.toMatch(/hsla?\(/);
   });
 
-  it("间距走 --sp-*：px 字面量只剩「形」（格 / 缝 / 描边 / 轨道），12px 与 3px 各恰出现一次且在变量定义里", () => {
+  it("间距走 --sp-*：px 字面量只剩「形」，12px / 3px / 16px 各恰一次且在变量定义里", () => {
     const literals = Array.from(css.matchAll(/(\d+)px/g)).map((match) => match[0]);
-    const allowed = new Set(["1px", "2px", "3px", "12px", "56px"]);
+    const allowed = new Set(["1px", "2px", "3px", "10px", "12px", "16px", "56px"]);
     for (const literal of literals) {
       expect(allowed.has(literal), `未豁免的像素字面量：${literal}`).toBe(true);
     }
@@ -335,5 +644,23 @@ describe("UsageCalendarPanel · 样式纪律（读 CSS 文件断言，同 Heatma
     expect(css.match(/3px/g) ?? []).toHaveLength(1);
     expect(css).toMatch(/--cal-cell:\s*12px/);
     expect(css).toMatch(/--cal-gap:\s*3px/);
+    // 16px 是时间线条高（--bar-h，同 --cal-cell 的豁免先例）；10px 是图例
+    // 色块（.swatch 语言，同 UsageOverviewPage）。
+    expect(css.match(/16px/g) ?? []).toHaveLength(1);
+    expect(css).toMatch(/--bar-h:\s*16px/);
+  });
+
+  it("时间线的密度台阶与槽位色全部经令牌 / 属性选择器，零组件分支", () => {
+    // 槽位 → --cat-* 的映射是属性选择器（组件只输出 data-slot 探针）。
+    for (const slot of ["0", "1", "2", "3", "4", "other"]) {
+      expect(css).toMatch(new RegExp(`\\.timeline \\[data-slot="${slot}"\\]`));
+    }
+    expect(css).toMatch(/--bar-color:\s*var\(--cat-direct\)/);
+    expect(css).toMatch(/--bar-color:\s*var\(--cat-wait\)/);
+    // HC 覆盖：段实色 + 右缘 1px 分隔线（§3.3）。
+    const hcRule = /:global\(\[data-contrast="high"\]\) \.seg\s*\{([^}]*)\}/.exec(css);
+    expect(hcRule).not.toBeNull();
+    expect(hcRule![1]).toContain("opacity: 1");
+    expect(hcRule![1]).toContain("inset -1px 0 0 var(--bg-inset)");
   });
 });

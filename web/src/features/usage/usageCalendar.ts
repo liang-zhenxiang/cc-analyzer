@@ -9,7 +9,7 @@ import {
   type UsageSessionInput,
   type UsageTotals
 } from "./usageAggregations";
-import { estimateCost } from "./pricingSnapshot";
+import { estimateCost, pricingFamilyFor } from "./pricingSnapshot";
 
 /**
  * 消耗日历（Issue #187）：近 12 个月（滚动 365 天）的「一天一格」网格，
@@ -62,6 +62,14 @@ function addUsage(target: UsageTotals, usage: SessionUsage): void {
   target.output += usage.outputTokens ?? 0;
   target.cacheCreation += usage.cacheCreationTokens ?? 0;
   target.cacheRead += usage.cacheReadTokens ?? 0;
+}
+
+/** 两个已聚合的 UsageTotals 相加（addUsage 吃记录的 usage，这里吃聚合账）。 */
+function addTotals(target: UsageTotals, other: UsageTotals): void {
+  target.input += other.input;
+  target.output += other.output;
+  target.cacheCreation += other.cacheCreation;
+  target.cacheRead += other.cacheRead;
 }
 
 /** 一条 usage 的四类之和——日历格子的「热度」单位。 */
@@ -337,6 +345,331 @@ function finalizeRow(tally: SessionTally, dayTokens: number): CalendarSessionRow
     hasUnknownCost,
     share: dayTokens > 0 ? tokens / dayTokens : 0
   };
+}
+
+/* ---------------------------------------------------------------------------
+ * 一日回望（Issue #192）：把展开区从「当天会话 Top 清单」升级为「日摘要 +
+ * 24h 甘特式时间线 + 保留的清单」。数据层新增 `dayTimelineOf`，与
+ * `daySessionsOf` / `buildUsageCalendar` 同一条记录口径（`countsAsMessage`）、
+ * 同一个身份键（`sessionKeyOf`）、同一个成本折算路径（逐模型 `estimateCost`，
+ * unknown 标 `hasUnknownCost` 不折 0）。三函数同天输出的恒等式由
+ * `usageCalendar.test.ts` 的一致性 describe 钉住——升级是增量的，V1 的全部
+ * 断言（53 列、档位、清单）原样保持。
+ * ------------------------------------------------------------------------ */
+
+/** 一日回望（Issue #192）：一天的时间形状。全部时刻为本地时间毫秒。 */
+export type DayTimelineSession = {
+  /** 与 CalendarSessionRow 同源的身份四件套。 */
+  path: string;
+  title: string;
+  projectLabel: string;
+  projectPath?: string;
+  /** 当天首条 countsAsMessage 记录的时刻（跨午夜按记录归属切，同 daySessionsOf）。 */
+  startTs: number;
+  /** 当天末条 countsAsMessage 记录的时刻。 */
+  endTs: number;
+  /** endTs − startTs < 60_000 → 瞬时会话：时间线给最小可视宽（§4.5）。 */
+  instant: boolean;
+  /** 泳道号（0 起，贪心分配，§2.2）。 */
+  lane: number;
+  /** 恒 24 桶：该会话当天每小时 token 四类和（0 = 该小时无 usage 记录）。 */
+  hourlyTokens: number[];
+  /** 当天该会话 token / 成本（与 CalendarSessionRow 同一折算路径）。 */
+  tokens: number;
+  costUsd: number;
+  hasUnknownCost: boolean;
+};
+
+export type DayTimelineSummary = {
+  costUsd: number;
+  hasUnknownCost: boolean;
+  tokens: number;
+  /** 当天有 countsAsMessage 记录的会话数（=== sessions.length）。 */
+  sessions: number;
+  /** 当天 countsAsMessage 记录条数。 */
+  messages: number;
+  /** 当天首条 / 末条记录时刻；sessions === 0 时为 null（该天本就不会展开）。 */
+  firstTs: number | null;
+  lastTs: number | null;
+  /** 当天 token 最多的模型 id（原样存，展示层 formatModelId）；并列按 id 字典序
+      最小；无 token（含全无 usage）为 null。unknown 模型的 token 计入排名，
+      命中时此值为 UNKNOWN_MODEL_LABEL——如实说「当天大头是未知模型」。 */
+  topModel: string | null;
+  /** 当天有记录的 distinct projectLabel 数（空串 label 不计，同 topProject 口径）。 */
+  projects: number;
+};
+
+/** 项目 → 类别色槽位（§3.2）：当日 token Top5 各占一个彩槽，其余进 "other"。 */
+export type DayProjectSlot = {
+  label: string;
+  path?: string;
+  slot: 0 | 1 | 2 | 3 | 4 | "other";
+  tokens: number;
+  sessions: number;
+};
+
+export type DayTimeline = {
+  summary: DayTimelineSummary;
+  /** 按 startTs 升序；并列按 title 再按 path（与归因排序同一并列规则）。 */
+  sessions: DayTimelineSession[];
+  laneCount: number;
+  /** 槽位序 0..4，"other" 恒在末位且只在存在第 6 个项目时出现。 */
+  projectSlots: DayProjectSlot[];
+};
+
+/**
+ * 瞬时会话的跨度阈值（毫秒）。全文件唯一的跨度常数：instant 判定
+ * （endTs − startTs < 阈值）与泳道的 effectiveEnd（瞬时条占 1 分钟名义跨度）
+ * 共用——不加后者，两个同刻的瞬时会话满足 `end <= start` 会落同一泳道同一
+ * 位置，视觉完全叠死。
+ */
+const INSTANT_SPAN_MS = 60_000;
+
+/** 逐模型桶折算成本（daySessionsOf 的 finalizeRow 同一折算路径，字段集不同）。 */
+function costOfModels(models: Map<string, UsageTotals>): {
+  costUsd: number;
+  hasUnknownCost: boolean;
+} {
+  let costUsd = 0;
+  let hasUnknownCost = false;
+  for (const [model, totals] of models) {
+    const estimate = estimateCost(totals, model);
+    if ("unknownModel" in estimate) {
+      hasUnknownCost = true;
+    } else {
+      costUsd += estimate.usd;
+    }
+  }
+  return { costUsd, hasUnknownCost };
+}
+
+export function dayTimelineOf(
+  inputs: readonly UsageSessionInput[],
+  dayStart: number
+): DayTimeline {
+  type TimelineTally = {
+    path: string;
+    title: string;
+    projectLabel: string;
+    projectPath?: string;
+    startTs: number;
+    endTs: number;
+    hourlyTokens: number[];
+    models: Map<string, UsageTotals>;
+  };
+
+  const tallies = new Map<string, TimelineTally>();
+  let messages = 0;
+  // 项目账（与 buildUsageCalendar 的 day.projects 同构）：tokens 只累计有 usage
+  // 的记录（排序口径），sessions 计当天有记录的会话（展示口径）——两个数字
+  // 服务两个问题，不共用一份过滤。
+  const projectTokens = new Map<string, number>();
+  const projectSessions = new Map<string, number>();
+
+  inputs.forEach((source, index) => {
+    const session: SessionMeta | undefined = source.session;
+    const key = sessionKeyOf(source, index);
+    let tally: TimelineTally | undefined;
+
+    for (const record of source.records) {
+      if (!countsAsMessage(record)) continue;
+      if (dayStartOf(record.timestamp) !== dayStart) continue;
+      messages += 1;
+
+      if (!tally) {
+        tally = {
+          path: session?.path ?? "",
+          title: session ? sessionTitle(session) : source.projectLabel,
+          projectLabel: source.projectLabel,
+          projectPath: source.projectPath ?? session?.cwd,
+          startTs: record.timestamp,
+          endTs: record.timestamp,
+          hourlyTokens: Array.from({ length: 24 }, () => 0),
+          models: new Map()
+        };
+        tallies.set(key, tally);
+        // 会话数按「当天有记录」计（空串 label 不进项目维度，同 topProject）。
+        if (source.projectLabel) {
+          projectSessions.set(
+            source.projectLabel,
+            (projectSessions.get(source.projectLabel) ?? 0) + 1
+          );
+        }
+      }
+      // 首末时刻取 min/max：记录顺序不保证升序（解析按行序，真实日志可乱序）。
+      if (record.timestamp < tally.startTs) tally.startTs = record.timestamp;
+      if (record.timestamp > tally.endTs) tally.endTs = record.timestamp;
+
+      const usage = record.usage;
+      if (!usage) continue;
+      tally.hourlyTokens[new Date(record.timestamp).getHours()] += usageTokens(usage);
+      const model = record.model ?? UNKNOWN_MODEL_LABEL;
+      let modelTotals = tally.models.get(model);
+      if (!modelTotals) {
+        modelTotals = { input: 0, output: 0, cacheCreation: 0, cacheRead: 0 };
+        tally.models.set(model, modelTotals);
+      }
+      addUsage(modelTotals, usage);
+      if (source.projectLabel) {
+        projectTokens.set(
+          source.projectLabel,
+          (projectTokens.get(source.projectLabel) ?? 0) + usageTokens(usage)
+        );
+      }
+    }
+  });
+
+  // 排序（§2.1）：startTs 升序，并列按 title 再按 path——泳道贪心与 ←/→
+  // 键盘导航共用这一条时间序。
+  const ranked = [...tallies.values()];
+  ranked.sort(
+    (a, b) =>
+      a.startTs - b.startTs || a.title.localeCompare(b.title) || a.path.localeCompare(b.path)
+  );
+
+  // 泳道贪心（区间图着色的经典最优）：按时间序扫描，落到「最早空出的」泳道。
+  // effectiveEnd 给瞬时会话 1 分钟名义跨度，同刻的它们必然分泳道；副作用是
+  // 背靠背的真会话（A 恰在 B 开始的同一毫秒结束）也分泳道——视觉上背靠背
+  // 贴住，分泳道更可读，不是 bug。泳道不设数据层上限：折叠是布局层的事。
+  const laneEnds: number[] = [];
+  const sessions: DayTimelineSession[] = ranked.map((tally) => {
+    const tokens = tallyTokensOf(tally);
+    const { costUsd, hasUnknownCost } = costOfModels(tally.models);
+    return {
+      path: tally.path,
+      title: tally.title,
+      projectLabel: tally.projectLabel,
+      projectPath: tally.projectPath,
+      startTs: tally.startTs,
+      endTs: tally.endTs,
+      instant: tally.endTs - tally.startTs < INSTANT_SPAN_MS,
+      lane: 0,
+      hourlyTokens: tally.hourlyTokens,
+      tokens,
+      costUsd,
+      hasUnknownCost
+    };
+  });
+  sessions.forEach((session) => {
+    const effectiveEnd = session.instant ? session.startTs + INSTANT_SPAN_MS : session.endTs;
+    let lane = laneEnds.findIndex((end) => end <= session.startTs);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(effectiveEnd);
+    } else {
+      laneEnds[lane] = effectiveEnd;
+    }
+    session.lane = lane;
+  });
+
+  // summary：模型账从会话桶合并（estimateCost 线性，合并后求和与逐桶等价，
+  // 与 buildUsageCalendar 的天 facts 逐字段对账由恒等式测试钉住）。
+  const dayModels = new Map<string, UsageTotals>();
+  for (const tally of ranked) {
+    for (const [model, totals] of tally.models) {
+      let merged = dayModels.get(model);
+      if (!merged) {
+        merged = { input: 0, output: 0, cacheCreation: 0, cacheRead: 0 };
+        dayModels.set(model, merged);
+      }
+      addTotals(merged, totals);
+    }
+  }
+  const { costUsd, hasUnknownCost } = costOfModels(dayModels);
+  let tokens = 0;
+  for (const totals of dayModels.values()) tokens += totalsSum(totals);
+  // topModel 排名：unknown 模型（定价快照认不出的 id）的 token 归并进
+  // UNKNOWN_MODEL_LABEL 条目——否则「未知模型」永远到不了榜首，而那正是
+  // 「当天大头是未知模型」最该被说出来的时刻。并列取字典序最小。
+  const modelRankTokens = new Map<string, number>();
+  for (const [model, totals] of dayModels) {
+    const key = pricingFamilyFor(model) === null ? UNKNOWN_MODEL_LABEL : model;
+    modelRankTokens.set(key, (modelRankTokens.get(key) ?? 0) + totalsSum(totals));
+  }
+  let topModel: string | null = null;
+  let topModelTokens = 0;
+  for (const [model, modelTokens] of modelRankTokens) {
+    const beats =
+      topModel === null ||
+      modelTokens > topModelTokens ||
+      (modelTokens === topModelTokens && model < topModel);
+    if (beats) {
+      topModel = model;
+      topModelTokens = modelTokens;
+    }
+  }
+  // 无 token（全无 usage）时 topModel 为 null：模型榜没有「垫底也上榜」。
+  if (topModel !== null && topModelTokens <= 0) topModel = null;
+
+  // 项目槽位（§3.2）：当日 token 降序 Top5 拿彩槽，第 6 个及以后折叠进
+  // "other"（形状与读数保留——条照画、title 照报项目名，只有专属颜色折叠）。
+  // 并列按 label 字典序（同 topProject）。分配按天重算，不做跨天稳定映射。
+  const projectPathByLabel = new Map<string, string>();
+  for (const input of inputs) {
+    if (input.projectPath && input.projectLabel && !projectPathByLabel.has(input.projectLabel)) {
+      projectPathByLabel.set(input.projectLabel, input.projectPath);
+    }
+  }
+  const rankedProjects = [...projectTokens.entries()]
+    .filter(([, value]) => value > 0)
+    .map(([label, value]) => ({ label, tokens: value }))
+    .sort((a, b) => b.tokens - a.tokens || a.label.localeCompare(b.label));
+
+  const projectSlots: DayProjectSlot[] = rankedProjects.slice(0, 5).map((project, index) => ({
+    label: project.label,
+    path: projectPathByLabel.get(project.label),
+    slot: index as 0 | 1 | 2 | 3 | 4,
+    tokens: project.tokens,
+    sessions: projectSessions.get(project.label) ?? 0
+  }));
+  const tail = rankedProjects.slice(5);
+  if (tail.length > 0) {
+    projectSlots.push({
+      label: "",
+      slot: "other",
+      tokens: tail.reduce((sum, project) => sum + project.tokens, 0),
+      sessions: tail.reduce(
+        (sum, project) => sum + (projectSessions.get(project.label) ?? 0),
+        0
+      )
+    });
+  }
+
+  const labels = new Set<string>();
+  for (const tally of ranked) {
+    if (tally.projectLabel) labels.add(tally.projectLabel);
+  }
+
+  // firstTs 排序后即首条；lastTs 必须真取 max——后开始的会话可能先结束
+  // （恒等式 §2.4：firstTs === min(startTs)、lastTs === max(endTs)）。
+  const lastTs = sessions.reduce<number | null>(
+    (max, session) => (max === null || session.endTs > max ? session.endTs : max),
+    null
+  );
+
+  return {
+    summary: {
+      costUsd,
+      hasUnknownCost,
+      tokens,
+      sessions: sessions.length,
+      messages,
+      firstTs: sessions.length > 0 ? sessions[0].startTs : null,
+      lastTs,
+      topModel,
+      projects: labels.size
+    },
+    sessions,
+    laneCount: laneEnds.length,
+    projectSlots
+  };
+}
+
+/** TimelineTally 的 token 合计（tallyTokens 的同构物；类型不共享所以另写一份）。 */
+function tallyTokensOf(tally: { models: Map<string, UsageTotals> }): number {
+  let tokens = 0;
+  for (const totals of tally.models.values()) tokens += totalsSum(totals);
+  return tokens;
 }
 
 export function daySessionsOf(

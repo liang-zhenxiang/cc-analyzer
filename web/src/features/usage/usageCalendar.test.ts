@@ -8,8 +8,20 @@ function priced(estimate: CostEstimate): { usd: number } {
   if ("unknownModel" in estimate) throw new Error(`夹具模型意外未定价：${JSON.stringify(estimate)}`);
   return estimate;
 }
-import { addLocalDays, type UsageSessionInput, type UsageTotals } from "./usageAggregations";
-import { buildUsageCalendar, daySessionsOf, levelOfCost, type UsageCalendar } from "./usageCalendar";
+import {
+  UNKNOWN_MODEL_LABEL,
+  addLocalDays,
+  type UsageSessionInput,
+  type UsageTotals
+} from "./usageAggregations";
+import {
+  buildUsageCalendar,
+  daySessionsOf,
+  dayTimelineOf,
+  levelOfCost,
+  type DayTimeline,
+  type UsageCalendar
+} from "./usageCalendar";
 
 /** `estimateCost` 吃的是四类计数器（UsageTotals），测试里的 SessionUsage 先折一道。 */
 function totalsOf(usage: SessionUsage): UsageTotals {
@@ -463,6 +475,447 @@ describe("daySessionsOf", () => {
     const detail = daySessionsOf(inputs, day);
     expect(detail.sessions).toBe(cell.sessions);
     expect(detail.dayTokens).toBe(cell.tokens);
+  });
+});
+
+describe("dayTimelineOf · 一日回望（Issue #192）", () => {
+  const day = daysAgo(1);
+
+  /** 泳道不变量复用断言：同泳道两两不重叠（effectiveEnd 口径）、max(lane) 封顶。 */
+  function assertLanesValid(timeline: DayTimeline): void {
+    expect(timeline.sessions.length).toBeGreaterThan(0);
+    const effectiveEndOf = (session: { instant: boolean; startTs: number; endTs: number }) =>
+      session.instant ? session.startTs + 60_000 : session.endTs;
+    const byLane = new Map<number, DayTimeline["sessions"]>();
+    for (const session of timeline.sessions) {
+      expect(session.lane).toBeGreaterThanOrEqual(0);
+      expect(session.lane).toBeLessThan(timeline.laneCount);
+      byLane.set(session.lane, [...(byLane.get(session.lane) ?? []), session]);
+    }
+    for (const group of byLane.values()) {
+      const sorted = [...group].sort((a, b) => a.startTs - b.startTs);
+      for (let index = 1; index < sorted.length; index += 1) {
+        expect(effectiveEndOf(sorted[index - 1])).toBeLessThanOrEqual(sorted[index].startTs);
+      }
+    }
+    expect(Math.max(...timeline.sessions.map((session) => session.lane))).toBe(
+      timeline.laneCount - 1
+    );
+  }
+
+  it("首末时刻：多记录取 min/max；跨午夜会话按记录归属切，两天各见各的", () => {
+    const monday = daysAgo(2);
+    const lateNight = new Date(monday).setHours(23, 30, 0, 0);
+    const afterMidnight = new Date(monday).setHours(25, 30, 0, 0);
+    const session = input(
+      [record(lateNight, 1_000), record(afterMidnight, 2_000)],
+      "-repo-x",
+      meta("/sessions/x.jsonl")
+    );
+
+    // 今天侧只有 00:30 一条 → 首末同刻、瞬时会话（条 ≠ 会话真实起止，口径同 daySessionsOf）。
+    const tuesday = dayTimelineOf([session], addLocalDays(monday, 1));
+    expect(tuesday.sessions).toHaveLength(1);
+    expect(tuesday.sessions[0].startTs).toBe(afterMidnight);
+    expect(tuesday.sessions[0].endTs).toBe(afterMidnight);
+    expect(tuesday.sessions[0].instant).toBe(true);
+    expect(tuesday.summary.firstTs).toBe(afterMidnight);
+    expect(tuesday.summary.lastTs).toBe(afterMidnight);
+
+    const mondayTimeline = dayTimelineOf([session], monday);
+    expect(mondayTimeline.sessions).toHaveLength(1);
+    expect(mondayTimeline.sessions[0].startTs).toBe(lateNight);
+    expect(mondayTimeline.sessions[0].endTs).toBe(lateNight);
+
+    // 多记录乱序（后写的更早）：首末仍取 min/max，不信任行序。
+    const shuffledTimes = input(
+      [record(at(day, 12), 5), record(at(day, 9), 5), record(at(day, 10), 5)],
+      "-repo-m",
+      meta("/sessions/m.jsonl")
+    );
+    const multi = dayTimelineOf([shuffledTimes], day);
+    expect(multi.sessions[0].startTs).toBe(at(day, 9));
+    expect(multi.sessions[0].endTs).toBe(at(day, 12));
+  });
+
+  it("逐小时分桶：9:30 / 10:15 各得其所；Σ hourlyTokens === tokens；无 usage 只计 messages", () => {
+    const nineThirty = new Date(day).setHours(9, 30, 0, 0);
+    const tenFifteen = new Date(day).setHours(10, 15, 0, 0);
+    const active = input(
+      [record(nineThirty, 3_000), record(tenFifteen, 4_000)],
+      "-repo-active",
+      meta("/sessions/active.jsonl")
+    );
+    const quiet = input(
+      [record(new Date(day).setHours(14, 0, 0, 0), 0, { kind: "user", usage: undefined })],
+      "-repo-quiet",
+      meta("/sessions/quiet.jsonl")
+    );
+
+    const timeline = dayTimelineOf([active, quiet], day);
+    const activeBar = timeline.sessions.find((session) => session.path === "/sessions/active.jsonl")!;
+    const quietBar = timeline.sessions.find((session) => session.path === "/sessions/quiet.jsonl")!;
+    expect(activeBar.hourlyTokens).toHaveLength(24);
+    expect(activeBar.hourlyTokens[9]).toBe(3_000);
+    expect(activeBar.hourlyTokens[10]).toBe(4_000);
+    expect(activeBar.hourlyTokens.filter((value) => value !== 0)).toHaveLength(2);
+    expect(
+      activeBar.hourlyTokens.reduce((sum, value) => sum + value, 0)
+    ).toBe(activeBar.tokens);
+    // 无 usage 记录不进桶但计 messages：quiet 条零密度、形状在场。
+    expect(quietBar.hourlyTokens.every((value) => value === 0)).toBe(true);
+    expect(quietBar.tokens).toBe(0);
+    expect(timeline.summary.messages).toBe(3);
+  });
+
+  it("instant 判定：59_999 → true、60_000 → false、单记录（start === end）→ true", () => {
+    const start = at(day, 9);
+    const timeline = dayTimelineOf(
+      [
+        input(
+          [record(start, 100), record(start + 59_999, 100)],
+          "-repo-under",
+          meta("/sessions/under.jsonl")
+        ),
+        input(
+          [record(start, 100), record(start + 60_000, 100)],
+          "-repo-exactly",
+          meta("/sessions/exactly.jsonl")
+        ),
+        input([record(start, 100)], "-repo-single", meta("/sessions/single.jsonl"))
+      ],
+      day
+    );
+    const byPath = new Map(timeline.sessions.map((session) => [session.path, session]));
+    expect(byPath.get("/sessions/under.jsonl")!.instant).toBe(true);
+    expect(byPath.get("/sessions/exactly.jsonl")!.instant).toBe(false);
+    expect(byPath.get("/sessions/single.jsonl")!.instant).toBe(true);
+  });
+
+  it("泳道贪心：不重叠同泳道、重叠 / 包含分泳道、同刻瞬时分泳道（effectiveEnd）", () => {
+    // A 09:00–10:00；C 09:30–10:30（与 A 重叠）；D 09:45–09:50（被 A 包含）；
+    // B 10:00–11:00（与 A 背靠背：A 恰在 B 开始的同一毫秒结束 → 复用泳道 0）；
+    // E / F 12:00 同刻瞬时会话（effectiveEnd 生效必然分泳道）。
+    const timeline = dayTimelineOf(
+      [
+        input(
+          [record(at(day, 9), 1), record(at(day, 10), 1)],
+          "-repo-a",
+          meta("/sessions/lane-a.jsonl")
+        ),
+        input(
+          [record(at(day, 10), 1), record(at(day, 11), 1)],
+          "-repo-b",
+          meta("/sessions/lane-b.jsonl")
+        ),
+        input(
+          [record(at(day, 9.5), 1), record(at(day, 10.5), 1)],
+          "-repo-c",
+          meta("/sessions/lane-c.jsonl")
+        ),
+        input(
+          [record(at(day, 9.75), 1), record(at(day, 9) + 50 * 60_000, 1)],
+          "-repo-d",
+          meta("/sessions/lane-d.jsonl")
+        ),
+        input([record(at(day, 12), 1)], "-repo-e", meta("/sessions/lane-e.jsonl")),
+        input([record(at(day, 12), 1)], "-repo-f", meta("/sessions/lane-f.jsonl"))
+      ],
+      day
+    );
+    const byPath = new Map(timeline.sessions.map((session) => [session.path, session]));
+    expect(byPath.get("/sessions/lane-a.jsonl")!.lane).toBe(0);
+    expect(byPath.get("/sessions/lane-b.jsonl")!.lane).toBe(0);
+    expect(byPath.get("/sessions/lane-c.jsonl")!.lane).toBe(1);
+    expect(byPath.get("/sessions/lane-d.jsonl")!.lane).toBe(2);
+    // 两个同刻瞬时会话：第一个复用已空出的泳道 0（effectiveEnd 12:01），第二个必然换道。
+    expect(byPath.get("/sessions/lane-e.jsonl")!.lane).toBe(0);
+    expect(byPath.get("/sessions/lane-f.jsonl")!.lane).toBe(1);
+    assertLanesValid(timeline);
+  });
+
+  it("项目槽位：3 项目按当日 token 降序拿 0/1/2；并列按 label 字典序", () => {
+    const timeline = dayTimelineOf(
+      [
+        input(
+          [record(at(day), 1_000)],
+          "-repo-small",
+          meta("/sessions/s.jsonl"),
+          "/repo/small"
+        ),
+        input([record(at(day), 9_000)], "-repo-big", meta("/sessions/b.jsonl"), "/repo/big"),
+        input([record(at(day), 5_000)], "-repo-mid", meta("/sessions/m.jsonl"), "/repo/mid")
+      ],
+      day
+    );
+    expect(timeline.projectSlots.map((slot) => slot.label)).toEqual([
+      "-repo-big",
+      "-repo-mid",
+      "-repo-small"
+    ]);
+    expect(timeline.projectSlots.map((slot) => slot.slot)).toEqual([0, 1, 2]);
+    expect(timeline.projectSlots[0]).toMatchObject({ path: "/repo/big", sessions: 1 });
+
+    // token 并列 → label 字典序（a-lose 在 b-tail 前，两者同量）。
+    const tie = dayTimelineOf(
+      [
+        input([record(at(day), 5_000)], "-repo-b-tail", meta("/sessions/t1.jsonl")),
+        input([record(at(day), 5_000)], "-repo-a-lose", meta("/sessions/t2.jsonl"))
+      ],
+      day
+    );
+    expect(tie.projectSlots.map((slot) => slot.label)).toEqual(["-repo-a-lose", "-repo-b-tail"]);
+  });
+
+  it("项目槽位折叠：6 项目恰 5 彩槽 + other；7 项目 other 合并第 6+（Σ === summary.tokens）", () => {
+    const labels = ["a", "b", "c", "d", "e", "f", "g"];
+    const inputs = labels.map((name, index) =>
+      input(
+        [record(at(day, 9 + index * 0.1), (7 - index) * 1_000)],
+        `-repo-${name}`,
+        meta(`/sessions/p${index}.jsonl`)
+      )
+    );
+
+    const seven = dayTimelineOf(inputs, day);
+    expect(seven.projectSlots).toHaveLength(6);
+    expect(seven.projectSlots.map((slot) => slot.slot)).toEqual([0, 1, 2, 3, 4, "other"]);
+    expect(seven.projectSlots[5].tokens).toBe(1_000 + 2_000);
+    expect(seven.projectSlots[5].sessions).toBe(2);
+    expect(seven.projectSlots.reduce((sum, slot) => sum + slot.tokens, 0)).toBe(
+      seven.summary.tokens
+    );
+
+    const six = dayTimelineOf(inputs.slice(0, 6), day);
+    expect(six.projectSlots).toHaveLength(6);
+    expect(six.projectSlots[5].slot).toBe("other");
+    expect(six.projectSlots[5].tokens).toBe(2_000);
+    // 5 个及以内零折叠。
+    const five = dayTimelineOf(inputs.slice(0, 5), day);
+    expect(five.projectSlots.map((slot) => slot.slot)).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("summary.topModel：token 最大者；并列按 id 字典序；全无 usage → null；unknown 命中 → UNKNOWN_MODEL_LABEL", () => {
+    const top = dayTimelineOf(
+      [
+        input(
+          [
+            record(at(day), 0, {
+              model: "claude-haiku-4-5",
+              usage: { inputTokens: 1_000_000 }
+            })
+          ],
+          "-repo-a"
+        ),
+        input(
+          [
+            record(at(day, 11), 0, {
+              model: "claude-sonnet-4-5",
+              usage: { inputTokens: 1_000 }
+            })
+          ],
+          "-repo-b"
+        )
+      ],
+      day
+    );
+    expect(top.summary.topModel).toBe("claude-haiku-4-5");
+
+    // 并列（同 token）→ id 字典序最小。
+    const tie = dayTimelineOf(
+      [
+        input(
+          [
+            record(at(day), 0, {
+              model: "claude-sonnet-4-5",
+              usage: { inputTokens: 1_000 }
+            })
+          ],
+          "-repo-a"
+        ),
+        input(
+          [
+            record(at(day, 11), 0, {
+              model: "claude-haiku-4-5",
+              usage: { inputTokens: 1_000 }
+            })
+          ],
+          "-repo-b"
+        )
+      ],
+      day
+    );
+    expect(tie.summary.topModel).toBe("claude-haiku-4-5");
+
+    const none = dayTimelineOf(
+      [input([record(at(day), 0, { kind: "user", usage: undefined })], "-repo-n")],
+      day
+    );
+    expect(none.summary.topModel).toBeNull();
+
+    // unknown 模型的 token 计入排名：量最大时如实报「未知模型」。
+    const unknownTop = dayTimelineOf(
+      [
+        input(
+          [
+            record(at(day), 0, {
+              model: "claude-haiku-4-5",
+              usage: { inputTokens: 1_000 }
+            })
+          ],
+          "-repo-a"
+        ),
+        input(
+          [
+            record(at(day, 11), 0, {
+              model: "gpt-unknown-9",
+              usage: { inputTokens: 9_000 }
+            })
+          ],
+          "-repo-b"
+        )
+      ],
+      day
+    );
+    expect(unknownTop.summary.topModel).toBe(UNKNOWN_MODEL_LABEL);
+    expect(unknownTop.summary.hasUnknownCost).toBe(true);
+  });
+
+  it("summary：projects 只计非空 label；空输入可构造且 firstTs / lastTs 为 null", () => {
+    const timeline = dayTimelineOf(
+      [
+        input([record(at(day), 100)], "-repo-a", meta("/sessions/a.jsonl")),
+        input([record(at(day, 11), 100)], "-repo-a", meta("/sessions/a2.jsonl")),
+        input([record(at(day, 12), 100)], "-repo-b", meta("/sessions/b.jsonl"))
+      ],
+      day
+    );
+    expect(timeline.summary.projects).toBe(2);
+    expect(timeline.summary.sessions).toBe(3);
+
+    const empty = dayTimelineOf([], day);
+    expect(empty.summary).toMatchObject({
+      sessions: 0,
+      messages: 0,
+      firstTs: null,
+      lastTs: null,
+      tokens: 0,
+      topModel: null,
+      projects: 0
+    });
+    expect(empty.sessions).toEqual([]);
+    expect(empty.laneCount).toBe(0);
+    expect(empty.projectSlots).toEqual([]);
+  });
+});
+
+describe("dayTimelineOf · 与既有函数的一致性恒等式（§2.4 八条）", () => {
+  // 同一天、同一批 inputs 下 `dayTimelineOf` / `daySessionsOf` /
+  // `buildUsageCalendar` 必然一致——升级是增量的，两套实现不许悄悄分叉。
+  const day1 = daysAgo(1);
+  const day2 = daysAgo(2);
+
+  function mixedInputs(): UsageSessionInput[] {
+    return [
+      input(
+        [
+          record(at(day1, 9), 2_000_000, { model: "claude-haiku-4-5" }),
+          record(at(day1, 10), 1_000_000, { model: "gpt-unknown-9" }),
+          record(at(day2, 14), 3_000_000, { model: "claude-haiku-4-5" })
+        ],
+        "-repo-a",
+        meta("/sessions/a.jsonl", { customTitle: "a" })
+      ),
+      input([record(at(day1, 11), 2_000)], "-repo-b", meta("/sessions/b.jsonl")),
+      input([record(at(day1, 15), 0, { kind: "user", usage: undefined })], "-repo-c"),
+      input([record(at(day2, 15), 5_000)], "-repo-d", meta("/sessions/d.jsonl"))
+    ];
+  }
+
+  it("同一天三函数对账：会话数 / token / 成本 / messages 逐字段相等，summary 与天 facts 同构", () => {
+    const inputs = mixedInputs();
+    const facts = cellOf(buildUsageCalendar(inputs, NOW), day1);
+    const detail = daySessionsOf(inputs, day1);
+    const timeline = dayTimelineOf(inputs, day1);
+
+    // 1 + 2. 会话数与 token 三处恒等。
+    expect(timeline.sessions.length).toBe(timeline.summary.sessions);
+    expect(timeline.summary.sessions).toBe(detail.sessions);
+    expect(timeline.summary.sessions).toBe(facts.sessions);
+    const sessionTokens = timeline.sessions.reduce((sum, session) => sum + session.tokens, 0);
+    expect(sessionTokens).toBe(timeline.summary.tokens);
+    expect(timeline.summary.tokens).toBe(detail.dayTokens);
+    expect(timeline.summary.tokens).toBe(facts.tokens);
+
+    // 3. summary 与 buildUsageCalendar 的天 facts 逐字段（成本浮点容差，口径同构）。
+    expect(timeline.summary.costUsd).toBeCloseTo(facts.costUsd, 10);
+    expect(timeline.summary.hasUnknownCost).toBe(facts.hasUnknownCost);
+    expect(timeline.summary.messages).toBe(facts.messages);
+
+    // 4. firstTs / lastTs 与 sessions 的 min / max。
+    expect(timeline.summary.firstTs).toBe(Math.min(...timeline.sessions.map((s) => s.startTs)));
+    expect(timeline.summary.lastTs).toBe(Math.max(...timeline.sessions.map((s) => s.endTs)));
+
+    // 5. 每条 Σ hourlyTokens === tokens；instant 判定精确式。
+    for (const session of timeline.sessions) {
+      expect(session.hourlyTokens.reduce((sum, value) => sum + value, 0)).toBe(session.tokens);
+      expect(session.instant).toBe(session.endTs - session.startTs < 60_000);
+    }
+
+    // 6. 泳道：同泳道两两不重叠（effectiveEnd 口径）、max(lane) === laneCount − 1。
+    const effectiveEndOf = (session: (typeof timeline.sessions)[number]) =>
+      session.instant ? session.startTs + 60_000 : session.endTs;
+    const byLane = new Map<number, typeof timeline.sessions>();
+    for (const session of timeline.sessions) {
+      byLane.set(session.lane, [...(byLane.get(session.lane) ?? []), session]);
+    }
+    for (const group of byLane.values()) {
+      const sorted = [...group].sort((a, b) => a.startTs - b.startTs);
+      for (let index = 1; index < sorted.length; index += 1) {
+        expect(effectiveEndOf(sorted[index - 1])).toBeLessThanOrEqual(sorted[index].startTs);
+      }
+    }
+    expect(Math.max(...timeline.sessions.map((session) => session.lane))).toBe(
+      timeline.laneCount - 1
+    );
+
+    // 7. projectSlots 的 Σ tokens === summary.tokens（other 桽尾合并所有第 6+ 项目）。
+    expect(timeline.projectSlots.reduce((sum, slot) => sum + slot.tokens, 0)).toBe(
+      timeline.summary.tokens
+    );
+
+    // 8. daySessionsOf 的行成员与 timeline 的条成员同集（同一天同身份键）。
+    expect(new Set(detail.rows.map((row) => row.path))).toEqual(
+      new Set(timeline.sessions.map((session) => session.path))
+    );
+  });
+
+  it("输入顺序无关：打乱 inputs 与记录顺序，输出逐字段相等", () => {
+    const baseline = dayTimelineOf(mixedInputs(), day1);
+    const [a, b, c, d] = mixedInputs();
+    const shuffled = dayTimelineOf(
+      [
+        { ...d, records: [...d.records].reverse() },
+        { ...c, records: [...c.records].reverse() },
+        { ...b, records: [...b.records].reverse() },
+        { ...a, records: [...a.records].reverse() }
+      ],
+      day1
+    );
+
+    // sessions 数组逐字段（排序键含 startTs / title / path，打乱后序不变）。
+    expect(shuffled.sessions).toEqual(baseline.sessions);
+    expect(shuffled.laneCount).toBe(baseline.laneCount);
+    expect(shuffled.projectSlots).toEqual(baseline.projectSlots);
+    expect(shuffled.summary.sessions).toBe(baseline.summary.sessions);
+    expect(shuffled.summary.tokens).toBe(baseline.summary.tokens);
+    expect(shuffled.summary.messages).toBe(baseline.summary.messages);
+    expect(shuffled.summary.firstTs).toBe(baseline.summary.firstTs);
+    expect(shuffled.summary.lastTs).toBe(baseline.summary.lastTs);
+    expect(shuffled.summary.topModel).toBe(baseline.summary.topModel);
+    expect(shuffled.summary.projects).toBe(baseline.summary.projects);
+    expect(shuffled.summary.hasUnknownCost).toBe(baseline.summary.hasUnknownCost);
+    expect(shuffled.summary.costUsd).toBeCloseTo(baseline.summary.costUsd, 10);
   });
 });
 

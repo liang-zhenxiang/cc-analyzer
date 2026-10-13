@@ -554,6 +554,183 @@ export function calendarScenario(overrides: Partial<MockScenario> = {}): MockSce
   return { ...base, files, ...overrides };
 }
 
+/**
+ * 「一日回望」场景（Issue #192）：在 `calendarScenario()` 之上**追加**文件
+ * （sessionId 序号 13 起，不撞既有 1–12）——V1 布景与其档位断言一字不动，
+ * dayView 的断言单独 `test.use`，两组互不污染。
+ *
+ * 追加布景（全部相对 `todayStart` 锚定本地日历日，同 calendarScenario 的
+ * 锚定法；sonnet，$3/MTok input）：
+ * ① 跨午夜会话 13（/repo/dayview-cross）：昨天 23:30 user + 今天 00:30
+ *   assistant（50K）——今天侧单记录 → instant 条，也把「昨天加会话」的
+ *   档位扰动留给了昨天（原档位断言不在本场景跑）。
+ * ② 凌晨会话 14（/repo/dayview-dawn）：今天 05:00–05:05 两条（30K）。
+ * ③ 密度会话 15（/repo/dayview-density）：今天 09:00/10:00/11:00/12:00
+ *   四条，token 100K/400K/200K/800K（input 单类）——档位按 §2.3 公式
+ *   ceil(v / max × 4) 手算为 1/2/1/4。
+ * ④ 并行三会话 16/17/18（/repo/dayview-parallel-{1,2,3}）：今天 14:00–15:00
+ *   互相重叠（三泳道）。
+ *
+ * 今天的会话总数 = 原 3 + 追加 6 = 9（手算定值）。
+ */
+export function dayViewScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  const base = calendarScenario();
+  const dayMs = 24 * 3_600_000;
+  // 锚定本地日历日：与 calendarScenario 同一条锚定法（毫秒级跨夜窗口由
+  // 当天时刻吸收，凌晨 00:00 整运行才可能两场景不同日）。
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const dayAt = (offsetDays: number, hour: number, minute = 0) =>
+    todayStart.getTime() - offsetDays * dayMs + hour * 3_600_000 + minute * 60_000;
+
+  const files: Record<string, string> = { ...base.files };
+
+  /**
+   * 一个会话一组文件：真实的 sessionId / cwd 写进每一行（同 calendarScenario
+   * 的真度，解析器从行内读这些字段），sessionId 序号全局唯一、接着
+   * calendarScenario 的 12 往后排。
+   */
+  const writeSession = (
+    ordinal: number,
+    cwd: string,
+    entries: Array<{
+      at: number;
+      uuid: string;
+      parentUuid: string | null;
+      role: "user" | "assistant";
+      text: string;
+      usage?: { input_tokens: number };
+    }>
+  ): void => {
+    const sessionId = `3d2a5442-9c65-4b28-9c30-bb3d1a1f${String(ordinal).padStart(4, "0")}`;
+    const lines = entries.map((entry) =>
+      JSON.stringify({
+        type: entry.role,
+        sessionId,
+        cwd,
+        timestamp: new Date(entry.at).toISOString(),
+        uuid: entry.uuid,
+        parentUuid: entry.parentUuid,
+        isSidechain: false,
+        message:
+          entry.role === "user"
+            ? { role: "user", content: entry.text }
+            : {
+                id: `${entry.uuid}-msg`,
+                role: "assistant",
+                model: "claude-sonnet-4",
+                content: [{ type: "text", text: entry.text }],
+                ...(entry.usage ? { usage: entry.usage } : {})
+              }
+      })
+    );
+    files[`${HOME}/.claude/projects/${projectDir(cwd)}/${sessionId}.jsonl`] =
+      `${lines.join("\n")}\n`;
+  };
+
+  // ① 跨午夜：昨天 23:30 user 定标题，今天 00:30 assistant 带 usage。
+  writeSession(13, "/repo/dayview-cross", [
+    {
+      at: dayAt(1, 23, 30),
+      uuid: "dayview-13-user",
+      parentUuid: null,
+      role: "user",
+      text: "跨午夜会话"
+    },
+    {
+      at: dayAt(0, 0, 30),
+      uuid: "dayview-13-assistant",
+      parentUuid: "dayview-13-user",
+      role: "assistant",
+      text: "跨午夜会话的回复",
+      usage: { input_tokens: 50_000 }
+    }
+  ]);
+  // ② 凌晨：05:00–05:05（5 分钟跨度，非 instant）。
+  writeSession(14, "/repo/dayview-dawn", [
+    {
+      at: dayAt(0, 5, 0),
+      uuid: "dayview-14-user",
+      parentUuid: null,
+      role: "user",
+      text: "凌晨会话"
+    },
+    {
+      at: dayAt(0, 5, 5),
+      uuid: "dayview-14-assistant",
+      parentUuid: "dayview-14-user",
+      role: "assistant",
+      text: "凌晨会话的回复",
+      usage: { input_tokens: 30_000 }
+    }
+  ]);
+  // ③ 密度：四小时各一条，token 100K/400K/200K/800K。
+  writeSession(15, "/repo/dayview-density", [
+    {
+      at: dayAt(0, 9),
+      uuid: "dayview-15-u9",
+      parentUuid: null,
+      role: "user",
+      text: "密度会话"
+    },
+    {
+      at: dayAt(0, 9),
+      uuid: "dayview-15-a9",
+      parentUuid: "dayview-15-u9",
+      role: "assistant",
+      text: "09 时回复",
+      usage: { input_tokens: 100_000 }
+    },
+    {
+      at: dayAt(0, 10),
+      uuid: "dayview-15-a10",
+      parentUuid: "dayview-15-a9",
+      role: "assistant",
+      text: "10 时回复",
+      usage: { input_tokens: 400_000 }
+    },
+    {
+      at: dayAt(0, 11),
+      uuid: "dayview-15-a11",
+      parentUuid: "dayview-15-a10",
+      role: "assistant",
+      text: "11 时回复",
+      usage: { input_tokens: 200_000 }
+    },
+    {
+      at: dayAt(0, 12),
+      uuid: "dayview-15-a12",
+      parentUuid: "dayview-15-a11",
+      role: "assistant",
+      text: "12 时回复",
+      usage: { input_tokens: 800_000 }
+    }
+  ]);
+  // ④ 并行三会话：14:00–15:00 互相重叠（三泳道）。
+  for (const index of [1, 2, 3]) {
+    const name = ["一", "二", "三"][index - 1];
+    writeSession(15 + index, `/repo/dayview-parallel-${index}`, [
+      {
+        at: dayAt(0, 14),
+        uuid: `dayview-${15 + index}-user`,
+        parentUuid: null,
+        role: "user",
+        text: `并行会话 ${name}`
+      },
+      {
+        at: dayAt(0, 15),
+        uuid: `dayview-${15 + index}-assistant`,
+        parentUuid: `dayview-${15 + index}-user`,
+        role: "assistant",
+        text: `并行会话 ${name}的回复`,
+        usage: { input_tokens: 10_000 }
+      }
+    ]);
+  }
+
+  return { ...base, files, ...overrides };
+}
+
 type Fixtures = { scenario: MockScenario };
 
 export const test = base.extend<Fixtures>({

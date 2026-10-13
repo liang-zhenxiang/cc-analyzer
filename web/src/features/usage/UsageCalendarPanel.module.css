@@ -167,8 +167,8 @@
   background: var(--cal-4);
 }
 
-/* 展开区（点击格子后的当天会话 Top 清单）：复用归因面板的「卡里的仪器块」
-   语言——内嵌底色 + 发丝边框，不再套一层卡片。 */
+/* 展开区（点击格子后的「一日回望」，Issue #192 升级）：复用归因面板的
+   「卡里的仪器块」语言——内嵌底色 + 发丝边框，不再套一层卡片。 */
 .sessions {
   display: grid;
   min-width: 0;
@@ -177,6 +177,202 @@
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   background: var(--bg-inset);
+}
+
+/* 摘要行（一行 KPI）：读数行语言，不做六张 KPI 卡。数值与标签同色阶，
+   数值 600 字重 + tabular-nums——对齐不抖、扫读有重心。 */
+.summary {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  min-width: 0;
+}
+
+.summaryNum {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* 摘要行旁的口径脚注：时间线的三条事实，写在图旁边（§4.1）。 */
+.summaryNote {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 一日回望的时间线（Issue #192）：条高 16px 与图例色块 10×10 是「形」不进
+   --sp-* 档位（同 --cal-cell 的先例），也不随 --font-scale 缩放（形不缩放
+   是字号那轮的红线）；条的可点区是行高 --control-h-sm，16px 只是可视层。 */
+.timeline {
+  --bar-h: 16px;
+  display: grid;
+  min-width: 0;
+  gap: var(--sp-1);
+}
+
+/* 项目槽位 → 类别色：全应用第一次建立「项目身份色」，复用类别色体系
+   （--cat-*，Issue #192 契约指定；图表色板 --chart-* 严禁借给项目维度）。
+   当日 token Top5 依次拿 0..4，第 6+ 折叠 "other"（灰）。分配按天重算、
+   不是全局稳定映射，跨天色不稳的代价由图例当场声明。自定义属性经继承
+   送达 barFrame / seg / swatch，组件零颜色分支。 */
+.timeline [data-slot="0"] {
+  --bar-color: var(--cat-direct);
+}
+.timeline [data-slot="1"] {
+  --bar-color: var(--cat-delegated);
+}
+.timeline [data-slot="2"] {
+  --bar-color: var(--cat-compute);
+}
+.timeline [data-slot="3"] {
+  --bar-color: var(--cat-user);
+}
+.timeline [data-slot="4"] {
+  --bar-color: var(--cat-workflow);
+}
+.timeline [data-slot="other"] {
+  --bar-color: var(--cat-wait);
+}
+
+/* 轴 + 泳道共用一个定位上下文：竖刻度线从这里贯穿可视泳道区（时间是横轴、
+   泳道竖滚是纵轴，两者正交，刻度线不随内容滚）。 */
+.chartArea {
+  position: relative;
+}
+
+.axis {
+  position: relative;
+  height: var(--lh-xs);
+}
+
+.axisLabel {
+  position: absolute;
+  top: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.axisTick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+}
+
+/* 泳道区：可视上限 7 行、超出竖滚。8+ 泳道是「并行 agent 跑批」的罕见日，
+   形状不删（滚动可达全部条）、布局有界（展开区总高不随泳道数发散）。 */
+.lanes {
+  position: relative;
+  max-height: calc(7 * var(--control-h-sm));
+  overflow-y: auto;
+}
+
+/* 条：absolute + 百分比、无横向滚动（连续轴天然自适应，最窄视口下小时宽
+   ≈30px）。min-width 2px 是瞬时会话（零跨度）的最小可视宽——同 V1 占比条
+   非零最小宽的令牌与先例；零宽条被抬成一条竖线短杠，如实表达「这里有一个
+   瞬时会话」。 */
+.bar {
+  position: absolute;
+  height: var(--control-h-sm);
+  min-width: var(--sp-05);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* 无元数据的条照画但不可点：不装成可打开（同清单行的 canOpen 逻辑）。 */
+.bar:disabled {
+  cursor: default;
+}
+
+/* 16px 可视层：1px 槽位色描边 + 透明底 + overflow hidden 当密度段裁剪窗
+   （大面积填充只允许 soft，实色只给描边——同 HBarChart 的纪律；密度段的
+   alpha 台阶见下方 .seg）。 */
+.barFrame {
+  position: absolute;
+  inset: calc((var(--control-h-sm) - var(--bar-h)) / 2) 0;
+  overflow: hidden;
+  border: 1px solid var(--bar-color);
+  border-radius: var(--r-xs);
+}
+
+/* 悬停：描边视觉加粗到 2px + --bg-active 底（瞬态冗余通道，title 同时弹出）。
+   第二圈用外扩 box-shadow 而不是改 border-width——border 加粗会缩内容盒，
+   百分比定位的密度段会跟着抖，段的边界必须与小时刻度线恒对齐。 */
+.bar:not(:disabled):hover .barFrame {
+  background: var(--bg-active);
+  box-shadow: 0 0 0 1px var(--bar-color);
+}
+
+/* 焦点环走令牌：HC 档自动 3px + 2px 间隙，组件零分支（同 .clear/.sessionRow）。 */
+.bar:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* 密度段：条内 position absolute，left/width 按整天 24h 坐标系百分比（组件
+   内联），与小时刻度线同一坐标系、无二次换算。opacity 台阶与 Heatmap.tsx
+   的 OPACITY_STEPS 同值同源（[0.3, 0.5, 0.68, 0.84]）——它未导出，复制 +
+   注释是既有容忍的做法，改一处必须同步另一处。 */
+.seg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--bar-color);
+}
+
+.seg[data-seg-level="1"] {
+  opacity: 0.3;
+}
+.seg[data-seg-level="2"] {
+  opacity: 0.5;
+}
+.seg[data-seg-level="3"] {
+  opacity: 0.68;
+}
+.seg[data-seg-level="4"] {
+  opacity: 0.84;
+}
+
+/* 高对比度：密度段一律实色——「HC 要实色、不要叠出来的氛围」（Round U）的
+   直接后果，密度从 4 档降为「有 / 无」两态，量级由条 title 的精确数字兜底。
+   相邻实色段会连成一片，右缘用 inset 阴影画 1px 分隔线（不占布局，几何
+   不变）；普通档透明度已分层，不加。 */
+:global([data-contrast="high"]) .seg {
+  opacity: 1;
+  box-shadow: inset -1px 0 0 var(--bg-inset);
+}
+
+/* 项目图例：「条色 ↔ 项目」的唯一静态对照，色块复用 .swatch 语言（10×10，
+   同 UsageOverviewPage），文本是真实信息。 */
+.projLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-05) var(--sp-2);
+}
+
+.projLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-05);
+  min-width: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.swatch {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-xs);
+  background: var(--bar-color);
 }
 
 .sessionsHead {

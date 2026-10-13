@@ -1037,7 +1037,7 @@ mod gui_probe {
      view 为 null，判定在脚本。容器滚动几何（overflowX / scrollWidth vs
      clientWidth）走 boxOf——「滚动收在日历容器内部、文档与 main 不溢出」
      的事实来源。 */
-  var calendarFacts = { view: null, dayCount: null, todayCount: null, container: null, sessions: null };
+  var calendarFacts = { view: null, dayCount: null, todayCount: null, container: null, sessions: null, timeline: null };
   var calendarEl = document.querySelector('[data-usage-calendar]');
   if (calendarEl) {
     calendarFacts.view = true;
@@ -1051,6 +1051,18 @@ mod gui_probe {
       calendarFacts.sessions = {
         rect: rectOf(calendarSessionsEl),
         rows: calendarSessionsEl.querySelectorAll('li').length
+      };
+      /* 一日回望的时间线事实（Round V / #192）：条计数 === 当天会话数；泳道区
+         的可视高 / 内容高是「可视 7 行内滚」的判定依据。首条宽度顺带量出——
+         门禁夹具的今天是两条同秒记录的瞬时会话，恰好覆盖 instant 路径的
+         2px 最小可视宽断言，不必为此改夹具时间。 */
+      var lanesEl = calendarSessionsEl.querySelector('[data-calendar-lanes]');
+      var firstBarEl = calendarSessionsEl.querySelector('[data-probe="calendar-bar"]');
+      calendarFacts.timeline = {
+        bars: calendarSessionsEl.querySelectorAll('[data-probe="calendar-bar"]').length,
+        lanesH: lanesEl ? lanesEl.clientHeight : null,
+        lanesScrollH: lanesEl ? lanesEl.scrollHeight : null,
+        firstBarWidth: firstBarEl ? firstBarEl.getBoundingClientRect().width : null
       };
     }
   }
@@ -1841,6 +1853,11 @@ mod gui_probe {
             assert!(PROBE_JS.contains("calendar-today"));
             assert!(PROBE_JS.contains("facts.calendar = calendarFacts"));
             assert!(PROBE_JS.contains("data-calendar-sessions"));
+            // 一日回望（Round V / #192）的时间线锚点：条计数（calendar-bar）、
+            // 泳道区（data-calendar-lanes，可视高 / 内容高）、timeline 事实本体。
+            assert!(PROBE_JS.contains("calendar-bar"));
+            assert!(PROBE_JS.contains("data-calendar-lanes"));
+            assert!(PROBE_JS.contains("calendarFacts.timeline"));
         }
 
         #[test]
