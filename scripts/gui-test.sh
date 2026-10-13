@@ -1035,6 +1035,13 @@ CALENDAR_SESSIONS_MAX_HEIGHT = 400
 # 上界 = 轴（≤20.8，130% 字号）+ gap 4 + 行区内部上限 144 ≈ 169，取 180 留余量。
 DAY_SUMMARY_LABELS = ["当日消耗", "会话数", "消息数", "活跃跨度", "最常用模型", "涉及项目"]
 DAY_TIMELINE_MAX_HEIGHT = 180
+# 「一年洞察」（Round V3 / #199）：图例之下的六句实事。键序是 Issue 契约顺序，
+# 门禁逐字对账（DAY_SUMMARY_LABELS 的同款做法）；文本只断稳定词——日期随运行
+# 日漂移，环比的值随夹具活动日落进哪个月漂移，current-streak 的三态随「今天
+# 有没有会话」变化（门禁夹具今天有会话 → active 态「当前连胜」，但断言留
+# 「连胜」宽松档防夹具演进误伤）。
+INSIGHT_KEYS = ["longest-streak", "current-streak", "peak-day", "longest-gap", "active-share", "month-compare"]
+INSIGHT_TEXT_WORDS = ["最长连胜", "最贵一天", "最长空白", "天有消耗", "本月前", "连胜"]
 coverage = os.environ.get("COVERAGE") == "1"
 seen_gauge = 0
 seen_table = 0
@@ -1046,6 +1053,7 @@ seen_context = 0
 seen_error = 0
 seen_changes = 0
 seen_calendar = 0
+seen_insights = 0
 calendar_clicks = 0
 
 # 「滚动=main」的判定要知道滚的是哪个页面：清单是有序的，靠上一步的 label
@@ -1319,6 +1327,32 @@ for arg in sys.argv[1:]:
         else:
             seen_calendar += 1
             print(f"OK|{label}：消耗日历在场（{CALENDAR_DAY_COUNT} 天格，今天格唯一，滚动收在容器内）")
+        # 一年洞察（Round V3 / #199）同档在场：容器 + 六键逐字 + 稳定词。门禁
+        # 夹具今天有会话 → 必须六句全渲染（全 0 年的空态是 count=0，在这里就是
+        # 失败——洞察没接上 calendar）。
+        insights = calendar.get("insights")
+        ins_problems = []
+        if not isinstance(insights, dict) or insights.get("present") is not True:
+            ins_problems.append("洞察区没有渲染（data-probe='calendar-insights' 不在）")
+        else:
+            if insights.get("count") != len(INSIGHT_KEYS):
+                ins_problems.append(
+                    f"洞察句 {insights.get('count')!r} 句，期望 {len(INSIGHT_KEYS)}（夹具今天有会话，六句必须全渲染）"
+                )
+            if insights.get("keys") != INSIGHT_KEYS:
+                ins_problems.append(f"洞察键序 {insights.get('keys')!r}，期望 {INSIGHT_KEYS}")
+            ins_text = insights.get("text") or ""
+            missing_words = [word for word in INSIGHT_TEXT_WORDS if word not in ins_text]
+            if missing_words:
+                ins_problems.append(
+                    "洞察文本缺稳定词：" + "，".join(missing_words) + f"（text={ins_text!r}）"
+                )
+        if ins_problems:
+            for problem in ins_problems:
+                print(f"BAD|{label}：一年洞察——{problem}")
+        else:
+            seen_insights += 1
+            print(f"OK|{label}：一年洞察在场（六键逐字，{len(INSIGHT_TEXT_WORDS)} 个稳定词齐全）")
         # 工具与 skill 面板（N3）同档在场：面板标题 + 体首行双读数（夹具保证
         # 窗内必有工具调用，全空态在这里就是失败——面板没接上聚合）。
         census = data.get("toolCensus") or {}
@@ -2008,6 +2042,8 @@ if coverage and seen_changes == 0:
     print("BAD|视图覆盖：没有任何视图产出改动档几何——「改动」标签页没被覆盖")
 if coverage and seen_calendar == 0:
     print("BAD|视图覆盖：没有任何视图产出消耗日历几何——日历面板没被覆盖")
+if coverage and seen_insights == 0:
+    print("BAD|视图覆盖：没有任何视图产出一年洞察的锚点——洞察句没被覆盖")
 PY
 )" || PROBE_STATUS=$?
 

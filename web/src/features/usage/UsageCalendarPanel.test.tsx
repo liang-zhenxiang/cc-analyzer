@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { SessionMeta } from "../sessions/metadataCache";
 import type { SessionRecord } from "../sessions/types";
 import { DAY_DENSITY_LEVELS, densityLevelOf } from "./dayReview";
-import { addLocalDays } from "./usageAggregations";
+import { addLocalDays, type UsageSessionInput } from "./usageAggregations";
 import { UsageCalendarPanel } from "./UsageCalendarPanel";
 
 /**
@@ -797,6 +797,222 @@ describe("UsageCalendarPanel · 一日回望（Round V2）", () => {
     expect(document.querySelector('[data-probe="day-summary"]')).toBeNull();
     expect(document.querySelector('[data-probe="day-timeline"]')).toBeNull();
     expect(document.querySelector('[data-probe="day-project-key"]')).toBeNull();
+  });
+});
+
+describe("UsageCalendarPanel · 一年洞察（Round V3）", () => {
+  /** 键 → 句 li 的直查（六句的键写死，与门禁 / e2e 同一份契约）。 */
+  function insightItemOf(key: string): HTMLElement {
+    const item = document.querySelector(
+      `[data-probe="calendar-insight-item"][data-insight-key="${key}"]`
+    );
+    if (!item) throw new Error(`没有找到洞察句 ${key}`);
+    return item as HTMLElement;
+  }
+
+  /**
+   * 365 天几乎全有消耗（每天 1000 tok sonnet）：10−2 换成密集日（全 unknown →
+   * 0 成本但有会话）、10−1 真空白——把「最���空白」逼成两天小段，密集日型端点
+   * （可点）与真空白天端点（纯文本）在同一个区间里出现。
+   */
+  function nearFullInputs(): UsageSessionInput[] {
+    const inputs: UsageSessionInput[] = [];
+    for (let offset = -364; offset <= 0; offset += 1) {
+      const dayStart = addLocalDays(TODAY, offset);
+      if (offset === -1) continue;
+      if (offset === -2) {
+        inputs.push({
+          records: [
+            record(dayStart + 11 * 3_600_000, {
+              model: "gpt-unknown-9",
+              usage: { inputTokens: 123 }
+            })
+          ],
+          projectLabel: "-repo-cal",
+          projectPath: "/repo/cal"
+        });
+        continue;
+      }
+      inputs.push(sessionAt(`/sessions/full${-offset}.jsonl`, `满年 ${-offset}`, dayStart, 1_000));
+    }
+    return inputs;
+  }
+
+  it("六句全渲染：键序逐字 = Issue 契约顺序；洞察区带「一年洞察」名、在图例正下方", () => {
+    render(<UsageCalendarPanel inputs={mixedInputs()} now={NOW} />);
+
+    const keys = Array.from(document.querySelectorAll('[data-probe="calendar-insight-item"]')).map(
+      (item) => item.getAttribute("data-insight-key")
+    );
+    expect(keys).toEqual([
+      "longest-streak",
+      "current-streak",
+      "peak-day",
+      "longest-gap",
+      "active-share",
+      "month-compare"
+    ]);
+    const insights = document.querySelector('[data-probe="calendar-insights"]') as HTMLElement;
+    expect(insights.tagName).toBe("UL");
+    expect(insights).toHaveAttribute("aria-label", "一年洞察");
+    // 形态位置（§1.2）：图���之后、展开区之上——展开一日回望时句子不动。
+    const legend = document.querySelector("[data-cal-legend]")!;
+    expect(legend.nextElementSibling).toBe(insights);
+  });
+
+  // mixedInputs 的手算账：active 天 = 10-09（$3.00）与 10-11（$0.108 → $0.11），
+  // 10-10 是密集日（0 成本、1 会话）、今天无 → pending 单日段。环比 N = 12，
+  // 本月第 1..12 天合计 $3.108、上月同期（9 月）无消耗。
+  it("文案逐字（§4.1 模板：全角括号、en dash、单日区间只写一次）", () => {
+    render(<UsageCalendarPanel inputs={mixedInputs()} now={NOW} />);
+
+    expect(insightItemOf("longest-streak").textContent).toBe("最长连胜 1 天（10月11日）");
+    expect(insightItemOf("current-streak").textContent).toBe(
+      "今天还没有消耗；此前连续 1 天（10月11日）"
+    );
+    expect(insightItemOf("peak-day").textContent).toBe("最贵一天 10月9日（$3.00）");
+    expect(insightItemOf("longest-gap").textContent).toBe("最长空白 361 天（2025年10月13日–10月8日）");
+    expect(insightItemOf("active-share").textContent).toBe("这一年 2/365 天有消耗（1%）");
+    expect(insightItemOf("month-compare").textContent).toBe("本月前 12 天 $3.11（上月同期无消耗）");
+  });
+
+  it("六条口径 title 逐字（§5.2 表）；longest-gap 触及窗口首日追加「实际可能长」", () => {
+    render(<UsageCalendarPanel inputs={mixedInputs()} now={NOW} />);
+
+    expect(insightItemOf("longest-streak").getAttribute("title")).toBe(
+      "连续 1 天 = 窗口内连续「当日估算成本 > $0」的最长天数，与格子 0 档同口径（定价未知的天不计）；并列取最近一段"
+    );
+    expect(insightItemOf("current-streak").getAttribute("title")).toBe(
+      "从今天往回数「当日估算成本 > $0」的连续天数；今天没有消耗时如实说明，不预设今天结束"
+    );
+    expect(insightItemOf("peak-day").getAttribute("title")).toBe(
+      "当日估算成本最大的一天，与格子色深同口径（定价快照 2026-10-01）；并列取最近"
+    );
+    expect(insightItemOf("longest-gap").getAttribute("title")).toBe(
+      "连续「当日估算成本 ≤ $0」的最长天数；定价未知的天计入空白（与格子 0 档同口径）；并列取最近一段；区间自窗口首日起算，实际可能长"
+    );
+    expect(insightItemOf("active-share").getAttribute("title")).toBe(
+      "窗口 365 天里「当日估算成本 > $0」的天数；定价未知的天不计入"
+    );
+    expect(insightItemOf("month-compare").getAttribute("title")).toBe(
+      "本月第 1..12 天与上月同期 12 天的估算成本之和对比（等长日历窗，不拿部分月比完整月）；成本为估算值（定价快照 2026-10-01）"
+    );
+  });
+
+  it("日期下钻：点 peak-day 句的日期按钮 → 展开区在场且头部含该天、格子 aria-expanded=true、再点收起", async () => {
+    const user = userEvent.setup();
+    render(<UsageCalendarPanel inputs={mixedInputs()} now={NOW} />);
+
+    const dateButton = insightItemOf("peak-day").querySelector("button")!;
+    expect(dateButton.textContent).toBe("10月9日");
+    await user.click(dateButton);
+
+    const detail = document.querySelector("[data-calendar-sessions]") as HTMLElement;
+    expect(detail).not.toBeNull();
+    expect(within(detail).getByText("10月9日 · 1 个会话")).toBeVisible();
+    expect(
+      dayButton("2026年10月9日 · 估算成本 $3.00 · 1.0M tok · 1 个会话 · cal · 部分会话未知价")
+    ).toHaveAttribute("aria-expanded", "true");
+
+    // toggle：再点同一日期按钮收起（与格子点击同一条 state）。
+    await user.click(dateButton);
+    expect(document.querySelector("[data-calendar-sessions]")).toBeNull();
+  });
+
+  it("日期按钮的 title / aria-label 同文且带年（cellLabelOf 的完整式 + 动作预告）", () => {
+    render(<UsageCalendarPanel inputs={mixedInputs()} now={NOW} />);
+
+    const dateButton = insightItemOf("peak-day").querySelector("button")!;
+    expect(dateButton).toHaveAttribute("title", "2026年10月9日 · 打开一日回望");
+    expect(dateButton).toHaveAttribute("aria-label", "2026年10月9日 · 打开一日回望");
+    // 跨年端点（窗口首日）的正文带年，按钮名仍带年。
+    const gapStart = insightItemOf("longest-gap").textContent;
+    expect(gapStart).toContain("2025年10月13日");
+  });
+
+  it("可点资格：密集日端点（sessions > 0、costUsd = 0）是 button 且点击可展开；真空白天端点是纯文本", async () => {
+    const user = userEvent.setup();
+    render(<UsageCalendarPanel inputs={nearFullInputs()} now={NOW} />);
+
+    const gap = insightItemOf("longest-gap");
+    expect(gap.textContent).toBe("最长空白 2 天（10月10日–10月11日）");
+    const buttons = gap.querySelectorAll("button");
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0].textContent).toBe("10月10日");
+    await user.click(buttons[0]);
+    expect(document.querySelector("[data-calendar-sessions]")).not.toBeNull();
+  });
+
+  it("真空白天端点不是禁用按钮（mixedInputs 的最长空白两端都无会话）", () => {
+    render(<UsageCalendarPanel inputs={mixedInputs()} now={NOW} />);
+
+    const gap = insightItemOf("longest-gap");
+    expect(gap.querySelectorAll("button")).toHaveLength(0);
+    expect(within(gap).queryByRole("button")).toBeNull();
+    // 端点日期仍是正文的一部分（span 文本）。
+    expect(gap.textContent).toContain("2025年10月13日");
+  });
+
+  it("当前连胜 active 态；触及窗口首日的最长连胜照报且 title 注明「实际可能更长」", () => {
+    render(<UsageCalendarPanel inputs={nearFullInputs()} now={NOW} />);
+
+    expect(insightItemOf("current-streak").textContent).toBe("当前连胜 1 天（10月12日至今）");
+    expect(insightItemOf("longest-streak").textContent).toBe("最长连胜 362 天（2025年10月13日–10月9日）");
+    expect(insightItemOf("longest-streak").getAttribute("title")).toBe(
+      "连续 362 天 = 窗口内连续「当日估算成本 > $0」的最长天数，与格子 0 档同口径（定价未知的天不计）；并列取最近一段；区间自窗口首日起算，实际可能更长"
+    );
+  });
+
+  it("当前连胜 broken 态：最近消耗日 +「N 天前」（idleDays ≥ 2 的分支）", () => {
+    render(
+      <UsageCalendarPanel
+        inputs={[sessionAt("/sessions/old.jsonl", "旧会话", addLocalDays(TODAY, -4), 100_000)]}
+        now={NOW}
+      />
+    );
+    expect(insightItemOf("current-streak").textContent).toBe("连胜已断：最近消耗 10月8日（4 天前）");
+  });
+
+  it("Escape：展开态下焦点在日期按钮上按 Escape → 展开区收起、焦点留在按钮", async () => {
+    const user = userEvent.setup();
+    render(<UsageCalendarPanel inputs={mixedInputs()} now={NOW} />);
+
+    const dateButton = insightItemOf("peak-day").querySelector("button")!;
+    await user.click(dateButton);
+    expect(document.querySelector("[data-calendar-sessions]")).not.toBeNull();
+
+    dateButton.focus();
+    await user.keyboard("{Escape}");
+    expect(document.querySelector("[data-calendar-sessions]")).toBeNull();
+    expect(document.activeElement).toBe(dateButton);
+  });
+
+  it("空态：无 usage 输入 → 六句不在、空态单句在场（calendar-insights 容器仍在）", () => {
+    render(<UsageCalendarPanel inputs={[]} now={NOW} />);
+
+    const container = document.querySelector('[data-probe="calendar-insights"]') as HTMLElement;
+    expect(container).not.toBeNull();
+    expect(container.querySelectorAll("[data-insight-key]")).toHaveLength(0);
+    expect(container.textContent).toBe("这一年还没有可统计的消耗");
+  });
+
+  it("视觉纪律：.insight* 规则无颜色字面量、无 --sp-* 之外的间距字面量", () => {
+    const css = readFileSync(
+      resolve(process.cwd(), "src/features/usage/UsageCalendarPanel.module.css"),
+      "utf8"
+    ).replace(/\/\*[\s\S]*?\*\//g, "");
+    const blocks = Array.from(css.matchAll(/\.insight[^{}]*\{([^}]*)\}/g)).map((match) => match[1]);
+    expect(blocks.length).toBeGreaterThanOrEqual(5);
+    for (const block of blocks) {
+      expect(block).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+      expect(block).not.toMatch(/rgba?\(/);
+      expect(block).not.toMatch(/hsla?\(/);
+      expect(block).not.toMatch(/\d+(?:\.\d+)?px/);
+    }
+    // 句间分隔走 --sp-* 令牌（不写字面量间距）。
+    expect(css).toMatch(/\.insights\s*\{[^}]*gap: var\(--sp-1\) var\(--sp-3\)/);
+    // 焦点环走令牌（普通 2px / HC 3px 自动换挡，组件零分支）。
+    expect(css).toMatch(/\.insightDate:focus-visible\s*\{[^}]*var\(--focus-ring-width\)/);
   });
 });
 

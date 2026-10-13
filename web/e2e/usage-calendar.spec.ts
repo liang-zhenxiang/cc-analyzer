@@ -195,4 +195,73 @@ test.describe("消耗日历", () => {
     const hcBorder = await dayCell(page, 1).evaluate((el) => getComputedStyle(el).borderWidth);
     expect(Number.parseFloat(hcBorder)).toBeGreaterThanOrEqual(1);
   });
+
+  // 「一年洞察」（Round V3 / #199）：图例之下的六句实事。夹具布景账
+  // （calendarScenario，§0）：有成本天 = now−300 / −200 / −100 / −30 / −8 /
+  // −1 / 0 共 7 天；最长连胜 2 天（昨天到今天）、最贵一天 $12.00（昨天 4 会话
+  // 合计 4M tok）、最长空白 99 天（now−199..−101 与前一段并列，取最近）。
+  // 日期随运行日漂移——断句子的稳定前缀与数字段，不断整句；环比的值随夹具
+  // 活动日落进哪个月漂移，只断结构（数学由单测的固定 now 钉死）。
+  test("一年洞察：六句键序与确定值（最长连胜 / 最贵一天 / 最长空白 / 活跃占比 / 当前连胜）", async ({
+    page
+  }) => {
+    await openUsage(page);
+
+    const insights = page.locator('[data-probe="calendar-insights"]');
+    await expect(insights).toBeVisible();
+    await expect(insights).toHaveAttribute("aria-label", "一年洞察");
+
+    const items = insights.locator('[data-probe="calendar-insight-item"]');
+    await expect(items).toHaveCount(6);
+    const keys = await items.evaluateAll((nodes) =>
+      nodes.map((node) => (node as HTMLElement).getAttribute("data-insight-key"))
+    );
+    expect(keys).toEqual([
+      "longest-streak",
+      "current-streak",
+      "peak-day",
+      "longest-gap",
+      "active-share",
+      "month-compare"
+    ]);
+
+    const text = (await insights.textContent()) ?? "";
+    expect(text).toContain("最长连胜 2 天");
+    // 夹具今天有会话（$3.45）→ current-streak 落在 active 态。
+    expect(text).toContain("当前连胜 2 天");
+    expect(text).toContain("$12.00");
+    expect(text).toContain("最长空白 99 天");
+    expect(text).toContain("这一年 7/365 天有消耗（2%）");
+    // 环比只断结构（五分支都含这两个词）。
+    expect(text).toContain("本月前");
+    expect(text).toContain("上月同期");
+  });
+
+  test("洞察下钻闭环：点最贵一天的日期按钮展开一日回望（昨天 5 会话）→ × 清除收起；空白端点不可点", async ({
+    page
+  }) => {
+    await openUsage(page);
+
+    // 最贵一天 = 昨天（$12.00）：日期按钮是句内唯一的 button，可访问名带年
+    // 与「打开一日回望」的动作预告。
+    const dateButton = page.locator('[data-insight-key="peak-day"] button');
+    await expect(dateButton).toHaveCount(1);
+    await expect(dateButton).toHaveAttribute("aria-label", `${dayLabelPrefix(1)} · 打开一日回望`);
+    await dateButton.click();
+
+    const sessions = page.locator("[data-calendar-sessions]");
+    await expect(sessions).toBeVisible();
+    // 昨天的会话账：4 个 1M tok 的定档会话 + 跨午夜夹具会话的昨天段（23:40
+    // 一条定标题的 user 记录，无 usage）→ 展开区头部是 5 个会话、$12.00 不变。
+    await expect(sessions.getByText(/5 个会话/)).toBeVisible();
+    await expect(dayCell(page, 1)).toHaveAttribute("aria-expanded", "true");
+
+    // 「× 清除」收起（既有展开区的收起路径，不新增协议）。
+    await page.getByRole("button", { name: "× 清除" }).click();
+    await expect(page.locator("[data-calendar-sessions]")).toHaveCount(0);
+
+    // 夹具的最长空白段（now−199..−101）两端都是真空白天（无会话）→ 纯文本
+    // span，不是按钮（点了没有反馈的控件是坏交互）。
+    await expect(page.locator('[data-insight-key="longest-gap"] button')).toHaveCount(0);
+  });
 });

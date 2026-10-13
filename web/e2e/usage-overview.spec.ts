@@ -45,7 +45,9 @@ test.describe("用量总览", () => {
     // 的色深口径徽章一枚——色深是估算值，来源徽章说清口径。
     await expect(dashboard.getByText("按定价快照估算")).toHaveCount(2);
     await expect(dashboard.getByText(/快照日期 \d{4}-\d{2}-\d{2}/)).toBeVisible();
-    await expect(dashboard.getByText(/\$\d+\.\d{2}/)).toBeVisible();
+    // 金额读数：KPI 瓦片与（Round V3 起）一年洞察句都带 $ 金额，first() 恒落在
+    // KPI 的那一枚（KPI 行在 DOM 中先于日历面板）。
+    await expect(dashboard.getByText(/\$\d+\.\d{2}/).first()).toBeVisible();
   });
 
   test("时间范围切换改变趋势柱数", async ({ page }) => {

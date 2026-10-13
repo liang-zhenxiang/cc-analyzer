@@ -22,8 +22,13 @@ import { PRICING_AS_OF } from "./pricingSnapshot";
 import { ProvenanceBadge } from "./ProvenanceBadge";
 import type { Provenance } from "./provenance";
 import { WEEKDAY_LABELS } from "./charts/chartPrimitives";
+import {
+  calendarInsightsOf,
+  type CalendarInsights,
+  type MonthCompare
+} from "./calendarInsights";
 import { addLocalDays, dayStartOf, type UsageSessionInput } from "./usageAggregations";
-import { buildUsageCalendar } from "./usageCalendar";
+import { buildUsageCalendar, type CalendarDayFacts } from "./usageCalendar";
 import styles from "./UsageCalendarPanel.module.css";
 
 /** 面板脚注：窗口正交（Issue 原话「固定滚动 12 个月，不随区间选择器变」）。 */
@@ -81,6 +86,60 @@ function cellLabelOf(cell: {
 function shortDateOf(dayStart: number): string {
   const date = new Date(dayStart);
   return `${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+/**
+ * 洞察句正文里的日期（§3.6）：与今年同年的天用 `shortDateOf` 的短式，跨年
+ * （滚动窗口首尾附近的日期）带年——「需要区分时才带年」，与月份标签的
+ * 「重复 ⇔ 都带」同精神。完整格式永远在按钮的 title / aria-label 里。
+ */
+function insightDateText(dayStart: number, currentYear: number): string {
+  const date = new Date(dayStart);
+  const text = `${date.getMonth() + 1}月${date.getDate()}日`;
+  return date.getFullYear() === currentYear ? text : `${date.getFullYear()}年${text}`;
+}
+
+/** 洞察日期按钮的可访问名 / 悬停说明（cellLabelOf 原则：年号必须有可靠落点）。 */
+function insightDateLabel(dayStart: number): string {
+  const date = new Date(dayStart);
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 · 打开一日回望`;
+}
+
+/**
+ * 句内日期（§5.1）：可点资格 = 当天 `sessions > 0`，与格子点击同一条线——密集日
+ * （有会话、全 unknown 或无 usage → costUsd = 0）照样可点开一日回望；真空白天
+ * 渲染为纯文本而不是禁用按钮：点了没有任何反馈的控件是坏交互，格子对空白天
+ * 也只是一个色块。
+ */
+function InsightDate({
+  dayStart,
+  facts,
+  text,
+  onDrill,
+  onKeyDown
+}: {
+  dayStart: number;
+  facts: CalendarDayFacts | undefined;
+  text: string;
+  onDrill: (dayStart: number) => void;
+  onKeyDown: (event: KeyboardEvent<HTMLButtonElement>, dayStart: number) => void;
+}) {
+  if (!facts || facts.sessions === 0) {
+    return <span className={styles.insightNum}>{text}</span>;
+  }
+  const label = insightDateLabel(dayStart);
+  return (
+    <button
+      type="button"
+      className={styles.insightDate}
+      title={label}
+      aria-label={label}
+      onClick={() => onDrill(dayStart)}
+      onKeyDown={(event) => onKeyDown(event, dayStart)}
+    >
+      {text}
+    </button>
+  );
 }
 
 /**
@@ -263,6 +322,20 @@ export function UsageCalendarPanel({
   const calendar = useMemo(() => buildUsageCalendar(inputs, now), [inputs, now]);
   const todayStart = useMemo(() => dayStartOf(now), [now]);
   const windowStart = useMemo(() => addLocalDays(todayStart, -364), [todayStart]);
+  // 一年洞察（Round V3）：与格子同一份 calendar、同一个 now 实例——重算时机
+  // 与格子完全同拍（渐进扫描随批次刷新），零新增状态、零新时钟。
+  const insights = useMemo(() => calendarInsightsOf(calendar, now), [calendar, now]);
+  // 洞察日期的可点资格查表（O(365) 拍平一次）：数据层保持纯数字语义。
+  const factsByDay = useMemo(() => {
+    const map = new Map<number, CalendarDayFacts>();
+    for (const column of calendar.cells) {
+      for (const cell of column) {
+        if (cell.kind === "day") map.set(cell.dayStart, cell);
+      }
+    }
+    return map;
+  }, [calendar]);
+  const insightYear = useMemo(() => new Date(now).getFullYear(), [now]);
 
   const [selected, setSelected] = useState<number | null>(null);
   // roving tabindex 的逻辑焦点。初始 = 今天：用户最关心的位置，省一次导航。
@@ -356,6 +429,31 @@ export function UsageCalendarPanel({
     setSelected((current) => (current === dayStart ? null : dayStart));
   };
 
+  /** 洞察日期下钻（§5.1）：与格子点击同一条 state（toggle），并把对应格子滚进
+      视野——洞察点到的常是很久以前的日期，格子多半不在横向视野内，滚过去
+      用户才能看到选中描边（aria-expanded=true 的 2px accent outline）。 */
+  const onInsightDateDrill = (dayStart: number): void => {
+    setFocusDay(dayStart);
+    if ((factsByDay.get(dayStart)?.sessions ?? 0) === 0) return;
+    setFocusRow(0);
+    setSelected((current) => (current === dayStart ? null : dayStart));
+    const button = buttonByDay.current.get(dayStart);
+    if (button && typeof button.scrollIntoView === "function") {
+      button.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+  };
+
+  const onInsightDateKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    dayStart: number
+  ): void => {
+    if (event.key !== "Escape") return;
+    // 收起展开区、焦点留在日期按钮上（对称于时间线行的 Escape：那边把焦点
+    // 还给天格，这边按钮本身就是句内控件，焦点不动）。
+    if (selected === dayStart) setSelected(null);
+    event.preventDefault();
+  };
+
   /** 时间线内的物理焦点移动（不环绕）。 */
   const moveRowFocus = (target: number): void => {
     setFocusRow(target);
@@ -395,6 +493,148 @@ export function UsageCalendarPanel({
         return;
     }
     event.preventDefault();
+  };
+
+  // —— 一年洞察（Round V3 / #199）的句内元件：正文模板逐字（§4.1），数字与
+  // 日期提一档（--text + tabular-nums），日期按钮走 --accent 的「链接」语义位。
+
+  const insightDateAt = (dayStart: number): ReactNode => (
+    <InsightDate
+      dayStart={dayStart}
+      facts={factsByDay.get(dayStart)}
+      text={insightDateText(dayStart, insightYear)}
+      onDrill={onInsightDateDrill}
+      onKeyDown={onInsightDateKeyDown}
+    />
+  );
+
+  /** 句内区间（§6）：单日段只写一次日期（不写「8月12日–8月12日」的冗余），
+      两端各自适用年份规则；连接符 en dash（formatClock 的 00:25–18:41 同款先例）。 */
+  const insightRange = (startDay: number, endDay: number): ReactNode =>
+    startDay === endDay ? (
+      insightDateAt(startDay)
+    ) : (
+      <>
+        {insightDateAt(startDay)}–{insightDateAt(endDay)}
+      </>
+    );
+
+  const insightNum = (value: ReactNode): ReactNode => (
+    <span className={styles.insightNum}>{value}</span>
+  );
+
+  /** current-streak 的三态正文（§3.4 逐字）。broken 的哨兵（全空年）不会走到
+      这里——外层按 longestStreak === null 整区走了空态。 */
+  const currentStreakItem = (streak: CalendarInsights["currentStreak"]): ReactNode => {
+    const title =
+      "从今天往回数「当日估算成本 > $0」的连续天数；今天没有消耗时如实说明，不预设今天结束";
+    if (streak.kind === "active") {
+      return (
+        <li
+          className={styles.insightItem}
+          data-probe="calendar-insight-item"
+          data-insight-key="current-streak"
+          title={title}
+        >
+          当前连胜 {insightNum(`${streak.days} 天`)}（{insightDateAt(streak.startDay)}
+          至今）
+        </li>
+      );
+    }
+    if (streak.kind === "pending") {
+      return (
+        <li
+          className={styles.insightItem}
+          data-probe="calendar-insight-item"
+          data-insight-key="current-streak"
+          title={title}
+        >
+          今天还没有消耗；此前连续 {insightNum(`${streak.days} 天`)}（
+          {insightRange(streak.startDay, streak.endDay)}）
+        </li>
+      );
+    }
+    if (streak.lastActiveDay === null) return null;
+    return (
+      <li
+        className={styles.insightItem}
+        data-probe="calendar-insight-item"
+        data-insight-key="current-streak"
+        title={title}
+      >
+        连胜已断：最近消耗 {insightDateAt(streak.lastActiveDay)}（
+        {insightNum(`${streak.idleDays} 天前`)}）
+      </li>
+    );
+  };
+
+  /** month-compare 的五分支正文（§3.5 逐字）。方向词用「多 / 少」：中文句子里
+      符号方向易漏看；prev = 0 不写百分比（分母为 0，+∞% 是噪声）。 */
+  const monthCompareItem = (compare: MonthCompare): ReactNode => {
+    const title = `本月第 1..${compare.days} 天与上月同期 ${compare.days} 天的估算成本之和对比（等长日历窗，不拿部分月比完整月）；成本为估算值（定价快照 ${PRICING_AS_OF}）`;
+    const days = insightNum(`${compare.days} 天`);
+    const current = insightNum(formatUsd(compare.currentUsd));
+    if (compare.previousUsd <= 0 && compare.currentUsd <= 0) {
+      return (
+        <li
+          className={styles.insightItem}
+          data-probe="calendar-insight-item"
+          data-insight-key="month-compare"
+          title={title}
+        >
+          本月前 {days}与上月同期都无消耗
+        </li>
+      );
+    }
+    if (compare.previousUsd <= 0) {
+      return (
+        <li
+          className={styles.insightItem}
+          data-probe="calendar-insight-item"
+          data-insight-key="month-compare"
+          title={title}
+        >
+          本月前 {days} {current}（上月同期无消耗）
+        </li>
+      );
+    }
+    const pct = Math.round(
+      ((compare.currentUsd - compare.previousUsd) / compare.previousUsd) * 100
+    );
+    if (compare.currentUsd > compare.previousUsd) {
+      return (
+        <li
+          className={styles.insightItem}
+          data-probe="calendar-insight-item"
+          data-insight-key="month-compare"
+          title={title}
+        >
+          本月前 {days} {current}（较上月同期多 {insightNum(`${pct}%`)}）
+        </li>
+      );
+    }
+    if (compare.currentUsd < compare.previousUsd) {
+      return (
+        <li
+          className={styles.insightItem}
+          data-probe="calendar-insight-item"
+          data-insight-key="month-compare"
+          title={title}
+        >
+          本月前 {days} {current}（较上月同期少 {insightNum(`${-pct}%`)}）
+        </li>
+      );
+    }
+    return (
+      <li
+        className={styles.insightItem}
+        data-probe="calendar-insight-item"
+        data-insight-key="month-compare"
+        title={title}
+      >
+        本月前 {days} {current}（与上月同期持平）
+      </li>
+    );
   };
 
   return (
@@ -495,6 +735,75 @@ export function UsageCalendarPanel({
           ))}
           <span className={styles.legendText}>多</span>
         </div>
+        {/* 一年洞察（Round V3 / #199）：主图的「读后感」——六句实事住在图例与
+            展开区之间，展开一日回望时句子不动、展开区从它下方生长。全部数字
+            读自同一份 calendar（零新增数据通道），「有消耗」与格子 0 档同口径
+            （数字能对上格子）；每句的口径挂在自己的 title 上，不塞进面板脚注。 */}
+        <ul className={styles.insights} aria-label="一年洞察" data-probe="calendar-insights">
+          {insights.longestStreak === null ? (
+            <li className={styles.insightEmpty}>这一年还没有可统计的消耗</li>
+          ) : (
+            <>
+              <li
+                className={styles.insightItem}
+                data-probe="calendar-insight-item"
+                data-insight-key="longest-streak"
+                title={`连续 ${insights.longestStreak.days} 天 = 窗口内连续「当日估算成本 > $0」的最长天数，与格子 0 档同口径（定价未知的天不计）；并列取最近一段${
+                  insights.longestStreak.touchesWindowStart
+                    ? "；区间自窗口首日起算，实际可能更长"
+                    : ""
+                }`}
+              >
+                最长连胜 {insightNum(`${insights.longestStreak.days} 天`)}（
+                {insightRange(insights.longestStreak.startDay, insights.longestStreak.endDay)}）
+              </li>
+              {currentStreakItem(insights.currentStreak)}
+              {insights.peakDay === null ? null : (
+                <li
+                  className={styles.insightItem}
+                  data-probe="calendar-insight-item"
+                  data-insight-key="peak-day"
+                  title={`当日估算成本最大的一天，与格子色深同口径（定价快照 ${PRICING_AS_OF}）；并列取最近`}
+                >
+                  最贵一天 {insightDateAt(insights.peakDay.dayStart)}（
+                  {insightNum(formatUsd(insights.peakDay.costUsd))}）
+                </li>
+              )}
+              {insights.longestGap === null ? null : (
+                <li
+                  className={styles.insightItem}
+                  data-probe="calendar-insight-item"
+                  data-insight-key="longest-gap"
+                  title={`连续「当日估算成本 ≤ $0」的最长天数；定价未知的天计入空白（与格子 0 档同口径）；并列取最近一段${
+                    insights.longestGap.touchesWindowStart
+                      ? "；区间自窗口首日起算，实际可能长"
+                      : ""
+                  }`}
+                >
+                  最长空白 {insightNum(`${insights.longestGap.days} 天`)}（
+                  {insightRange(insights.longestGap.startDay, insights.longestGap.endDay)}）
+                </li>
+              )}
+              <li
+                className={styles.insightItem}
+                data-probe="calendar-insight-item"
+                data-insight-key="active-share"
+                title={`窗口 ${insights.activeDays.total} 天里「当日估算成本 > $0」的天数；定价未知的天不计入`}
+              >
+                这一年{" "}
+                {insightNum(`${insights.activeDays.days}/${insights.activeDays.total} 天`)}
+                有消耗（
+                {insightNum(
+                  `${Math.round(
+                    (insights.activeDays.days / insights.activeDays.total) * 100
+                  )}%`
+                )}
+                ）
+              </li>
+              {monthCompareItem(insights.monthCompare)}
+            </>
+          )}
+        </ul>
         {selected !== null && review !== null ? (
           <section
             className={styles.sessions}
