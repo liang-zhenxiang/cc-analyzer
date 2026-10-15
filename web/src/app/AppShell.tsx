@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { ThemeProvider, useTheme } from "./ThemeProvider";
 import { NotificationProvider, useNotifications } from "./NotificationProvider";
 import { SessionAnalyzerPage } from "../features/sessions/SessionAnalyzerPage";
-import { MonitorPage } from "../features/monitor/MonitorPage";
+import { MonitorPage, type MonitorView } from "../features/monitor/MonitorPage";
+import { PulseFloatHeader } from "../features/monitor/PulseFloatHeader";
 import { UsageOverviewPage } from "../features/usage/UsageOverviewPage";
 import { ThresholdsPanel } from "../features/settings/ThresholdsPanel";
 import { WorkspaceTabs } from "./WorkspaceTabs";
@@ -21,6 +22,7 @@ import styles from "./AppShell.module.css";
 export type WorkspaceTab = "analyzer" | "usage" | "monitor";
 
 const TAB_KEY = "cca-workspace-tab";
+const MONITOR_VIEW_KEY = "cca-monitor-view";
 
 /** Stored values are untrusted: anything unknown falls back to the analyzer. */
 function readStoredTab(): WorkspaceTab {
@@ -31,6 +33,20 @@ function readStoredTab(): WorkspaceTab {
     // localStorage may be unavailable; the default tab still works.
   }
   return "analyzer";
+}
+
+/**
+ * 「实时监控」标签下的子视图（Issue #203）。状态必须住在 AppShell：浮窗时要靠
+ * 它判断该不该把整条顶栏换成脉搏细头。存值不可信，未知值一律回落脉搏。
+ */
+function readStoredMonitorView(): MonitorView {
+  try {
+    const stored = localStorage.getItem(MONITOR_VIEW_KEY);
+    if (stored === "dashboard") return "dashboard";
+  } catch {
+    // See readStoredTab: persistence is optional.
+  }
+  return "pulse";
 }
 
 function ThemeToggle() {
@@ -98,6 +114,7 @@ function TrayHost({ onNavigate }: { onNavigate: (tab: WorkspaceTab) => void }) {
 
 export function AppShell({ bridges }: { bridges: Bridges }) {
   const [tab, setTab] = useState<WorkspaceTab>(readStoredTab);
+  const [monitorView, setMonitorView] = useState<MonitorView>(readStoredMonitorView);
   const [floating, setFloating] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -128,6 +145,14 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
     }
   }, [tab]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(MONITOR_VIEW_KEY, monitorView);
+    } catch {
+      // See readStoredMonitorView: persistence is optional.
+    }
+  }, [monitorView]);
+
   const exitFloatMode = useCallback(async () => {
     try {
       await bridges.custom?.exitFloatMode?.();
@@ -136,8 +161,25 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
     }
   }, [bridges]);
 
-  const enterFloatMode = useCallback(() => setFloating(true), []);
+  /**
+   * 进浮窗是**窗口级**状态：Rust 的 `float` 插件负责把窗口改成 420×620、
+   * 置顶、无边框（`set_decorations(false)`），`floating` 只决定这一层画什么。
+   * 两者必须成对出现——只切布局不调窗口命令，会得到一个「版式是浮窗、窗口
+   * 还是 1400×872」的四不像（2026-10-15 的真机门禁抓到过这一条）。这条与
+   * 下面的 `exitFloatMode` 是对称的：进出浮窗都归这一层管。
+   */
+  const enterFloatMode = useCallback(async () => {
+    setFloating(true);
+    try {
+      await bridges.custom?.enterFloatMode?.();
+    } catch {
+      // 窗口没改成浮窗尺寸不该把界面回滚：细头仍在，用户还能点「退出浮窗」。
+    }
+  }, [bridges]);
   const canExitFloatMode = floating && typeof bridges.custom?.exitFloatMode === "function";
+  // 浮窗 + 监控标签 + 脉搏档：整条顶栏换成脉搏细头（R7）。其余标签、以及
+  // iframe 触发浮窗时（仪表盘档）保持现状。
+  const floatPulse = floating && tab === "monitor" && monitorView === "pulse";
 
   return (
     <ThemeProvider>
@@ -146,37 +188,41 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
           <StartupUpdateCheck bridges={bridges} />
           <TrayHost onNavigate={setTab} />
           <div className={styles.shell}>
-            <header className={styles.topbar}>
-              <span className={styles.brand}>
-                <BrandMark size={18} />
-                <strong>CC Analyzer</strong>
-                {/* 版本徽章紧挨字标：升级是否生效，第一眼就能读到。 */}
-                <VersionBadge />
-              </span>
-              <WorkspaceTabs value={tab} onChange={setTab} />
-              <div className={styles.topbarActions}>
-                {canExitFloatMode ? (
-                  <Button type="button" variant="primary" onClick={() => void exitFloatMode()}>
-                    退出浮窗
-                  </Button>
-                ) : null}
-                <IconButton
-                  label="全局搜索"
-                  aria-expanded={searchOpen}
-                  onClick={() => setSearchOpen((open) => !open)}
-                >
-                  <Icon name="search" size={16} />
-                </IconButton>
-                <IconButton
-                  label="设置"
-                  aria-expanded={settingsOpen}
-                  onClick={() => setSettingsOpen((open) => !open)}
-                >
-                  <Icon name="settings" size={16} />
-                </IconButton>
-                <ThemeToggle />
-              </div>
-            </header>
+            {floatPulse ? (
+              <PulseFloatHeader onExit={() => void exitFloatMode()} />
+            ) : (
+              <header className={styles.topbar}>
+                <span className={styles.brand}>
+                  <BrandMark size={18} />
+                  <strong>CC Analyzer</strong>
+                  {/* 版本徽章紧挨字标：升级是否生效，第一眼就能读到。 */}
+                  <VersionBadge />
+                </span>
+                <WorkspaceTabs value={tab} onChange={setTab} />
+                <div className={styles.topbarActions}>
+                  {canExitFloatMode ? (
+                    <Button type="button" variant="primary" onClick={() => void exitFloatMode()}>
+                      退出浮窗
+                    </Button>
+                  ) : null}
+                  <IconButton
+                    label="全局搜索"
+                    aria-expanded={searchOpen}
+                    onClick={() => setSearchOpen((open) => !open)}
+                  >
+                    <Icon name="search" size={16} />
+                  </IconButton>
+                  <IconButton
+                    label="设置"
+                    aria-expanded={settingsOpen}
+                    onClick={() => setSettingsOpen((open) => !open)}
+                  >
+                    <Icon name="settings" size={16} />
+                  </IconButton>
+                  <ThemeToggle />
+                </div>
+              </header>
+            )}
             {settingsOpen ? <ThresholdsPanel onClose={() => setSettingsOpen(false)} /> : null}
           <main className={styles.content}>
             <ErrorBoundary>
@@ -201,7 +247,17 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
                   }}
                 />
               ) : (
-                <MonitorPage onEnterFloat={enterFloatMode} />
+                <MonitorPage
+                  view={monitorView}
+                  onViewChange={setMonitorView}
+                  compact={floating}
+                  onEnterFloat={enterFloatMode}
+                  // 脉搏会话行的「打开会话」握手：与压缩统计 top3 行逐字同款。
+                  onOpenSession={(path) => {
+                    setTab("analyzer");
+                    setRevealRequest({ path, recordId: null, nonce: Date.now() });
+                  }}
+                />
               )}
             </ErrorBoundary>
           </main>

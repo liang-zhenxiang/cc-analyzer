@@ -1,9 +1,31 @@
 /* 未打开 / 探测中 / 失败三态的画法交给 EmptyState；这里只有打开后的面板。 */
-.monitor {
+.root {
   display: flex;
-  flex-direction: column;
+  min-width: 0;
+  /* 定高而不是 min-height：脉搏页要靠一个确定的高度基准把空 / 错态压在中线上
+     （`EmptyState.page` 的 min-height: 100% 只在父高确定时生效）。 */
   height: 100%;
   min-height: 0;
+  flex-direction: column;
+}
+
+/* 受控分段控件常驻（Issue #203）：脉搏 ↔ 外部仪表盘两档在同一个标签下切换。
+   浮窗态整个收起（浮窗里没有第二个子视图可切）。 */
+.switchBar {
+  display: flex;
+  min-width: 0;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-3) 0;
+}
+
+.monitor {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
 }
 
 /* 「关闭」得有地方放：iframe 铺满整块，浮层按钮会被仪表盘自己的内容压住，
