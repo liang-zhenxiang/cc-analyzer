@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端分层入口"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "新文件落点"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "组件与 CSS Module 约定、令牌使用"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "请求 id 守卫、定时器清理、订阅 disposer"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "状态放哪一层、localStorage 必须 try/catch"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "严格 TS 约定"}
+{"file": ".trellis/spec/backend/security-and-permissions.md", "reason": "放宽窗口权限的要求与已授予清单"}
+{"file": ".trellis/spec/testing/index.md", "reason": "三层分工与「改了什么补哪层」"}
+{"file": ".trellis/spec/testing/unit-tests.md", "reason": "单元与夹具约定"}
+{"file": ".trellis/spec/testing/e2e-tests.md", "reason": "桩、夹具、截图矩阵"}
+{"file": ".trellis/spec/testing/gui-tests.md", "reason": "真机门禁、探针锚点、时间戳夹具"}
+{"file": ".trellis/spec/testing/pitfalls.md", "reason": "CSS 特异性、断言像素相等、门禁探针等已踩过的坑"}
+{"file": ".trellis/spec/guides/collaboration-workflow.md", "reason": "调度者/验收者分工与项目红线"}
+{"file": ".trellis/tasks/10-14-live-pulse/research/tokentracker-comparison.md", "reason": "取舍依据：哪些吸收、哪些不取"}

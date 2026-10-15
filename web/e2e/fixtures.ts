@@ -611,6 +611,351 @@ export function calendarScenario(overrides: Partial<MockScenario> = {}): MockSce
   return { ...base, files, ...overrides };
 }
 
+/** 脉搏夹具的会话模型：与真实日志一致，只是不写 `gitBranch` / `version`。 */
+const PULSE_MODEL = "claude-sonnet-4";
+
+/** `message.usage` 的四个计数器（脉搏只认这一组，缺一不可）。 */
+export type PulseUsage = {
+  input: number;
+  output: number;
+  cacheCreation: number;
+  cacheRead: number;
+};
+
+const pulseUsage = (
+  input: number,
+  output: number,
+  cacheCreation: number,
+  cacheRead: number
+): PulseUsage => ({ input, output, cacheCreation, cacheRead });
+
+type PulseRecord =
+  | { kind: "user"; at: number; text: string }
+  | { kind: "assistant"; at: number; text: string; usage: PulseUsage }
+  | {
+      kind: "compact";
+      at: number;
+      trigger: "auto" | "manual";
+      preTokens: number;
+      postTokens: number;
+      summary: string;
+    };
+
+/**
+ * 把种子记录渲染成真实 JSONL。行结构照 `web/tests/fixtures/session-token-usage.jsonl`
+ * 与 `compact-session.jsonl`：`assistant` 记录带 `message.usage` 四计数器；
+ * `compact` 渲染成**两行**——`type:"system", subtype:"compact_boundary"` 边界加紧随
+ * 其后的 `isCompactSummary` 摘要（摘要是边界后的 `user` 记录，`parentUuid` 指回边界
+ * uuid，解析器靠这条链把两行配成一个 `CompactEvent`）。
+ *
+ * 返回 `mtimeMs = 最后一条记录的时刻`：真实写入会把 mtime 推到那一刻，脉搏的
+ * 新近度（live / recent / idle）与「活跃集合（5 小时内有 mtime）」都读它。
+ */
+function pulseSessionLines(
+  prefix: string,
+  cwd: string,
+  sessionId: string,
+  records: PulseRecord[]
+): { content: string; mtimeMs: number; lastUuid: string } {
+  const lines: string[] = [];
+  let lastUuid = "";
+
+  for (const record of records) {
+    const uuid = `${prefix}-${lines.length}`;
+    const timestamp = new Date(record.at).toISOString();
+
+    if (record.kind === "compact") {
+      lines.push(
+        JSON.stringify({
+          sessionId,
+          cwd,
+          timestamp,
+          uuid,
+          parentUuid: null,
+          isSidechain: false,
+          type: "system",
+          subtype: "compact_boundary",
+          content: "Conversation compacted",
+          level: "info",
+          logicalParentUuid: lastUuid === "" ? null : lastUuid,
+          compactMetadata: {
+            trigger: record.trigger,
+            preTokens: record.preTokens,
+            postTokens: record.postTokens,
+            cumulativeDroppedTokens: record.preTokens - record.postTokens,
+            durationMs: 32_000
+          }
+        })
+      );
+      lastUuid = uuid;
+      const summaryUuid = `${prefix}-${lines.length}`;
+      lines.push(
+        JSON.stringify({
+          sessionId,
+          cwd,
+          timestamp,
+          uuid: summaryUuid,
+          parentUuid: uuid,
+          isSidechain: false,
+          type: "user",
+          isCompactSummary: true,
+          isVisibleInTranscriptOnly: true,
+          message: { role: "user", content: record.summary }
+        })
+      );
+      lastUuid = summaryUuid;
+      continue;
+    }
+
+    const base = {
+      sessionId,
+      cwd,
+      timestamp,
+      uuid,
+      parentUuid: lastUuid === "" ? null : lastUuid,
+      isSidechain: false
+    };
+    if (record.kind === "user") {
+      lines.push(
+        JSON.stringify({ ...base, type: "user", message: { role: "user", content: record.text } })
+      );
+    } else {
+      lines.push(
+        JSON.stringify({
+          ...base,
+          type: "assistant",
+          message: {
+            id: `${prefix}-msg-${lines.length}`,
+            role: "assistant",
+            model: PULSE_MODEL,
+            content: [{ type: "text", text: record.text }],
+            usage: {
+              input_tokens: record.usage.input,
+              output_tokens: record.usage.output,
+              cache_creation_input_tokens: record.usage.cacheCreation,
+              cache_read_input_tokens: record.usage.cacheRead
+            }
+          }
+        })
+      );
+    }
+    lastUuid = uuid;
+  }
+
+  const last = records[records.length - 1];
+  return { content: `${lines.join("\n")}\n`, mtimeMs: last?.at ?? Date.now(), lastUuid };
+}
+
+const PULSE_LIVE = { cwd: "/repo/pulse-live", id: "3d2a5442-9c65-4b28-9c30-bb3d1a200001" } as const;
+const PULSE_RECENT = { cwd: "/repo/pulse-recent", id: "3d2a5442-9c65-4b28-9c30-bb3d1a200002" } as const;
+const PULSE_IDLE = { cwd: "/repo/pulse-idle", id: "3d2a5442-9c65-4b28-9c30-bb3d1a200003" } as const;
+
+function pulseSessionPath(session: { cwd: string; id: string }): string {
+  return `${HOME}/.claude/projects/${projectDir(session.cwd)}/${session.id}.jsonl`;
+}
+
+/** live 档会话的路径——spec 拿它当 `__CCA_E2E_APPEND_FILE__` 的目标。 */
+export const PULSE_LIVE_SESSION_PATH = pulseSessionPath(PULSE_LIVE);
+
+/**
+ * live 档会话的种子记录：最后一条在 `now − 30s`（mtime 同步取那一刻 → live 档），
+ * 整段回溯 4 小时（仍在 5 小时窗口内），中间夹**三次自动压缩**——上下文曲线画得出
+ * 断崖，参考带也够 n=3 的绘制门槛。时间戳全部相对 `now` 现算，绝不写死日期。
+ */
+function pulseLiveRecords(now: number): PulseRecord[] {
+  const last = now - 30_000;
+  const hour = 3_600_000;
+  return [
+    { kind: "user", at: last - 4 * hour, text: "把实时脉搏这条线铺开" },
+    {
+      kind: "assistant",
+      at: last - 4 * hour + 30_000,
+      text: "先盘点现有的监控页状态机。",
+      usage: pulseUsage(1_600, 700, 3_200, 118_000)
+    },
+    {
+      kind: "assistant",
+      at: last - 3 * hour - 50 * 60_000,
+      text: "上下文涨得有点快，做一轮自动压缩。",
+      usage: pulseUsage(1_800, 640, 3_200, 148_600)
+    },
+    {
+      kind: "compact",
+      at: last - 3 * hour - 48 * 60_000,
+      trigger: "auto",
+      preTokens: 167_400,
+      postTokens: 11_200,
+      summary: "会话摘要：完成既有监控页盘点，下一步实现脉搏调度。"
+    },
+    {
+      kind: "assistant",
+      at: last - 3 * hour - 40 * 60_000,
+      text: "压缩后继续读调度约定。",
+      usage: pulseUsage(220, 180, 2_400, 18_600)
+    },
+    { kind: "user", at: last - 3 * hour - 20 * 60_000, text: "接着看 e2e 桩。" },
+    {
+      kind: "assistant",
+      at: last - 3 * hour - 10 * 60_000,
+      text: "桩的 stat 现在锁死了 mtime，需要可变钩子。",
+      usage: pulseUsage(1_400, 520, 2_600, 86_400)
+    },
+    {
+      kind: "compact",
+      at: last - 2 * hour - 50 * 60_000,
+      trigger: "auto",
+      preTokens: 158_900,
+      postTokens: 10_400,
+      summary: "会话摘要：确认需要可变文件与 mtime 的测试钩子。"
+    },
+    {
+      kind: "assistant",
+      at: last - 2 * hour - 40 * 60_000,
+      text: "钩子设计：改写、追加、读 mtime。",
+      usage: pulseUsage(260, 210, 2_400, 24_100)
+    },
+    { kind: "user", at: last - 2 * hour, text: "夹具也要跟上。" },
+    {
+      kind: "assistant",
+      at: last - 1 * hour - 50 * 60_000,
+      text: "夹具的时间戳必须相对 Date.now() 现算。",
+      usage: pulseUsage(1_200, 460, 2_500, 106_800)
+    },
+    {
+      kind: "compact",
+      at: last - 1 * hour - 20 * 60_000,
+      trigger: "auto",
+      preTokens: 172_300,
+      postTokens: 11_800,
+      summary: "会话摘要：夹具将按会话年龄分成三档。"
+    },
+    {
+      kind: "assistant",
+      at: last - 40 * 60_000,
+      text: "三档会话就位。",
+      usage: pulseUsage(240, 190, 2_400, 17_300)
+    },
+    { kind: "user", at: last - 5 * 60_000, text: "再补一条 usage 记录。" },
+    {
+      kind: "assistant",
+      at: last,
+      text: "补上最后一条记录，正好落在 live 档。",
+      usage: pulseUsage(300, 240, 2_400, 6_100)
+    }
+  ];
+}
+
+function pulseLiveSession(now: number): { path: string; content: string; mtimeMs: number; lastUuid: string } {
+  const rendered = pulseSessionLines("pulse-live", PULSE_LIVE.cwd, PULSE_LIVE.id, pulseLiveRecords(now));
+  return { path: pulseSessionPath(PULSE_LIVE), ...rendered };
+}
+
+const PULSE_LIVE_BASELINE = pulseLiveSession(Date.now());
+
+/**
+ * live 档会话的**基线内容**（与 `pulseScenario()` 写进虚拟文件的一致）。
+ * spec 用 `__CCA_E2E_APPEND_FILE__(PULSE_LIVE_SESSION_PATH, text)` 往它尾部补记录
+ * 来模拟「会话正在被写」时，可以先拿它核对现有尾部。
+ *
+ * 锚点是模块加载时刻的 `Date.now()`：时间戳仍是**现算的相对值**（没有写死日期），
+ * 只是比 `pulseScenario()` 那次早几毫秒——追加一条记录时这点差无关紧要。
+ * 因此**别拿它跟 `scenario.files[PULSE_LIVE_SESSION_PATH]` 做相等断言**（时间戳
+ * 会差几毫秒），要断言就用场景自己产出的那份。
+ */
+export const PULSE_LIVE_SESSION_CONTENT = PULSE_LIVE_BASELINE.content;
+
+/** live 档会话最后一条记录的 uuid——追加记录时挂上去，链路不断。 */
+export const PULSE_LIVE_LAST_UUID = PULSE_LIVE_BASELINE.lastUuid;
+
+/** 追加记录的缺省用量：与 fixture 里其它 usage 记录同量级，但一眼能认出来是追加的。 */
+const PULSE_APPEND_USAGE = pulseUsage(320, 260, 2_400, 9_800);
+
+/**
+ * 造一段**待追加**的文本（一条 `assistant` + `usage` 记录，行尾带换行），
+ * 直接喂给 `__CCA_E2E_APPEND_FILE__(PULSE_LIVE_SESSION_PATH, text, mtimeMs?)`。
+ * 行结构照真实日志，`parentUuid` 挂在 live 会话最后一条记录上，链路不断。
+ */
+export function pulseUsageAppendText(at: number, usage: PulseUsage = PULSE_APPEND_USAGE): string {
+  const line = JSON.stringify({
+    sessionId: PULSE_LIVE.id,
+    cwd: PULSE_LIVE.cwd,
+    timestamp: new Date(at).toISOString(),
+    uuid: `pulse-live-append-${at}`,
+    parentUuid: PULSE_LIVE_LAST_UUID,
+    isSidechain: false,
+    type: "assistant",
+    message: {
+      id: `pulse-live-append-msg-${at}`,
+      role: "assistant",
+      model: PULSE_MODEL,
+      content: [{ type: "text", text: "追加的一条 usage 记录" }],
+      usage: {
+        input_tokens: usage.input,
+        output_tokens: usage.output,
+        cache_creation_input_tokens: usage.cacheCreation,
+        cache_read_input_tokens: usage.cacheRead
+      }
+    }
+  });
+  return `${line}\n`;
+}
+
+/**
+ * 「实时脉搏」场景（Issue #203）：**内存合成**（照 `quotaAttributionScenario` /
+ * `calendarScenario` 的做法），时间戳**相对 `Date.now()` 现算**——脉搏的 5 小时
+ * 窗口和新近度都随运行时刻走，写死日期过几天就把会话甩出窗外，断言会以「没渲染」
+ * 这种毫无线索的方式假红。时间锚点也**只用 `Date.now()`**，别用本地日历日。
+ *
+ * 只用自造会话（`emptyScenario` 打底）：默认场景那批夹具既有固定日期、又会在窗内
+ * 多出一堆会话，档位与会话行计数都不确定。
+ *
+ * 三个会话按**最后一条记录的相对年龄**分档，`fileMtimes` 同步取那一刻（脉搏的活跃
+ * 集合与「N 分钟前有新记录」都读 mtime，不读记录时间戳）：
+ *  - live   —— 30 秒前，带三次**自动**压缩（上下文曲线的断崖 + 参考带 n=3）；
+ *  - recent —— 8 分钟前；
+ *  - idle   —— 40 分钟前。
+ *
+ * 每个会话至少一条 usage 记录带齐四个计数器，行结构照 `web/tests/fixtures/` 里
+ * `session-token-usage.jsonl` 与 `compact-session.jsonl`。
+ */
+export function pulseScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  const now = Date.now();
+  const live = pulseLiveSession(now);
+  const recentAt = now - 8 * 60_000;
+  const idleAt = now - 40 * 60_000;
+  const recent = pulseSessionLines("pulse-recent", PULSE_RECENT.cwd, PULSE_RECENT.id, [
+    { kind: "user", at: recentAt - 120_000, text: "八分钟前收尾的那个会话" },
+    {
+      kind: "assistant",
+      at: recentAt,
+      text: "最近一档：几分钟前还有记录。",
+      usage: pulseUsage(420, 260, 2_400, 41_200)
+    }
+  ]);
+  const idle = pulseSessionLines("pulse-idle", PULSE_IDLE.cwd, PULSE_IDLE.id, [
+    { kind: "user", at: idleAt - 120_000, text: "四十分钟前停下的会话" },
+    {
+      kind: "assistant",
+      at: idleAt,
+      text: "闲置一档：已经有一阵子没动静。",
+      usage: pulseUsage(380, 220, 2_400, 11_500)
+    }
+  ]);
+
+  const files: Record<string, string> = {
+    [live.path]: live.content,
+    [pulseSessionPath(PULSE_RECENT)]: recent.content,
+    [pulseSessionPath(PULSE_IDLE)]: idle.content
+  };
+  const fileMtimes: Record<string, number> = {
+    [live.path]: live.mtimeMs,
+    [pulseSessionPath(PULSE_RECENT)]: recent.mtimeMs,
+    [pulseSessionPath(PULSE_IDLE)]: idle.mtimeMs
+  };
+
+  return { ...emptyScenario(), files, fileMtimes, ...overrides };
+}
+
 type Fixtures = { scenario: MockScenario };
 
 export const test = base.extend<Fixtures>({

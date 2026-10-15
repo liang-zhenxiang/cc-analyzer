@@ -5,18 +5,75 @@ import { Button } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
 import { Icon } from "../../components/Icon";
+import { SegmentedControl, type SegmentedItem } from "../../components/SegmentedControl";
 import { isLocalMonitorOrigin } from "./monitorMessages";
+import { PulsePage } from "./PulsePage";
 import styles from "./MonitorPage.module.css";
+
+/** 「实时监控」标签下的两个子视图（R1）：原生脉搏是默认档。 */
+export type MonitorView = "pulse" | "dashboard";
+
+const VIEW_ITEMS: SegmentedItem<MonitorView>[] = [
+  { value: "pulse", label: "脉搏" },
+  { value: "dashboard", label: "外部仪表盘" }
+];
+
+/**
+ * 「实时监控」标签的受控分段容器（design.md §6）。
+ *
+ * 子视图状态由 `AppShell` 持有（浮窗时要靠它判断该不该收顶栏），这里只
+ * 负责把两档渲染出来。分段控件常驻，`dashboard` 档才挂载外部仪表盘的状态机
+ * ——**未挂载就不调用 `monitor_port` / `monitor_ping`**（R1 的「原生视图挂载时
+ * 不做任何探测」）。
+ */
+export function MonitorPage({
+  view,
+  onViewChange,
+  onEnterFloat,
+  onOpenSession,
+  compact = false
+}: {
+  view: MonitorView;
+  onViewChange: (view: MonitorView) => void;
+  onEnterFloat?: () => void;
+  /** 脉搏会话行的「打开会话」握手；dashboard 档不使用。 */
+  onOpenSession?: (path: string) => void;
+  /** 浮窗态：分段控件收起（浮窗里没有第二个子视图可切）。 */
+  compact?: boolean;
+}) {
+  return (
+    <div className={styles.root}>
+      {!compact ? (
+        <div className={styles.switchBar}>
+          <SegmentedControl
+            items={VIEW_ITEMS}
+            value={view}
+            onChange={onViewChange}
+            ariaLabel="监控视图"
+          />
+        </div>
+      ) : null}
+      {view === "pulse" ? (
+        <PulsePage compact={compact} onEnterFloat={onEnterFloat} onOpenSession={onOpenSession} />
+      ) : (
+        <ExternalDashboard onEnterFloat={onEnterFloat} />
+      )}
+    </div>
+  );
+}
 
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 800;
 
 /**
- * `closed` 是初始状态：切到「实时监控」标签**不探测、不挂 iframe**，
+ * `closed` 是初始状态：切到「外部仪表盘」**不探测、不挂 iframe**，
  * 只有用户点了「打开监控」才进入 `probing → ready / unavailable`。
  *
  * 挂载即探测的代价是实打实的：三次重试要等近两秒，而那个仪表盘服务
  * 不在本仓库内、多数人根本没在跑它——每次切标签都白等一轮失败。
+ *
+ * Issue #203 起整段状态机**原样搬进这个组件**：只有它被挂载时才跑这些
+ * 探测，脉搏档一个字节都不碰 `monitor_port` / `monitor_ping`。
  */
 type MonitorState =
   | { status: "closed" }
@@ -34,8 +91,8 @@ function delay(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-export function MonitorPage({ onEnterFloat }: { onEnterFloat?: () => void } = {}) {
-  const { monitor, custom } = useBridges();
+function ExternalDashboard({ onEnterFloat }: { onEnterFloat?: () => void } = {}) {
+  const { monitor } = useBridges();
   const { theme } = useTheme();
   const [state, setState] = useState<MonitorState>({ status: "closed" });
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -99,13 +156,15 @@ export function MonitorPage({ onEnterFloat }: { onEnterFloat?: () => void } = {}
       if (!isLocalMonitorOrigin(event.origin, port)) return;
       const data = event.data as { type?: unknown } | null;
       if (data?.type === "enter-float") {
-        void custom?.enterFloatMode();
         onEnterFloat?.();
       }
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [custom, onEnterFloat, port]);
+    // 窗口命令不在这里发：`onEnterFloat` 由 `AppShell` 提供，它负责调
+    // `custom.enterFloatMode()` 并切浮窗版式（两件事必须一起发生，见 AppShell
+    // 里的注释）。这里只负责把「仪表盘请求进浮窗」这条消息翻译成那个回调。
+  }, [onEnterFloat, port]);
 
   const postTheme = useCallback(() => {
     frameRef.current?.contentWindow?.postMessage({ type: "theme", theme }, "*");

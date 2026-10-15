@@ -51,6 +51,38 @@ export type MockScenario = {
    * 才显式给一个贴近 Date.now() 的值。
    */
   statMtimeMs?: number;
+  /**
+   * **逐文件**的 mtime（毫秒；绝对路径 → mtime），优先于 `statMtimeMs`。
+   *
+   * 托盘按文件 mtime 收窄扫描，脉搏的新近度（live / recent / idle）更是 mtime
+   * 的推论——一份场景要让几个会话各占一档，就得逐文件给时间。缺省仍是
+   * `statMtimeMs ?? 1_700_000_000_000`：不给这个字段时行为与从前逐字相同。
+   */
+  fileMtimes?: Record<string, number>;
+};
+
+/**
+ * 桩额外挂在 `window` 上的测试钩子。名字与签名是 e2e 用例的契约，
+ * **只在桩内存在，生产构建里没有这些属性**。
+ *
+ * 读它们时按 `window as unknown as CcaE2EHooks` 取类型即可（钩子是桩装的，
+ * 页面上一定在）。
+ */
+export type CcaE2EHooks = {
+  /**
+   * 改写 / 新增一个虚拟文件；`mtimeMs` 缺省取 `Date.now()`（真实写入会更新
+   * mtime）。返回写入后的 mtime，方便断言。
+   */
+  __CCA_E2E_SET_FILE__(path: string, contents: string, mtimeMs?: number): number;
+  /**
+   * 追加内容到虚拟文件尾并更新 mtime（缺省 `Date.now()`）。追加语义比整文件
+   * 替换更贴近真实写入——「两拍之间会话长一截」靠它。返回写入后的 mtime。
+   */
+  __CCA_E2E_APPEND_FILE__(path: string, text: string, mtimeMs?: number): number;
+  /** 读当前 mtime；口径与 `stat` 一致（逐文件 → `statMtimeMs` → 固定旧值）。 */
+  __CCA_E2E_MTIME__(path: string): number;
+  /** 每一次 `invoke` 的 `{ op, args }` 记账。调试用，行为保持不变。 */
+  __CCA_E2E_LOG__: Array<{ op: string; args: unknown[] }>;
 };
 
 /** 这个函数体在浏览器里运行，因此必须自包含（不能引用外部作用域） */
@@ -71,10 +103,39 @@ export function installTauriMock(scenario: MockScenario): void {
   const log: Array<{ op: string; args: unknown[] }> = [];
   const listeners = new Map<string, number[]>();
 
+  // 缺省 mtime：一个固定的旧值，够「文件存在且可读」的断言用。要「mtime 近期」
+  // 就逐文件给——全局的 `scenario.statMtimeMs`，或 `fileMtimes` / 三个测试钩子。
+  const DEFAULT_FILE_MTIME_MS = 1_700_000_000_000;
+  const fileMtimes: Record<string, number | undefined> = {};
+  for (const [path, mtimeMs] of Object.entries(scenario.fileMtimes ?? {})) {
+    fileMtimes[norm(path)] = mtimeMs;
+  }
+  const mtimeOf = (path: string): number => {
+    const key = norm(path);
+    return fileMtimes[key] ?? scenario.statMtimeMs ?? DEFAULT_FILE_MTIME_MS;
+  };
+
   (window as unknown as Record<string, unknown>).__CCA_E2E_LOG__ = log;
   const record = (op: string, ...args: unknown[]) => {
     log.push({ op, args });
   };
+
+  // 脉搏（Issue #203）要「两拍之间文件长一截」：真实写入是追加，不是整文件替换。
+  // 这三个钩子只在桩内存在，生产构建里没有它们。
+  const hooks = window as unknown as CcaE2EHooks;
+  hooks.__CCA_E2E_SET_FILE__ = (path, contents, mtimeMs) => {
+    const key = norm(String(path));
+    files[key] = String(contents);
+    fileMtimes[key] = mtimeMs ?? Date.now();
+    return fileMtimes[key] as number;
+  };
+  hooks.__CCA_E2E_APPEND_FILE__ = (path, text, mtimeMs) => {
+    const key = norm(String(path));
+    files[key] = `${files[key] ?? ""}${String(text)}`;
+    fileMtimes[key] = mtimeMs ?? Date.now();
+    return fileMtimes[key] as number;
+  };
+  hooks.__CCA_E2E_MTIME__ = (path) => mtimeOf(String(path));
 
   // 剪贴板不在 Tauri 边界上，但 e2e 需要一条**确定性**的写入通道：Chromium
   // 未授权时会拒绝 `navigator.clipboard.writeText`、WebKit 放行，两条分支来自
@@ -136,7 +197,7 @@ export function installTauriMock(scenario: MockScenario): void {
           return {
             is_file: true,
             size: content.length,
-            mtime_ms: scenario.statMtimeMs ?? 1_700_000_000_000
+            mtime_ms: mtimeOf(String(a.path))
           };
         }
         case "read_dir": {

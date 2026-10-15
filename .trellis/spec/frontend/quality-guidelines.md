@@ -67,6 +67,31 @@ by tooling, **they are upheld by review** — match the surrounding file.
 
 ---
 
+## Honest Readings
+
+A number read from the logs is a fact; a number computed from a rate is not. The
+UI must not blur the two. This is one rule with several faces:
+
+- **Activity is a fact about the log, not about the process.** The pulse's
+  active-session list (`features/monitor/PulsePage.tsx`) says
+  `N 分钟前有新记录` and footnotes `只陈述「多久前有新记录」，不代表会话正在运行。`
+  It never claims a session is "running" — mtime is all we know, and a
+  long-running tool call that writes nothing looks idle. State the timestamp,
+  not the inference.
+- **No unrequested extrapolation.** The pulse draws the context curve but not an
+  official ceiling, and never predicts "how many minutes are left"; the band it
+  *does* draw is the **measured** pre-compaction volume of recent automatic
+  compactions, labeled as such. Where an extrapolated time is shown at all
+  (predicted limit reach), it comes from the shared `predictLimitReach` and is
+  the page's only `--warning` reading — the color says "non-deterministic", the
+  label says what it is.
+- **Provenance is the same idea in another shape.** Estimated cost, unpriced
+  models and beta builds all carry a badge that says so. When you add a reading,
+  ask which of these three it is: a fact, an estimate, or a prediction — and
+  make the UI say it.
+
+---
+
 ## Testing Requirements
 
 Vitest + jsdom + React Testing Library. Setup lives in `web/vitest.setup.ts`
@@ -118,3 +143,5 @@ layer. The end-to-end suite does stub at the Tauri boundary, deliberately — se
 - [ ] New behavior has a test; parser/duration/filter/report changes have a fixture.
 - [ ] `npm --prefix web test` and `npm --prefix web run build` pass locally.
 - [ ] User-visible change is recorded in `CHANGELOG.md` under `[Unreleased]`.
+- [ ] New readings say what they are (fact / estimate / prediction) and make no
+      "running"-style claim from a timestamp (see [Honest Readings](#honest-readings)).

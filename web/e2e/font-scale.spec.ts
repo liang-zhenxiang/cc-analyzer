@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import { test, expect, pulseScenario } from "./fixtures";
 import type { Page } from "@playwright/test";
 
 /**
@@ -154,5 +154,73 @@ test.describe("界面字号缩放", () => {
     );
     expect(await rootFontScale(page)).toBe("1");
     expect(await bodyMetrics(page)).toEqual({ fontSize: "13px", lineHeight: "20px" });
+  });
+});
+
+/**
+ * R8 的姿态：高对比度与 130% 字号**不进截图基线**，改由几何断言覆盖——量 DOM，
+ * 不看截图。脉搏场景用 `pulseScenario()`（三个会话、5 小时窗口有读数），否则
+ * 默认场景的固定日期让整页落在空态，行与曲线都不存在，断言会空转。
+ */
+async function expectPulseGeometry(page: Page) {
+  const container = page.locator("[data-probe='pulse-page']");
+  await expect(container).toBeVisible();
+
+  // 容器自身不横向溢出。
+  const box = await container.evaluate((el) => ({
+    scrollWidth: el.scrollWidth,
+    clientWidth: el.clientWidth
+  }));
+  expect(box.scrollWidth).toBeLessThanOrEqual(box.clientWidth + 1);
+
+  // 会话行不被裁切：字号涨上去后行高若写死，内容会被 overflow 切掉。
+  const rows = page.locator("[data-probe='pulse-session-open']");
+  const rowCount = await rows.count();
+  expect(rowCount).toBeGreaterThan(0);
+  const rowsMetrics = await rows.evaluateAll((nodes) =>
+    nodes.map((node) => ({
+      scrollHeight: (node as HTMLElement).scrollHeight,
+      clientHeight: (node as HTMLElement).clientHeight
+    }))
+  );
+  for (const metrics of rowsMetrics) {
+    expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.clientHeight + 1);
+  }
+
+  // 两条曲线都要在场，且完整落在视口右边界之内（没被面板 / 视口裁掉）。
+  const viewportWidth = await page.evaluate(() => document.documentElement.clientWidth);
+  for (const probe of ["pulse-rate-curve", "pulse-context-curve"]) {
+    const svg = page.locator(`[data-probe='${probe}']`);
+    await expect(svg).toBeVisible();
+    const rect = await svg.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      return { left: box.left, right: box.right, width: box.width };
+    });
+    expect(rect.width).toBeGreaterThan(0);
+    expect(rect.left).toBeGreaterThanOrEqual(-1);
+    expect(rect.right).toBeLessThanOrEqual(viewportWidth + 1);
+  }
+}
+
+test.describe("字号缩放 · 实时脉搏几何", () => {
+  test.use({ scenario: pulseScenario() });
+
+  test("130% 字号下脉搏页不横向溢出，曲线与会话行不被裁切", async ({ page }) => {
+    await page.goto("/");
+    await openSettings(page);
+    await fontScaleGroup(page).getByRole("radio", { name: "130%" }).click();
+    await page.getByRole("button", { name: "关闭" }).click();
+
+    await page.getByRole("tab", { name: "实时监控" }).click();
+    await expect(page.locator("[data-probe='pulse-page']")).toHaveAttribute("data-state", "fresh", {
+      timeout: 15_000
+    });
+
+    // 缩放真的生效了，才谈得上「130% 下不溢出」。
+    expect(await rootFontScale(page)).toBe("1.3");
+    const { scrollWidth, clientWidth } = await horizontalOverflow(page);
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
+
+    await expectPulseGeometry(page);
   });
 });

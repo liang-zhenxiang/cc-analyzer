@@ -93,30 +93,31 @@ describe("焦点环的几何只走令牌", () => {
 
   /**
    * 条数写死，来源是 Round U 设计规格 §4.1 的逐条清单，改完后再用 grep 数过一遍：
-   * - `outline: var(--focus-ring-width)` 26 条 = 3 条 `--ring` 环（global / Button /
+   * - `outline: var(--focus-ring-width)` 27 条 = 3 条 `--ring` 环（global / Button /
    *   TextInput）+ 23 条 `--accent` 环（其中 3 条带 2px 偏移，5 条是内嵌负偏移；
    *   Round V 的消耗日历补 3 条：格子按钮 / 清除按钮 / 会话行）；
    *   Round V2 把消耗日历的展开区换成「一日回望」，那 3 条变成格子按钮 / 清除按钮 /
    *   时间线整行按钮（数量不变，但整行按钮用负偏移，见下一行）；
    *   Round V3 的一年洞察补 1 条：句内日期按钮（accent 链接语义位）；
+   *   Round W 的实时脉搏补 1 条：活跃会话整行按钮（全宽控件，负偏移）；
    * - `outline-offset: var(--focus-ring-offset)` 17 条 = 上面 26 条里偏移为 1px 的那些；
-   * - `outline-offset: var(--focus-ring-inset)` 6 条 = SearchPalette 输入框、
+   * - `outline-offset: var(--focus-ring-inset)` 7 条 = SearchPalette 输入框、
    *   ChangedFilesView 三条、ErrorEventList 行、时间线整行按钮（全宽控件，正偏移
-   *   的环会被行区的 overflow 裁掉）；
+   *   的环会被行区的 overflow 裁掉）、脉搏活跃会话行（同上）；
    * - 焦点竖条 7 条 = 4 条纯竖条 + 3 条与环并存的竖条。
-   * 所以消费了令牌的规则共 30 条（26 条 outline 规则 + 4 条纯竖条）。
+   * 所以消费了令牌的规则共 31 条（27 条 outline 规则 + 4 条纯竖条）。
    */
-  it("令牌被 30 条规则消费，环宽度 26 处、偏移 17 + 6 处、焦点竖条 7 处", () => {
+  it("令牌被 31 条规则消费，环宽度 27 处、偏移 17 + 7 处、焦点竖条 7 处", () => {
     const count = (pattern: RegExp) => ALL_SOURCE.match(pattern)?.length ?? 0;
     // 只数「消费」的规则：tokens.css 里那几块是**声明**（`--focus-ring-width: 2px;`），
     // 不含 `var(...)`，不能被算进消费方。
     const consumingRules = ALL_RULES.filter((rule) => /var\(--focus-ring-/.test(rule.body));
 
-    expect(count(/outline(?:-width)?:\s*var\(--focus-ring-width\)/g)).toBe(26);
+    expect(count(/outline(?:-width)?:\s*var\(--focus-ring-width\)/g)).toBe(27);
     expect(count(/outline-offset:\s*var\(--focus-ring-offset\)/g)).toBe(17);
-    expect(count(/outline-offset:\s*var\(--focus-ring-inset\)/g)).toBe(6);
+    expect(count(/outline-offset:\s*var\(--focus-ring-inset\)/g)).toBe(7);
     expect(count(/inset\s+var\(--focus-ring-width\)\s+0\s+0\s+var\(--accent\)/g)).toBe(7);
-    expect(consumingRules.length).toBe(30);
+    expect(consumingRules.length).toBe(31);
   });
 });
 

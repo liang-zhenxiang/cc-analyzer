@@ -69,6 +69,10 @@ EXPECTED_VIEWS = [
     # 越靠后的小节永远进不了归档（「常驻读数」就在最底下）。
     "settings-below",
     "monitor",
+    # Issue #203：实时脉搏——主窗原生首屏与 420×620 浮窗态（dashboard 档的
+    # 「未打开」形态仍由 monitor 归档）。
+    "pulse",
+    "pulse-float",
     "usage",
     "usage-below",
     # Round J：上下文标签页三视图——含压缩行的日志表、上下文取证打开态、

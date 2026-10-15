@@ -21,7 +21,7 @@ web/ (React 18 + TypeScript + Vite)
 | `api/` | **UI 组件不直接碰 Tauri**。`bridges.ts` 定义注入接口，`tauri.ts` 是 Tauri 实现，`types.ts` 是与 Rust 命令对齐的参数/返回类型 |
 | `app/` | 应用壳：`AppShell`、`WorkspaceTabs`（会话分析 / 实时监控 两个工作区页）、主题与通知 Provider |
 | `features/sessions/` | 会话分析主功能：仓库读取、JSONL 解析、会话图、日志行模型、筛选、耗时树、报告生成 |
-| `features/monitor/` | 实时监控页（用户点「打开监控」后才探测并内嵌外部仪表盘）与浮窗消息协议 |
+| `features/monitor/` | 实时监控页：默认的原生「脉搏」视图（活跃会话 / 速率曲线 / 5 小时窗口 / 上下文填充）+「外部仪表盘」子视图（显式打开后才探测）+ 浮窗消息协议 |
 | `features/settings/` | 分析预算（阈值）的持久化与设置面板 |
 | `lib/` | 通用工具（路径、格式化、JSON 序列化、剪贴板） |
 | `components/` | 跨 feature 的共享组件 |
@@ -55,8 +55,12 @@ web/ (React 18 + TypeScript + Vite)
 - **进程**：`run_lines`（流式跑子进程，供报告生成；`stdin_text` 可注入，
   `timeout_ms` 可超时）、`cancel_lines`（用户点「停止分析」时杀掉运行中的
   子进程）、`exec_text`、`spawn_detached`（打开文件/终端）。
-- **监控**：`monitor_port` / `monitor_ping`（探测外部仪表盘；只在用户点「打开监控」后调用）。
-- **浮窗**：`float` 插件的 `enter` / `exit`（保存与恢复窗口几何）。
+- **监控**：`monitor_port` / `monitor_ping`（探测外部仪表盘；只在「外部仪表盘」子视图里、
+  用户点「打开监控」后调用——默认的「脉搏」视图不碰这两个命令）。
+- **浮窗**：`float` 插件的 `enter` / `exit`（保存与恢复窗口几何）。浮窗是无边框窗口
+  （`set_decorations(false)`），脉搏的浮窗细头靠 `data-tauri-drag-region="deep"` + 能力
+  文件里的 `core:window:allow-start-dragging` 拖动窗口——无边框窗口没有别的地方可拖，
+  这是本轮唯一新增的能力（见 `.trellis/spec/backend/security-and-permissions.md`）。
 
 ## 数据流
 
@@ -69,6 +73,14 @@ parseJsonl ──▶ 会话图（子会话递归）──▶ 时长聚合 ──
         ▼                                    ▼
 meta-cache-v2.json（标题缓存）        run_lines(claude CLI) ──▶ Markdown 报告
 ```
+
+「脉搏」复用同一条链路，不新写窗口数学：`usePulseFeed` 每拍调 `listSessions()`，
+对 mtime/size 变过的文件重解析（命中 `sharedSessionParseCache` 则零成本），再交给
+`billingReadoutsOf` / `burnRateOf` / `predictLimitReach` / `contextSeriesOf` ——
+与用量总览和菜单栏读数**同一批纯函数**（所以脉搏的 5 小时消耗与用量表盘逐位相等）。
+一个陷阱值得记住：正在被写的会话每次写入都让 `meta-cache-v2.json` 失配，
+`listSessions` 一律把它们标成 `pending`、拿不到缓存标题；活跃会话的标题必须自己
+`readHead` 现取（细节见 `.trellis/spec/frontend/hook-guidelines.md`）。
 
 ## 设计取舍（含被否掉的方案）
 
