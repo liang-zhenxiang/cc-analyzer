@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./fixtures";
+import { sessionItems } from "./selectors";
 
 /**
  * 终端输出保真的端到端回归。
@@ -14,11 +15,7 @@ const ESC = "\u001b";
 async function openAnsiSession(page: Page) {
   await page.goto("/");
   await page.getByPlaceholder("搜会话 ID 或目录…").fill("ansi");
-  await page
-    .getByLabel("会话列表", { exact: true })
-    .locator("button[title]:has(strong)")
-    .first()
-    .click();
+  await sessionItems(page).first().click();
   await expect(page.getByLabel("会话图状态")).toContainText("会话图已加载", { timeout: 15_000 });
 }
 

@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { test, expect, recentActivityScenario, pulseScenario } from "./fixtures";
+import { sessionItems } from "./selectors";
 
 /**
  * 界面高对比度档的端到端回归（Round U）。
@@ -327,11 +328,7 @@ test.describe("高对比度 · 几何不变量", () => {
     await page.getByRole("button", { name: "关闭" }).click();
 
     await page.getByPlaceholder("搜会话 ID 或目录…").fill("ansi");
-    await page
-      .getByLabel("会话列表", { exact: true })
-      .locator("button[title]:has(strong)")
-      .first()
-      .click();
+    await sessionItems(page).first().click();
     await page.getByRole("tab", { name: "日志视图" }).click();
     await expect(page.getByLabel("会话图状态")).toContainText("会话图已加载", { timeout: 15_000 });
 

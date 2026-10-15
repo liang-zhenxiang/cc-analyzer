@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { test, expect, compactScenario } from "./fixtures";
+import { sessionItems } from "./selectors";
 
 /**
  * 会话详情「上下文」标签页（Round J · J2）。
@@ -9,10 +10,6 @@ import { test, expect, compactScenario } from "./fixtures";
  * 空态是「有数据的零」而不是空盒子。数据全部来自共享夹具
  * compact-session.jsonl（2 次压缩：auto + manual，断崖 ≥10×）。
  */
-
-function sessionItems(page: Page) {
-  return page.getByLabel("会话列表", { exact: true }).locator("button[title]:has(strong)");
-}
 
 async function openSession(page: Page, query: string) {
   await page.goto("/");

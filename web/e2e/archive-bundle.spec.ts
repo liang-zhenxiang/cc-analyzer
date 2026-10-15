@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { test, expect, defaultScenario, APP_VERSION } from "./fixtures";
+import { sessionItems } from "./selectors";
 import type { BundleEntry } from "../src/api/types";
 import type { MockScenario } from "./tauri-mock";
 
@@ -113,10 +114,6 @@ async function openBundleDialog(page: Page, name: "导出归档包…" | "导入
   await page.getByRole("button", { name: "设置" }).click();
   await page.getByRole("button", { name }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
-}
-
-function sessionItems(page: Page) {
-  return page.getByLabel("会话列表", { exact: true }).locator("button[title]:has(strong)");
 }
 
 test.use({ scenario: bundleScenario() });

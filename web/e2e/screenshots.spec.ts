@@ -1,5 +1,6 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   test,
   expect,
@@ -11,6 +12,7 @@ import {
   calendarScenario,
   pulseScenario
 } from "./fixtures";
+import { sessionItems } from "./selectors";
 import type { Page } from "@playwright/test";
 
 /**
@@ -27,6 +29,121 @@ import type { Page } from "@playwright/test";
  */
 
 const OUT_DIR = path.resolve(process.cwd(), "..", "docs", "screenshots");
+
+/**
+ * 截图视图清单的**单一权威**：`docs/screenshots/views.json`（仓库根相对路径）。
+ *
+ * 在这之前视图清单硬编码在**三处**（本文件、`scripts/check-screenshots.sh` 的
+ * `EXPECTED_VIEWS`、`scripts/check-screenshots-test.sh` 的假基线 `views`），
+ * 新增/改名/下线一个视图要逐项手工对齐。Issue #196 记录了这个坑：#193 加
+ * `usage-day` 时前两处同步了、第三处漏了，CI 上「视觉基线一致性」5 秒即红，
+ * 而且第一眼看起来像检查脚本自己坏了；N1 加 `error-*` 时踩的是同一个坑。
+ *
+ * **为什么是 JSON 而不是 TS**：消费方跨越两个运行时——TypeScript（Playwright
+ * 的 spec，跑在 node 里）与 shell（两个检查脚本，用 python3 解析）。JSON 是
+ * 两个世界都能直接读的最小公约数；若权威是 `.ts`，shell 侧就得靠「内联执行
+ * TypeScript」这类额外手段（要么引入依赖、要么自己剥语法），正好违反本项目
+ * 「不引入新的 npm 依赖」。JSON 是本文件用 `readFileSync` 读、脚本用
+ * `json.load` 读，两边都不需要编译步骤。
+ *
+ * 用 `import.meta.url` 定位而不是 `process.cwd()`：spec 由 Playwright 从
+ * `testDir` 加载，cwd 未必是 `web/`（`-c` 传绝对路径时就不是）。这样写与
+ * cwd 无关，`--list` 与真实执行两条路径解析到同一份文件。
+ */
+const VIEWS_MANIFEST = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "docs",
+  "screenshots",
+  "views.json"
+);
+
+/**
+ * 读取权威清单。读不到或形状不对就抛错：仓库完整时这条路径不该有降级，
+ * 静默降级只会把「清单没被读到」重新藏成「检查通过」。
+ */
+function readViewManifest(): readonly string[] {
+  const parsed: unknown = JSON.parse(readFileSync(VIEWS_MANIFEST, "utf8"));
+  if (typeof parsed !== "object" || parsed === null || !("views" in parsed)) {
+    throw new Error(`${VIEWS_MANIFEST} 缺少 views 字段`);
+  }
+  const views = (parsed as { views: unknown }).views;
+  if (!Array.isArray(views) || views.length === 0) {
+    throw new Error(`${VIEWS_MANIFEST} 的 views 必须是非空数组`);
+  }
+  const seen = new Set<string>();
+  for (const view of views) {
+    if (typeof view !== "string" || view === "") {
+      throw new Error(`${VIEWS_MANIFEST} 的 views 里有非字符串或空串项`);
+    }
+    if (seen.has(view)) {
+      throw new Error(`${VIEWS_MANIFEST} 的 views 里有重复项：${view}`);
+    }
+    seen.add(view);
+  }
+  return views as readonly string[];
+}
+
+/** 权威清单里的全部视图名——check-screenshots.sh 的 EXPECTED_VIEWS 就是它。 */
+export const ALL_VIEWS: readonly string[] = readViewManifest();
+
+/**
+ * 本文件**真正声明**了 test / test.skip 的视图名，按声明顺序登记。
+ *
+ * 这是「清单 ↔ spec」这一环的机器可读证据。`describe` 回调在收集阶段一定会跑
+ * （`test.skip()` 只影响执行，不影响收集），所以这里登记是可靠的。
+ *
+ * `scripts/check-screenshots.sh` 用同一份 views.json、并以正则扫本文件的
+ * `declareView("…")` 做**双向**对齐复核——因为 CI 的 screenshots-baseline job
+ * 只跑 shell 检查、不跑 Playwright，本文件末尾那条同语义的断言在 CI 里是
+ * skipped。两边语义一致，shell 侧那条才是 CI 真正生效的门禁。
+ */
+const declaredViews: string[] = [];
+
+/**
+ * 登记一个视图名，并返回它——调用点写成「常量 = 本函数(名字字面量)」的形态，
+ * 就能把字符串字面量收敛成一处常量，改名只需改权威清单 + 那个常量。
+ *
+ * 注意：`scripts/check-screenshots.sh` 用正则扫本文件提取视图名，模式要求
+ * 「= 本函数(小写名字字面量)」。所以（1）传参必须是字面量，不能用变量或模板串；
+ * （2）**文档注释里不要写出完整的调用示例**——示例会被正则当成真声明扫进来，
+ * 报出「声明了不在清单里的视图」这种假警报（实测踩过）。这也是这段注释用
+ * 描述性措辞、不写代码样例的原因。
+ */
+function declareView(view: string): string {
+  if (declaredViews.includes(view)) {
+    throw new Error(`视图 ${view} 在本文件里被声明了两次——每次出图只该有一个声明`);
+  }
+  declaredViews.push(view);
+  return view;
+}
+
+// 各视图的常量声明。每个名字都必须在权威清单里（由 shell 侧与末尾断言守着）。
+const V_ANALYZER_EMPTY = declareView("analyzer-empty");
+const V_ANALYZER_LOG = declareView("analyzer-log");
+const V_ANALYZER_TREE = declareView("analyzer-tree");
+const V_ANALYZER_REPORT = declareView("analyzer-report");
+const V_ANALYZER_REPORT_FULL = declareView("analyzer-report-full");
+const V_SETTINGS = declareView("settings");
+const V_SETTINGS_BELOW = declareView("settings-below");
+const V_MONITOR = declareView("monitor");
+const V_USAGE = declareView("usage");
+const V_USAGE_BELOW = declareView("usage-below");
+const V_ANALYZER_LOG_COMPACT = declareView("analyzer-log-compact");
+const V_CONTEXT = declareView("context");
+const V_CONTEXT_EMPTY = declareView("context-empty");
+const V_ERROR_VIEW = declareView("error-view");
+const V_ERROR_EVENTS = declareView("error-events");
+const V_CHANGED_FILES = declareView("changed-files");
+const V_USAGE_DAY = declareView("usage-day");
+const V_PULSE = declareView("pulse");
+const V_PULSE_FLOAT = declareView("pulse-float");
+
+// 出血点标签页（Round X）。与其余视图一样显式写成「常量 = declareView(字面量)」
+// 的形态——不能从某张表的键里循环：check-screenshots.sh 的正则只认这种形态，
+// 循环调用会让该视图被误报成「清单里有、spec 没声明」。
+const V_BLEED = declareView("bleed");
 
 /** 主题在 ThemeProvider 初始化时读 localStorage，所以要在页面脚本之前埋好。 */
 async function useTheme(page: Page, theme: "light" | "dark") {
@@ -56,10 +173,6 @@ async function scrollMainToBottom(page: Page) {
     return el !== null && el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
   });
   await page.waitForTimeout(150);
-}
-
-function sessionItems(page: Page) {
-  return page.getByLabel("会话列表", { exact: true }).locator("button[title]:has(strong)");
 }
 
 /**
@@ -130,35 +243,35 @@ test.describe("截图归档", () => {
 
       await page.goto("/");
       // 会话分析 · 空态
-      await shot("analyzer-empty");
+      await shot(V_ANALYZER_EMPTY);
 
       await openFirstSession(page);
       // 会话分析 · 日志视图（已选会话）
-      await shot("analyzer-log");
+      await shot(V_ANALYZER_LOG);
 
       await page.getByRole("tab", { name: "树视图" }).click();
       await page.waitForTimeout(250);
-      await shot("analyzer-tree");
+      await shot(V_ANALYZER_TREE);
 
       // 会话分析 · 报告面板（真的跑一次生成，而不是截占位文案）
       await page.getByRole("tab", { name: "日志视图" }).click();
       await page.getByRole("button", { name: /生成整会话分析/ }).click();
       await page.waitForTimeout(900);
-      await shot("analyzer-report");
+      await shot(V_ANALYZER_REPORT);
 
       // 报告正文按内容走，视口装不下时从视口下沿起——再滚到页面底部截一张，
       // 归档里才看得到报告本体（`analyzer-report` 拍的是生成后的首屏布局）。
       await scrollMainToBottom(page);
-      await shot("analyzer-report-full");
+      await shot(V_ANALYZER_REPORT_FULL);
 
       // 设置面板
       await page.getByRole("button", { name: "设置" }).click();
       await page.waitForTimeout(250);
-      await shot("settings");
+      await shot(V_SETTINGS);
       // 面板下半屏：越靠后的小节（计费窗口之后新增的「常驻读数」等）只拍首屏
       // 永远看不到，归档里得有一张滚到底的。
       await scrollSettingsToBottom(page);
-      await shot("settings-below");
+      await shot(V_SETTINGS_BELOW);
       await page.getByRole("button", { name: "设置" }).click();
 
       // 实时监控 —— 截的是**未打开**的默认态，也就是用户切进来第一眼看到的样子。
@@ -170,14 +283,14 @@ test.describe("截图归档", () => {
       await page.getByRole("tab", { name: "外部仪表盘" }).click();
       await expect(page.getByRole("button", { name: "打开监控" })).toBeVisible();
       await page.waitForTimeout(250);
-      await shot("monitor");
+      await shot(V_MONITOR);
     });
   }
 });
 
 // 用量总览需要「最近真的有活动」才有内容可截：仪表盘的时间窗相对
 // Date.now()，夹具的固定时间戳会随着日子过去掉出窗外，截出一排空图。
-// 场景用 toolCensusScenario（N3 起多一块「工具与 skill」���板）：默认场景的
+// 场景用 toolCensusScenario（N3 起多一块「工具与 skill」面板）：默认场景的
 // usage 夹具没有任何 tool_use，继续用 recentActivityScenario 会让新面板
 // 在归档截图里永远是全空态。该场景窗内只有 census 夹具有工具调用，
 // 面板读数是确定值（见 tool-census.spec.ts 的账目）。
@@ -202,7 +315,7 @@ test.describe("截图归档 · 用量总览", () => {
       await expect(page.getByText(/纳入统计/)).toBeVisible({ timeout: 15_000 });
       await page.waitForTimeout(300);
       await settleImages(page);
-      await page.screenshot({ path: path.join(OUT_DIR, `usage-${theme}${suffix}.png`) });
+      await page.screenshot({ path: path.join(OUT_DIR, `${V_USAGE}-${theme}${suffix}.png`) });
 
       // 下半屏：三块面板（按项目分布 / 按模型分布 / 活跃时段）的内容与热力图
       // 整块在折叠线以下——视口截图从不滚动，它们因此从未进入归档、从未进入
@@ -213,7 +326,7 @@ test.describe("截图归档 · 用量总览", () => {
       await page.locator("[data-tool-census-row='Bash']").click();
       await expect(page.locator("[data-tool-census-sessions]")).toBeVisible();
       await settleImages(page);
-      await page.screenshot({ path: path.join(OUT_DIR, `usage-below-${theme}${suffix}.png`) });
+      await page.screenshot({ path: path.join(OUT_DIR, `${V_USAGE_BELOW}-${theme}${suffix}.png`) });
     });
   }
 });
@@ -268,7 +381,7 @@ test.describe("截图归档 · 上下文", () => {
         await page.waitForTimeout(120);
       }
       await expect(page.getByText(/压缩 #\d（(自动|手动)）/).first()).toBeVisible();
-      await shot("analyzer-log-compact");
+      await shot(V_ANALYZER_LOG_COMPACT);
 
       // 上下文标签页 · 含压缩会话：点第 2 枚事件 chip 打开取证卡（截图要有
       // 「选中态」的样子，引导行不是这个视图的常态演示）。
@@ -278,7 +391,7 @@ test.describe("截图归档 · 上下文", () => {
       await panel.getByRole("button", { name: /#2 / }).click();
       await expect(panel.getByText("被丢出上下文的内容 · 82 条")).toBeVisible();
       await page.waitForTimeout(250);
-      await shot("context");
+      await shot(V_CONTEXT);
 
       // 上下文标签页 · 无压缩会话：换到 /repo/demo（session-basic，有 usage、
       // 无压缩）。子视图随页面状态保持在「上下文」，无需再点。搜索词用带斜杠的
@@ -289,7 +402,7 @@ test.describe("截图归档 · 上下文", () => {
       await expect(page.getByRole("img", { name: /未发生压缩/ })).toBeVisible();
       await expect(page.getByText("本会话未发生压缩——上下文从未重置")).toBeVisible();
       await page.waitForTimeout(250);
-      await shot("context-empty");
+      await shot(V_CONTEXT_EMPTY);
     });
   }
 });
@@ -320,11 +433,11 @@ test.describe("截图归档 · 错误档", () => {
       await expect(page.getByText(/全部 7 条 · 时间倒序/)).toBeVisible();
       await page.waitForTimeout(300);
       await settleImages(page);
-      await page.screenshot({ path: path.join(OUT_DIR, `error-view-${theme}${suffix}.png`) });
+      await page.screenshot({ path: path.join(OUT_DIR, `${V_ERROR_VIEW}-${theme}${suffix}.png`) });
 
       await scrollMainToBottom(page);
       await settleImages(page);
-      await page.screenshot({ path: path.join(OUT_DIR, `error-events-${theme}${suffix}.png`) });
+      await page.screenshot({ path: path.join(OUT_DIR, `${V_ERROR_EVENTS}-${theme}${suffix}.png`) });
     });
   }
 });
@@ -366,7 +479,7 @@ test.describe("截图归档 · 改动", () => {
       ).toBeVisible();
       await page.waitForTimeout(250);
       await settleImages(page);
-      await page.screenshot({ path: path.join(OUT_DIR, `changed-files-${theme}${suffix}.png`) });
+      await page.screenshot({ path: path.join(OUT_DIR, `${V_CHANGED_FILES}-${theme}${suffix}.png`) });
     });
   }
 });
@@ -421,7 +534,7 @@ test.describe("截图归档 · 一日回望", () => {
       await page.waitForTimeout(150);
 
       await settleImages(page);
-      await page.screenshot({ path: path.join(OUT_DIR, `usage-day-${theme}${suffix}.png`) });
+      await page.screenshot({ path: path.join(OUT_DIR, `${V_USAGE_DAY}-${theme}${suffix}.png`) });
     });
   }
 });
@@ -458,7 +571,7 @@ test.describe("截图归档 · 实时脉搏", () => {
       });
       await page.waitForTimeout(300);
       await settleImages(page);
-      await page.screenshot({ path: path.join(OUT_DIR, `pulse-${theme}${suffix}.png`) });
+      await page.screenshot({ path: path.join(OUT_DIR, `${V_PULSE}-${theme}${suffix}.png`) });
 
       // 浮窗态 + 真实浮窗尺寸（后端常量 420×620）。
       await page.getByRole("button", { name: "悬浮" }).click();
@@ -466,7 +579,96 @@ test.describe("截图归档 · 实时脉搏", () => {
       await page.setViewportSize({ width: 420, height: 620 });
       await page.waitForTimeout(300);
       await settleImages(page);
-      await page.screenshot({ path: path.join(OUT_DIR, `pulse-float-${theme}${suffix}.png`) });
+      await page.screenshot({ path: path.join(OUT_DIR, `${V_PULSE_FLOAT}-${theme}${suffix}.png`) });
     });
   }
+});
+
+// 出血点标签页（Round X）需要「**真的发生过压缩**」的会话，理由与上下文标签页
+// 完全一致：默认场景八个会话都没有 compact 边界，拍出来只有「本会话没有发生压缩」
+// 这句空态。用 compactScenario()（/repo/compact-demo，2 次压缩：auto + manual）——
+// 该会话的压缩 #1 丢掉 94 条、#2 丢掉 82 条，清单里有带金额的压缩条目
+// （$1.92）与四栏 token 读数，图里看得见这个功能真正的样子。
+//
+// 为什么不复用「上下文」那个 describe：它拍的是**上下文压力**页（扇形图 + 压缩事件
+// chip 的取证卡），与出血点的口径不同（出血点 = 每条消息在压缩时的 token 归属）。
+// 两个标签页共用同一份夹具是刻意的——同一份事实，两种问法，截图各拍各的。
+//
+// 一张：清单+结论行的常态。不点任何下钻：出血点页首屏就是它的完整形态。
+test.describe("截图归档 · 出血点", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: compactScenario() });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`出血点 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+
+      await page.goto("/");
+      await page.getByPlaceholder("搜会话 ID 或目录…").fill("compact-demo");
+      await sessionItems(page).first().click();
+      await expect(page.getByLabel("会话图状态")).toContainText("会话图已加载", { timeout: 15_000 });
+
+      await page.getByRole("tab", { name: "出血点" }).click();
+      // 等到**结论行**与**清单**同时在场再截。只等标签页可见会截到空态那一帧
+      // （报告由 useMemo 现算，切换标签到清单渲染之间有一拍）。这两条断言同时
+      // 也是「拍的确实是出血点页」的证据——不是空白页、不是加载中、不是错误态。
+      await expect(page.getByRole("region", { name: "上下文出血点" })).toBeVisible();
+      await expect(page.getByText("2 次压缩丢掉了 176 条消息")).toBeVisible();
+      const list = page.getByRole("list", { name: "出血清单" });
+      await expect(list).toBeVisible();
+      // 首条是压缩 #1（夹具事实，见 BleedView.test.tsx）：图里必须有这条真读数，
+      // 否则说明拍的是一张「压缩了但没丢东西」的空态——那是另一件事的事实。
+      await expect(list.getByText("压缩 #1 · 丢掉 94 条消息")).toBeVisible();
+      await page.waitForTimeout(250);
+
+      await settleImages(page);
+      await page.screenshot({ path: path.join(OUT_DIR, `${V_BLEED}-${theme}${suffix}.png`) });
+    });
+  }
+});
+
+
+//
+// 权威清单里的每个视图名，都必须在本文件里被 `declareView` 声明过；本文件声明
+// 的每个名字，也必须在权威清单里。报错**指名道姓**。
+//
+// 注意：这条断言带 `test.skip(!process.env.SCREENSHOTS)`，而 CI 的
+// screenshots-baseline job 只跑 shell 检查、不跑 Playwright（`SCREENSHOTS`
+// 在 CI 里从没被设置过），所以它在 CI 里是 skipped。真正进 CI 的同语义门禁是
+// `scripts/check-screenshots.sh` 的第 0 段——它用同一份 views.json 并以正则扫
+// 本文件的 declareView 做双向复核。两者都在，是因为本地出图时（SCREENSHOTS=1）
+// 这条断言能更早、更贴近源码地报出问题。
+// ---------------------------------------------------------------------------
+test.describe("截图视图清单对齐", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test("spec 的声明与权威清单 views.json 一致", async () => {
+    const declared = new Set(declaredViews);
+    const listed = new Set(ALL_VIEWS);
+
+    const missingDeclaration = ALL_VIEWS.filter((view) => !declared.has(view));
+    const extraDeclaration = declaredViews.filter((view) => !listed.has(view));
+
+    expect(
+      missingDeclaration,
+      `docs/screenshots/views.json 里有 ${missingDeclaration.length} 个视图没人声明：` +
+        `${missingDeclaration.join("、")}——请在本文件里加 declareView 与出图，` +
+        `或从 views.json 里移除`
+    ).toEqual([]);
+
+    expect(
+      extraDeclaration,
+      `本文件声明了 ${extraDeclaration.length} 个不在 views.json 里的视图：` +
+        `${extraDeclaration.join("、")}——请把它们加进 docs/screenshots/views.json`
+    ).toEqual([]);
+
+    expect(declaredViews.length).toBe(ALL_VIEWS.length);
+  });
 });
