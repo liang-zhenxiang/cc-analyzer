@@ -29,6 +29,31 @@ async function centerOffset(inner: Locator, outer: Locator): Promise<number> {
   );
 }
 
+/**
+ * dashboard 子视图自己的可用区域：常驻分段控件下沿 → `main` 下沿。
+ *
+ * Issue #203 起「实时监控」标签多了一条常驻的分段控件（脉搏 | 外部仪表盘），
+ * dashboard 的内容从它下方开始，所以「独占子视图时落在中线上」要以这条带子
+ * 下沿为基准，而不是整块 `main`。子视图高度没变，变的只是它的起点。
+ */
+async function dashboardRegion(page: Page): Promise<{ top: number; bottom: number }> {
+  const bar = await page.getByRole("tablist", { name: "监控视图" }).boundingBox();
+  const main = await page.getByRole("main").boundingBox();
+  expect(bar).not.toBeNull();
+  expect(main).not.toBeNull();
+  return { top: bar!.y + bar!.height, bottom: main!.y + main!.height };
+}
+
+async function centerOffsetInRegion(
+  inner: Locator,
+  region: { top: number; bottom: number }
+): Promise<number> {
+  const box = await inner.boundingBox();
+  expect(box).not.toBeNull();
+  const center = box!.y + box!.height / 2;
+  return Math.abs(center - (region.top + region.bottom) / 2);
+}
+
 /** 让下一次目录读取失败（见 tauri-mock 里的开关）。 */
 async function breakScan(page: Page) {
   await page.evaluate(() => {
@@ -101,6 +126,10 @@ test.describe("整页错误态", () => {
     await page.goto("/");
     await page.getByRole("tab", { name: "实时监控" }).click();
 
+    // 这个标签的默认档是原生「脉搏」（Issue #203）；下面验的是外部仪表盘的失败态，
+    // 先显式切到第二个子视图，dashboard 档本身的文案与行为一行没改。
+    await page.getByRole("tab", { name: "外部仪表盘" }).click();
+
     // 打开之前就要写清连的是哪个地址——这是「下一步做什么」里可执行的那半句。
     await expect(page.getByText(/本机 localhost:8090/)).toBeVisible();
 
@@ -117,8 +146,8 @@ test.describe("整页错误态", () => {
     expect(text).not.toContain("夹具");
     expect(text).not.toContain("/Users/");
 
-    // 与用量页同一个位置：独占主区时落在中线上，而不是顶在上沿。
-    expect(await centerOffset(alert, page.getByRole("main"))).toBeLessThan(30);
+    // 与用量页同一个位置：独占 dashboard 子视图时落在它的中线上，而不是顶在上沿。
+    expect(await centerOffsetInRegion(alert, await dashboardRegion(page))).toBeLessThan(30);
   });
 });
 

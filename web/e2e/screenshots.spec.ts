@@ -3,11 +3,13 @@ import path from "node:path";
 import {
   test,
   expect,
+  APP_VERSION,
   toolCensusScenario,
   compactScenario,
   errorScenario,
   changedFilesScenario,
-  calendarScenario
+  calendarScenario,
+  pulseScenario
 } from "./fixtures";
 import type { Page } from "@playwright/test";
 
@@ -162,7 +164,10 @@ test.describe("截图归档", () => {
       // 实时监控 —— 截的是**未打开**的默认态，也就是用户切进来第一眼看到的样子。
       // 不点「打开监控」：那个仪表盘服务不在本仓库内、夹具里也没在跑，
       // 点下去只会得到一张三次重试之后的失败态，而失败态不是这个页面的常态。
+      // Issue #203 起这个标签默认是原生「脉搏」，所以先切到「外部仪表盘」子视图——
+      // 这张 `monitor` 归档的仍是 dashboard 档未打开的形态（脉搏另有 `pulse` 视图）。
       await page.getByRole("tab", { name: "实时监控" }).click();
+      await page.getByRole("tab", { name: "外部仪表盘" }).click();
       await expect(page.getByRole("button", { name: "打开监控" })).toBeVisible();
       await page.waitForTimeout(250);
       await shot("monitor");
@@ -417,6 +422,51 @@ test.describe("截图归档 · 一日回望", () => {
 
       await settleImages(page);
       await page.screenshot({ path: path.join(OUT_DIR, `usage-day-${theme}${suffix}.png`) });
+    });
+  }
+});
+
+// 实时脉搏（Issue #203）要一份「此刻真的有活动」的夹具：pulseScenario() 的三个会话
+// 按 mtime 分成 live / recent / idle，5 小时窗口与三档新近度都相对 Date.now() 现算
+// ——用固定日期的默认场景会让它们随日历漂出窗外，截出一页空态。
+// 两张：主窗首屏与 420×620 浮窗态。live 档心跳是**无限循环**，出图前必须把动画关掉
+// （prefers-reduced-motion 走 global.css 的全局归零），否则归档 PNG 会随机停在某一帧，
+// 同一份代码每次出图都不一样（规格 §13.2-2 的裁决）。
+test.describe("截图归档 · 实时脉搏", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  // 顶栏版本徽章读桩的 `updater`；`pulseScenario` 以 `emptyScenario` 打底、没带它，
+  // 不覆盖就会把 `v0.0.0-mock` 印进 README 门面图（其它归档场景也都喂了 APP_VERSION）。
+  test.use({ scenario: pulseScenario({ updater: { currentVersion: APP_VERSION } }) });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`实时脉搏 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+
+      await page.emulateMedia({ reducedMotion: "reduce" });
+
+      await page.goto("/");
+      await page.getByRole("tab", { name: "实时监控" }).click();
+      await expect(page.locator("[data-probe='pulse-page']")).toHaveAttribute("data-state", "fresh", {
+        timeout: 15_000
+      });
+      await page.waitForTimeout(300);
+      await settleImages(page);
+      await page.screenshot({ path: path.join(OUT_DIR, `pulse-${theme}${suffix}.png`) });
+
+      // 浮窗态 + 真实浮窗尺寸（后端常量 420×620）。
+      await page.getByRole("button", { name: "悬浮" }).click();
+      await expect(page.locator("[data-probe='pulse-float-head']")).toBeVisible();
+      await page.setViewportSize({ width: 420, height: 620 });
+      await page.waitForTimeout(300);
+      await settleImages(page);
+      await page.screenshot({ path: path.join(OUT_DIR, `pulse-float-${theme}${suffix}.png`) });
     });
   }
 });

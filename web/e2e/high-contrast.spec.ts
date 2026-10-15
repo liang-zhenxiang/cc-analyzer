@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { test, expect, recentActivityScenario } from "./fixtures";
+import { test, expect, recentActivityScenario, pulseScenario } from "./fixtures";
 
 /**
  * 界面高对比度档的端到端回归（Round U）。
@@ -415,5 +415,73 @@ test.describe("高对比度 · 设置面板分段控件宽度", () => {
       expect(line.scrollHeight).toBe(line.clientHeight);
       expect(line.scrollWidth).toBeLessThanOrEqual(line.clientWidth);
     }
+  });
+});
+
+/**
+ * R8 的姿态：高对比度与 130% 字号**不进截图基线**，改由几何断言覆盖——量 DOM，
+ * 不看截图。脉搏场景用 `pulseScenario()`（三个会话、5 小时窗口有读数），否则
+ * 默认场景的固定日期让整页落在空态，行与曲线都不存在，断言会空转。
+ */
+async function expectPulseGeometry(page: Page) {
+  const container = page.locator("[data-probe='pulse-page']");
+  await expect(container).toBeVisible();
+
+  // 容器自身不横向溢出。
+  const box = await container.evaluate((el) => ({
+    scrollWidth: el.scrollWidth,
+    clientWidth: el.clientWidth
+  }));
+  expect(box.scrollWidth).toBeLessThanOrEqual(box.clientWidth + 1);
+
+  // 会话行不被裁切。
+  const rows = page.locator("[data-probe='pulse-session-open']");
+  const rowCount = await rows.count();
+  expect(rowCount).toBeGreaterThan(0);
+  const rowsMetrics = await rows.evaluateAll((nodes) =>
+    nodes.map((node) => ({
+      scrollHeight: (node as HTMLElement).scrollHeight,
+      clientHeight: (node as HTMLElement).clientHeight
+    }))
+  );
+  for (const metrics of rowsMetrics) {
+    expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.clientHeight + 1);
+  }
+
+  // 两条曲线都要在场，且完整落在视口右边界之内（没被面板 / 视口裁掉）。
+  const viewportWidth = await page.evaluate(() => document.documentElement.clientWidth);
+  for (const probe of ["pulse-rate-curve", "pulse-context-curve"]) {
+    const svg = page.locator(`[data-probe='${probe}']`);
+    await expect(svg).toBeVisible();
+    const rect = await svg.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      return { left: box.left, right: box.right, width: box.width };
+    });
+    expect(rect.width).toBeGreaterThan(0);
+    expect(rect.left).toBeGreaterThanOrEqual(-1);
+    expect(rect.right).toBeLessThanOrEqual(viewportWidth + 1);
+  }
+}
+
+test.describe("高对比度 · 实时脉搏几何", () => {
+  test.use({ scenario: pulseScenario() });
+
+  test("高对比度下脉搏页不横向溢出，曲线与会话行不被裁切", async ({ page }) => {
+    await page.goto("/");
+    await openSettings(page);
+    await radio(page, "高对比度").click();
+    await page.getByRole("button", { name: "关闭" }).click();
+
+    await page.getByRole("tab", { name: "实时监控" }).click();
+    await expect(page.locator("[data-probe='pulse-page']")).toHaveAttribute("data-state", "fresh", {
+      timeout: 15_000
+    });
+
+    // 对比度真的换挡了，才谈得上「高对比度下不溢出」。
+    expect(await rootContrast(page)).toBe("high");
+    const { scrollWidth, clientWidth } = await horizontalOverflow(page);
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
+
+    await expectPulseGeometry(page);
   });
 });

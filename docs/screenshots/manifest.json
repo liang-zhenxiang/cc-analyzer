@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-13T06:05:41.348Z",
-  "commit": "a1bdc48+dirty",
+  "generatedAt": "2026-10-15T08:22:14.783Z",
+  "commit": "8e635ae+dirty",
   "dirty": true,
   "files": [
     "analyzer-empty-dark-webkit.png",
@@ -51,6 +51,14 @@
     "monitor-dark.png",
     "monitor-light-webkit.png",
     "monitor-light.png",
+    "pulse-dark-webkit.png",
+    "pulse-dark.png",
+    "pulse-float-dark-webkit.png",
+    "pulse-float-dark.png",
+    "pulse-float-light-webkit.png",
+    "pulse-float-light.png",
+    "pulse-light-webkit.png",
+    "pulse-light.png",
     "settings-below-dark-webkit.png",
     "settings-below-dark.png",
     "settings-below-light-webkit.png",

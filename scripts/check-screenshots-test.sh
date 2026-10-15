@@ -6,7 +6,7 @@
 # 以为自己受保护。这里在临时目录里搭一套**自洽的假基线**，再逐条做变异
 # （README 指向断图 / 删掉一张图 / 清单缺一个视图），断言检查确实会红。
 #
-# 夹具在临时目录里现场生成，不入库：完整矩阵是 17 视图 × 2 主题 × 2 引擎 = 68 张
+# 夹具在临时目录里现场生成，不入库：完整矩阵是 19 视图 × 2 主题 × 2 引擎 = 76 张
 # 占位 png，把它们提交进仓库只会增加噪音，且它们本来就不是要被引用的真图。
 # 这份清单必须与 check-screenshots.sh 的 EXPECTED_VIEWS 逐项对齐——漏一个
 # 新视图，自测的「自洽基线」就会因缺图而红（N1 加 error-* 时踩过）。
@@ -53,6 +53,9 @@ views = [
     "settings",
     "settings-below",
     "monitor",
+    # Issue #203：实时脉搏（与 EXPECTED_VIEWS 对齐）。
+    "pulse",
+    "pulse-float",
     "usage",
     "usage-below",
     # Round V / V2：一日回望（与 EXPECTED_VIEWS 对齐）。
