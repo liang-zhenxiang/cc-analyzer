@@ -1,5 +1,5 @@
-import type { Page } from "@playwright/test";
 import { test, expect } from "./fixtures";
+import { sessionItems } from "./selectors";
 
 /**
  * 「复制 resume 命令」的真机点击闭环。
@@ -9,10 +9,6 @@ import { test, expect } from "./fixtures";
  * 把 `navigator.clipboard` 换成记录写入的桩，这里断言桩收到的字符串——
  * 这对两个引擎都是同一份期望。
  */
-
-function sessionItems(page: Page) {
-  return page.getByLabel("会话列表", { exact: true }).locator("button[title]:has(strong)");
-}
 
 test.describe("复制 resume 命令", () => {
   test("点击后剪贴板收到带项目目录的完整命令", async ({ page }) => {

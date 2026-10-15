@@ -100,24 +100,27 @@ describe("焦点环的几何只走令牌", () => {
    *   时间线整行按钮（数量不变，但整行按钮用负偏移，见下一行）；
    *   Round V3 的一年洞察补 1 条：句内日期按钮（accent 链接语义位）；
    *   Round W 的实时脉搏补 1 条：活跃会话整行按钮（全宽控件，负偏移）；
-   * - `outline-offset: var(--focus-ring-offset)` 17 条 = 上面 26 条里偏移为 1px 的那些；
-   * - `outline-offset: var(--focus-ring-inset)` 7 条 = SearchPalette 输入框、
+   *   Round X 的出血点补 2 条：会话行本体（`.sessionButton`——行从 `<button>` 改成
+   *   `role="button"` 的 div，因为出血点徽章是真按钮而按钮不能嵌按钮，改完得自带焦点环）
+   *   + 行内出血点徽章（真按钮，正偏移）；
+   * - `outline-offset: var(--focus-ring-offset)` 18 条 = 上面 28 条里偏移为 1px 的那些；
+   * - `outline-offset: var(--focus-ring-inset)` 8 条 = SearchPalette 输入框、
    *   ChangedFilesView 三条、ErrorEventList 行、时间线整行按钮（全宽控件，正偏移
-   *   的环会被行区的 overflow 裁掉）、脉搏活跃会话行（同上）；
+   *   的环会被行区的 overflow 裁掉）、脉搏活跃会话行（同上）、Round X 的会话行本体（同上）；
    * - 焦点竖条 7 条 = 4 条纯竖条 + 3 条与环并存的竖条。
-   * 所以消费了令牌的规则共 31 条（27 条 outline 规则 + 4 条纯竖条）。
+   * 所以消费了令牌的规则共 33 条（29 条 outline 规则 + 4 条纯竖条）。
    */
-  it("令牌被 31 条规则消费，环宽度 27 处、偏移 17 + 7 处、焦点竖条 7 处", () => {
+  it("令牌被 33 条规则消费，环宽度 29 处、偏移 18 + 8 处、焦点竖条 7 处", () => {
     const count = (pattern: RegExp) => ALL_SOURCE.match(pattern)?.length ?? 0;
     // 只数「消费」的规则：tokens.css 里那几块是**声明**（`--focus-ring-width: 2px;`），
     // 不含 `var(...)`，不能被算进消费方。
     const consumingRules = ALL_RULES.filter((rule) => /var\(--focus-ring-/.test(rule.body));
 
-    expect(count(/outline(?:-width)?:\s*var\(--focus-ring-width\)/g)).toBe(27);
-    expect(count(/outline-offset:\s*var\(--focus-ring-offset\)/g)).toBe(17);
-    expect(count(/outline-offset:\s*var\(--focus-ring-inset\)/g)).toBe(7);
+    expect(count(/outline(?:-width)?:\s*var\(--focus-ring-width\)/g)).toBe(29);
+    expect(count(/outline-offset:\s*var\(--focus-ring-offset\)/g)).toBe(18);
+    expect(count(/outline-offset:\s*var\(--focus-ring-inset\)/g)).toBe(8);
     expect(count(/inset\s+var\(--focus-ring-width\)\s+0\s+0\s+var\(--accent\)/g)).toBe(7);
-    expect(consumingRules.length).toBe(31);
+    expect(consumingRules.length).toBe(33);
   });
 });
 
@@ -131,7 +134,7 @@ const SELECTED_BAR_SELECTORS: Record<string, RegExp> = {
   "features/sessions/ChangedFilesView.module.css": /^\.rowOpen$/,
   "features/sessions/FilterBar.module.css": /^\.chip\[aria-pressed="true"\]$/,
   "features/sessions/SessionList.module.css":
-    /^\.groups \.sessionRow button\[aria-current="true"\],\n\.groups \.sessionRowWithStatus button\[aria-current="true"\]$/,
+    /^\.groups \.sessionRow \.sessionButton\[aria-current="true"\],\n\.groups \.sessionRowWithStatus \.sessionButton\[aria-current="true"\]$/,
   "features/sessions/TreeView.module.css": /^\.nodeSelected$/,
   "features/usage/ErrorRankList.module.css": /^\.selected$/,
   "features/usage/ToolCensusPanel.module.css": /^\.selected$/

@@ -5,6 +5,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SessionList } from "./SessionList";
 import type { SessionMeta } from "./metadataCache";
+import { parseJsonlText } from "./parseJsonl";
+import { buildBleedReport } from "./bleedModel";
 import styles from "./SessionList.module.css";
 
 const sessions: SessionMeta[] = [
@@ -449,16 +451,20 @@ test("marks an archived session with an inline badge in the title line", () => {
   expect(badges).toHaveLength(1);
 
   const badge = badges[0];
-  // 徽标内联在标题行里：button > .titleLine > strong + .archiveTag。
+  // 徽标内联在标题行里：.sessionButton > .titleLine > strong + .archiveTag。
   const titleLine = badge.parentElement!;
   expect(titleLine.classList.contains(styles.titleLine)).toBe(true);
   expect(titleLine.querySelector("strong")?.textContent).toBe("归档会话");
 
-  const button = titleLine.parentElement!;
-  expect(button.tagName).toBe("BUTTON");
-  expect(button.children[0]).toBe(titleLine);
+  // 行的本体是 role="button" 的 div（不是 <button>：出血点徽章是真按钮，
+  // 按钮不能嵌按钮），所以这里断的是 role 与类名，不是 tagName。
+  const row = titleLine.parentElement!;
+  expect(row.tagName).toBe("DIV");
+  expect(row.getAttribute("role")).toBe("button");
+  expect(row.classList.contains(styles.sessionButton)).toBe(true);
+  expect(row.children[0]).toBe(titleLine);
   // 不是行的直接 grid 子元素 —— 那会多出一行 grid row，把 54px 的行高撑坏。
-  expect(Array.from(button.children)).not.toContain(badge);
+  expect(Array.from(row.children)).not.toContain(badge);
 
   // 非归档会话不显示徽标。
   expect(
@@ -476,19 +482,20 @@ test("keeps the archive badge out of the inline-span colour rule", () => {
 
   const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)];
   const broadSpanRules = rules.filter(
-    ([, selector]) => /\bbutton span\b/.test(selector) && !/\.meta|\.archiveTag/.test(selector)
+    ([, selector]) =>
+      /(button|\.sessionButton) span\b/.test(selector) && !/\.meta|\.archiveTag/.test(selector)
   );
   expect(
     broadSpanRules.every(([, , body]) => !/color:\s*var\(--text-tertiary\)/.test(body))
   ).toBe(true);
 
   const metaRule = css.match(
-    /\.groups \.sessionRow button \.meta,\s*\.groups \.sessionRowWithStatus button \.meta\s*\{([^}]*)\}/s
+    /\.groups \.sessionRow \.sessionButton \.meta,\s*\.groups \.sessionRowWithStatus \.sessionButton \.meta\s*\{([^}]*)\}/s
   );
   expect(metaRule?.[1]).toContain("color: var(--text-tertiary)");
 
   const badgeRule = css.match(
-    /\.archiveTag,\s*\.groups \.sessionRowWithStatus button \.archiveTag\s*\{([^}]*)\}/s
+    /\.archiveTag,\s*\.groups \.sessionRowWithStatus \.sessionButton \.archiveTag\s*\{([^}]*)\}/s
   );
   expect(badgeRule?.[1]).toContain("color: var(--text-secondary)");
   expect(badgeRule?.[1]).toContain("border: 1px solid var(--border)");
@@ -554,4 +561,201 @@ test("没有错误时不出现错误态——它不该常驻在侧栏里", () =>
   renderList();
   expect(screen.queryByRole("alert")).toBeNull();
   expect(screen.queryByText("会话列表读取失败")).toBeNull();
+});
+
+/**
+ * 出血点徽章。核心验收点是**同源**：徽章上的数字必须和进入「出血点」标签后
+ * 看到的 `compactionCount` 是同一个数——两边都来自 `buildBleedReport`。
+ *
+ * 所以下面的期望值一律**从模型侧取**（`buildBleedReport(parsed).compactionCount`），
+ * 绝不在测试里另写一个数字：手写两遍的「2」只能证明我抄得对，证明不了同源。
+ * 真出现第二套口径（比如列表自己 grep `compact_boundary`），这两边就会分叉。
+ */
+const COMPACT_FIXTURE = readFileSync(
+  resolve(process.cwd(), "tests/fixtures/compact-session.jsonl"),
+  "utf8"
+);
+const NO_COMPACT_FIXTURE = readFileSync(
+  resolve(process.cwd(), "tests/fixtures/pulse-compact-none.jsonl"),
+  "utf8"
+);
+
+function bleedSession(path: string, customTitle: string, mtimeMs: number): SessionMeta {
+  return {
+    path,
+    projectLabel: customTitle,
+    customTitle,
+    mtimeMs,
+    sizeBytes: 1,
+    hasRecords: true
+  };
+}
+
+function renderWithBleed(
+  list: SessionMeta[],
+  bleedCounts: ReadonlyMap<string, number | undefined>,
+  onOpenBleed = vi.fn(),
+  onSelect = vi.fn()
+) {
+  return render(
+    <SessionList
+      sessions={list}
+      selected={null}
+      loading={false}
+      error={null}
+      bleedCounts={bleedCounts}
+      onSelect={onSelect}
+      onOpenBleed={onOpenBleed}
+      onRefresh={() => undefined}
+    />
+  );
+}
+
+test("徽章数字与 buildBleedReport 同源：模型说几次就显示几次", () => {
+  const fixturePath = "/repo/compact.jsonl";
+  const parsed = parseJsonlText(COMPACT_FIXTURE, fixturePath);
+  // 唯一的真值来源。夹具本身非空，避免「同源」退化成一个 0 === 0 的空断言。
+  const expected = buildBleedReport(parsed).compactionCount;
+  expect(expected).toBeGreaterThan(0);
+
+  renderWithBleed(
+    [bleedSession(fixturePath, "压缩过的会话", 1)],
+    new Map([[fixturePath, expected]])
+  );
+
+  const badge = document.querySelector(`[data-bleed-badge]`);
+  expect(badge).not.toBeNull();
+  expect(badge!.textContent).toContain(String(expected));
+  expect(badge!.getAttribute("aria-label")).toContain(`${expected} 次压缩`);
+});
+
+test("徽章跟着模型走：同一个组件在两个夹具上显示各自的 compactionCount", () => {
+  // 上一条只在一个夹具上比了一次数字，理论上「写死一个常量」也能骗过它。
+  // 这条把两个**压缩次数不同**的夹具并排放进同一个列表：如果组件里藏着第二套
+  // 口径（或写死的数字），两行就不可能同时对上模型。
+  const compactPath = "/repo/compact.jsonl";
+  const plainPath = "/repo/plain.jsonl";
+  const compactCount = buildBleedReport(parseJsonlText(COMPACT_FIXTURE, compactPath))
+    .compactionCount;
+  const plainCount = buildBleedReport(parseJsonlText(NO_COMPACT_FIXTURE, plainPath))
+    .compactionCount;
+  expect(compactCount).toBeGreaterThan(0);
+  expect(plainCount).toBe(0);
+  // 两个夹具确实不同，否则这条测试退化成上一条的复制品。
+  expect(compactCount).not.toBe(plainCount);
+
+  renderWithBleed(
+    [bleedSession(compactPath, "压缩过的会话", 2), bleedSession(plainPath, "没压缩的会话", 1)],
+    new Map([
+      [compactPath, compactCount],
+      [plainPath, plainCount]
+    ])
+  );
+
+  const badges = document.querySelectorAll(`[data-bleed-badge]`);
+  expect(badges).toHaveLength(1);
+  expect(badges[0].textContent).toContain(`${compactCount} 次压缩`);
+});
+
+test("0 次压缩不渲染徽章——「不知道」与「确认没有」在数据层是两个值", () => {
+  const fixturePath = "/repo/plain.jsonl";
+  const parsed = parseJsonlText(NO_COMPACT_FIXTURE, fixturePath);
+  expect(buildBleedReport(parsed).compactionCount).toBe(0);
+
+  const unknownPath = "/repo/unknown.jsonl";
+  // `undefined` = 还没算出来 / 读取失败；`0` = 算出来确认没有压缩。
+  // 两者都不画徽章，但在数据层必须仍是不同的值（下面断言）。
+  const counts = new Map<string, number | undefined>([
+    [fixturePath, 0],
+    [unknownPath, undefined]
+  ]);
+
+  expect(counts.get(fixturePath)).toBe(0);
+  expect(counts.get(fixturePath)).not.toBe(counts.get(unknownPath));
+  expect(Number.isNaN(counts.get(unknownPath))).toBe(false);
+
+  renderWithBleed(
+    [bleedSession(fixturePath, "没压缩的会话", 1), bleedSession(unknownPath, "未知的会话", 2)],
+    counts
+  );
+
+  expect(document.querySelectorAll(`[data-bleed-badge]`)).toHaveLength(0);
+  expect(screen.getByRole("button", { name: /没压缩的会话/ })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /未知的会话/ })).toBeInTheDocument();
+});
+
+test("点击徽章走出血点入口，点击行的其余部分仍走普通选中", async () => {
+  const user = userEvent.setup();
+  const path = "/repo/compact.jsonl";
+  const parsed = parseJsonlText(COMPACT_FIXTURE, path);
+  const count = buildBleedReport(parsed).compactionCount;
+  const onOpenBleed = vi.fn();
+  const onSelect = vi.fn();
+  renderWithBleed(
+    [bleedSession(path, "压缩过的会话", 1)],
+    new Map([[path, count]]),
+    onOpenBleed,
+    onSelect
+  );
+
+  await user.click(document.querySelector(`[data-bleed-badge]`)!);
+  // 徽章在会话按钮**内部**，所以这条同时证明 stopPropagation 生效：
+  // 点徽章不该顺带触发外层的「打开会话并留在当前标签」。
+  expect(onOpenBleed).toHaveBeenCalledTimes(1);
+  expect(onOpenBleed.mock.calls[0][0].path).toBe(path);
+  expect(onSelect).not.toHaveBeenCalled();
+
+  // 反向：点行的其余部分不触发出血点入口。
+  await user.click(screen.getByRole("button", { name: /压缩过的会话/ }));
+  expect(onSelect).toHaveBeenCalledTimes(1);
+  expect(onOpenBleed).toHaveBeenCalledTimes(1);
+});
+
+test("fail-safe：没给出血点入口时，徽章仍可点且退化为普通选中", async () => {
+  const user = userEvent.setup();
+  const path = "/repo/compact.jsonl";
+  const count = buildBleedReport(parseJsonlText(COMPACT_FIXTURE, path)).compactionCount;
+  const onSelect = vi.fn();
+  render(
+    <SessionList
+      sessions={[bleedSession(path, "压缩过的会话", 1)]}
+      selected={null}
+      loading={false}
+      error={null}
+      bleedCounts={new Map([[path, count]])}
+      onSelect={onSelect}
+      onRefresh={() => undefined}
+    />
+  );
+
+  await user.click(document.querySelector(`[data-bleed-badge]`)!);
+  expect(onSelect).toHaveBeenCalledTimes(1);
+  expect(onSelect.mock.calls[0][0].path).toBe(path);
+});
+
+test("不传 bleedCounts 时不渲染任何徽章——旧调用方不受影响", () => {
+  renderList();
+  expect(document.querySelectorAll(`[data-bleed-badge]`)).toHaveLength(0);
+});
+
+/**
+ * 徽章是嵌套在会话按钮里的**独立按钮**，样式必须自带颜色与背景：
+ * `.groups .sessionRow button span`（0,2,2）那条通配规则会把行内 span 染成
+ * 灰色小字，徽章若不自证更具体，就会连同它的警示色一起被吞掉。
+ */
+test("出血点徽章不被行内 span 通配规则染色", () => {
+  const css = readFileSync(
+    resolve(process.cwd(), "src/features/sessions/SessionList.module.css"),
+    "utf8"
+  );
+
+  const badgeRule = css.match(
+    /\.groups \.sessionRow \.sessionButton \.bleedTag,\s*\.groups \.sessionRowWithStatus \.sessionButton \.bleedTag\s*\{([^}]*)\}/s
+  );
+  expect(badgeRule?.[1]).toContain("color: var(--warning)");
+  expect(badgeRule?.[1]).toContain("background: var(--warning-soft)");
+  // 与归档徽标同一高度契约：不撑高 54px 的标题行。
+  expect(badgeRule?.[1]).toContain("height: var(--lh-xs)");
+  // 颜色一律走令牌，不硬编码色值。
+  expect(css).not.toMatch(/#[0-9a-f]{3,8}\b/i);
 });

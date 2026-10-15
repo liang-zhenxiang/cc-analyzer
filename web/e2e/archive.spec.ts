@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { test, expect, defaultScenario } from "./fixtures";
+import { sessionItems } from "./selectors";
 
 /**
  * 本地归档的端到端：**读到**与**写到**两条路径。
@@ -72,10 +73,6 @@ function archivedScenario(overrides = {}) {
       })
     }
   };
-}
-
-function sessionItems(page: Page) {
-  return page.getByLabel("会话列表", { exact: true }).locator("button[title]:has(strong)");
 }
 
 async function openArchivedSession(page: Page) {

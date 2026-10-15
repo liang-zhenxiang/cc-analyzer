@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { test, expect, recentActivityScenario } from "./fixtures";
+import { sessionItems } from "./selectors";
 
 /**
  * 门面两处硬伤的端到端回归：
@@ -20,7 +21,7 @@ async function openUsage(page: Page) {
 }
 
 async function openFirstSession(page: Page) {
-  await page.getByLabel("会话列表", { exact: true }).locator("button[title]:has(strong)").first().click();
+  await sessionItems(page).first().click();
   await expect(page.getByLabel("会话图状态")).toContainText("会话图已加载", { timeout: 15_000 });
 }
 

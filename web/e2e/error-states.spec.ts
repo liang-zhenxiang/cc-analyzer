@@ -1,5 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import { test, expect, brokenScanScenario, defaultScenario } from "./fixtures";
+import { sessionItems } from "./selectors";
 
 /**
  * 错误态：一处语义，按位置分档，一次失败只在一个地方说。
@@ -163,11 +164,8 @@ test.describe("侧栏告警条", () => {
   test("已经打开会话时刷新失败：告警落在侧栏，主区数据不被顶掉", async ({ page }) => {
     await page.goto("/");
 
-    // `button[title]` 会先命中工具栏那颗图标按钮（IconButton 把可访问名绑到
-// tooltip 上），所以必须再加 `:has(strong)`——与 smoke 的选择器一致。
-    const sessionRows = page
-      .getByLabel("会话列表", { exact: true })
-      .locator("button[title]:has(strong)");
+    // 会话条目按 role 选，不是按标签名选——理由见 `selectors.ts`。
+    const sessionRows = sessionItems(page);
     await sessionRows.first().click();
     await expect(page.getByLabel("会话图状态")).toContainText("会话图已加载", { timeout: 15_000 });
 

@@ -1,0 +1,139 @@
+/* 出血点标签页：结论行 + 出血清单纵向排布，清单在 pane 里滚动。
+   颜色一律走设计令牌（AGENTS.md 硬要求），间距只用 --sp-* 档位。 */
+.stack {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* 结论行：一句话结论 + 来源圆点。与页面其它「读数 + ProvenanceBadge」
+   同构，不新造一种画法。 */
+.headline {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-md);
+  line-height: var(--lh-md);
+}
+
+.headlineText {
+  font-weight: 600;
+}
+
+/* 清单本体：每条一笔出血。竖排区块，彼此用发丝线分隔，
+   避免每笔都长成一张卡（页面上卡片已经太多了）。 */
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) 0;
+  border-top: 1px solid var(--border);
+}
+
+.item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+/* 标题行：label 在左，金额在右。金额是估算，用 --warning 的语义色
+   （tokens.css:45-47 把 --warning 定义为「非确定信息」，定价未知属此类）。 */
+.itemHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.itemLabel {
+  color: var(--text);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  font-weight: 600;
+}
+
+.cost {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  color: var(--warning);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.costNote {
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+/* 四类计数器：**分开**渲染，永不求和。用 dl 让「计数名 ↔ 读数」的配对
+   进可访问性树（屏幕阅读器与视觉用户看到同样的四行）。 */
+.counters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-5);
+  margin: 0;
+}
+
+.counter {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+}
+
+.counterName {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.counterValue {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 口径脚注：与 TokenPanel / ChangedFilesView 同款——把「这个数是什么」
+   写在视图底部，而不是让读者去猜。 */
+.scope {
+  margin: var(--sp-3) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 清单撑满剩余高度，超出在卡内滚动。 */
+.listHost {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 180px;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

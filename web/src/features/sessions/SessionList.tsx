@@ -96,7 +96,9 @@ export function SessionList({
   error,
   errorShownElsewhere = false,
   progress,
+  bleedCounts,
   onSelect,
+  onOpenBleed,
   onRefresh
 }: {
   sessions: SessionMeta[];
@@ -111,7 +113,23 @@ export function SessionList({
    */
   errorShownElsewhere?: boolean;
   progress?: { done: number; total: number } | null;
+  /**
+   * 每个会话的压缩次数，键是 `SessionMeta.path`。
+   *
+   * **三态，不要折叠**：`undefined` = 还没算出来（懒加载仍在跑）或读取失败，
+   * `0` = 算出来确实是「没有压缩」，`> 0` = 压缩了多少次。
+   *
+   * `undefined` 与 `0` 在数据层是不同的值，即便两者眼下都不渲染徽章：
+   * 合并它们等于把「不知道」说成「没有」，而这两件事对用户的含义相反——
+   * 将来要显示「检查中」时，折叠过的类型就再也分不出来了。
+   *
+   * 数字必须来自 `buildBleedReport(parsed).compactionCount`，与详情页同源；
+   * 列表侧**不许**自己数一遍压缩事件（那就是第二套口径）。
+   */
+  bleedCounts?: ReadonlyMap<string, number | undefined>;
   onSelect: (session: SessionMeta) => void;
+  /** 打开该会话并切到「出血点」标签；缺省时徽章退化为普通选中。 */
+  onOpenBleed?: (session: SessionMeta) => void;
   onRefresh: () => void;
 }) {
   const [search, setSearch] = useState("");
@@ -321,7 +339,9 @@ export function SessionList({
               <SessionButton
                 session={row.session}
                 selected={selected?.path === row.session.path}
+                bleedCount={bleedCounts?.get(row.session.path)}
                 onSelect={onSelect}
+                onOpenBleed={onOpenBleed}
               />
             </div>
           )
@@ -335,18 +355,40 @@ export function SessionList({
 function SessionButton({
   session,
   selected,
-  onSelect
+  bleedCount,
+  onSelect,
+  onOpenBleed
 }: {
   session: SessionMeta;
   selected: boolean;
+  /** 压缩次数；`undefined` 表示尚未算出或读取失败，两者都不渲染徽章。 */
+  bleedCount: number | undefined;
   onSelect: (session: SessionMeta) => void;
+  onOpenBleed?: (session: SessionMeta) => void;
 }) {
+  // `0` 与 `undefined` 都不画徽章，但原因不同（「确认没有」vs「还不知道」）。
+  // 只渲染 > 0：用「0」占满列表是一条噪音，不是信息。
+  const showBleed = typeof bleedCount === "number" && Number.isFinite(bleedCount) && bleedCount > 0;
   return (
-    <button
-      type="button"
+    /* 行的本体是 `role="button"` 的 <div>，不是 <button>——因为出血点徽章是一个**真的
+       <button>**，而按钮不能嵌按钮（React 会报 validateDOMNesting，HTML 里也是非法结构）。
+       把外层降级成 role=button 之后，徽章就可以是货真价实的按钮（自带焦点与激活语义），
+       而不必用 role="button" 在一个 <button> 里伪造第二个按钮。
+       代价：<div> 没有原生按钮的键盘行为，所以下面手工补齐 Enter / Space。 */
+    <div
+      role="button"
+      tabIndex={0}
       aria-current={selected}
       title={session.cwd ?? session.path}
+      className={styles.sessionButton}
       onClick={() => onSelect(session)}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key !== "Enter" && event.key !== " ") return;
+        // Space 在原生按钮上不滚页；这里要显式挡掉默认滚动。
+        event.preventDefault();
+        onSelect(session);
+      }}
     >
       {/* 标题与归档徽标内联在一行，不新增 grid 行——行高 54px 由虚拟滚动镜像。 */}
       <span className={styles.titleLine}>
@@ -358,6 +400,27 @@ function SessionButton({
             归档<span className={styles.srOnly}>，来自本地归档副本</span>
           </span>
         ) : null}
+        {showBleed ? (
+          /* 点徽章进「出血点」标签，点行的其余部分照旧打开会话并留在当前标签。
+             `data-bleed-badge` 与 `data-archive-badge` 同理，是给真机探针的稳定锚点；
+             文案里的数字会变，数据属性不会。
+             无 `onOpenBleed` 时**不渲染**它：徽章不再有独立动作，加它只会白添一个 tab 停靠点。 */
+          <button
+            type="button"
+            className={styles.bleedTag}
+            data-bleed-badge
+            aria-label={`打开出血点标签，${bleedCount} 次压缩`}
+            title={`本会话发生 ${bleedCount} 次压缩，打开出血点标签`}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (onOpenBleed) onOpenBleed(session);
+              else onSelect(session);
+            }}
+          >
+            {/* 视觉上只说数字，完整含义留给 aria-label——列表一行装不下整句。 */}
+            {bleedCount} 次压缩
+          </button>
+        ) : null}
       </span>
       {session.metadataStatus === "pending" ? <small>补全标题中</small> : null}
       {session.metadataStatus === "failed" ? <small>标题提取失败</small> : null}
@@ -366,6 +429,6 @@ function SessionButton({
         {/* 项目名取会话真实 cwd 的末段；没有 cwd 时退回目录名（去掉编码用的前导 `-`）。 */}
         {formatProjectPath(session.projectLabel, session.cwd)}
       </span>
-    </button>
+    </div>
   );
 }

@@ -1,4 +1,5 @@
 import { test, expect, pulseScenario } from "./fixtures";
+import { sessionItems } from "./selectors";
 import type { Page } from "@playwright/test";
 
 /**
@@ -43,10 +44,6 @@ async function horizontalOverflow(page: Page) {
     scrollWidth: document.documentElement.scrollWidth,
     clientWidth: document.documentElement.clientWidth
   }));
-}
-
-function sessionItems(page: Page) {
-  return page.getByLabel("会话列表", { exact: true }).locator("button[title]:has(strong)");
 }
 
 test.describe("界面字号缩放", () => {
