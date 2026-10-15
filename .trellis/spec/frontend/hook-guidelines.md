@@ -66,6 +66,38 @@ forwards the signal to `bridges.proc.cancelLines` and throws `ReportCancelledErr
 
 ---
 
+## Live Reads and the Metadata Cache
+
+The pulse view (`features/monitor/usePulseFeed.ts`) and the tray poll the same
+`SessionRepository` chain on a timer. One trap is worth stating once:
+**a session that is currently being written can never carry a cached title.**
+`listSessions()` compares each file's `mtimeMs`/`sizeBytes` against
+`meta-cache-v2.json` and marks any mismatch `metadataStatus: "pending"` — and a
+live session's file grows on every write, so it is *always* `pending`.
+`sessionTitle(meta)` then degrades to the bare `projectLabel` for exactly the
+sessions you most want named.
+
+Read the file head yourself instead, cached by path:
+
+```ts
+// features/monitor/usePulseFeed.ts — pending sessions have no cached title
+const head = await bridges.fs.readHead(session.path, METADATA_HEAD_BYTES);
+const meta = extractSessionMetadata(head, session.projectLabel);
+const title = sessionTitle({ ...session, ...meta }); // falls back to projectLabel
+return title !== session.projectLabel ? title : fallbackSessionTitle(session);
+```
+
+The head does not change as a session is appended to, so a per-path in-memory
+cache is enough — there is no need to re-read it on every tick.
+
+**Do not write `meta-cache-v2.json` from a new polling source.** The tray and the
+analyzer each build their own `SessionRepository` (with its own write queue) over
+the same file; a third writer outside those instances turns the cache into a
+read-modify-write race that silently drops the other writers' entries. The
+pulse's title cache lives in a component ref and never touches the file.
+
+---
+
 ## Effects
 
 - Kick off async work with an explicit `void`: `void refresh();`, `void probe();`.

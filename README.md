@@ -27,7 +27,14 @@ filters and the log table in the middle, the analysis report panel below.
 The usage overview — the 5-hour billing-window card (current consumption, open
 and close times, a burn-rate projection), KPI readouts, and token trends and
 distributions for the last 7 / 30 / 90 days, every figure carrying a provenance
-badge. Every screen, in both light and dark themes, is archived in
+badge.
+
+![CC Analyzer's live pulse view: a five-readout 5-hour window row, a per-minute token rate curve for the last 60 minutes, the list of sessions written to in the last 5 hours, and a context-fill curve marked with compaction cliffs](docs/screenshots/pulse-light.png)
+
+The live pulse — what is being written right now. Active sessions, the token
+rate for the last 60 minutes (the in-progress minute drawn as texture, never
+extrapolated), the current 5-hour window, and how full the context of the most
+recent session is. Every screen, in both light and dark themes, is archived in
 [`docs/screenshots/`](docs/screenshots).
 
 ## Features
@@ -194,9 +201,11 @@ badge. Every screen, in both light and dark themes, is archived in
   feature round), check on demand and install with one click. Packages are
   signature-verified, and a check is a single read of the GitHub releases
   page — no data is uploaded.
-- **Realtime monitor** — embeds a local monitoring dashboard you run
-  yourself (not shipped in this repo), opened on demand, with a
-  floating-window mode.
+- **Realtime monitor** — opens on a native **live pulse** that reads your
+  local logs: active sessions, the last 60 minutes of token rate, the current
+  5-hour window, and context fill. The external monitoring dashboard you run
+  yourself (not shipped in this repo) is a sub-view you open on demand. The
+  whole view fits a 420px always-on-top floating widget.
 - **Performance at scale** — windowed, measured-height rendering and chunked
   parsing keep large sessions (tens of MB of JSONL) responsive.
 - **Local-first & private** — everything is parsed and rendered locally; the
@@ -307,6 +316,10 @@ The roadmap tracks open issues; each item links to the issue that owns it.
   ([#70](https://github.com/liang-zhenxiang/cc-analyzer/issues/70))
 - [x] Structured export — CSV and single-file HTML (shipped in v0.11.0)
   ([#71](https://github.com/liang-zhenxiang/cc-analyzer/issues/71))
+- [ ] Live pulse — turn the "Live monitor" tab into a native view: active
+  sessions, token rate, 5-hour burn rate and context-fill curve, able to live
+  in a 420×620 always-on-top window
+  ([#203](https://github.com/liang-zhenxiang/cc-analyzer/issues/203))
 - [ ] Accessibility & performance pack — ANSI rendering, virtual scrolling,
   font scaling
   ([#73](https://github.com/liang-zhenxiang/cc-analyzer/issues/73))
