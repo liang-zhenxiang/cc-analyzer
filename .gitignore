@@ -30,3 +30,7 @@ gui-artifacts/
 
 # 本地工作笔记
 docs/superpowers/
+
+# 智能体分析过程中的临时产物（结论应沉淀进 .trellis/，临时目录不入库）
+.tmp-report/
+.tmp-*/

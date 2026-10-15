@@ -34,7 +34,15 @@ badge.
 The live pulse — what is being written right now. Active sessions, the token
 rate for the last 60 minutes (the in-progress minute drawn as texture, never
 extrapolated), the current 5-hour window, and how full the context of the most
-recent session is. Every screen, in both light and dark themes, is archived in
+recent session is.
+
+![CC Analyzer's context bleed view: a one-line verdict reading "2 compactions dropped 176 messages", then one row per compaction loss with dropped-message counts and four separate token counters, tool rows ranked by call count and marked as count-only, and a footer naming each category's sort key](docs/screenshots/bleed-light.png)
+
+The context bleed view — what ate this session's context. One line states the
+fact, then every attributable category is listed with its own evidence grade:
+`logged` readings are checkable against the log, while `countOnly` rows (tool
+calls, whose token volume does not exist in the log at all) report a count and
+say why. Every screen, in both light and dark themes, is archived in
 [`docs/screenshots/`](docs/screenshots).
 
 ## Features
@@ -59,6 +67,35 @@ recent session is. Every screen, in both light and dark themes, is archived in
   becomes visible instead of silently dropped). No invented numbers: fields
   the log doesn't carry read "not recorded", and no "official context limit"
   line is drawn because no such source exists.
+- **Context bleed — what ate this session's context, and how much of each
+  reading is fact** — the **Bleed** tab ranks the attributable consumption of
+  a session by category: **compaction loss** (one row per compaction
+  boundary, with the messages that left the context counted individually),
+  **tool output** (ranked by call count, top 6 plus a folded tail row), and
+  **cache rewrites** (calls whose `cacheCreation` sits well above that
+  session's median). One line at the top states the fact: `N compactions
+  dropped M messages` — and when there were none it says "this session was
+  never compacted" rather than a friendlier-sounding number. The core design
+  is **evidence grading**: every row carries `logged` (the token volume is
+  read straight from the record's `usage` and can be checked item by item) or
+  `countOnly`, because the parser's `kind === "tool"` records carry no
+  `usage` at all — how many tokens a tool call occupies simply does not exist
+  in the log. Tool rows therefore report a count only, show `0` in the token
+  columns, and say outright why — never letting a `0` pass as "takes no
+  space". Money and tokens are separate fields because their evidence differs:
+  money is converted through the existing pricing snapshot, `null` means
+  nothing could be priced (not `$0`), and `0` is a legitimate "it really is
+  $0", with the count of excluded calls written beside it. There is
+  deliberately **no fake global ordering** — the three categories sort by
+  different keys (time / count / none), so the source comments rule that no
+  meaningful single order exists; the list keeps the model's order and the
+  footer names each category's sort key. The three empty states are three
+  different facts, each with its own copy. Every row in the session list now
+  carries a **bleed badge** (`N compactions`), and clicking it jumps straight
+  to that session's Bleed tab. The badge is a real button, so the row itself
+  moved from `<button>` to a `role="button"` div (a button cannot nest a
+  button), with the keyboard behaviour restored by hand and locked down in
+  unit tests.
 - **Two-tier usage limits** — Claude subscriptions meter usage in two layers;
   the app reads both. The **5-hour billing window**: the current consumption
   dial, when the window opened, a countdown to when it closes, and a projection
