@@ -21,11 +21,12 @@ import { TreeView } from "./TreeView";
 import { LogView } from "./LogView";
 import { ContextView, type ContextRevealRequest } from "./ContextView";
 import { ChangedFilesView } from "./ChangedFilesView";
+import { BleedView } from "./BleedView";
 import { ParseCoverageChip } from "./ParseCoverageChip";
 import { emptyFilter, type RecordFilter, type TimeRange } from "./filters";
 import { parseJsonlTextAsync } from "./parseJsonl";
 import { resolveSessionGraph } from "./sessionGraph";
-import { createSessionParseCache } from "./sessionParseCache";
+import { createSessionParseCache, sharedSessionParseCache } from "./sessionParseCache";
 import type { DurationNode } from "./durationTree";
 import { buildLogRows, filterLogRows, recordsOfRows } from "./logRows";
 import { useThresholds } from "../settings/thresholds";
@@ -36,16 +37,18 @@ import {
   type ReportMode
 } from "./report";
 import { sessionTitle, type SessionMeta } from "./metadataCache";
+import { buildBleedReport } from "./bleedModel";
 import type { ParsedSession, ParsedSessionGraph, SessionRecord } from "./types";
 import styles from "./SessionAnalyzerPage.module.css";
 
-type AnalyzerView = "log" | "tree" | "context" | "changes";
+type AnalyzerView = "log" | "tree" | "context" | "changes" | "bleed";
 
 const ANALYZER_VIEW_ITEMS: SegmentedItem<AnalyzerView>[] = [
   { value: "log", label: "日志视图" },
   { value: "tree", label: "树视图" },
   { value: "context", label: "上下文" },
-  { value: "changes", label: "改动" }
+  { value: "changes", label: "改动" },
+  { value: "bleed", label: "出血点" }
 ];
 
 const VIEW_STORAGE_KEY = "cca-analyzer-view";
@@ -53,10 +56,84 @@ const VIEW_STORAGE_KEY = "cca-analyzer-view";
 function readStoredView(): AnalyzerView {
   try {
     const stored = localStorage.getItem(VIEW_STORAGE_KEY);
-    return stored === "tree" || stored === "context" || stored === "changes" ? stored : "log";
+    return stored === "tree" || stored === "context" || stored === "changes" || stored === "bleed"
+      ? stored
+      : "log";
   } catch {
     return "log";
   }
+}
+
+/**
+ * 侧栏每行的压缩次数，供出血点徽章使用。
+ *
+ * **数字必须与「出血点」标签页同源**：两边都调用 `buildBleedReport(parsed)`
+ * 的 `compactionCount`。绝不在这里另数一遍 `compact_boundary`——那就是第二套
+ * 口径，两边迟早漂移，而列表说 3 次、点进去显示 2 次是最坏的一种不一致。
+ *
+ * 之所以要「懒」：徽章要给**每个**会话算一次，而 `buildBleedReport` 需要完整
+ * 解析结果。虚拟滚动只减少 DOM，不减少解析——真实会话常有数 MB，首屏为整张
+ * 列表全量解析会直接冻住界面。所以先渲染无徽章，再逐个异步补齐。
+ *
+ * 缓存复用 `sharedSessionParseCache`（按 mtime+size 校验）：与用量页、全局搜索、
+ * 脉搏共用一份解析结果，同一个文件在整站只付一次解析成本。
+ */
+function useBleedCounts(
+  sessions: SessionMeta[],
+  loading: boolean
+): ReadonlyMap<string, number | undefined> {
+  const bridges = useBridges();
+  const [counts, setCounts] = useState<Map<string, number | undefined>>(new Map());
+  const scanIdRef = useRef(0);
+
+  const scanTarget = useMemo(() => (loading ? null : sessions), [loading, sessions]);
+
+  useEffect(() => {
+    if (!scanTarget) return;
+    const scanId = ++scanIdRef.current;
+    setCounts(new Map());
+
+    const scan = async () => {
+      for (const session of scanTarget) {
+        if (scanIdRef.current !== scanId) return;
+        // 标签页卸载后不再回写状态。
+        let count: number | undefined;
+        try {
+          const cached = sharedSessionParseCache.get(session.path);
+          const parsed =
+            cached &&
+            cached.mtimeMs === session.mtimeMs &&
+            cached.sizeBytes === session.sizeBytes
+              ? cached.session
+              : await (async () => {
+                  const text = await bridges.fs.readText(session.path);
+                  const next = await parseJsonlTextAsync(text, session.path);
+                  sharedSessionParseCache.set(session.path, {
+                    mtimeMs: session.mtimeMs,
+                    sizeBytes: session.sizeBytes,
+                    session: next
+                  });
+                  return next;
+                })();
+          count = buildBleedReport(parsed).compactionCount;
+        } catch {
+          // 读不到 ≠ 没有压缩。计为 `undefined`（未知），不写 0——
+          // 否则会给一个其实压缩过、只是这次没读成的会话贴上「很干净」的假标签。
+          count = undefined;
+        }
+        if (scanIdRef.current !== scanId) return;
+        setCounts((current) => {
+          const next = new Map(current);
+          next.set(session.path, count);
+          return next;
+        });
+      }
+    };
+
+    void scan();
+  }, [scanTarget, bridges]);
+
+  return counts;
 }
 
 export function SessionAnalyzerPage({
@@ -73,6 +150,8 @@ export function SessionAnalyzerPage({
   const bridges = useBridges();
   const { notify } = useNotifications();
   const { sessions, loading, error, progress, refresh } = useSessions();
+  // 侧栏徽章的数字来自与「出血点」标签页同一个 `buildBleedReport`，只是分期补齐。
+  const bleedCounts = useBleedCounts(sessions, loading);
   const { detailRows: reportRowLimit } = useThresholds();
   const archiveStatus = useArchiveTask().status;
   const [selectedSession, setSelectedSession] = useState<SessionMeta | null>(null);
@@ -208,12 +287,19 @@ export function SessionAnalyzerPage({
     }
   }, [bridges, notify]);
 
-  const openSession = useCallback(async (session: SessionMeta) => {
+  /**
+   * 打开会话。`targetView` 用于「点徽章直接进出血点标签」这类跨视图入口：
+   * 省略则保持用户当前所在的标签（点会话行的常规路径）。
+   */
+  const openSession = useCallback(async (session: SessionMeta, targetView?: AnalyzerView) => {
     const requestId = ++sessionRequestRef.current;
     setSelectedSession(session);
     setSelectedRecord(null);
     setGraph(null);
     setGraphLoading(true);
+    // 视图先切：它不依赖读取结果，早切一步用户就能看到标签在响应。
+    // 读取失败时停在出血点标签页上是可接受的——那时主区显示失败态，不会误导。
+    if (targetView) setView(targetView);
 
     let text: string;
     try {
@@ -450,7 +536,9 @@ export function SessionAnalyzerPage({
           error={error}
           errorShownElsewhere={scanFailedHere}
           progress={progress}
+          bleedCounts={bleedCounts}
           onSelect={(session) => void openSession(session)}
+          onOpenBleed={(session) => void openSession(session, "bleed")}
           onRefresh={() => void refresh()}
         />
         <div className={styles.workspace}>
@@ -489,11 +577,12 @@ export function SessionAnalyzerPage({
               {tokenPanelOpen ? (
                 <TokenPanel records={parsed.records} isSubagent={parsed.isSubagent} />
               ) : null}
-              {/* 上下文 / 改动标签页不渲染时间线与筛选：两者的口径都是会话级
-                  全量（压缩取证 =「压缩点之前全部消息 − 幸存清单」；改动清单 =
-                  「通过文件工具动过的文件」），记录级筛选会让口径漂移
-                  （context design §2.1/§9-5，changes 裁决 #2 同款理由）。 */}
-              {view === "context" || view === "changes" ? null : (
+              {/* 上下文 / 改动 / 出血点标签页不渲染时间线与筛选：三者的口径都是
+                  会话级全量（压缩取证 =「压缩点之前全部消息 − 幸存清单」；改动清单 =
+                  「通过文件工具动过的文件」；出血点 =「每条消息在压缩时的 token 归属」），
+                  记录级筛选会让口径漂移（context design §2.1/§9-5，changes 裁决 #2
+                  同款理由，bleed design §2 同款理由）。 */}
+              {view === "context" || view === "changes" || view === "bleed" ? null : (
                 <>
                   <TimelineTrack
                     session={parsed}
@@ -559,6 +648,8 @@ export function SessionAnalyzerPage({
                   />
                 ) : view === "changes" ? (
                   <ChangedFilesView parsed={parsed} onLocateInLog={locateInLog} />
+                ) : view === "bleed" ? (
+                  <BleedView parsed={parsed} />
                 ) : (
                   <ContextView
                     parsed={parsed}
