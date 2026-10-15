@@ -1142,6 +1142,98 @@ mod gui_probe {
       }
     : null;
 
+  /* 「实时脉搏」（Issue #203 / Round W）：根节点、四态、浮窗细头、5 小时读数、
+     60 分钟速率柱、活跃会话行与字形高度、上下文曲线。锚点一律是组件自带的
+     `data-probe` 稳定属性（同 attribution / calendar 先例，不碰 CSS Module
+     哈希类名），并且**禁裸标签选择器**——「同屏唯一 table」那一课（消耗日历的
+     表被 `querySelector('table')` 误捕，门禁红了 9 步）就是这么欠下的。
+     不在脉搏视图时 page 为 false，判定在脚本里。 */
+  var pulseFacts = {
+    page: false,
+    state: null,
+    head_present: false,
+    container: null,
+    float_head: { present: false, drag_region: null },
+    window_readouts: { count: 0, keys: [] },
+    rate_bars: { count: 0, partial: 0 },
+    session_rows: { count: 0, recencies: [] },
+    session_ticks: [],
+    context_curve: { present: false, sample_count: null, band: false, cliffs: 0 }
+  };
+  var pulsePage = document.querySelector("[data-probe='pulse-page']");
+  if (pulsePage) {
+    pulseFacts.page = true;
+    /* 四态写在根节点的一个属性上（loading / empty / error / fresh / stale）：
+       四种状态各自找元素会把判定绑到结构上。 */
+    pulseFacts.state = pulsePage.getAttribute('data-state');
+    /* 非浮窗页头在不在——浮窗态收起整条顶栏换细头，这两条事实互为对照。 */
+    pulseFacts.head_present = !!document.querySelector("[data-probe='pulse-head']");
+    /* 横向不溢出量的是**根节点自己**的滚动几何：外壳的 `overflow: hidden` 会把
+       内容溢出藏起来，量文档量不到它（同「量 main 而不量 document」的教训）。 */
+    pulseFacts.container = boxOf(pulsePage);
+    /* 浮窗细头：无边框窗口里唯一的拖动通道。属性在不在、值是不是 `"deep"`
+       都是**声明层事实**——Tauri 2.12 的裸属性是 self-only 语义，只有 `"deep"`
+       才让子元素上的点击冒泡成拖动。拖动本身探针驱动不了（只能人工拖一次），
+       但「声明写对了」这一层必须由门禁守住。 */
+    var floatHead = document.querySelector("[data-probe='pulse-float-head']");
+    if (floatHead) {
+      pulseFacts.float_head = {
+        present: true,
+        drag_region: floatHead.getAttribute('data-tauri-drag-region')
+      };
+    }
+    /* 5 小时窗口的五个读数：个数与 `data-readout` 键序。个数恒为 5、键序是
+       Issue 契约顺序——比断言某一格的数值稳得多（数值随夹具与运行时刻漂）。 */
+    var readoutNodes = document.querySelectorAll("[data-probe='pulse-window-readout']");
+    var readoutKeys = [];
+    for (var pr = 0; pr < readoutNodes.length; pr++) {
+      readoutKeys.push(readoutNodes[pr].getAttribute('data-readout') || '');
+    }
+    pulseFacts.window_readouts = { count: readoutNodes.length, keys: readoutKeys };
+    /* 速率柱：计数恒 60（60 分钟每分钟一根），其中 `data-partial="true"` 恰好
+       1 根（进行中的这一分钟）。空桶也画短痕，所以计数不随夹具数据变。 */
+    pulseFacts.rate_bars = {
+      count: document.querySelectorAll("[data-probe='pulse-rate-bar']").length,
+      partial: document.querySelectorAll("[data-probe='pulse-rate-bar'][data-partial='true']").length
+    };
+    /* 活跃会话行：每行的 `data-recency`（live / recent / idle）与行首字形高度。
+       高度分两条给，判定留给脚本：
+       - `rectHeight` 是 `getBoundingClientRect().height`，live 档的心跳跑
+         `transform: scale()`（1 → 1.22 → 1.16），量到的是**取数那一刻**的
+         缩放后高度（12 → 约 14.6），会随动画相位变；
+       - `offsetHeight` 是布局高度，不含 transform，三档恒为 12 / 8 / 4。
+       三档几何阶梯的账用 `offsetHeight` 对，`rectHeight` 是「心跳真的在动」
+       的旁证。 */
+    var rowNodes = document.querySelectorAll("[data-probe='pulse-session-row']");
+    var recencies = [];
+    for (var prow = 0; prow < rowNodes.length; prow++) {
+      var recency = rowNodes[prow].getAttribute('data-recency') || '';
+      recencies.push(recency);
+      var tick = rowNodes[prow].querySelector("[data-probe='pulse-session-tick']");
+      pulseFacts.session_ticks.push({
+        recency: recency,
+        rectHeight: tick ? tick.getBoundingClientRect().height : null,
+        offsetHeight: tick ? tick.offsetHeight : null
+      });
+    }
+    pulseFacts.session_rows = { count: rowNodes.length, recencies: recencies };
+    /* 上下文曲线：在场 + `data-sample-count`（实际样本数，≤40）+ 参考带在不在
+       + 断崖计数（`data-probe='pulse-context-cliff'`，一次压缩一条竖线）。
+       参考带只在自动压缩 ≥ 3 次时画、断崖数 = 样本窗口内的压缩次数，而夹具的
+       live 档给了 3 次——三条一起对账，说明「视图真的拿到了夹具那几次压缩」，
+       不只是画了张空图。计数是事实，阈值与判定在脚本里。 */
+    var contextCurve = document.querySelector("[data-probe='pulse-context-curve']");
+    if (contextCurve) {
+      pulseFacts.context_curve = {
+        present: true,
+        sample_count: contextCurve.getAttribute('data-sample-count'),
+        band: !!document.querySelector("[data-probe='pulse-context-band']"),
+        cliffs: document.querySelectorAll("[data-probe='pulse-context-cliff']").length
+      };
+    }
+  }
+  facts.pulse = pulseFacts;
+
   return JSON.stringify(facts);
 })();"##;
 
@@ -1922,6 +2014,28 @@ mod gui_probe {
             assert!(PROBE_JS.contains("calendar-today"));
             assert!(PROBE_JS.contains("facts.calendar = calendarFacts"));
             assert!(PROBE_JS.contains("data-calendar-sessions"));
+        }
+
+        #[test]
+        fn the_probe_reports_the_pulse_view_facts() {
+            // 「实时脉搏」（Issue #203 / Round W）：根节点（pulse-page）、四态
+            // （根节点上的 data-state）、浮窗细头与拖动声明、5 个窗口读数的键序、
+            // 60 根速率柱与进行中那一根、活跃会话行与字形高度、上下文曲线的样本数 /
+            // 参考带 / 断崖计数。
+            // 锚点一律 data-probe，**禁裸标签选择器**（日历表被 `querySelector('table')`
+            // 误捕那一课：门禁红了 9 步才定位到）。
+            assert!(PROBE_JS.contains("[data-probe='pulse-page']"));
+            assert!(PROBE_JS.contains("pulseFacts.state"));
+            assert!(PROBE_JS.contains("[data-probe='pulse-float-head']"));
+            assert!(PROBE_JS.contains("data-tauri-drag-region"));
+            assert!(PROBE_JS.contains("[data-probe='pulse-window-readout']"));
+            assert!(PROBE_JS.contains("[data-probe='pulse-rate-bar']"));
+            assert!(PROBE_JS.contains("[data-probe='pulse-session-row']"));
+            assert!(PROBE_JS.contains("[data-probe='pulse-session-tick']"));
+            assert!(PROBE_JS.contains("[data-probe='pulse-context-curve']"));
+            assert!(PROBE_JS.contains("[data-probe='pulse-context-band']"));
+            assert!(PROBE_JS.contains("[data-probe='pulse-context-cliff']"));
+            assert!(PROBE_JS.contains("facts.pulse = pulseFacts"));
         }
 
         #[test]
