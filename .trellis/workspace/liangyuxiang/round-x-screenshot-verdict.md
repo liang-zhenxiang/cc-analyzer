@@ -231,3 +231,75 @@ x6 自己纠正了我这条误记，理由是**行号方向矛盾**（`:180 → 
 → **外观债，非用户可见缺陷，不阻塞本轮**。但 `scripts/lint.sh` **没有任何 U+FFFD 检查**
 （已 grep 确认），即**缺少门禁才是根因**。已起草 Issue：加门禁 + 清存量**必须同一 PR**
 （分开会让中间那次 CI 必红）。
+
+---
+
+# Round X 收口状态（截至 2026-10-16 03:37 CST）
+
+## 本地已全绿
+
+```
+npm --prefix web test             113 files / 1317 tests passed
+./web/node_modules/.bin/tsc       exit 0        （真 tsc；npx tsc 在本机假通过）
+npm --prefix web run build        成功
+cargo fmt --check                 exit 0
+cargo clippy -D warnings          exit 0
+cargo check                       exit 0
+cargo test                        76 passed / 0 failed
+./scripts/lint.sh                 通过 29 · 失败 0 · 跳过 0
+./scripts/check-screenshots.sh    ✓ 80 张（20 视图 × 2 主题 × 2 引擎）
+./scripts/check-screenshots-test.sh  通过 17 · 失败 0（5 个注入故障全部如预期失败）
+```
+
+`src-tauri/` 本轮**零改动**（`git status --short src-tauri/` 为空），故 Rust 侧门禁与 main 同。
+
+## 未验证的一层（必须如实披露）
+
+**e2e 运行时层**：本机不可判。宿主 macOS 的 Mach bootstrap / launchd domain 退化，
+Playwright 自带的 chromium/webkit 与真机 WKWebView **两条路径同时被堵死**：
+
+- `chrome-headless-shell --version` → 正常（二进制健康）
+- 但 `launch` 在 **26ms / 85ms** 阶段崩溃（当时负载仅 5.39 → 排除 CPU 争抢）
+- `launchctl print system` → `Could not print domain: 141: Reentrancy avoided`
+- `~/Library/Logs/DiagnosticReports/` 有 **81 份** WebKit `EXC_GUARD` 崩溃（Oct 9 → Oct 16，
+  **早于本轮**，是慢性宿主退化）
+- 真机 `.app` 直接跑 → `Abort trap: 6`（退出码 134，零输出）
+- 对照组：与本轮无关的既有 spec `context-view.spec.ts` 同环境**同样全红、签名逐字相同**
+- 与网络无关：`--no-sandbox --disable-gpu` 仍失败
+
+**复跑命令（宿主重启后）**：
+```
+npm --prefix web run test:e2e -- bleed-view --trace=off
+npm --prefix web run test:e2e --trace=off
+./scripts/gui-test.sh --build
+```
+
+## 推送被网络阻断（非代码问题）
+
+```
+git ls-remote --heads origin  → Could not resolve host: github.com
+nslookup github.com           → 20.205.243.166（DNS 能解析）
+ping 1.1.1.1                  → 100% packet loss（TCP 不通）
+curl https://www.google.com   → 000
+```
+
+**分支 `feat/context-bleed` 已就绪，领先 `origin/main`（395f2a2）5 个提交**：
+
+```
+b7d3a37 chore(screenshots): 重出 Round X 截图基线并新增出血点视图
+e3ccdee feat(web): 上下文出血点——把「这次会话哪里烧钱」变成可执行的整改清单
+5b135bd test(e2e): 会话条目选择器收敛为单一权威，并补出血点标签页覆盖
+c88ab00 docs: 记入上下文出血点，并忽略智能体临时产物目录
+88f978e docs(trellis): Round X 选题、设计规格与截图差异裁决记录
+```
+
+**网络恢复后要做**：① `git push -u origin feat/context-bleed`；② 建 PR（标题
+`feat(web): 上下文出血点——把「这次会话哪里烧钱」变成可执行的整改清单`），
+**body 中必须如实披露 e2e 运行时层未验证及原因**；③ 提交已起草的 U+FFFD 门禁 Issue
+（`/tmp/mojibake-issue.md`，**该文件在网络中断时未成功创建到仓库，需重新写**）。
+
+**下一轮候选**（已记录的遗留）：
+1. 出血点从 3 类扩到 7 类（设计师文档已给完 7 类规格；4 类是 `countOnly`）
+2. `useBleedCounts` 从 `SessionAnalyzerPage.tsx` 挪到独立文件
+3. `manifest.json` 加 sha256 内容指纹（让「图与代码同代」可校验，是 #196 最后一块）
+4. U+FFFD 门禁 + 清 24 个文件的存量乱码
