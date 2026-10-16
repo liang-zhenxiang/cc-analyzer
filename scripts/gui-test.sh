@@ -58,7 +58,8 @@
 # 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
 # 日志视图 → 导出 → 关闭导出窗口 → 压缩夹具会话 → 上下文 → 点选第 2 枚压缩事件 chip →
 # 改动夹具会话 → 改动 → 点选首个文件行 →
-# 用量总览 → 视图=用量 → 滚到底 → 点选工具普查榜首行 → 近 7 天 → 错误档 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→
+# 用量总览 → 视图=用量 → 滚到底 → 点选工具普查榜首行 → 用量总览 → 视图=里程碑 → 视图=用量 →
+# 滚到底 → 近 7 天 → 错误档 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→
 # 设置=开 → 导出归档包 → 取消 → 对比度恢复普通 → 字号恢复 100%」；每张图都配一份
 # 几何探针 JSON（`CCA_GUI_PROBE`），脚本据它判定
 # **布局不变量**：无横向溢出、表盘有界且含于卡片、记录表末列可达、会话行不裁字、
@@ -66,7 +67,8 @@
 # 取证卡在视口内、被丢清单不是假列表、错误档趋势有界且事件列表是真列表、
 # 改动文件列表是真列表且展开区可达、工具普查四栏清单是真列表且下钻区可达、
 # 脉搏四块面板齐备（5 个读数 / 60 根柱 / 三档字形高度 12·8·4 / 上下文曲线与参考带）、
-# 浮窗细头在场且拖动声明为 deep。目标既可写
+# 浮窗细头在场且拖动声明为 deep、里程碑三组齐备（阶梯恒 7 枚 / reached 恰一枚填充且宽 ≥ 2px /
+# unreached 取不到填充）。目标既可写
 # 可访问名/可见文本（标签页），也可写会话 cwd
 # （会匹配按钮的 `title`）、`字号=<档位>` / `视图=<用量页子视图名>` / `滚动=<选择器>` /
 # `点选=<CSS 选择器>` 四种动作。
@@ -125,7 +127,7 @@ gui-test.sh —— 真机 GUI 冒烟测试
 （切成高对比度后，余下每个视图都在 130% + 高对比度下重验）→
 日志视图 → 导出 → 关闭导出窗口 → 压缩夹具会话（/repo/compact-demo）→ 上下文 → 点选第 2 枚压缩
 事件 chip → 改动夹具会话（/repo/changed-demo）→ 改动 → 点选首个文件行 → 用量总览 → 视图=用量 →
-滚到底 → 点选工具普查榜首行 → 点选配额归因第一行 → 用量总览 → 视图=用量 → 滚到底 →
+滚到底 → 点选工具普查榜首行 → 点选配额归因第一行 → 用量总览 → 视图=里程碑 → 视图=用量 → 滚到底 →
 近 7 天 → 错误档 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→ 设置=开 →
 导出归档包（口令浮层）→ 取消 →
 字号恢复 100%。
@@ -136,6 +138,7 @@ gui-test.sh —— 真机 GUI 冒烟测试
 有界且事件列表是真列表 / 改动文件列表是真列表且展开区可达 / 工具普查四栏清单是真列表且下钻区可达 /
 脉搏四块面板齐备（5 个窗口读数 / 60 根速率柱其中 1 根进行中 / 三档字形高度 12·8·4px /
 上下文曲线与参考带）/ 浮窗细头在场且拖动声明为 deep /
+里程碑三组齐备（首次 / 阶梯恒 7 枚 / 单会话记录；reached 恰一枚填充且宽 ≥ 2px，unreached 取不到填充）/
 归档包口令浮层在窗口内且两份口令输入与「口令无法找回」警告真的渲染出来 / 配额归因面板是真列表且
 点行真的打开了那个会话）。
 
@@ -910,7 +913,16 @@ else
   # 脉搏页头的「悬浮」目前只切布局状态、没调那个命令，所以这里取到的是常规
   # 窗口里的浮窗版式。判定脚本对这一步只断言「细头在场 + 拖动声明 + 顶栏收起」，
   # 并在窗口宽度仍 > 430 时打一条 NOTE 说明紧凑档（≤420 无横向溢出）由 e2e 覆盖。
-  CAPTURE_TARGETS=("实时监控" "脉搏" "悬浮" "点选=[data-probe='pulse-float-exit']" "会话分析" "字号=130%" "对比度=高" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "点选=[data-probe='calendar-today'] button" "点选=[data-probe='calendar-today'] button" "点选=[data-tool-census-row='Bash']" "点选=[data-probe='attribution-row']" "用量总览" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "设置=开" "导出归档包…" "取消" "对比度=普通" "字号=100%")
+  #
+  # 里程碑一步（Issue #214 / Round Y）插在**第二次**「用量总览」之后、既有的
+  # 「视图=用量」之前：`点选=[data-probe='attribution-row']` 那一步点开会话、
+  # 切走了标签页，所以先「用量总览」切回来；紧跟的「视图=里程碑」是判定步
+  # （三组卡片 / 逐枚 state 与填充 / 轨道描边 / 无横向溢出），**随后那条既有的
+  # 「视图=用量」顺手把子视图重置回用量档**——里程碑档若不重置，它会随
+  # localStorage 漏给下一次运行（同「字号=100%」的清理逻辑）。这一步同时落在
+  # 130% 字号 + 高对比度档下（两枚旋钮在前面的步骤里已切过去、末尾才恢复），
+  # 所以「HC 轨道描边」的那条断言在这里量得到。
+  CAPTURE_TARGETS=("实时监控" "脉搏" "悬浮" "点选=[data-probe='pulse-float-exit']" "会话分析" "字号=130%" "对比度=高" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "点选=[data-probe='calendar-today'] button" "点选=[data-probe='calendar-today'] button" "点选=[data-tool-census-row='Bash']" "点选=[data-probe='attribution-row']" "用量总览" "视图=里程碑" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "设置=开" "导出归档包…" "取消" "对比度=普通" "字号=100%")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
@@ -1256,6 +1268,15 @@ PULSE_COMPACT_MAX_WIDTH = 430
 # 档有 3 次自动压缩，而曲线只取尾部 ≤40 个样本、这条会话一共 8 个样本——三次全在
 # 窗口内。实测值（2026-10-15 真机门禁，三次运行都是 3）就是这里写的数，不是估的。
 PULSE_CONTEXT_CLIFFS = 3
+# 「里程碑」（Issue #214 / Round Y）。判定挂在**子视图那一步**（`视图=里程碑`）
+# 而不是标签页：「用量 | 里程碑 | 错误」的分段把选择记进那份**不隔离**的
+# localStorage（同 N1 的用量 / 错误两档），上一次运行停在里程碑档时，点「用量总览」
+# 只会得到里程碑——所以清单里先 `用量总览` 再显式 `视图=里程碑`（同「视图=用量」
+# 的自愈先例），判定才有意义；紧随其后的 `视图=用量` 既是本轮既有的用量档判定、
+# 也把子视图重置回用量档，**别让里程碑档的残留漏给后面的步骤**。
+MILESTONE_LABEL = "视图=里程碑"
+# 累计阶梯的枚数 = MILESTONE_TIER_TABLE 的行数（写死的常量，不随夹具变）。
+MILESTONE_TIER_COUNT = 7
 coverage = os.environ.get("COVERAGE") == "1"
 seen_gauge = 0
 seen_table = 0
@@ -1269,6 +1290,7 @@ seen_changes = 0
 seen_calendar = 0
 seen_insights = 0
 seen_pulse = 0
+seen_milestones = 0
 calendar_clicks = 0
 
 # 「滚动=main」的判定要知道滚的是哪个页面：清单是有序的，靠上一步的 label
@@ -2193,6 +2215,124 @@ for arg in sys.argv[1:]:
         else:
             print(f"OK|{label}：点归因行真的打开了那个会话（标题逐字一致：{session_title}）")
 
+    # 「里程碑」（Issue #214 / Round Y）：事实全在 facts.milestones（应用侧只收集
+    # 事实，阈值与判定在这里）。夹具的十几个会话把 7 档累计阶梯的**首档**全都跨了
+    # 过去，所以实测每一枚阶梯卡都是 `reached`；`unreached` 恒 0 条——这并不代表
+    # 断言是空的：逐枚的「reached 恰一枚填充且宽 ≥ 2px」在本轮是真判，而
+    # 「unreached 取不到 fill」（§15.2）在这里空洞成立（夹具造不出未达成档），
+    # 由组件测试守着，脚本会为此打一条 NOTE 明说。
+    if label == MILESTONE_LABEL:
+        ms = data.get("milestones") or {}
+        if ms.get("page") is not True:
+            print(f"BAD|{label}：里程碑根节点不在场（data-probe='milestones-view'）——子视图没切过去，或整块没渲染")
+        elif ms.get("empty") is True:
+            print(f"BAD|{label}：里程碑渲染成了空态（milestones-empty）——夹具里有十几个会话，绝不该是空")
+        else:
+            problems = []
+            # ① 横向不溢出：量的是根节点自己的滚动几何（外壳的 overflow:hidden 会把
+            # 内容溢出藏起来，量文档量不到它——同脉搏根节点的教训）。
+            container = ms.get("container") or {}
+            sw, cw = container.get("scrollWidth"), container.get("clientWidth")
+            if isinstance(sw, int) and isinstance(cw, int):
+                if sw > cw + 1:
+                    problems.append(f"里程碑根节点横向溢出（scrollWidth {sw} > clientWidth {cw}）")
+            else:
+                problems.append("里程碑根节点的滚动几何缺失")
+            # ② 三组卡片在场：阶梯恒 7 枚（写死的档位表），首次 / 记录各至少一枚
+            # （夹具里有会话 + 压缩 + skill/MCP 调用）。组数按 data-group 取。
+            groups = ms.get("groups") or {}
+            if groups.get("tiers") != MILESTONE_TIER_COUNT:
+                problems.append(
+                    f"累计阶梯 {groups.get('tiers')!r} 枚，期望 {MILESTONE_TIER_COUNT}（档位表是写死的常量）"
+                )
+            if not isinstance(groups.get("firsts"), int) or groups.get("firsts") < 1:
+                problems.append(f"首次组一枚都没有（{groups.get('firsts')!r}）——夹具里有会话，至少该有「会话」那枚")
+            if not isinstance(groups.get("records"), int) or groups.get("records") < 1:
+                problems.append(f"单会话记录组一枚都没有（{groups.get('records')!r}）")
+            # ③ 逐枚对账：名称 / 值非空（R6 的「不出现假读数」），填充是**布尔几何
+            # 事实**——reached 恰一枚填充且宽 ≥ 2px，unreached 一枚都取不到。
+            cards = ms.get("cards") or []
+            total = (
+                (groups.get("firsts") or 0)
+                + (groups.get("tiers") or 0)
+                + (groups.get("records") or 0)
+            )
+            if len(cards) != total:
+                problems.append(f"卡片数 {len(cards)} 与三组之和 {total} 对不上")
+            unknown_state = [
+                c.get("key") for c in cards if c.get("state") not in ("reached", "unreached")
+            ]
+            if unknown_state:
+                problems.append(
+                    f"卡片出现未识别的 data-state：{unknown_state!r}（只应有 reached / unreached）"
+                )
+            unreached = [c for c in cards if c.get("state") == "unreached"]
+            reached = [c for c in cards if c.get("state") == "reached"]
+            for card in cards:
+                key = card.get("key") or "?"
+                if not card.get("name"):
+                    problems.append(f"{key} 的名称槽是空的（milestone-name）")
+                if not card.get("value"):
+                    problems.append(f"{key} 的值槽是空的（milestone-value）")
+                fills = card.get("fills")
+                # 距离条只挂在阶梯卡上（锚点类没有轨道，也就没有填充）。两态几何只
+                # 对阶梯卡判：reached 恰一枚填充且宽 ≥ 2px；unreached **取不到**
+                # 填充（§15.2 的裁决——数的是元素在不在，不是宽为 0）。
+                if card.get("track") is True:
+                    if card.get("state") == "reached":
+                        if fills != 1:
+                            problems.append(f"{key} 是 reached 却带了 {fills!r} 个填充元素，期望恰 1（milestone-fill）")
+                        elif not isinstance(card.get("fillWidth"), int) or card["fillWidth"] < 2:
+                            problems.append(
+                                f"{key} 的填充宽 {card.get('fillWidth')!r}px < 2px（「已达」的墨迹范围是个几何事实）"
+                            )
+                    elif card.get("state") == "unreached":
+                        if fills != 0:
+                            problems.append(f"{key} 是 unreached 却带了 {fills!r} 个填充元素——期望取不到（§15.2 的裁决）")
+                elif fills != 0:
+                    # 锚点类（首次 / 记录）永远不该出现填充元素：它们是「日期 / 极值」
+                    # 事实，没有「进度」这回事。
+                    problems.append(f"{key} 是锚点类（无轨道）却带了 {fills!r} 个填充元素，期望 0")
+            # ④ 距离条轨道：每枚阶梯一条；HC 档下轨道外壳该带 1px 描边（非 HC 档为 none）。
+            tracks = ms.get("tracks") or {}
+            if tracks.get("count") != MILESTONE_TIER_COUNT:
+                problems.append(f"距离条轨道 {tracks.get('count')!r} 条，期望 {MILESTONE_TIER_COUNT}（每枚阶梯一条）")
+            contrast = ms.get("contrast") or ""
+            if contrast == "high":
+                if tracks.get("ringed") != tracks.get("count"):
+                    problems.append(
+                        f"HC 档下只有 {tracks.get('ringed')!r}/{tracks.get('count')!r} 条轨道带描边（期望全部）"
+                    )
+            elif tracks.get("ringed"):
+                problems.append(
+                    f"非 HC 档（contrast={contrast!r}）下有 {tracks.get('ringed')!r} 条轨道带描边，期望 0"
+                )
+            # ⑤ 口径行与三张面板脚注：全历史声明（R2）与每张 Panel 各一条脚注。
+            if ms.get("scope_present") is not True:
+                problems.append("窗口声明行不在场（data-probe='milestones-scope'）——全历史口径必须逐字在场")
+            if ms.get("fallbacks") != 3:
+                problems.append(f"面板脚注 {ms.get('fallbacks')!r} 条，期望 3（三张 Panel 各一条）")
+            if problems:
+                for problem in problems:
+                    print(f"BAD|{label}：里程碑——{problem}")
+            else:
+                seen_milestones += 1
+                print(
+                    f"OK|{label}：里程碑三组齐备（首次 {groups.get('firsts')} / 阶梯 {groups.get('tiers')} / "
+                    f"记录 {groups.get('records')} 枚，reached {len(reached)} · unreached {len(unreached)}），"
+                    f"根节点无横向溢出，{tracks.get('count')} 条距离条（HC 描边 {tracks.get('ringed')}）"
+                )
+                if not unreached:
+                    # 夹具的十几个会话把全部阶梯的**首档**都跨过去了（token 9M+ /
+                    # 会话 13 / 消息 300+ …），所以本轮实测 unreached 恒 0——「未达成
+                    # 里取不到 fill」这条在这里**空洞成立**，两态几何由组件测试
+                    # （MilestonesPanel.test.tsx 的 unreached 用例）守。如实打一条
+                    # NOTE，不假装它被验过；夹具将来退化成有未达成档时断言自动生效。
+                    print(
+                        f"NOTE|{label}：夹具跨过了全部阶梯首档，unreached 为 0——"
+                        "「未达成里取不到 fill」在门禁里空洞成立（由组件测试覆盖两态）"
+                    )
+
     # 「实时脉搏」（Issue #203 / Round W）：几何事实全在 facts.pulse（应用侧只
     # 收集事实，阈值与判定在这里）。三步各有各的账：
     #   ① 「脉搏」——脉搏根在场、横向不溢出、5 个窗口读数与键序、60 根速率柱
@@ -2428,6 +2568,8 @@ if coverage and seen_insights == 0:
     print("BAD|视图覆盖：没有任何视图产出一年洞察的锚点——洞察句没被覆盖")
 if coverage and seen_pulse == 0:
     print("BAD|视图覆盖：没有任何视图产出脉搏的几何事实——「脉搏」档没被覆盖")
+if coverage and seen_milestones == 0:
+    print("BAD|视图覆盖：没有任何视图产出里程碑的几何事实——「里程碑」档没被覆盖")
 PY
 )" || PROBE_STATUS=$?
 
