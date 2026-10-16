@@ -800,6 +800,90 @@ describe("UsageCalendarPanel · 一日回望（Round V2）", () => {
   });
 });
 
+describe("UsageCalendarPanel · 受控下钻（Round Y #214）", () => {
+  /**
+   * 受控下钻是「里程碑的日期入口 → 一日回望」这条握手的下游：页面发请求（请求 +
+   * nonce），面板消费后回调收口。三条一起立住——**展开 / 收起**、**滚进视野**、
+   * **不传时零副作用**。
+   */
+  it("drillRequest 到场：展开那一天、把格子滚进视野，并回调 onDrillHandled 收口", () => {
+    const onDrillHandled = vi.fn();
+    const scrollIntoView = vi.fn();
+    // jsdom 不实现 scrollIntoView：装上探针才能证明「滚进视野」真的被调用，
+    // 而不是靠一句注释声称它走了那条内部逻辑。
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView =
+      scrollIntoView as unknown as typeof Element.prototype.scrollIntoView;
+    try {
+      const { rerender } = render(<UsageCalendarPanel inputs={mixedInputs()} now={NOW} />);
+      expect(document.querySelector("[data-calendar-sessions]")).toBeNull();
+
+      rerender(
+        <UsageCalendarPanel
+          inputs={mixedInputs()}
+          now={NOW}
+          drillRequest={{ dayStart: YESTERDAY, nonce: 1 }}
+          onDrillHandled={onDrillHandled}
+        />
+      );
+
+      expect(dayButton(YESTERDAY_LABEL)).toHaveAttribute("aria-expanded", "true");
+      const detail = document.querySelector("[data-calendar-sessions]") as HTMLElement;
+      expect(detail).not.toBeNull();
+      expect(within(detail).getByText("10月11日 · 8 个会话")).toBeVisible();
+      expect(scrollIntoView).toHaveBeenCalled();
+      expect(onDrillHandled).toHaveBeenCalledTimes(1);
+
+      // 同一天的**第二次请求**（新 nonce）要能收起——请求只看 nonce，第二次
+      // 点击才不会被当成「没有变化」而吞掉（格子点击的 toggle 同语义）。
+      rerender(
+        <UsageCalendarPanel
+          inputs={mixedInputs()}
+          now={NOW}
+          drillRequest={{ dayStart: YESTERDAY, nonce: 2 }}
+          onDrillHandled={onDrillHandled}
+        />
+      );
+      expect(dayButton(YESTERDAY_LABEL)).toHaveAttribute("aria-expanded", "false");
+      expect(document.querySelector("[data-calendar-sessions]")).toBeNull();
+      expect(onDrillHandled).toHaveBeenCalledTimes(2);
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
+  it("不传 drillRequest：面板自持的展开状态逐字不变，onDrillHandled 一次都不被调用", () => {
+    const onDrillHandled = vi.fn();
+    const { rerender } = render(
+      <UsageCalendarPanel inputs={mixedInputs()} now={NOW} onDrillHandled={onDrillHandled} />
+    );
+    expect(document.querySelector("[data-calendar-sessions]")).toBeNull();
+    // 后续每一帧（扫描刷新、切档、父级重渲染）都不该凭空展开。
+    rerender(
+      <UsageCalendarPanel inputs={mixedInputs()} now={NOW} onDrillHandled={onDrillHandled} />
+    );
+    expect(document.querySelector("[data-calendar-sessions]")).toBeNull();
+    expect(onDrillHandled).not.toHaveBeenCalled();
+  });
+
+  it("drillRequest 指向没有会话的那一天：不展开（与格子点击同一条资格线）", () => {
+    const onDrillHandled = vi.fn();
+    const { rerender } = render(<UsageCalendarPanel inputs={mixedInputs()} now={NOW} />);
+    rerender(
+      <UsageCalendarPanel
+        inputs={mixedInputs()}
+        now={NOW}
+        // 今天在 mixedInputs 里没有会话——资格线与格子点击共用。
+        drillRequest={{ dayStart: TODAY, nonce: 1 }}
+        onDrillHandled={onDrillHandled}
+      />
+    );
+    expect(document.querySelector("[data-calendar-sessions]")).toBeNull();
+    // 请求仍然被消费掉（不清掉的话下一帧会反复尝试）。
+    expect(onDrillHandled).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("UsageCalendarPanel · 一年洞察（Round V3）", () => {
   /** 键 → 句 li 的直查（六句的键写死，与门禁 / e2e 同一份契约）。 */
   function insightItemOf(key: string): HTMLElement {
@@ -812,7 +896,7 @@ describe("UsageCalendarPanel · 一年洞察（Round V3）", () => {
 
   /**
    * 365 天几乎全有消耗（每天 1000 tok sonnet）：10−2 换成密集日（全 unknown →
-   * 0 成本但有会话）、10−1 真空白——把「最���空白」逼成两天小段，密集日型端点
+   * 0 成本但有会话）、10−1 真空白——把「最长空白」逼成两天小段，密集日型端点
    * （可点）与真空白天端点（纯文本）在同一个区间里出现。
    */
   function nearFullInputs(): UsageSessionInput[] {
@@ -855,7 +939,7 @@ describe("UsageCalendarPanel · 一年洞察（Round V3）", () => {
     const insights = document.querySelector('[data-probe="calendar-insights"]') as HTMLElement;
     expect(insights.tagName).toBe("UL");
     expect(insights).toHaveAttribute("aria-label", "一年洞察");
-    // 形态位置（§1.2）：图���之后、展开区之上——展开一日回望时句子不动。
+    // 形态位置（§1.2）：图形之后、展开区之上——展开一日回望时句子不动。
     const legend = document.querySelector("[data-cal-legend]")!;
     expect(legend.nextElementSibling).toBe(insights);
   });
