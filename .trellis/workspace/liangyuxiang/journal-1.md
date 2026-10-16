@@ -590,3 +590,42 @@ Finder/Dock 那种收窄的 PATH）复核，发现**自己的修复本身还有�
   只有人眼看图才发现。截图亲验这一步不能省。
 - **设计师的「顺手发现」值得当产出收**:HC 塌缩那条不在本轮范围,但它是一条真缺陷——
   以维护者身份开 Issue 而不是塞进本轮,两件事都做对了。
+
+## Session 2026-10-17 · 发布 v0.27.0-beta.1(里程碑)
+
+### What Happened
+
+- **发布轮**(用户指令「发布」)。动手前盘点:main 干净、与远端一致、CI 绿、
+  `[Unreleased]` 里正是 Round Y 的里程碑条目、版本三处仍是上一版的 `0.26.0-beta.1`。
+- **流程**:切 `chore/release-v0.27.0-beta.1` → 版本号**四处同步**(package.json /
+  Cargo.toml / tauri.conf.json + `cargo check` 刷新的 Cargo.lock) → CHANGELOG 的
+  `[Unreleased]` 归档为 `[0.27.0-beta.1] - 2026-10-16`、段首补本轮主题、`[Unreleased]`
+  恢复为空壳 → 发布 PR **#218** → CI 全绿 → squash 合并 `8536ba9` → **先
+  `git ls-remote --tags` 确认为空**再打 tag → `release.yml` 三平台构建 + 创建 Release。
+- **发布结果**:Release 9 个产物齐全(ARM64/Intel 的 dmg + app.tar.gz + sig、
+  Windows NSIS setup.exe + sig、portable zip);说明**全中文**(手写段,无 `What's Changed`
+  之类的英文模板串);beta 渠道更新源在发布后 7 秒被刷新成指向 v0.27.0-beta.1。
+  main CI 与 release 工作流双双 success。
+- **发布前的本地预演**:跑了 `extract-changelog-section.sh 0.27.0-beta.1`——**这正是
+  #210 修掉的二次复杂度那条路径**(CHANGELOG 攒到 59 KB 时那一步要十几分钟、表现为
+  作业挂死到 6 小时上限)。本次秒回,修法在真发布路径上得到验证;
+  两个自测(`extract-changelog-section-test` 10/0、`format-release-notes-test` 6/0)全绿。
+- **另开 #221**:验证 Release 时发现「变更清单」里**几乎每个 PR 都被归到「文档」**——
+  连 `feat(web): 里程碑` 都是。根因是 `.github/labeler.yml` 给任何碰 `*.md` 的 PR 打
+  `documentation`,而流程硬性要求每个 PR 都写 CHANGELOG(`.md`),于是分类表被架空。
+  **核对 v0.26.0-beta.1 发现同样如此**——既有缺陷,不在本轮范围,开 Issue 不动手。
+
+### 教训(本轮新增,值得沉淀)
+
+- **发布前的「预演那一步」比发布本身更值得做**:上一次发布的失败点是 CHANGELOG 抽段
+  脚本的性能,而它只在真发布里炸。本轮在本地把那条路径**单独跑了一遍**,秒回——
+  这是「本地全绿不代表发布能成」那条老教训的正面用法:找出发布独有的那一步,单独预演。
+- **Release 要逐项验而不是看一眼绿**:本轮验了四样——产物 9 个、说明**全中文且分类标题
+  已转换**、tag 指向与 main HEAD 一致、beta 更新源已被刷新。最后一项是**发布后 7 秒**
+  才发生的,只看 `gh run view` 的 success 会漏掉「更新源没刷新」这类静默失败。
+- **`gh release view <标题>` 查不到不代表不存在**:beta 更新源的**标题**是「beta 渠道
+  更新源」而**tag** 是 `beta`,按标题查会报 `release not found`。查固定资产一律用 tag。
+- **陈迹要认出来但不擅自处置**:任务列表里有个 `10-17-context-bleed` 是并行会话中断
+  留下的半成品(只有 task.json、没有 prd/design/implement,而它的 PR #209 早已合并发布)。
+  归档里**没有任何**只含 task.json 的任务——说明那是残缺记录,归档它只会把残缺固化。
+  处置:留着、在报告里说明,不替别人做状态决定。
