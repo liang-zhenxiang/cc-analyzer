@@ -68,6 +68,23 @@ export function formatShortStamp(ms: number): string {
   return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${formatClock(ms)}`;
 }
 
+/**
+ * `2026-05-31` — a full calendar date that names its own year.
+ *
+ * Three date shapes already exist and they serve three different contexts, not
+ * three author's moods: `formatDayLabel` (`5/31`) is a chart axis tick read
+ * under a year header; `insightDateText` inside the calendar drops the year
+ * within the current year because the sentence sits under that same header;
+ * `formatDateTime` is the long `zh-CN` stamp including seconds. The milestones
+ * window is **all history** — there is no year header to lean on, so the year
+ * has to be part of the value itself (Round Y §5.3).
+ */
+export function formatFullDate(ms: number): string {
+  const date = new Date(ms);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 /** Relative time labels for the session list (刚刚 / N 分钟前 / 更早). */
 export function formatRelativeTime(ms: number, now = Date.now()): string {
   if (!ms || ms < 0) return "-";

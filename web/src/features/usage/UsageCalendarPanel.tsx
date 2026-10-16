@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Panel } from "../../components/Panel";
 import {
   formatClock,
@@ -311,13 +311,23 @@ function DaySummaryRow({ summary }: { summary: DaySummary }) {
 export function UsageCalendarPanel({
   inputs,
   now,
-  onOpenSession
+  onOpenSession,
+  drillRequest,
+  onDrillHandled
 }: {
   inputs: readonly UsageSessionInput[];
   /** 窗口终点（今天）的时钟，由调用方注入。 */
   now: number;
   /** 展开区会话行的「打开会话」回调；缺省（单测直挂组件）时行仍列出，只是不可点。 */
   onOpenSession?: (session: SessionMeta) => void;
+  /**
+   * 受控下钻请求（Round Y #214）：页面（里程碑的日期入口）把「展开我知道的
+   * 那一天」交进来。与 `AppShell` 的 `revealRequest` 同款收口——请求带 `nonce`，
+   * 面板消费后回调 `onDrillHandled` 把它清掉。**不传时行为与从前逐字一致**。
+   */
+  drillRequest?: { dayStart: number; nonce: number } | null;
+  /** 请求已消费的信号（页面据此把 `drillRequest` 置回 null）。 */
+  onDrillHandled?: () => void;
 }) {
   const calendar = useMemo(() => buildUsageCalendar(inputs, now), [inputs, now]);
   const todayStart = useMemo(() => dayStartOf(now), [now]);
@@ -442,6 +452,22 @@ export function UsageCalendarPanel({
       button.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
   };
+
+  /**
+   * 受控下钻（Round Y #214）：把页面交进来的请求喂给**同一条**内部逻辑
+   * （`onInsightDateDrill` 的 toggle + 滚进视野），不写第二份。
+   *
+   * 依赖只落在 `nonce` 上：同一天连点两下必须是两次独立请求——第二次要能收起
+   * （与格子点击同语义），只盯 `dayStart` 会让第二次点击被当成「没有变化」而吞掉。
+   * 请求消费完立刻回调收口；面板自己的 `selected` 仍是唯一状态源（design §4：
+   * 不把这个状态上提到页面）。
+   */
+  const drillNonce = drillRequest?.nonce ?? null;
+  useEffect(() => {
+    if (drillRequest === undefined || drillRequest === null) return;
+    onInsightDateDrill(drillRequest.dayStart);
+    onDrillHandled?.();
+  }, [drillNonce]);
 
   const onInsightDateKeyDown = (
     event: KeyboardEvent<HTMLButtonElement>,
