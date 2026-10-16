@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { test, expect, recentActivityScenario, pulseScenario } from "./fixtures";
 import { sessionItems } from "./selectors";
+import { milestonesScenario } from "../tests/fixtures/milestones-scenario";
 
 /**
  * 界面高对比度档的端到端回归（Round U）。
@@ -480,5 +481,62 @@ test.describe("高对比度 · 实时脉搏几何", () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
 
     await expectPulseGeometry(page);
+  });
+});
+
+/**
+ * R8：高对比度不进截图基线，改由几何断言覆盖。里程碑场景用 `milestonesScenario()`
+ * （三个会话、三组面板齐备）——默认场景那批固定日期的夹具算不出「第一次压缩 /
+ * skill / MCP」，首组缺枚，断言就是空转。
+ */
+async function expectMilestonesGeometry(page: Page) {
+  const container = page.locator("[data-probe='milestones-view']");
+  await expect(container).toBeVisible();
+
+  // 根节点自身不横向溢出（外壳的 overflow 会把内容溢出藏起来）。
+  const box = await container.evaluate((el) => ({
+    scrollWidth: el.scrollWidth,
+    clientWidth: el.clientWidth
+  }));
+  expect(box.scrollWidth).toBeLessThanOrEqual(box.clientWidth + 1);
+
+  await expect(page.locator("[data-probe='milestones-group']")).toHaveCount(3);
+
+  // 每枚卡片都不裁行——HC 只换颜色，尺寸账与普通档相同。
+  const cards = page.locator("[data-probe='milestone-card']");
+  const count = await cards.count();
+  expect(count).toBeGreaterThan(0);
+  const clipped = await cards.evaluateAll((nodes) =>
+    nodes
+      .map((node, index) => ({
+        index,
+        key: (node as HTMLElement).getAttribute("data-milestone") ?? "",
+        scrollHeight: (node as HTMLElement).scrollHeight,
+        clientHeight: (node as HTMLElement).clientHeight
+      }))
+      .filter((item) => item.scrollHeight > item.clientHeight + 1)
+  );
+  expect(clipped, `被裁行的里程碑卡片：${JSON.stringify(clipped)}`).toEqual([]);
+}
+
+test.describe("高对比度 · 里程碑几何", () => {
+  test.use({ scenario: milestonesScenario() });
+
+  test("高对比度下里程碑页不横向溢出，卡片不被裁行", async ({ page }) => {
+    await page.goto("/");
+    await openSettings(page);
+    await radio(page, "高对比度").click();
+    await page.getByRole("button", { name: "关闭" }).click();
+
+    await page.getByRole("tab", { name: "用量总览" }).click();
+    await page.getByRole("tab", { name: "里程碑" }).click();
+    await expect(page.locator("[data-probe='milestones-view']")).toBeVisible({ timeout: 15_000 });
+
+    // 对比度真的换挡了，才谈得上「高对比度下不溢出」。
+    expect(await rootContrast(page)).toBe("high");
+    const { scrollWidth, clientWidth } = await horizontalOverflow(page);
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
+
+    await expectMilestonesGeometry(page);
   });
 });

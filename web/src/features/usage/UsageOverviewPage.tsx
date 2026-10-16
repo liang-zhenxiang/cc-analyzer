@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useBridges } from "../../api/bridges";
 import { useNotifications } from "../../app/NotificationProvider";
 import { Button } from "../../components/Button";
@@ -17,6 +17,8 @@ import { CompactionStatsPanel } from "./CompactionStatsPanel";
 import { compactionStats } from "./compactionStats";
 import { mergeErrorStats } from "./errorStats";
 import { ErrorOverviewSection } from "./ErrorOverviewSection";
+import { MilestonesPanel } from "./MilestonesPanel";
+import { milestonesOf } from "./milestones";
 import { toolCensus } from "./toolCensus";
 import { ToolCensusPanel } from "./ToolCensusPanel";
 import { UsageCalendarPanel } from "./UsageCalendarPanel";
@@ -37,12 +39,16 @@ const RANGE_KEY = "cca-usage-range";
 const RANGE_OPTIONS = [7, 30, 90] as const;
 type UsageRange = (typeof RANGE_OPTIONS)[number];
 
-/** 页内子视图（N1）：缺省仍是「用量」——错误分析是显式选择，首屏不被垄断。 */
+/**
+ * 页内子视图（N1 / Round Y）：缺省仍是「用量」——错误分析与里程碑都是显式选择，
+ * 首屏不被垄断。三档共用同一次扫描（里程碑吃同一份全历史 `inputs`，零新增 I/O）。
+ */
 const VIEW_KEY = "cca-usage-view";
-type UsageView = "usage" | "errors";
+type UsageView = "usage" | "milestones" | "errors";
 
 const VIEW_ITEMS: SegmentedItem<UsageView>[] = [
   { value: "usage", label: "用量" },
+  { value: "milestones", label: "里程碑" },
   { value: "errors", label: "错误" }
 ];
 
@@ -73,6 +79,7 @@ function readStoredView(): UsageView {
   try {
     const stored = localStorage.getItem(VIEW_KEY);
     if (stored === "errors") return "errors";
+    if (stored === "milestones") return "milestones";
   } catch {
     // See readStoredRange: persistence is optional.
   }
@@ -118,6 +125,11 @@ export function UsageOverviewPage({
   const [view, setView] = useState<UsageView>(readStoredView);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  // 里程碑 → 日历的下钻请求（Round Y #214）：与 `AppShell` 的 `revealRequest`
+  // 同款——请求带一个自增 nonce（不用 `Date.now()`：同毫秒的两次点击是两次
+  // 独立请求，第二次要能收起），面板消费后回调把它清掉。
+  const [dayDrill, setDayDrill] = useState<{ dayStart: number; nonce: number } | null>(null);
+  const dayDrillSeq = useRef(0);
   // 报告落款要写版本号；取不到就留空（宁可少一行信息，也不写一个假版本）。
   const [appVersion, setAppVersion] = useState("");
   const bridges = useBridges();
@@ -129,6 +141,9 @@ export function UsageOverviewPage({
   // 不参与计费对账，滚动 365 天窗口不需要 30 秒 tick；取挂载那一刻并保持
   // 稳定，memo 才不会每帧失效（跨天挂机不重算，与其它面板同一取舍）。
   const [calendarNow] = useState(() => Date.now());
+  // 里程碑的 `now`（Round Y §5）：与 calendarNow 同一条取舍——取挂载那一刻并
+  // 保持稳定。报告里的每条事实都是历史的，它只盖 `generatedAt`。
+  const [milestonesNow] = useState(() => Date.now());
 
   useEffect(() => {
     try {
@@ -166,6 +181,13 @@ export function UsageOverviewPage({
   const errorStats = useMemo(() => mergeErrorStats(inputs, days), [inputs, days]);
   // 工具普查（N3）同位：窗口化口径与上两者一致，不进既有聚合桶。
   const census = useMemo(() => toolCensus(inputs, days), [inputs, days]);
+  // 里程碑（Round Y #214）同位：吃同一份**全历史** inputs，一次遍历折成三层
+  // 清单。它与 7/30/90 区间正交（全历史口径），所以不依赖 `days`；R9 要求只在
+  // `inputs` 变化时重算，这里靠 memo 的依赖保证。
+  const milestoneReport = useMemo(
+    () => milestonesOf(inputs, milestonesNow),
+    [inputs, milestonesNow]
+  );
 
   const cost = useMemo(() => {
     let usd = 0;
@@ -229,6 +251,36 @@ export function UsageOverviewPage({
       })),
     [range.topModels]
   );
+
+  // 里程碑的会话入口交回的是 **path**（纯逻辑层手上只有 path）；页面把它换回
+  // 完整的 `SessionMeta` 再走既有的「打开会话」握手——与压缩 top3 / 日历同一路。
+  const sessionsByPath = useMemo(() => {
+    const map = new Map<string, SessionMeta>();
+    for (const input of inputs) {
+      const session = input.session;
+      if (session && !map.has(session.path)) map.set(session.path, session);
+    }
+    return map;
+  }, [inputs]);
+
+  function openSessionByPath(path: string) {
+    const session = sessionsByPath.get(path);
+    if (session && onOpenSession) onOpenSession(session);
+  }
+
+  /**
+   * 「打开某天」：切回「用量」档（日历就在那一档），再发一次下钻请求让日历
+   * 展开到那一天并把格子滚进视野。
+   *
+   * 展开状态（`selected`）仍住在 `UsageCalendarPanel` 内部——页面只发「请求 +
+   * nonce」，面板消费后回调收口（design §4：不把 `selected` 整体上提，也不在
+   * 页面另造第二份下钻状态）。
+   */
+  function openDay(dayStart: number) {
+    setView("usage");
+    dayDrillSeq.current += 1;
+    setDayDrill({ dayStart, nonce: dayDrillSeq.current });
+  }
 
   /**
    * 用量总览 → 单文件 HTML 快照（Issue #149）。
@@ -297,7 +349,9 @@ export function UsageOverviewPage({
     );
   }
 
-  if (!scanning && inputs.length === 0 && progress.total === 0) {
+  // 里程碑档自己承担空态（§4.1 第 3 条 / §7）：那句「还没有可统计的会话」是
+  // 用量档的语言，让位一行即可——不改文案，免得连带改掉两档的既有截图与断言。
+  if (!scanning && inputs.length === 0 && progress.total === 0 && view !== "milestones") {
     return (
       <div className={`${styles.page} ${styles.stage}`}>
         <EmptyState
@@ -330,12 +384,16 @@ export function UsageOverviewPage({
             onChange={setView}
             ariaLabel="总览视图"
           />
-          <SegmentedControl
-            items={RANGE_ITEMS}
-            value={String(days)}
-            onChange={(next) => setDays(toRange(next))}
-            ariaLabel="时间范围"
-          />
+          {/* 里程碑的口径是**全历史**（R2），「近 N 天」对它没有任何作用；摆一个
+              不起作用的控件比缺一个控件更坏——用户会以为数字受它影响。 */}
+          {view !== "milestones" ? (
+            <SegmentedControl
+              items={RANGE_ITEMS}
+              value={String(days)}
+              onChange={(next) => setDays(toRange(next))}
+              ariaLabel="时间范围"
+            />
+          ) : null}
         </div>
         {/* 右簇：进度文本在前、导出按钮在后——右簇贴右，进度变长时向左生长，
             按钮的右边缘固定不动。快照描述的就是「用量」这个视图，所以按钮
@@ -348,7 +406,9 @@ export function UsageOverviewPage({
           >
             {scanning
               ? `已分析 ${progress.done} / ${progress.total} 个会话`
-              : `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计`}
+              : view === "milestones"
+                ? `全部 ${milestoneReport.facts.sessionCount} 个已扫描会话纳入统计`
+                : `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计`}
             {skipped > 0 ? ` · ${skipped} 个会话读取失败已跳过` : ""}
           </span>
           {view === "usage" ? (
@@ -380,6 +440,14 @@ export function UsageOverviewPage({
           sessionsInWindow={range.kpi.sessions}
           projectPaths={projectPaths}
           onRevealRecord={onRevealRecord}
+        />
+      ) : view === "milestones" ? (
+        /* 里程碑（Round Y）：同一份全历史 inputs、同一次扫描，零新增 I/O。
+           `onOpenSession` 缺省（单测直挂页面）时不传，入口退成静态行而不是空按钮。 */
+        <MilestonesPanel
+          report={milestoneReport}
+          onOpenSession={onOpenSession ? openSessionByPath : undefined}
+          onOpenDay={openDay}
         />
       ) : (
         <>
@@ -456,6 +524,8 @@ export function UsageOverviewPage({
                 inputs={inputs}
                 now={calendarNow}
                 onOpenSession={onOpenSession}
+                drillRequest={dayDrill}
+                onDrillHandled={() => setDayDrill(null)}
               />
             </div>
 

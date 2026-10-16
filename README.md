@@ -183,6 +183,19 @@ say why. Every screen, in both light and dark themes, is archived in
   the day-in-review. The window is a fixed rolling 365 days and does not follow
   the range selector; on narrow windows the grid scrolls inside its own
   container.
+- **Milestones** — the usage overview's third sub-view folds your **entire
+  history** into three groups of facts you can check against the logs:
+  **firsts** (first session, compaction, subagent, skill, MCP tool),
+  **cumulative tiers** (tokens, sessions, messages, projects, models,
+  compactions, tool kinds — the thresholds are hard-coded constants), and
+  **single-session records** (most tokens, longest session, most compactions).
+  A reached milestone shows its evidence: a number, a date, and a link into the
+  session that earned it. An unreached one shows the honest distance to the next
+  tier — never a grey silhouette, a lock or a "??". Every badge has to be
+  recomputable from the logs, so cumulative cost (the one figure that reads an
+  expiring pricing snapshot) deliberately stays out; the KPI and the calendar
+  shading carry it. It shares the same full-history pass as the other two
+  sub-views: no extra scan, no extra request.
 - **Session explorer** — sessions grouped by timeline (today / yesterday /
   this week / this month / earlier) and by project, with incrementally
   scanned titles and relative times.
@@ -348,18 +361,23 @@ package.json   build toolchain (Tauri CLI) and the packaging entry points
 
 The roadmap tracks open issues; each item links to the issue that owns it.
 
-- [ ] Local archive repo — keep sessions past Claude Code's own cleanup, and
-  analyse across months and years
+- [x] Local archive repo — keep sessions past Claude Code's own cleanup, and
+  analyse across months and years (shipped in v0.12.0; encrypted bundles that
+  move history between machines in v0.16.0)
   ([#70](https://github.com/liang-zhenxiang/cc-analyzer/issues/70))
 - [x] Structured export — CSV and single-file HTML (shipped in v0.11.0)
   ([#71](https://github.com/liang-zhenxiang/cc-analyzer/issues/71))
-- [ ] Live pulse — turn the "Live monitor" tab into a native view: active
-  sessions, token rate, 5-hour burn rate and context-fill curve, able to live
-  in a 420×620 always-on-top window
+- [x] Live pulse — the "Live monitor" tab is a native view: active sessions,
+  token rate, 5-hour burn rate and context-fill curve, with a 420×620
+  always-on-top window (shipped in v0.26.0-beta.1)
   ([#203](https://github.com/liang-zhenxiang/cc-analyzer/issues/203))
-- [ ] Accessibility & performance pack — ANSI rendering, virtual scrolling,
+- [x] Accessibility & performance pack — ANSI rendering, virtual scrolling,
   font scaling
   ([#73](https://github.com/liang-zhenxiang/cc-analyzer/issues/73))
+- [ ] Milestones — every badge has to be recomputable from the logs: firsts,
+  cumulative tiers and single-session records, each shown with its evidence
+  and a link to the session or day that earned it
+  ([#214](https://github.com/liang-zhenxiang/cc-analyzer/issues/214))
 - [ ] Frontend upgrade to React 19, moving `@types/react` / `@types/react-dom`
   together
   ([#19](https://github.com/liang-zhenxiang/cc-analyzer/issues/19))

@@ -89,6 +89,26 @@ UI must not blur the two. This is one rule with several faces:
   models and beta builds all carry a badge that says so. When you add a reading,
   ask which of these three it is: a fact, an estimate, or a prediction — and
   make the UI say it.
+- **One concept, one window, one screen.** A reading is only honest if its
+  window is stated with it *and* no other panel on that screen measures the same
+  concept over a different window. The calendar's year-in-insights six sentences
+  (`features/usage/calendarInsights.ts`) run over a **rolling 365 days**; the
+  milestones (`features/usage/milestones.ts`) run over the **entire history**.
+  That is why milestones ship no streak, no priciest day and no active share —
+  two windows for one concept means two numbers that disagree, and the reader
+  has no way to tell which one is right. The same rule is why the milestones
+  sub-view renders **no range selector**: a control that does not affect the
+  numbers on screen claims that it does.
+- **A badge you cannot recompute is not a fact.** Milestones apply this
+  literally — every one of them is rebuildable from the logs alone (`totalsSum`,
+  event counts, dedup sets). Cumulative cost is the one candidate that reads an
+  **expiring** artifact, the offline pricing snapshot, and "days with unknown
+  pricing don't count" would make its undercount invisible; so it stays out of
+  the milestone tiers and is carried by the KPI (provenance badge + snapshot
+  date) and the calendar shading instead. Before adding a badge, reading or tier,
+  ask: *can this be rebuilt from the logs on this machine today, with no other
+  input?* If not, it needs a label that says so — or it belongs somewhere that
+  already labels it.
 
 ---
 
@@ -145,3 +165,6 @@ layer. The end-to-end suite does stub at the Tauri boundary, deliberately — se
 - [ ] User-visible change is recorded in `CHANGELOG.md` under `[Unreleased]`.
 - [ ] New readings say what they are (fact / estimate / prediction) and make no
       "running"-style claim from a timestamp (see [Honest Readings](#honest-readings)).
+- [ ] New readings state the window they cover, and no two panels on one screen
+      compute the same concept over different windows (see
+      [Honest Readings](#honest-readings)).

@@ -706,10 +706,16 @@ mod gui_probe {
       });
     }
   }
-  var titles = document.querySelectorAll('[aria-label="会话列表"] button[title] strong');
-  for (var i = 0; i < titles.length && facts.session_rows.length < 3; i++) {
-    var button = titles[i].closest('button');
-    var row = button ? button.parentElement : null;
+  /* 行盒是 `.sessionRow` 包装层（`height: calc(54px * --font-scale)` +
+     `overflow: hidden`），行本体是它内部 `role="button"` 的 <div>——#209 之后
+     行不再是 <button>（出血点徽章得是真按钮，按钮不能嵌按钮），所以锚点从标签名
+     换成 role + title，与 web/e2e/selectors.ts 的 SESSION_ITEM_SELECTOR 同一
+     形态（那边用 `:has(strong)` 挡噪声，这里用 JS 过滤——避免老 WebKit 上
+     `:has()` 抛 SyntaxError 把整份探针带走）。 */
+  var sessionRowNodes = document.querySelectorAll('[aria-label="会话列表"] [role="button"][title]');
+  for (var i = 0; i < sessionRowNodes.length && facts.session_rows.length < 3; i++) {
+    if (!sessionRowNodes[i].querySelector('strong')) continue;
+    var row = sessionRowNodes[i].parentElement;
     if (!row) continue;
     facts.session_rows.push({
       clientHeight: row.clientHeight,
@@ -1234,6 +1240,84 @@ mod gui_probe {
   }
   facts.pulse = pulseFacts;
 
+  /* 「里程碑」（Issue #214 / Round Y）：用量页的第三档子视图。锚点一律用组件
+     自带的 `data-probe` 稳定属性（同脉搏 / 归因 / 日历先例），**禁裸标签选择器**
+     ——「同屏唯一 table」那一课（消耗日历的表被 `querySelector('table')` 误捕，
+     门禁红了 9 步）就是这么欠下的。事实只收集，阈值与判定在脚本里：
+     - 根节点（milestones-view）自己的滚动几何：外壳的 overflow 会把内容溢出藏
+       起来，量文档量不到它（同脉搏根节点的教训）；
+     - 三组（milestones-group 的 data-group）各自的卡片数——组缺席时该键为 0；
+     - 每枚卡片（milestone-card）的 state / 名称 / 值 / 填充条数 / 填充宽度：
+       「未达成卡片里取不到 fill」（§15.2 裁决）是一条**布尔几何事实**，数的是
+       `querySelectorAll` 的条数，不是 offsetWidth——宽度为 0 的元素与根本不在的
+       元素不是一回事；
+     - 距离条轨道（milestone-track）与 HC 档的 1px 描边。 */
+  var milestoneFacts = {
+    page: false,
+    empty: false,
+    container: null,
+    /* 界面当前对比度档：HC 下轨道外壳才该带描边，判定留给脚本。 */
+    contrast: document.documentElement.getAttribute('data-contrast') || '',
+    scope_present: false,
+    groups: { firsts: 0, tiers: 0, records: 0 },
+    cards: [],
+    tracks: { count: 0, ringed: 0 },
+    fallbacks: document.querySelectorAll("[data-probe='milestones-fallback']").length,
+    gap_notes: document.querySelectorAll("[data-probe='milestones-gap-note']").length
+  };
+  var milestoneView = document.querySelector("[data-probe='milestones-view']");
+  if (milestoneView) {
+    milestoneFacts.page = true;
+    /* 空态（report.empty）与三组是两条互斥的形态：空态只有一条事实行。 */
+    milestoneFacts.empty = !!document.querySelector("[data-probe='milestones-empty']");
+    milestoneFacts.container = boxOf(milestoneView);
+    milestoneFacts.scope_present = !!document.querySelector("[data-probe='milestones-scope']");
+    var milestoneGroupNames = ['firsts', 'tiers', 'records'];
+    for (var mg = 0; mg < milestoneGroupNames.length; mg++) {
+      var milestoneGroup = document.querySelector(
+        "[data-probe='milestones-group'][data-group='" + milestoneGroupNames[mg] + "']"
+      );
+      milestoneFacts.groups[milestoneGroupNames[mg]] = milestoneGroup
+        ? milestoneGroup.querySelectorAll("[data-probe='milestone-card']").length
+        : 0;
+    }
+    var milestoneCardNodes = document.querySelectorAll("[data-probe='milestone-card']");
+    for (var mc = 0; mc < milestoneCardNodes.length; mc++) {
+      var milestoneCard = milestoneCardNodes[mc];
+      var milestoneFill = milestoneCard.querySelector("[data-probe='milestone-fill']");
+      var milestoneName = milestoneCard.querySelector("[data-probe='milestone-name']");
+      var milestoneValue = milestoneCard.querySelector("[data-probe='milestone-value']");
+      var milestoneTrack = milestoneCard.querySelector("[data-probe='milestone-track']");
+      if (milestoneTrack) {
+        milestoneFacts.tracks.count += 1;
+        /* HC 档的 1px 描边挂在外壳（.trackShell）的 box-shadow 上：轨道自己是
+           overflow: hidden 的圆角盒，inset 阴影会被填充盖住下半条，所以读父级的
+           计算样式。非 HC 档期望 "none"。 */
+        if (milestoneTrack.parentElement
+            && getComputedStyle(milestoneTrack.parentElement).boxShadow !== 'none') {
+          milestoneFacts.tracks.ringed += 1;
+        }
+      }
+      milestoneFacts.cards.push({
+        key: milestoneCard.getAttribute('data-milestone') || '',
+        state: milestoneCard.getAttribute('data-state') || '',
+        /* 距离条只挂在阶梯卡上：锚点类（首次 / 记录）没有轨道，也就没有填充。
+           判别「这枚是不是阶梯卡」只能靠这条事实——state 都是 reached，
+           锚点卡的 reached 不表示「有墨迹」。 */
+        track: !!milestoneTrack,
+        name: milestoneName
+          ? (milestoneName.textContent || '').replace(/\s+/g, ' ').trim()
+          : null,
+        value: milestoneValue
+          ? (milestoneValue.textContent || '').replace(/\s+/g, ' ').trim()
+          : null,
+        fills: milestoneCard.querySelectorAll("[data-probe='milestone-fill']").length,
+        fillWidth: milestoneFill ? milestoneFill.offsetWidth : null
+      });
+    }
+  }
+  facts.milestones = milestoneFacts;
+
   return JSON.stringify(facts);
 })();"##;
 
@@ -1605,7 +1689,15 @@ mod gui_probe {
   var wanted = "{escaped}";
   var scopes = [
     document.querySelectorAll('[role="tablist"] button'),
-    document.querySelectorAll('button')
+    document.querySelectorAll('button'),
+    /* 会话条目（#209 起）的本体是 `role="button"` 的 <div>，**不再是 <button>**
+       ——出血点徽章得是真按钮，而按钮不能嵌按钮，所以外层降级成 role=button。
+       只看 `button` 的旧扫描因此一条都选不到「点标题打开会话」的目标：门禁里
+       `/repo/demo` 那一步静默落空，后面「导出 / 上下文 / 改动」与记录表、会话行
+       的覆盖判定跟着整片红。锚点与 web/e2e/selectors.ts 的 SESSION_ITEM_SELECTOR
+       （`[role="button"][title]:has(strong)`）同一形态：这里同样要 `[title]`，
+       少了它会把工具栏那颗 IconButton 也卷进候选。 */
+    document.querySelectorAll('[role="button"][title]')
   ];
   for (var s = 0; s < scopes.length; s++) {{
     var buttons = scopes[s];
@@ -1836,6 +1928,17 @@ mod gui_probe {
         }
 
         #[test]
+        fn the_generic_scan_also_reaches_role_button_session_rows() {
+            // #209 把会话行从 <button> 降级成 `role="button"` 的 <div>（出血点徽章
+            // 得是真按钮，而按钮不能嵌按钮）。通用扫描只看 `button` 时，「点标题
+            // 打开会话」那几步会**静默落空**——门禁里表现为导出 / 上下文 / 改动
+            // 一连串红，而报错全在别处。锚点与 web/e2e/selectors.ts 同一形态。
+            let js = click_target_js("/repo/demo");
+            assert!(js.contains(r#"[role="button"][title]"#));
+            assert!(js.contains("SESSION_ITEM_SELECTOR") || js.contains("出血点徽章"));
+        }
+
+        #[test]
         fn the_click_query_action_targets_a_selector() {
             let js = click_target_js("点选=[data-probe='compact-event-2']");
             // 动作走 querySelector（可访问名带动态数字的控件够不着通用扫描），
@@ -1854,6 +1957,10 @@ mod gui_probe {
             assert!(PROBE_JS
                 .contains("contrast: document.documentElement.getAttribute('data-contrast')"));
             assert!(PROBE_JS.contains("session_rows"));
+            // 会话行的锚点是 role + title（#209 起行本体不再是 <button>），
+            // 与 web/e2e/selectors.ts 的 SESSION_ITEM_SELECTOR 同一形态。
+            assert!(PROBE_JS.contains(r#"[aria-label="会话列表"] [role="button"][title]"#));
+            assert!(!PROBE_JS.contains("[aria-label=\"会话列表\"] button[title]"));
         }
 
         #[test]
@@ -2036,6 +2143,29 @@ mod gui_probe {
             assert!(PROBE_JS.contains("[data-probe='pulse-context-band']"));
             assert!(PROBE_JS.contains("[data-probe='pulse-context-cliff']"));
             assert!(PROBE_JS.contains("facts.pulse = pulseFacts"));
+        }
+
+        #[test]
+        fn the_probe_reports_the_milestones_view_facts() {
+            // 「里程碑」（Issue #214 / Round Y）：用量页第三档子视图。锚点：根节点
+            // （milestones-view）、空态（milestones-empty）、三组
+            // （milestones-group 的 data-group）、每枚卡片（milestone-card 的
+            // state / 名称 / 值 / 填充）、距离条轨道（milestone-track）。
+            // 锚点一律 data-probe，**禁裸标签选择器**（日历表被误捕那一课）。
+            // 「未达成卡片里取不到 fill」（§15.2 的裁决）是一条布尔几何事实——
+            // 探针数的是 querySelectorAll 的条数，这条选择器字符串必须留在脚本里，
+            // 不然实现期把 milestone-fill 从探针里删掉也没人察觉。
+            assert!(PROBE_JS.contains("[data-probe='milestones-view']"));
+            assert!(PROBE_JS.contains("[data-probe='milestones-group']"));
+            assert!(PROBE_JS.contains("[data-probe='milestone-card']"));
+            assert!(PROBE_JS.contains("[data-probe='milestone-name']"));
+            assert!(PROBE_JS.contains("[data-probe='milestone-value']"));
+            assert!(PROBE_JS.contains("[data-probe='milestone-fill']"));
+            assert!(PROBE_JS.contains("[data-probe='milestone-track']"));
+            // 锚点类（首次 / 记录）没有轨道，也就没有填充——脚本靠这条事实
+            // 把「阶梯卡的两态」与「锚点卡的无填充」分开，字段名必须留着。
+            assert!(PROBE_JS.contains("track: !!milestoneTrack"));
+            assert!(PROBE_JS.contains("facts.milestones = milestoneFacts"));
         }
 
         #[test]

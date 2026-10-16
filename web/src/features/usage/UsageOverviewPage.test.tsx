@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { BridgesProvider } from "../../api/bridges";
 import type { Bridges } from "../../api/types";
 import { NotificationProvider } from "../../app/NotificationProvider";
+import type { SessionMeta } from "../sessions/metadataCache";
 import { UsageOverviewPage } from "./UsageOverviewPage";
 
 /**
@@ -109,13 +110,16 @@ function createUsageBridges(files: Record<string, string>): Bridges {
   } as unknown as Bridges;
 }
 
-function renderPage(bridges: Bridges) {
+function renderPage(
+  bridges: Bridges,
+  props: { onOpenSession?: (session: SessionMeta) => void } = {}
+) {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <NotificationProvider>
       <BridgesProvider bridges={bridges}>{children}</BridgesProvider>
     </NotificationProvider>
   );
-  return render(<UsageOverviewPage />, { wrapper });
+  return render(<UsageOverviewPage {...props} />, { wrapper });
 }
 
 function chartByName(name: string): HTMLElement {
@@ -504,5 +508,134 @@ describe("UsageOverviewPage", () => {
   it("页面不自己算归因：源码里没有 attributeQuota 调用（结构性守卫）", () => {
     // 归因与窗口数学一样只有一份，住在 `billingReadoutsOf`；页面只能经 readouts 拿。
     expect(pageSource).not.toMatch(/\battributeQuota\s*\(/);
+  });
+
+  it("分段项是「用量 | 里程碑 | 错误」；里程碑档吃同一份扫描、且不渲染时间范围控件", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 6 * 3_600_000),
+      [`${PROJECTS_ROOT}/-repo-alpha/bbb.jsonl`]: sessionJsonl("b2", "claude-sonnet-4-5-20250929", 5 * 3_600_000)
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+
+    // 顺序即契约（R1）：视图身份在前，三档并列。
+    const viewTabs = within(screen.getByRole("tablist", { name: "总览视图" })).getAllByRole("tab");
+    expect(viewTabs.map((tab) => tab.textContent)).toEqual(["用量", "里程碑", "错误"]);
+    // 区间控件与扫描进度行两档共用；里程碑档把它撤掉（摆一个不起作用的控件更坏）。
+    expect(screen.getByRole("tablist", { name: "时间范围" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("tab", { name: "里程碑" }));
+
+    expect(await screen.findByText(/全部已扫描的会话纳入统计/)).toBeInTheDocument();
+    // 里程碑吃的是同一份全历史 inputs：两条会话，一个不少、也不重算。
+    expect(screen.getByText(/共 2 个/)).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-probe="milestones-group"]')).toHaveLength(3);
+    expect(screen.queryByRole("tablist", { name: "时间范围" })).toBeNull();
+    // 进度行按档分叉（右簇位置不动）。
+    expect(screen.getByText("全部 2 个已扫描会话纳入统计")).toBeInTheDocument();
+  });
+
+  it("里程碑档不新增 I/O：切档前后扫描次数不变（R1）", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 3_600_000)
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+    const readDir = vi.mocked(bridges.fs.readDir);
+    await waitFor(() => expect(readDir).toHaveBeenCalled());
+    const before = readDir.mock.calls.length;
+
+    await userEvent.click(screen.getByRole("tab", { name: "里程碑" }));
+    await screen.findByText(/全部已扫描的会话纳入统计/);
+
+    expect(readDir.mock.calls.length).toBe(before);
+  });
+
+  it("readStoredView 认得 milestones：刷新后仍停在里程碑档", async () => {
+    window.localStorage.setItem("cca-usage-view", "milestones");
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 3_600_000)
+    });
+
+    renderPage(bridges);
+
+    expect(await screen.findByText(/全部已扫描的会话纳入统计/)).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "里程碑" })).toHaveAttribute("aria-selected", "true");
+    // 未知值仍回落「用量」——这一条由既有用例与这里的正例一起锁住。
+    expect(localStorage.getItem("cca-usage-view")).toBe("milestones");
+  });
+
+  it("里程碑档自己承担空态：扫到 0 个会话时是一条事实行，不是用量档那句", async () => {
+    window.localStorage.setItem("cca-usage-view", "milestones");
+    const bridges = createUsageBridges({});
+    bridges.fs.readDir = vi.fn(async () => []) as typeof bridges.fs.readDir;
+
+    renderPage(bridges);
+
+    expect(await screen.findByText("还没有可以回顾的里程碑")).toBeInTheDocument();
+    expect(document.querySelector('[data-probe="milestones-empty"]')).not.toBeNull();
+    expect(document.querySelectorAll('[data-probe="milestone-card"]')).toHaveLength(0);
+    // 用量档那条空态文案一字未动，只是不再拦在里程碑档前面。
+    expect(screen.queryByText("还没有可统计的会话")).toBeNull();
+  });
+
+  it("里程碑的会话入口把完整 SessionMeta 交回页面（与压缩 top3 同一条握手）", async () => {
+    const user = userEvent.setup();
+    const onOpenSession = vi.fn();
+    const filePath = `${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`;
+    const bridges = createUsageBridges({
+      [filePath]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 3_600_000)
+    });
+
+    renderPage(bridges, { onOpenSession });
+    await screen.findByRole("region", { name: "用量总览" });
+    await userEvent.click(screen.getByRole("tab", { name: "里程碑" }));
+
+    const card = (await screen.findByText("第一次会话")).closest("[data-milestone]");
+    expect(card).not.toBeNull();
+    const entry = card!.querySelector('[data-probe="milestone-entry"]') as HTMLButtonElement;
+    expect(entry).not.toBeNull();
+    await user.click(entry);
+
+    expect(onOpenSession).toHaveBeenCalledTimes(1);
+    expect(onOpenSession.mock.calls[0][0]).toMatchObject({ path: filePath });
+  });
+
+  it("里程碑的日期入口：切回用量档并展开到那一天（受控下钻，R5）", async () => {
+    const user = userEvent.setup();
+    const filePath = `${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`;
+    const bridges = createUsageBridges({
+      [filePath]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 6 * 3_600_000)
+    });
+
+    // 不传 onOpenSession：里程碑的证据行退成「那一天」入口——这是它在页面上的
+    // 一条真实形态（有会话元数据时证据行优先打开会话，日期则走记录类的日期入口）。
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+    await userEvent.click(screen.getByRole("tab", { name: "里程碑" }));
+
+    const card = (await screen.findByText("第一次会话")).closest("[data-milestone]");
+    expect(card).not.toBeNull();
+    const entry = card!.querySelector('[data-probe="milestone-entry"]') as HTMLButtonElement;
+    expect(entry).not.toBeNull();
+    expect(entry.getAttribute("aria-label")).toMatch(/^打开 .+ 的一日回望$/);
+    await user.click(entry);
+
+    // ① 切回用量档（日历就住在这一档）。
+    expect(screen.getByRole("tab", { name: "用量" })).toHaveAttribute("aria-selected", "true");
+
+    // ② 日历真的展开到**那一天**：展开区在场，且头部写的就是那一天的会话数。
+    const day = new Date(Date.now() - 6 * 3_600_000);
+    day.setHours(0, 0, 0, 0);
+    const dayLabel = `${day.getMonth() + 1}月${day.getDate()}日`;
+    const detail = document.querySelector("[data-calendar-sessions]") as HTMLElement;
+    expect(detail).not.toBeNull();
+    expect(detail.textContent).toContain(`${dayLabel} · 1 个会话`);
+    // 对应格子的展开态也跟着亮起来（受控下钻走的是格子点击那条内部逻辑）。
+    expect(
+      document.querySelector('[data-probe="calendar-day"][aria-expanded="true"]')
+    ).not.toBeNull();
   });
 });

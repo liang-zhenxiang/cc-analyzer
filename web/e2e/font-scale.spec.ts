@@ -1,6 +1,7 @@
 import { test, expect, pulseScenario } from "./fixtures";
 import { sessionItems } from "./selectors";
 import type { Page } from "@playwright/test";
+import { milestonesScenario } from "../tests/fixtures/milestones-scenario";
 
 /**
  * 界面字号缩放的端到端回归。
@@ -219,5 +220,63 @@ test.describe("字号缩放 · 实时脉搏几何", () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
 
     await expectPulseGeometry(page);
+  });
+});
+
+/**
+ * R8 的姿态同上：**130% 而不进截图基线**，改由几何断言覆盖。里程碑场景用
+ * `milestonesScenario()`（三个会话、三组面板齐备），否则默认场景那批固定日期的
+ * 夹具算不出「第一次压缩 / skill / MCP」，首组缺枚、断言就是空转。
+ */
+async function expectMilestonesGeometry(page: Page) {
+  const container = page.locator("[data-probe='milestones-view']");
+  await expect(container).toBeVisible();
+
+  // 根节点自身不横向溢出（外壳的 overflow 会把内容溢出藏起来，量文档量不到它）。
+  const box = await container.evaluate((el) => ({
+    scrollWidth: el.scrollWidth,
+    clientWidth: el.clientWidth
+  }));
+  expect(box.scrollWidth).toBeLessThanOrEqual(box.clientWidth + 1);
+
+  // 三组都在场——缺一组说明场景没铺开，后面的「不裁行」就只是空转。
+  await expect(page.locator("[data-probe='milestones-group']")).toHaveCount(3);
+
+  // 每枚卡片都不裁行：字号涨上去后行高若写死，口径行 / 距离行会被 overflow 切掉。
+  const cards = page.locator("[data-probe='milestone-card']");
+  const count = await cards.count();
+  expect(count).toBeGreaterThan(0);
+  const clipped = await cards.evaluateAll((nodes) =>
+    nodes
+      .map((node, index) => ({
+        index,
+        key: (node as HTMLElement).getAttribute("data-milestone") ?? "",
+        scrollHeight: (node as HTMLElement).scrollHeight,
+        clientHeight: (node as HTMLElement).clientHeight
+      }))
+      .filter((item) => item.scrollHeight > item.clientHeight + 1)
+  );
+  expect(clipped, `被裁行的里程碑卡片：${JSON.stringify(clipped)}`).toEqual([]);
+}
+
+test.describe("字号缩放 · 里程碑几何", () => {
+  test.use({ scenario: milestonesScenario() });
+
+  test("130% 字号下里程碑页不横向溢出，卡片不被裁行", async ({ page }) => {
+    await page.goto("/");
+    await openSettings(page);
+    await fontScaleGroup(page).getByRole("radio", { name: "130%" }).click();
+    await page.getByRole("button", { name: "关闭" }).click();
+
+    await page.getByRole("tab", { name: "用量总览" }).click();
+    await page.getByRole("tab", { name: "里程碑" }).click();
+    await expect(page.locator("[data-probe='milestones-view']")).toBeVisible({ timeout: 15_000 });
+
+    // 缩放真的生效了，才谈得上「130% 下不溢出」。
+    expect(await rootFontScale(page)).toBe("1.3");
+    const { scrollWidth, clientWidth } = await horizontalOverflow(page);
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
+
+    await expectMilestonesGeometry(page);
   });
 });
