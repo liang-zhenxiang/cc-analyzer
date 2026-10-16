@@ -12,6 +12,7 @@ import {
   calendarScenario,
   pulseScenario
 } from "./fixtures";
+import { milestonesScenario } from "../tests/fixtures/milestones-scenario";
 import { sessionItems } from "./selectors";
 import type { Page } from "@playwright/test";
 
@@ -139,6 +140,7 @@ const V_CHANGED_FILES = declareView("changed-files");
 const V_USAGE_DAY = declareView("usage-day");
 const V_PULSE = declareView("pulse");
 const V_PULSE_FLOAT = declareView("pulse-float");
+const V_MILESTONES = declareView("milestones");
 
 // 出血点标签页（Round X）。与其余视图一样显式写成「常量 = declareView(字面量)」
 // 的形态——不能从某张表的键里循环：check-screenshots.sh 的正则只认这种形态，
@@ -580,6 +582,44 @@ test.describe("截图归档 · 实时脉搏", () => {
       await page.waitForTimeout(300);
       await settleImages(page);
       await page.screenshot({ path: path.join(OUT_DIR, `${V_PULSE_FLOAT}-${theme}${suffix}.png`) });
+    });
+  }
+});
+
+/*
+ * 里程碑（Issue #214 / Round Y）要一份「几种第一次都真的发生过」的夹具：
+ * `milestonesScenario()` 三个会话按天错开，四种「第一次」（会话 / 压缩 / 子 agent /
+ * skill / MCP）与三条单会话记录全在场。默认场景那批固定日期的夹具没有压缩、没有
+ * skill / MCP 调用，首次类会缺枚、档位读数也不确定，拍出来是一张缺角的图。
+ * 本轮零动效，`emulateMedia({ reducedMotion: "reduce" })` 只是与本文件其它视图一致。
+ * 一张：三组面板齐备的常态（1400 窗宽下三组都在首屏）。
+ */
+test.describe("截图归档 · 里程碑", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: milestonesScenario({ updater: { currentVersion: APP_VERSION } }) });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`里程碑 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+
+      await page.emulateMedia({ reducedMotion: "reduce" });
+
+      await page.goto("/");
+      await page.getByRole("tab", { name: "用量总览" }).click();
+      await page.getByRole("tab", { name: "里程碑" }).click();
+      await expect(page.locator("[data-probe='milestones-view']")).toBeVisible({ timeout: 15_000 });
+      // 三组都在场再截：少一组说明拍的是另一件事（首次类全缺席），不是这个视图的常态。
+      await expect(page.locator("[data-probe='milestones-group']")).toHaveCount(3);
+      await page.waitForTimeout(300);
+      await settleImages(page);
+      await page.screenshot({ path: path.join(OUT_DIR, `${V_MILESTONES}-${theme}${suffix}.png`) });
     });
   }
 });
