@@ -64,6 +64,14 @@ by tooling, **they are upheld by review** — match the surrounding file.
   by tests, so changing them is a code change, not a copy tweak.
 - **Exit conditions stay explicit**: `if (refreshIdRef.current !== requestId) return;`
   rather than letting a stale result land.
+- **When aggregating a "first" or an extreme, compare the value and its label as
+  one pair.** A reduction that keeps only the timestamp (`this.firstSkillAt`) and
+  looks the name up later will happily print `09:10` next to the `09:30` call's
+  name. `features/usage/milestones.ts` keeps a `{ at, detail }` pair
+  (`earlierMoment`) precisely so the winner carries both halves; the same hazard
+  applies to longest/fastest/most-expensive reductions wherever the display
+  needs anything besides the number. Test it by feeding candidates in an order
+  that contradicts their timestamps.
 
 ---
 
