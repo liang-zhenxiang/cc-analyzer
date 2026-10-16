@@ -22,6 +22,7 @@ web/ (React 18 + TypeScript + Vite)
 | `app/` | 应用壳：`AppShell`、`WorkspaceTabs`（会话分析 / 实时监控 两个工作区页）、主题与通知 Provider |
 | `features/sessions/` | 会话分析主功能：仓库读取、JSONL 解析、会话图、日志行模型、筛选、耗时树、报告生成 |
 | `features/monitor/` | 实时监控页：默认的原生「脉搏」视图（活跃会话 / 速率曲线 / 5 小时窗口 / 上下文填充）+「外部仪表盘」子视图（显式打开后才探测）+ 浮窗消息协议 |
+| `features/usage/` | 用量总览：渐进扫描（`useUsageOverview`）、区间聚合与计费窗口、消耗日历与一年洞察、工具普查、错误聚合、**里程碑**（全历史的三层可核对事实）与快照导出 |
 | `features/settings/` | 分析预算（阈值）的持久化与设置面板 |
 | `lib/` | 通用工具（路径、格式化、JSON 序列化、剪贴板） |
 | `components/` | 跨 feature 的共享组件 |
@@ -82,6 +83,14 @@ meta-cache-v2.json（标题缓存）        run_lines(claude CLI) ──▶ Mark
 `listSessions` 一律把它们标成 `pending`、拿不到缓存标题；活跃会话的标题必须自己
 `readHead` 现取（细节见 `.trellis/spec/frontend/hook-guidelines.md`）。
 
+「里程碑」（Issue #214）同样不新写数学，也不新增扫描：
+`useUsageOverview().inputs → milestonesOf(inputs, now)` 一次遍历折成
+`tiers` / `firsts` / `records` 三层清单，`MilestonesPanel` 只负责排版（达成与否、
+到下一档的距离、哪几枚缺席全部由纯逻辑层判好）。它的口径是**全历史**，与页面上的
+7 / 30 / 90 天区间正交，所以那个 `useMemo` 的依赖里没有 `days`——切档既不重扫，
+也不改变任何一个数字；这一点正是「同一概念不许有两个窗口」的落点（六句一年洞察是
+滚动 365 天口径，里程碑因此刻意不做连胜 / 最贵一天 / 活跃占比）。
+
 ## 设计取舍（含被否掉的方案）
 
 - **静态嵌入前端，不配 devUrl。** 日常开发用「`npm --prefix web run build`
@@ -110,6 +119,11 @@ meta-cache-v2.json（标题缓存）        run_lines(claude CLI) ──▶ Mark
   让整个面板空白。
 - **时长口径以「时间区间并集」为准**，不做简单求和：嵌套子会话会被重复
   计数，轮间等待单独成行而不是摊进工具耗时。
+- **里程碑不做成本类。** 里程碑的承诺是「每枚都能从本机日志复算」，而累计成本读的是
+  内嵌定价快照——一张**会过期**的表；「定价未知的天不计入」还会造成用户看不见的低估，
+  让同一屏上的数字有**不同的完备性**（token 类 100% 完备，成本类不是）。它已经由
+  KPI「估算成本」（带来源徽章与快照日期）与日历色深承载，所以 `milestonesOf` 的七枚
+  阶梯全部只读日志本身（`totalsSum` / 事件计数 / 去重集合），不发第二枚金额徽章。
 - **前端工具链跟随最新主版本，React 暂留 18。** vite / vitest / plugin-react
   只影响开发与构建：安全补丁与构建速度的收益明确，又被测试和 CI 兜住，
   一次升到位成本最低。React 19 则要求 `@types` 成套更换并适配 cleanup

@@ -127,6 +127,13 @@ token 消耗趋势与分布，每个数字带来源徽章。
   最长连胜 / 当前连胜 / 最贵一天 / 最长空白 / 活跃占比 / 本月环比六句实事（口径与
   格子同档，定价未知的天不计入有消耗），句内日期可点击下钻一日回望。窗口固定滚动
   365 天、不随区间选择器变化；窄窗口下横向滚动收在日历内部。
+- **里程碑** —— 「用量总览」的第三档，把**全历史**用量折成三组可核对的事实：**首次**
+  （首次会话 / 压缩 / 子 agent / skill / MCP 工具）、**累计阶梯**（累计 token / 会话数 /
+  消息数 / 项目数 / 模型数 / 压缩次数 / 工具种类数，档位是写死的常量）、**单会话记录**
+  （最多 token / 最长时长 / 最多压缩次数）。已达成项给证据——数字、日期、点得进去的那个
+  会话；未达成项给**诚实的距离**，不是灰色剪影、不是锁。**每枚都必须能从日志复算**，
+  所以累计成本（读的是一张会过期的定价表）刻意不做，它由 KPI「估算成本」与日历色深承担。
+  与另外两档共用同一次全历史扫描，零新增 I/O、零新增权限。
 - **会话浏览** —— 按 时间线（今天 / 昨天 / 本周 / 本月 / 更早）与项目分组，
   标题增量扫描、相对时间显示。
 - **本地归档** —— 在 Claude Code 清理（约 30 天）之前把会话复制进应用自己的
@@ -267,10 +274,11 @@ package.json   构建工具链（Tauri CLI）与打包入口
 
 路线图跟踪开放 Issue，每条都链到对应的 Issue。
 
-- [ ] **本地归档仓库** —— 越过 Claude Code 的自动清理保存会话，支持跨月 / 跨年分析（[#70](https://github.com/liang-zhenxiang/cc-analyzer/issues/70)）
+- [x] **本地归档仓库** —— 越过 Claude Code 的自动清理保存会话，支持跨月 / 跨年分析（v0.12.0 已发布；跨机器搬运的加密归档包在 v0.16.0）（[#70](https://github.com/liang-zhenxiang/cc-analyzer/issues/70)）
 - [x] **结构化导出** —— CSV 与单文件 HTML（v0.11.0 已发布）（[#71](https://github.com/liang-zhenxiang/cc-analyzer/issues/71)）
-- [ ] **实时脉搏** —— 「实时监控」标签做成原生视图：活跃会话、token 速率、5 小时窗口燃烧率、上下文填充曲线，并能常驻 420×620 浮窗（[#203](https://github.com/liang-zhenxiang/cc-analyzer/issues/203)）
-- [ ] **无障碍与性能细节包** —— ANSI 渲染、虚拟滚动、字号缩放（[#73](https://github.com/liang-zhenxiang/cc-analyzer/issues/73)）
+- [x] **实时脉搏** —— 「实时监控」标签做成原生视图：活跃会话、token 速率、5 小时窗口燃烧率、上下文填充曲线，并能常驻 420×620 浮窗（v0.26.0-beta.1 已发布）（[#203](https://github.com/liang-zhenxiang/cc-analyzer/issues/203)）
+- [x] **无障碍与性能细节包** —— ANSI 渲染、虚拟滚动、字号缩放（[#73](https://github.com/liang-zhenxiang/cc-analyzer/issues/73)）
+- [ ] **里程碑** —— 每枚徽章都必须能从日志复算：首次、累计阶梯与单会话记录，每枚给出证据数字与可点开的会话 / 那一天（[#214](https://github.com/liang-zhenxiang/cc-analyzer/issues/214)）
 - [ ] **前端升级到 React 19** —— 需与 `@types/react` / `@types/react-dom` 成套迁移（[#19](https://github.com/liang-zhenxiang/cc-analyzer/issues/19)）
 
 有想法？欢迎
