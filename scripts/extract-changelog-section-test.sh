@@ -23,6 +23,12 @@ readonly TARGET="${SCRIPT_DIR}/extract-changelog-section.sh"
 readonly FIXTURE_DIR="${SCRIPT_DIR}/tests/fixtures/changelog-section"
 readonly REAL_CHANGELOG="${SCRIPT_DIR}/../CHANGELOG.md"
 
+# 单个用例的秒级上限。正常实现是毫秒级（整份套件 <1 s），所以这个值给得
+# 很宽松——它要抓的不是「慢」，是「二次复杂度」，那种情况差着好几个数量级。
+readonly CASE_BUDGET=20
+TMP_OUT="$(mktemp)"
+trap 'rm -f "$TMP_OUT"' EXIT
+
 # 用例清单。显式列出而不是 glob：每条都要有人写清它覆盖什么。
 # 「清单里没有、目录里有」会在下面被断言为失败——静默漏跑的夹具看起来像是覆盖到了。
 declare -a CASES=(
@@ -33,6 +39,7 @@ declare -a CASES=(
   "stable-wins:版本段与先行版条目同时存在时，以版本段为准"
   "prefix-guard:找 1.3.0-beta.1 不该命中 1.3.0-beta.10"
   "missing:两处都没有 → 空输出、退出码 3"
+  "large-multibyte:13 KB 中文段落的「非空判定」不会退化成二次复杂度（#210）"
 )
 
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
@@ -57,6 +64,39 @@ printf '%s' "$C_RESET"
 PASSED=0
 FAILED=0
 declare -a FAILED_NAMES=()
+
+# 「这段是不是只有空白」。理由与 `extract-changelog-section.sh` 里同名函数一致：
+# bash 3.2 在 `"${var//[[:space:]]/}"` 上对多字节是**二次**的（30 KB 要两分钟），
+# 而这里将来可能比对更大的夹具输出，所以从一开始就不要写那种形式。
+has_non_blank() {
+  grep -q '[^[:space:]]' <<<"$1"
+}
+
+# 便携超时：macOS 自带**没有** `timeout(1)`（那是 GNU coreutils），而
+# `perl`/`gtimeout` 又要求额外安装。这里用轮询实现，够用且零依赖。
+#
+# 为什么这个测试**必须**有界：被测的是一段 bash 展开，它在 bash 3.2 上对多字节
+# 是**二次**复杂度——不是「慢一点」，而是 30 KB 要两分钟、59 KB 要十几分钟。
+# 没有上界的话，回归不表现为「失败」，而表现为「CI 卡到超时」，那时看到的是
+# 「作业超时」而不是「哪个用例慢了」，排查要绕远路。
+#
+# 用法：run_bounded <秒> <输出文件> <命令...>
+run_bounded() {
+  local budget="$1" out="$2"; shift 2
+  "$@" >"$out" 2>/dev/null &
+  local pid=$! waited=0
+  while kill -0 "$pid" 2>/dev/null; do
+    if (( waited >= budget * 10 )); then
+      kill -9 "$pid" 2>/dev/null
+      wait "$pid" 2>/dev/null
+      return 124                      # 与 GNU timeout 的约定一致
+    fi
+    sleep 0.1
+    waited=$((waited + 1))
+  done
+  wait "$pid" 2>/dev/null
+  return $?
+}
 
 ok()  { printf '  %s✓%s %s\n' "$C_GREEN" "$C_RESET" "$1"; PASSED=$((PASSED + 1)); }
 bad() { printf '  %s✗%s %s\n' "$C_RED" "$C_RESET" "$1"; FAILED=$((FAILED + 1)); FAILED_NAMES+=("$1"); }
@@ -98,11 +138,16 @@ for spec in "${CASES[@]}"; do
 
   actual=""
   status=0
-  actual="$("$TARGET" "$version" "${FIXTURE_DIR}/${name}.in.md" 2>/dev/null)" || status=$?
+  run_bounded "$CASE_BUDGET" "$TMP_OUT" "$TARGET" "$version" "${FIXTURE_DIR}/${name}.in.md" || status=$?
+  actual="$(cat "$TMP_OUT")"
+  if [[ "$status" == "124" ]]; then
+    bad "${name}：${description}（超过 ${CASE_BUDGET} 秒上限——疑似 bash 展开的二次复杂度回归）"
+    continue
+  fi
   expected="$(cat "${FIXTURE_DIR}/${name}.expected.md")"
 
-  if [[ -z "${expected//[[:space:]]/}" ]]; then
-    if [[ "$status" == "3" && -z "${actual//[[:space:]]/}" ]]; then
+  if ! has_non_blank "$expected"; then
+    if [[ "$status" == "3" ]] && ! has_non_blank "$actual"; then
       ok "${name}：${description}"
     else
       bad "${name}：${description}（期望空输出 + 退出码 3，实际退出码 ${status}、输出 ${#actual} 字符）"
@@ -122,14 +167,17 @@ done
 # 真实 CHANGELOG 冒烟：夹具是我想象的形状，真文件才是它每天要读的东西。
 # 取一个**不会再变**的稳定版（0.9.0）与当前最新先行版（0.13.0-beta.1）各跑一次。
 # ---------------------------------------------------------------------------
-if real_stable="$("$TARGET" 0.9.0 "$REAL_CHANGELOG" 2>/dev/null)" && [[ -n "$real_stable" ]]; then
+real_stable=""
+if run_bounded "$CASE_BUDGET" "$TMP_OUT" "$TARGET" 0.9.0 "$REAL_CHANGELOG" &&
+  real_stable="$(cat "$TMP_OUT")" && [[ -n "$real_stable" ]]; then
   ok "真实文件：稳定版 0.9.0 能抽出段落（$(printf '%s\n' "$real_stable" | wc -l | tr -d ' ') 行）"
 else
   bad "真实文件：稳定版 0.9.0 抽不到段落"
 fi
 
-if real_beta="$("$TARGET" 0.13.0-beta.1 "$REAL_CHANGELOG" 2>/dev/null)" &&
-  [[ "$real_beta" == *"先行版 v0.13.0-beta.1"* ]]; then
+real_beta=""
+if run_bounded "$CASE_BUDGET" "$TMP_OUT" "$TARGET" 0.13.0-beta.1 "$REAL_CHANGELOG" &&
+  real_beta="$(cat "$TMP_OUT")" && [[ "$real_beta" == *"先行版 v0.13.0-beta.1"* ]]; then
   ok "真实文件：先行版 0.13.0-beta.1 抽到的是那条主题说明（不是降级）"
 else
   bad "真实文件：先行版 0.13.0-beta.1 没抽到主题说明"
