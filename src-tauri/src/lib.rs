@@ -1318,6 +1318,81 @@ mod gui_probe {
   }
   facts.milestones = milestoneFacts;
 
+  /* 「监控台」（Issue #225 / Round Z）：根节点与四态、四枚读数键序、24 小时
+     三态、项目行、事件行与可见详情。锚点一律用组件自带的 data-probe 稳定
+     属性，**禁裸标签选择器**（同脉搏 / 里程碑的教训）。
+
+     future 小时的填充必须单独数：`data-phase='future'` 的槽里若出现
+     `monitor-console-hour-fill`，界面就把「尚未发生」画成了「没有发生」。
+     这是一条布尔几何事实，不能拿未来柱高为 0 代替。 */
+  var monitorConsoleFacts = {
+    page: false,
+    state: null,
+    container: null,
+    readouts: { count: 0, keys: [] },
+    hours: {
+      count: 0,
+      slots: 0,
+      phases: { past: 0, current: 0, future: 0 },
+      future_fills: 0
+    },
+    projects: { count: 0 },
+    events: { count: 0, nonempty: 0 }
+  };
+  var monitorConsolePage = document.querySelector("[data-probe='monitor-console-page']");
+  if (monitorConsolePage) {
+    monitorConsoleFacts.page = true;
+    monitorConsoleFacts.state = monitorConsolePage.getAttribute('data-state');
+    monitorConsoleFacts.container = boxOf(monitorConsolePage);
+
+    var consoleReadoutNodes =
+      document.querySelectorAll("[data-probe='monitor-console-readout']");
+    var consoleReadoutKeys = [];
+    for (var cr = 0; cr < consoleReadoutNodes.length; cr++) {
+      consoleReadoutKeys.push(consoleReadoutNodes[cr].getAttribute('data-readout') || '');
+    }
+    monitorConsoleFacts.readouts = {
+      count: consoleReadoutNodes.length,
+      keys: consoleReadoutKeys
+    };
+
+    var consoleHourNodes =
+      document.querySelectorAll("[data-probe='monitor-console-hour']");
+    for (var ch = 0; ch < consoleHourNodes.length; ch++) {
+      var phase = consoleHourNodes[ch].getAttribute('data-phase') || '';
+      if (phase === 'past' || phase === 'current' || phase === 'future') {
+        monitorConsoleFacts.hours.phases[phase] += 1;
+      }
+    }
+    monitorConsoleFacts.hours.count = consoleHourNodes.length;
+    monitorConsoleFacts.hours.slots =
+      document.querySelectorAll("[data-probe='monitor-console-hour-slot']").length;
+    var futureHourFillSelector =
+      "[data-probe='monitor-console-hour'][data-phase='future'] [data-probe='monitor-console-hour-fill']";
+    monitorConsoleFacts.hours.future_fills =
+      document.querySelectorAll(futureHourFillSelector).length;
+
+    monitorConsoleFacts.projects.count =
+      document.querySelectorAll("[data-probe='monitor-console-project-row']").length;
+
+    var consoleEventNodes =
+      document.querySelectorAll("[data-probe='monitor-console-event-row']");
+    var consoleEventNonempty = 0;
+    for (var ce = 0; ce < consoleEventNodes.length; ce++) {
+      var eventText = (
+        consoleEventNodes[ce].innerText ||
+        consoleEventNodes[ce].textContent ||
+        ''
+      ).replace(/\s+/g, ' ').trim();
+      if (eventText.length > 0) consoleEventNonempty += 1;
+    }
+    monitorConsoleFacts.events = {
+      count: consoleEventNodes.length,
+      nonempty: consoleEventNonempty
+    };
+  }
+  facts.monitor_console = monitorConsoleFacts;
+
   return JSON.stringify(facts);
 })();"##;
 
@@ -2166,6 +2241,25 @@ mod gui_probe {
             // 把「阶梯卡的两态」与「锚点卡的无填充」分开，字段名必须留着。
             assert!(PROBE_JS.contains("track: !!milestoneTrack"));
             assert!(PROBE_JS.contains("facts.milestones = milestoneFacts"));
+        }
+
+        #[test]
+        fn the_probe_reports_the_monitor_console_view_facts() {
+            // 「监控台」（Issue #225 / Round Z）：根节点与四态、四枚读数键序、
+            // 24 小时三态、项目行、事件行与可见详情。锚点一律 data-probe，
+            // **禁裸标签选择器**；尤其 future 小时必须用组合选择器证明槽内
+            // **没有任何填充**，不能把「未来」画成「0 token」。
+            assert!(PROBE_JS.contains("[data-probe='monitor-console-page']"));
+            assert!(PROBE_JS.contains("[data-probe='monitor-console-readout']"));
+            assert!(PROBE_JS.contains("[data-probe='monitor-console-hour']"));
+            assert!(PROBE_JS.contains("[data-probe='monitor-console-hour-slot']"));
+            assert!(PROBE_JS.contains("[data-probe='monitor-console-project-row']"));
+            assert!(PROBE_JS.contains("[data-probe='monitor-console-event-row']"));
+            assert!(PROBE_JS.contains(
+                "[data-probe='monitor-console-hour'][data-phase='future'] \
+                 [data-probe='monitor-console-hour-fill']"
+            ));
+            assert!(PROBE_JS.contains("facts.monitor_console = monitorConsoleFacts"));
         }
 
         #[test]

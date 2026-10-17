@@ -7,14 +7,16 @@ import { ErrorState } from "../../components/ErrorState";
 import { Icon } from "../../components/Icon";
 import { SegmentedControl, type SegmentedItem } from "../../components/SegmentedControl";
 import { isLocalMonitorOrigin } from "./monitorMessages";
+import { MonitorConsolePage } from "./MonitorConsolePage";
 import { PulsePage } from "./PulsePage";
 import styles from "./MonitorPage.module.css";
 
-/** 「实时监控」标签下的两个子视图（R1）：原生脉搏是默认档。 */
-export type MonitorView = "pulse" | "dashboard";
+/** 「实时监控」标签下的三个子视图：原生脉搏是默认档。 */
+export type MonitorView = "pulse" | "console" | "dashboard";
 
 const VIEW_ITEMS: SegmentedItem<MonitorView>[] = [
   { value: "pulse", label: "脉搏" },
+  { value: "console", label: "监控台" },
   { value: "dashboard", label: "外部仪表盘" }
 ];
 
@@ -22,7 +24,7 @@ const VIEW_ITEMS: SegmentedItem<MonitorView>[] = [
  * 「实时监控」标签的受控分段容器（design.md §6）。
  *
  * 子视图状态由 `AppShell` 持有（浮窗时要靠它判断该不该收顶栏），这里只
- * 负责把两档渲染出来。分段控件常驻，`dashboard` 档才挂载外部仪表盘的状态机
+ * 负责把三档渲染出来。分段控件常驻，`dashboard` 档才挂载外部仪表盘的状态机
  * ——**未挂载就不调用 `monitor_port` / `monitor_ping`**（R1 的「原生视图挂载时
  * 不做任何探测」）。
  */
@@ -55,6 +57,8 @@ export function MonitorPage({
       ) : null}
       {view === "pulse" ? (
         <PulsePage compact={compact} onEnterFloat={onEnterFloat} onOpenSession={onOpenSession} />
+      ) : view === "console" ? (
+        <MonitorConsolePage onOpenSession={onOpenSession} />
       ) : (
         <ExternalDashboard onEnterFloat={onEnterFloat} />
       )}

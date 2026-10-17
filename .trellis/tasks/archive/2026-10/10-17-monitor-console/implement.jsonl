@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端分层入口"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "新文件落点"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "组件与 CSS Module 约定"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "分段状态与 localStorage"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "严格 TS 约定"}
+{"file": ".trellis/spec/testing/index.md", "reason": "三层分工"}
+{"file": ".trellis/spec/testing/unit-tests.md", "reason": "单元与夹具"}
+{"file": ".trellis/spec/testing/e2e-tests.md", "reason": "桩与截图矩阵"}
+{"file": ".trellis/spec/testing/gui-tests.md", "reason": "真机门禁与探针"}
+{"file": ".trellis/spec/testing/pitfalls.md", "reason": "已踩过的坑"}
+{"file": ".trellis/spec/guides/collaboration-workflow.md", "reason": "分工与红线"}

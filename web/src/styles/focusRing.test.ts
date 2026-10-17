@@ -104,25 +104,27 @@ describe("焦点环的几何只走令牌", () => {
    *   `role="button"` 的 div，因为出血点徽章是真按钮而按钮不能嵌按钮，改完得自带焦点环）
    *   + 行内出血点徽章（真按钮，正偏移）；
    *   Round Y 的里程碑补 1 条：首次 / 记录类的证据行（整行按钮，全宽控件，负偏移）；
-   * - `outline-offset: var(--focus-ring-offset)` 18 条 = 上面 29 条里偏移为 1px 的那些；
-   * - `outline-offset: var(--focus-ring-inset)` 9 条 = SearchPalette 输入框、
+   *   Round Z 的监控台补 1 条：项目行与事件行共用一个 `:focus-visible` 规则
+   *   （同一套全宽控件画法，负偏移）；
+   * - `outline-offset: var(--focus-ring-offset)` 18 条 = 上面 30 条里偏移为 1px 的那些；
+   * - `outline-offset: var(--focus-ring-inset)` 10 条 = SearchPalette 输入框、
    *   ChangedFilesView 三条、ErrorEventList 行、时间线整行按钮（全宽控件，正偏移
    *   的环会被行区的 overflow 裁掉）、脉搏活跃会话行（同上）、Round X 的会话行本体（同上）、
-   *   Round Y 的里程碑证据行（同上）；
+   *   Round Y 的里程碑证据行（同上）、Round Z 的监控台项目行 / 事件行（同上）；
    * - 焦点竖条 7 条 = 4 条纯竖条 + 3 条与环并存的竖条。
-   * 所以消费了令牌的规则共 34 条（30 条 outline 规则 + 4 条纯竖条）。
+   * 所以消费了令牌的规则共 35 条（31 条 outline 规则 + 4 条纯竖条）。
    */
-  it("令牌被 34 条规则消费，环宽度 30 处、偏移 18 + 9 处、焦点竖条 7 处", () => {
+  it("令牌被 35 条规则消费，环宽度 31 处、偏移 18 + 10 处、焦点竖条 7 处", () => {
     const count = (pattern: RegExp) => ALL_SOURCE.match(pattern)?.length ?? 0;
     // 只数「消费」的规则：tokens.css 里那几块是**声明**（`--focus-ring-width: 2px;`），
     // 不含 `var(...)`，不能被算进消费方。
     const consumingRules = ALL_RULES.filter((rule) => /var\(--focus-ring-/.test(rule.body));
 
-    expect(count(/outline(?:-width)?:\s*var\(--focus-ring-width\)/g)).toBe(30);
+    expect(count(/outline(?:-width)?:\s*var\(--focus-ring-width\)/g)).toBe(31);
     expect(count(/outline-offset:\s*var\(--focus-ring-offset\)/g)).toBe(18);
-    expect(count(/outline-offset:\s*var\(--focus-ring-inset\)/g)).toBe(9);
+    expect(count(/outline-offset:\s*var\(--focus-ring-inset\)/g)).toBe(10);
     expect(count(/inset\s+var\(--focus-ring-width\)\s+0\s+0\s+var\(--accent\)/g)).toBe(7);
-    expect(consumingRules.length).toBe(34);
+    expect(consumingRules.length).toBe(35);
   });
 });
 
