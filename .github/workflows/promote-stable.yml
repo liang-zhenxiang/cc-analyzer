@@ -153,22 +153,16 @@ jobs:
           open("src-tauri/Cargo.lock", "w").write(updated)
           PYLOCK
 
-          # CHANGELOG：[Unreleased] 归档为 [X.Y.Z] - 今天，可带主题句
+          # CHANGELOG：把先行版登记晋升为稳定版登记。
+          #
+          # 两种登记形态（先行版发布时就归档成 `## [X.Y.Z-beta.N]` 段 / 条目一直
+          # 积压在 `[Unreleased]`）与它们的边界收在 scripts/promote-changelog.sh
+          # 里，并有一份夹具自测（CI 的「晋升归档自测」）。这段逻辑原先内联在
+          # 这里，只会做后一种形态——规则改成「先行版就归档」之后，`[Unreleased]`
+          # 成了空壳，于是它插出来的稳定版段落**只有标题、没有条目**，而退出码
+          # 是 0（发布说明静默丢内容）。
           today="$(date +%Y-%m-%d)"
-          python3 - "$stable" "$today" "$THEME" <<'PY'
-          import sys
-
-          stable, today, theme = sys.argv[1], sys.argv[2], sys.argv[3]
-          text = open("CHANGELOG.md").read()
-          marker = "## [Unreleased]\n"
-          assert marker in text, "CHANGELOG 缺少 [Unreleased] 段"
-          heading = f"\n## [{stable}] - {today}\n"
-          if theme:
-              heading += f"\n本轮主题：{theme}\n"
-          # 归档：在 Unreleased 段后插入新版本标题，Unreleased 保留为空壳
-          text = text.replace(marker, marker + heading, 1)
-          open("CHANGELOG.md", "w").write(text)
-          PY
+          ./scripts/promote-changelog.sh "$stable" "$BETA_TAG" "$today" "$THEME" CHANGELOG.md
 
       - name: 提交并打 tag
         env:
