@@ -251,6 +251,14 @@ say why. Every screen, in both light and dark themes, is archived in
   feature round), check on demand and install with one click. Packages are
   signature-verified, and a check is a single read of the GitHub releases
   page — no data is uploaded.
+- **Monitor console** — a native, local-first dashboard for **today**: the
+  current 5-hour window, today's tokens, active sessions and compactions; a
+  24-hour activity band whose current hour is shown as incomplete and whose
+  future hours stay empty; projects ranked by their measured 15-minute rate;
+  and the latest 12 compaction, error or session-start events. Click a project
+  to filter the event stream, then click an event to open its session. No
+  external service and no network request; the external dashboard remains an
+  optional third sub-view.
 - **Realtime monitor** — opens on a native **live pulse** that reads your
   local logs: active sessions, the last 60 minutes of token rate, the current
   5-hour window, and context fill. The external monitoring dashboard you run
@@ -378,6 +386,11 @@ The roadmap tracks open issues; each item links to the issue that owns it.
   cumulative tiers and single-session records, each shown with its evidence
   and a link to the session or day that earned it
   ([#214](https://github.com/liang-zhenxiang/cc-analyzer/issues/214))
+- [ ] Monitor console — replace the external dashboard that needs a separate
+  local service with a built-in native dashboard: the current window and
+  today's readouts, a per-project heat board, a 24-hour activity band and a
+  cross-session event stream
+  ([#225](https://github.com/liang-zhenxiang/cc-analyzer/issues/225))
 - [ ] Frontend upgrade to React 19, moving `@types/react` / `@types/react-dom`
   together
   ([#19](https://github.com/liang-zhenxiang/cc-analyzer/issues/19))

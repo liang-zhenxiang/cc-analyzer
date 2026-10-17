@@ -306,6 +306,10 @@ export function usePulseFeed(): PulseFeedResult {
             records: entry.records,
             projectLabel: session.projectLabel,
             projectPath: session.cwd,
+            // 压缩事件**必须跟着记录一起交出去**：`ConsoleReport` 的「今天压缩」
+            // 与事件流都从这里读。漏掉它不会报错，只会让监控台的两个数恒为 0
+            // ——正是 e2e 抓到的那个缺陷。
+            compactEvents: entry.compactEvents,
             session
           });
 
