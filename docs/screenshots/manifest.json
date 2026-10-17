@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-16T08:17:51.176Z",
-  "commit": "7455811+dirty",
+  "generatedAt": "2026-10-17T03:11:37.757Z",
+  "commit": "ad39106+dirty",
   "dirty": true,
   "files": [
     "analyzer-empty-dark-webkit.png",
@@ -55,6 +55,10 @@
     "milestones-dark.png",
     "milestones-light-webkit.png",
     "milestones-light.png",
+    "monitor-console-dark-webkit.png",
+    "monitor-console-dark.png",
+    "monitor-console-light-webkit.png",
+    "monitor-console-light.png",
     "monitor-dark-webkit.png",
     "monitor-dark.png",
     "monitor-light-webkit.png",
