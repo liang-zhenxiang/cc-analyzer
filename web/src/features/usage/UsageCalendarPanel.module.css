@@ -320,6 +320,18 @@
   gap: var(--sp-2) var(--sp-3);
 }
 
+/* 部分会话定价未知时的可见提示（Issue #195）。
+   它放在日摘要网格**外面**：塞进网格会多占一格、把六项读数挤歪。
+   颜色用 `--text-secondary` 而不是 `--text-tertiary`——展开区的底色是
+   `--bg-inset`，而 `--text-tertiary` 在普通浅色的 inset 上只有 4.30（低于正文
+   门槛 4.5）；secondary 在四个主题下是 7.08 / 10.27 / 12.65 / 15.31。 */
+.unknownCostNote {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
 .summaryItem {
   display: grid;
   min-width: 0;

@@ -506,6 +506,64 @@ describe("UsageCalendarPanel · 一日回望（Round V2）", () => {
     expect(itemOf("cost").querySelectorAll("[aria-label]")).toHaveLength(1);
   });
 
+  it("部分会话定价未知：日摘要带可见提示，title 与徽章也写明（Issue #195）", async () => {
+    const user = userEvent.setup();
+    // 同一天两条记录：一条已定价（sonnet）、一条模型不在定价快照里。
+    // `costUsd` 只统计已知部分，所以屏幕上必须标出来——否则就是静默偏低。
+    const inputs = [
+      {
+        records: [
+          record(YESTERDAY + at(9, 0) * 1000, {
+            model: "claude-sonnet-4-5",
+            usage: { inputTokens: 100_000 }
+          }),
+          record(YESTERDAY + at(10, 0) * 1000, {
+            model: "gpt-unknown-9",
+            usage: { inputTokens: 100_000 }
+          })
+        ],
+        projectLabel: "-repo-cal",
+        projectPath: "/repo/cal",
+        session: metaOf("/sessions/unknown.jsonl", "含未知模型的一天")
+      }
+    ];
+
+    render(<UsageCalendarPanel inputs={inputs} now={NOW} />);
+    // 先在**天格**上找到这一天：格子与摘要必须同时带这条标记（Issue #195 的
+    // 对照要求——同一个信息不能在「看得见的格子」标了、在「点开后的摘要」没标）。
+    const cell = document.querySelector(
+      '[data-probe="calendar-day"][aria-label*="部分会话未知价"]'
+    ) as HTMLElement | null;
+    expect(cell).not.toBeNull();
+    await user.click(cell!);
+
+    // 可见提示：不是只进 hover。
+    const note = document.querySelector('[data-probe="day-summary-unknown-cost"]');
+    expect(note).not.toBeNull();
+    expect(note).toHaveTextContent("部分会话定价未知，当日成本为已知部分的合计。");
+
+    // title 与徽章的可访问名也带这条限定（读屏与悬停都拿得到）。
+    expect(itemOf("cost")).toHaveAttribute(
+      "title",
+      expect.stringContaining("部分会话定价未知，此成本为已知部分的合计")
+    );
+    expect(
+      itemOf("cost").querySelector('[aria-label*="部分会话未知价"]')
+    ).not.toBeNull();
+  });
+
+  it("全部会话都已定价：不渲染未知提示（这一行不能变成常驻噪声）", async () => {
+    const user = userEvent.setup();
+    render(<UsageCalendarPanel inputs={dayReviewInputs()} now={NOW} />);
+    await user.click(dayButton(DAY_REVIEW_LABEL));
+
+    expect(document.querySelector('[data-probe="day-summary-unknown-cost"]')).toBeNull();
+    expect(itemOf("cost")).not.toHaveAttribute(
+      "title",
+      expect.stringContaining("部分会话定价未知")
+    );
+  });
+
   it("展开区脚注逐字（活跃跨度口径 / 占比分母 / 成本估算 / 项目色档）", async () => {
     const user = userEvent.setup();
     render(<UsageCalendarPanel inputs={dayReviewInputs()} now={NOW} />);

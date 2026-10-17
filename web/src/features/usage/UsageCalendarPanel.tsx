@@ -234,6 +234,13 @@ function SummaryItem({
 function DaySummaryRow({ summary }: { summary: DaySummary }) {
   const costText = formatUsd(summary.costUsd);
   const tokenText = formatTokenCount(summary.tokens);
+  // 「部分会话定价未知」是这一天成本的一条限定，不是装饰：有未命中定价快照的模型时，
+  // `costUsd` 只统计了已知部分，屏幕上不标出来就是**静默偏低**。天格（`cellLabelOf`）
+  // 已经标了，展开区的摘要也必须标——Issue #195。提示做成一行**可见**小字而不是
+  // 只进 `title`：只进 hover 的话，不悬停的用户看到的仍是一个没有限定的数字。
+  const unknownCostNote = summary.hasUnknownCost
+    ? "；部分会话定价未知，此成本为已知部分的合计"
+    : "";
   const hasSpan = summary.firstAt !== null && summary.lastAt !== null;
   const spanValue = hasSpan
     ? `${formatClock(summary.firstAt!)}–${formatClock(summary.lastAt!)}`
@@ -248,53 +255,62 @@ function DaySummaryRow({ summary }: { summary: DaySummary }) {
     : "当天没有可归因的模型用量";
 
   return (
-    <div className={styles.daySummary} data-probe="day-summary">
-      <SummaryItem
-        itemKey="cost"
-        label="当日消耗"
-        title={`当日估算成本 ${costText}（定价快照 ${PRICING_AS_OF}）；token 合计 ${tokenText}，读自本机日志`}
-        provenance="estimated"
-        detail={`成本按定价快照 ${PRICING_AS_OF}`}
-        value={costText}
-        sub={` · ${tokenText} tok`}
-      />
-      <SummaryItem
-        itemKey="sessions"
-        label="会话数"
-        title="当天有记录的会话数"
-        provenance="logged"
-        value={summary.sessions.toLocaleString("en-US")}
-      />
-      <SummaryItem
-        itemKey="messages"
-        label="消息数"
-        title="当天 user / assistant 记录的条数（不含压缩摘要）"
-        provenance="logged"
-        value={summary.messages.toLocaleString("en-US")}
-      />
-      <SummaryItem
-        itemKey="span"
-        label="活跃跨度"
-        title={spanTitle}
-        provenance="logged"
-        value={spanValue}
-        mono
-      />
-      <SummaryItem
-        itemKey="model"
-        label="最常用模型"
-        title={modelTitle}
-        provenance="logged"
-        value={summary.topModel ? formatModelId(summary.topModel.id) : "—"}
-      />
-      <SummaryItem
-        itemKey="projects"
-        label="涉及项目"
-        title="当天涉及的项目数（按项目标签去重）"
-        provenance="logged"
-        value={summary.projects.toLocaleString("en-US")}
-      />
-    </div>
+    <>
+      <div className={styles.daySummary} data-probe="day-summary">
+        <SummaryItem
+          itemKey="cost"
+          label="当日消耗"
+          title={`当日估算成本 ${costText}（定价快照 ${PRICING_AS_OF}）${unknownCostNote}；token 合计 ${tokenText}，读自本机日志`}
+          provenance="estimated"
+          detail={`成本按定价快照 ${PRICING_AS_OF}${
+            summary.hasUnknownCost ? "；部分会话未知价" : ""
+          }`}
+          value={costText}
+          sub={` · ${tokenText} tok`}
+        />
+        <SummaryItem
+          itemKey="sessions"
+          label="会话数"
+          title="当天有记录的会话数"
+          provenance="logged"
+          value={summary.sessions.toLocaleString("en-US")}
+        />
+        <SummaryItem
+          itemKey="messages"
+          label="消息数"
+          title="当天 user / assistant 记录的条数（不含压缩摘要）"
+          provenance="logged"
+          value={summary.messages.toLocaleString("en-US")}
+        />
+        <SummaryItem
+          itemKey="span"
+          label="活跃跨度"
+          title={spanTitle}
+          provenance="logged"
+          value={spanValue}
+          mono
+        />
+        <SummaryItem
+          itemKey="model"
+          label="最常用模型"
+          title={modelTitle}
+          provenance="logged"
+          value={summary.topModel ? formatModelId(summary.topModel.id) : "—"}
+        />
+        <SummaryItem
+          itemKey="projects"
+          label="涉及项目"
+          title="当天涉及的项目数（按项目标签去重）"
+          provenance="logged"
+          value={summary.projects.toLocaleString("en-US")}
+        />
+      </div>
+      {summary.hasUnknownCost ? (
+        <p className={styles.unknownCostNote} data-probe="day-summary-unknown-cost">
+          部分会话定价未知，当日成本为已知部分的合计。
+        </p>
+      ) : null}
+    </>
   );
 }
 
