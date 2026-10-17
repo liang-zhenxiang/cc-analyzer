@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { test, expect, calendarScenario } from "./fixtures";
+import { test, expect, calendarScenario, calendarUnknownCostScenario } from "./fixtures";
 
 /**
  * Issue #192「一日回望」的端到端覆盖：日历下钻展开区的日摘要 + 24 小时时间线，
@@ -111,6 +111,34 @@ async function overflowOf(page: Page): Promise<{ doc: number[]; main: number[] }
 function minuteFraction(hour: number, minute: number): number {
   return (hour * 60 + minute) / (24 * 60);
 }
+
+test.describe("一日回望 · 未知定价（Issue #195）", () => {
+  test.use({ scenario: calendarUnknownCostScenario() });
+
+  test("天格与展开区摘要都标「部分会话未知价」，而不是给一个没有限定的数", async ({ page }) => {
+    await openUsage(page);
+
+    // 先在**天格**上找到那一天：格子与摘要必须同时带这条标记。
+    const cell = page.locator(
+      '[data-usage-calendar] [data-probe="calendar-day"][aria-label*="部分会话未知价"]'
+    );
+    await expect(cell).toHaveCount(1);
+    await cell.click();
+
+    // 展开区摘要：可见提示（不是只进 hover）。
+    const note = page.locator('[data-probe="day-summary-unknown-cost"]');
+    await expect(note).toBeVisible();
+    await expect(note).toHaveText("部分会话定价未知，当日成本为已知部分的合计。");
+
+    // 成本格的 title 与徽章的可访问名也带这条限定。
+    const costItem = page.locator('[data-probe="day-summary-item"][data-summary-key="cost"]');
+    await expect(costItem).toHaveAttribute(
+      "title",
+      /部分会话定价未知，此成本为已知部分的合计/
+    );
+    await expect(costItem.locator('[aria-label*="部分会话未知价"]')).toHaveCount(1);
+  });
+});
 
 test.describe("一日回望", () => {
   test.use({ scenario: calendarScenario() });

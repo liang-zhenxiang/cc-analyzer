@@ -611,6 +611,76 @@ export function calendarScenario(overrides: Partial<MockScenario> = {}): MockSce
   return { ...base, files, ...overrides };
 }
 
+/**
+ * 一日回望 × 未知定价（Issue #195）。
+ *
+ * 在 `calendarScenario()` 之上加一个「现在−5」的会话，它的模型**不在定价快照里**：
+ * 这一天的成本只统计已知部分，天格与展开区摘要都必须标「部分会话未知价」。
+ * 单独一个场景而不是改 `calendarScenario()`——后者被大量确定性断言（成本、会话数、
+ * 天格标签）钉着，往里塞一条 unknown 会话会连带打掉一片用例。
+ */
+export function calendarUnknownCostScenario(): MockScenario {
+  const base = calendarScenario();
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const startedAt = todayStart.getTime() - 5 * 24 * 3_600_000 + 10 * 3_600_000;
+
+  const cwd = "/repo/calendar-unknown";
+  const sessionId = "3d2a5442-9c65-4b28-9c30-bb3d1a1f9001";
+  const lines = [
+    {
+      type: "user",
+      sessionId,
+      cwd,
+      timestamp: new Date(startedAt).toISOString(),
+      uuid: "cal-unknown-0",
+      parentUuid: null,
+      isSidechain: false,
+      message: { role: "user", content: "未知定价夹具会话" }
+    },
+    {
+      type: "assistant",
+      sessionId,
+      cwd,
+      timestamp: new Date(startedAt + 90_000).toISOString(),
+      uuid: "cal-unknown-1",
+      parentUuid: "cal-unknown-0",
+      isSidechain: false,
+      message: {
+        id: "cal-unknown-msg-1",
+        role: "assistant",
+        // 已定价模型：这一天的成本是**已知部分**的合计，不是 0。
+        model: "claude-sonnet-4",
+        content: [{ type: "text", text: "已知定价的那条回答" }],
+        usage: { input_tokens: 100_000 }
+      }
+    },
+    {
+      type: "assistant",
+      sessionId,
+      cwd,
+      timestamp: new Date(startedAt + 180_000).toISOString(),
+      uuid: "cal-unknown-2",
+      parentUuid: "cal-unknown-1",
+      isSidechain: false,
+      message: {
+        id: "cal-unknown-msg-2",
+        role: "assistant",
+        // 这个模型刻意不在定价快照里：成本无法折算，但 token 照报。
+        model: "gpt-unknown-9",
+        content: [{ type: "text", text: "未知定价夹具会话的回答" }],
+        usage: { input_tokens: 100_000 }
+      }
+    }
+  ];
+
+  const path = `${HOME}/.claude/projects/${projectDir(cwd)}/${sessionId}.jsonl`;
+  return {
+    ...base,
+    files: { ...base.files, [path]: `${lines.map((line) => JSON.stringify(line)).join("\n")}\n` }
+  };
+}
+
 /** 脉搏夹具的会话模型：与真实日志一致，只是不写 `gitBranch` / `version`。 */
 const PULSE_MODEL = "claude-sonnet-4";
 
