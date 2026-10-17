@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "CSS Module 与令牌"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "完成标准"}
+{"file": ".trellis/spec/testing/e2e-tests.md", "reason": "e2e 与截图"}
+{"file": ".trellis/spec/testing/pitfalls.md", "reason": "已踩过的坑"}
+{"file": ".trellis/spec/guides/collaboration-workflow.md", "reason": "分工与红线"}

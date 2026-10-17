@@ -429,6 +429,14 @@ function cssBodyOf(selector: string): string {
   return bodies.join("\n");
 }
 
+function exactCssBodyOf(selector: string): string {
+  const bodies = cssRulesOf(attributionCss)
+    .filter((item) => item.selectors.includes(selector))
+    .map((item) => item.body);
+  expect(bodies, `样式表里应当恰好有一条 ${selector}`).toHaveLength(1);
+  return bodies[0];
+}
+
 describe("BillingWindowCard · 归因面板样式纪律", () => {
   it("行高由令牌组成，列表 gap 为 0（真机按行数 × 行高对账容器高度）", () => {
     expect(cssBodyOf(".attributionRow")).toMatch(
@@ -474,6 +482,22 @@ describe("BillingWindowCard · 归因面板样式纪律", () => {
     const panelCss = attributionCss.slice(attributionCss.indexOf(".attribution {"));
     expect(panelCss).not.toMatch(/#[0-9a-f]{3,8}\b/i);
     expect(panelCss).not.toMatch(/\brgba?\(/);
+  });
+
+  it("高对比度：两条轨道换内嵌底并补 1px --border-strong 外描边", () => {
+    for (const track of [".weeklyBarTrack", ".attributionBarTrack"]) {
+      const highContrast = exactCssBodyOf(`:global([data-contrast="high"]) ${track}`);
+      expect(highContrast).toContain("background: var(--bg-inset)");
+      expect(highContrast).toContain("box-shadow: 0 0 0 1px var(--border-strong)");
+      expect(highContrast).not.toContain("outline");
+    }
+  });
+
+  it("高对比度：归因余项填充补 1px --border-strong 内描边", () => {
+    const highContrast = exactCssBodyOf(
+      ':global([data-contrast="high"]) .attributionRestFill'
+    );
+    expect(highContrast).toContain("box-shadow: inset 0 0 0 1px var(--border-strong)");
   });
 });
 

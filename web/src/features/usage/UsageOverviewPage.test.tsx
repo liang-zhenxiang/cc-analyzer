@@ -24,6 +24,18 @@ const pageSource = readFileSync(
   "utf8"
 );
 
+const pageCss = readFileSync(
+  resolve(process.cwd(), "src/features/usage/UsageOverviewPage.module.css"),
+  "utf8"
+).replace(/\/\*[\s\S]*?\*\//g, "");
+
+function cssRuleBody(selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp(`${escaped}\\s*\\{([^{}]*)\\}`).exec(pageCss);
+  expect(match, `样式表里找不到 ${selector}`).not.toBeNull();
+  return match![1];
+}
+
 function iso(msAgo: number): string {
   return new Date(Date.now() - msAgo).toISOString();
 }
@@ -137,6 +149,10 @@ afterEach(() => {
 });
 
 describe("UsageOverviewPage", () => {
+  it("页头扫描进度使用 --text-secondary，不在浅底上掉到 4.5 以下", () => {
+    expect(cssRuleBody(".progress")).toContain("color: var(--text-secondary)");
+  });
+
   it("renders the KPI readouts with provenance badges and the snapshot date", async () => {
     const bridges = createUsageBridges({
       [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 6 * 3_600_000),
