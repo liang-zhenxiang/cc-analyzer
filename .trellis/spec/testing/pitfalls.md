@@ -297,3 +297,66 @@ readonly WORK_DIR
 ——不会就换成**几何关系**（等距、包含、可达）或**令牌同源**（两边读同一条令牌）。
 `border-collapse` 的边框归属、亚像素取整、行盒计算都属此类；这类差的「正确值」
 不由我们的代码决定，断言它等于断言引擎本身。
+
+---
+
+## 14. `reuseExistingServer` 会把**别人的**服务当成自己的 webServer
+
+**现象**：Round W 跑全量 e2e，**308 条全红**、只有 2 条通过，报错清一色是
+`locator.click / locator.fill: Test timeout of 30000ms exceeded`，而且整轮跑了
+**3.5 小时**（每条都等到超时 + 重试）。单看报错毫无线索：像是应用整个没渲染。
+
+**根因**：本机 `127.0.0.1:4173` 被**另一个项目的 Next.js dev server** 占着
+（IPv6 通配绑定，已跑 4 小时）。`web/playwright.config.ts` 的
+`reuseExistingServer: !process.env.CI` 会先探一次 `baseURL`：URL 有响应就直接跳过
+启动自己的 webServer——于是 Playwright 把那个 Next.js 当成我们的服务，
+每个用例拿到的都是一张 Next.js 错误页，任何定位器都不可能命中。
+
+**判据（下次一眼认出来）**：
+
+- **全红且失败面与代码无关**（跨十几个 spec 的**基础**交互，如 `fill` / `click`）；
+- 报错是清一色的 30s locator 超时，**没有断言失败**；
+- 直接验一把端口：
+
+  ```bash
+  curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:4173/
+  curl -s http://127.0.0.1:4173/ | head -c 200   # 不是我们的 index.html 就是被别人占了
+  lsof -nP -iTCP:4173 -sTCP:LISTEN
+  ```
+
+**修法与防复发**：别去杀别人的 dev server。临时用一份**换端口**的配置跑验证
+（`testDir` / `globalTeardown` 要写成绝对路径，`webServer.command` 里带
+`--port <空闲端口> --strictPort`、`reuseExistingServer: false`），跑完删掉。
+Round W 换到 4317 后同一份代码 **5.2 分钟 310/0**。
+
+**一般规则**：`reuseExistingServer` 的「有响应就复用」判据**不校验响应是谁**。
+看到「整片超时、零断言失败」先怀疑这个，而不是怀疑刚改的代码。
+
+---
+
+## 15. 「全并发绿、单文件绿、一起跑红」——先怀疑并发争用，别改断言
+
+**现象**：Round Y 跑全量 `npm --prefix web test`，**11 条失败**全落在 usage 的三个文件，
+报错形态统一是 RTL 的 `waitFor` 1 秒超时（`renders the KPI readouts…` 里 KPI 仍是 `0`、
+`导出快照` 系列全部点不动）。而这几个文件**本轮恰好被改过**——所以第一反应会是
+「我把谁改坏了」。
+
+**根因**：不是断言，是**并发争用**。本机 115 个 jsdom 环境并行创建，`Environment` 占了
+跟踪时间的 **60%**（这一次跑出 `jsdom was created 115 times · 977.90s total`）；
+`useUsageOverview` 的渐进扫描在自己的 `setTimeout` 批次里分批 publish，批次被 CPU
+抢走之后 1 秒的 `waitFor` 就先到期了。同一份代码在负载低时全绿。
+
+**三条判据（合起来能定案，缺一条都不够）**：
+
+1. 失败的**形态**是超时而不是断言不符（`toBe(3)` 收到 `0` 与 `waitFor 超时` 是两件事）；
+2. **单文件跑绿**：`npm --prefix web test -- <file>`；
+3. **降并发跑全量绿**：`npx vitest run --maxWorkers 4`（Round Y 实测 **1373/115 全绿**，
+   满并发是 1362/11 红）。
+
+**怎么处置**：把降并发的跑法当成**本地推荐**写进 PR 说明，**不要**去改
+`vite.config.ts` 的 `include` / 超时阈值把它掩盖掉——那会把真正的回归也一起埋掉。
+先证明「零断言失败」，再说它是环境。
+
+**一个反过来的教训**：这条坑的价值在于**它教你什么时候可以放过红色**。判据是那三条，
+不是「我觉得是环境」。Round W 也踩过同一类（当时 9 条），Round Y 又踩了一次
+（11 条）——同样的形态第三次出现时，别再从零排查。

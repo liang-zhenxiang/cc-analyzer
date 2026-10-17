@@ -1,5 +1,5 @@
-import type { Page } from "@playwright/test";
 import { test, expect, emptyScenario } from "./fixtures";
+import { sessionItems } from "./selectors";
 
 /**
  * 冒烟覆盖：应用能不能起来、会话能不能被发现、主视图能不能切换。
@@ -7,16 +7,6 @@ import { test, expect, emptyScenario } from "./fixtures";
  * 这一层刻意只断言「用户看得见的结果」，不碰实现细节——
  * 它要在重构（包括视觉重做）时保持稳定。
  */
-
-/**
- * 会话条目。用 `title` 定位而不是 `button:has(strong)`——
- * 后者会把分组折叠按钮一起算进来（它也含 `<strong>`），
- * 于是「5 个会话」的断言会拿到 6，看着像功能坏了，其实是选择器写宽了。
- * 会话条目带 `title={cwd ?? path}`，这是给用户看的路径提示，语义正好。
- */
-function sessionItems(page: Page) {
-  return page.getByLabel("会话列表", { exact: true }).locator("button[title]:has(strong)");
-}
 
 test.describe("会话分析", () => {
   test("启动后列出磁盘上的全部会话", async ({ page }) => {
@@ -110,6 +100,10 @@ test.describe("页面切换", () => {
 
     await page.getByRole("tab", { name: "实时监控" }).click();
     await expect(page.getByRole("tab", { name: "实时监控" })).toHaveAttribute("aria-selected", "true");
+
+    // Issue #203 起这个标签默认进入原生「脉搏」视图；外部仪表盘是它的第二个子视图。
+    // 下面断言的是 dashboard 档的行为（#55），一个字节都没改，所以先显式切过去。
+    await page.getByRole("tab", { name: "外部仪表盘" }).click();
 
     // 切进来只是「可以打开」，不是「已经打开」：没有 iframe，也没有探测。
     // 夹具里的仪表盘服务是没在跑的，自动探测只会白等一轮失败。

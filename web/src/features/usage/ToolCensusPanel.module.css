@@ -112,8 +112,8 @@
 }
 
 .row:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
 }
 
 /* 选中 = 下钻中：底色 + 左缘竖条双信号（与 ErrorRankList / 日志表逐字一致）。 */
@@ -228,8 +228,8 @@
 }
 
 .clear:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
 }
 
 /* 会话行（CompactionStatsPanel.topSessions 行语言）：行高 --row-h（30，随字号档）。
@@ -272,8 +272,8 @@
 }
 
 .sessionRow:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
 }
 
 /* 装饰性记号走 --text-faint（design §4）。 */

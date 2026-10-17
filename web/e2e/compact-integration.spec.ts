@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { test, expect, defaultScenario, fixture, shiftDays } from "./fixtures";
+import { sessionItems } from "./selectors";
 import type { MockScenario } from "./tauri-mock";
 
 /**
@@ -38,10 +39,6 @@ function compactRecentScenario(): MockScenario {
       )
     }
   };
-}
-
-function sessionItems(page: Page) {
-  return page.getByLabel("会话列表", { exact: true }).locator("button[title]:has(strong)");
 }
 
 async function openCompactSession(page: Page) {

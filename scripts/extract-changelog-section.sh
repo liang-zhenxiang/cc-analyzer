@@ -63,6 +63,20 @@ trim_blank_lines() {
   '
 }
 
+# 「这段是不是只有空白」。
+#
+# **不要**写成 `[[ -n "${var//[[:space:]]/}" ]]`。bash 3.2（macOS 自带的那一个）
+# 在做这种「把多字节内容里所有匹配项替换掉」的展开时是**二次**的：纯 ASCII
+# 59 KB 瞬间返回，而中文是**按长度平方**涨的——实测 3.8 KB 约 0.6 s、7.6 KB 约 4 s、
+# 15 KB 约 17 s、30 KB 约 114 s；真实 CHANGELOG 攒到 59 KB 时是**十几分钟**，
+# 看起来就是脚本挂死。
+# 这个脚本以前正是那样写的，直到某个先行版把 `[Unreleased]` 攒到 58 KB 才暴露
+# （见 #210）。这段代码的实际用途只是「非空即算找到了」，交给 grep 即可，
+# 它对任意大小与编码都是线性的。
+has_non_blank() {
+  grep -q '[^[:space:]]' <<<"$1"
+}
+
 # ---------------------------------------------------------------------------
 # ① 稳定版：`## [<version>]` 段
 #
@@ -78,7 +92,7 @@ section="$(
   ' "$changelog"
 )"
 
-if [[ -n "${section//[[:space:]]/}" ]]; then
+if has_non_blank "$section"; then
   printf '%s\n' "$section" | trim_blank_lines
   exit 0
 fi
@@ -109,7 +123,7 @@ bullet="$(
   ' "$changelog"
 )"
 
-if [[ -n "${bullet//[[:space:]]/}" ]]; then
+if has_non_blank "$bullet"; then
   printf '%s\n' "$bullet" | trim_blank_lines
   exit 0
 fi

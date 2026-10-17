@@ -27,7 +27,22 @@ filters and the log table in the middle, the analysis report panel below.
 The usage overview — the 5-hour billing-window card (current consumption, open
 and close times, a burn-rate projection), KPI readouts, and token trends and
 distributions for the last 7 / 30 / 90 days, every figure carrying a provenance
-badge. Every screen, in both light and dark themes, is archived in
+badge.
+
+![CC Analyzer's live pulse view: a five-readout 5-hour window row, a per-minute token rate curve for the last 60 minutes, the list of sessions written to in the last 5 hours, and a context-fill curve marked with compaction cliffs](docs/screenshots/pulse-light.png)
+
+The live pulse — what is being written right now. Active sessions, the token
+rate for the last 60 minutes (the in-progress minute drawn as texture, never
+extrapolated), the current 5-hour window, and how full the context of the most
+recent session is.
+
+![CC Analyzer's context bleed view: a one-line verdict reading "2 compactions dropped 176 messages", then one row per compaction loss with dropped-message counts and four separate token counters, tool rows ranked by call count and marked as count-only, and a footer naming each category's sort key](docs/screenshots/bleed-light.png)
+
+The context bleed view — what ate this session's context. One line states the
+fact, then every attributable category is listed with its own evidence grade:
+`logged` readings are checkable against the log, while `countOnly` rows (tool
+calls, whose token volume does not exist in the log at all) report a count and
+say why. Every screen, in both light and dark themes, is archived in
 [`docs/screenshots/`](docs/screenshots).
 
 ## Features
@@ -52,6 +67,35 @@ badge. Every screen, in both light and dark themes, is archived in
   becomes visible instead of silently dropped). No invented numbers: fields
   the log doesn't carry read "not recorded", and no "official context limit"
   line is drawn because no such source exists.
+- **Context bleed — what ate this session's context, and how much of each
+  reading is fact** — the **Bleed** tab ranks the attributable consumption of
+  a session by category: **compaction loss** (one row per compaction
+  boundary, with the messages that left the context counted individually),
+  **tool output** (ranked by call count, top 6 plus a folded tail row), and
+  **cache rewrites** (calls whose `cacheCreation` sits well above that
+  session's median). One line at the top states the fact: `N compactions
+  dropped M messages` — and when there were none it says "this session was
+  never compacted" rather than a friendlier-sounding number. The core design
+  is **evidence grading**: every row carries `logged` (the token volume is
+  read straight from the record's `usage` and can be checked item by item) or
+  `countOnly`, because the parser's `kind === "tool"` records carry no
+  `usage` at all — how many tokens a tool call occupies simply does not exist
+  in the log. Tool rows therefore report a count only, show `0` in the token
+  columns, and say outright why — never letting a `0` pass as "takes no
+  space". Money and tokens are separate fields because their evidence differs:
+  money is converted through the existing pricing snapshot, `null` means
+  nothing could be priced (not `$0`), and `0` is a legitimate "it really is
+  $0", with the count of excluded calls written beside it. There is
+  deliberately **no fake global ordering** — the three categories sort by
+  different keys (time / count / none), so the source comments rule that no
+  meaningful single order exists; the list keeps the model's order and the
+  footer names each category's sort key. The three empty states are three
+  different facts, each with its own copy. Every row in the session list now
+  carries a **bleed badge** (`N compactions`), and clicking it jumps straight
+  to that session's Bleed tab. The badge is a real button, so the row itself
+  moved from `<button>` to a `role="button"` div (a button cannot nest a
+  button), with the keyboard behaviour restored by hand and locked down in
+  unit tests.
 - **Two-tier usage limits** — Claude subscriptions meter usage in two layers;
   the app reads both. The **5-hour billing window**: the current consumption
   dial, when the window opened, a countdown to when it closes, and a projection
@@ -103,17 +147,55 @@ badge. Every screen, in both light and dark themes, is archived in
   The document also says plainly what it does **not** contain (tool & skill census,
   compaction stats, error view) so a colleague does not take it for the whole dashboard.
   Nothing is uploaded and there is no share link — you carry the file yourself.
-- **Global search (⌘K / Ctrl+K)** — message-level search across every project
-  and session, results grouped by project → session with the matching snippet
-  and a relative time. Enter jumps into the session, opens the record and
-  expands its detail panel, so a hit is always reachable, not merely listed.
-  The index is built in the background and lives in memory only.
+- **Global search (⌘K / Ctrl+K)** — search across every project and session covers
+  **four kinds of content**: your prompts and the assistant's replies, **tool output,
+  file paths and error text**. Every hit carries a source label (me / assistant / tool
+  output / file path / error) and you can filter by source — the most useful being
+  "file paths only" when you are hunting for a file — or type a `路径:` style prefix to
+  switch filters as you type. Terminal escape sequences are stripped before indexing, so
+  searching `[31m` no longer matches control bytes, and a single tool output is capped at
+  2000 indexed characters. Matching stays plain case-insensitive substring: the problem
+  being solved is "I cannot find it at all". Results are grouped by project → session
+  with the matching snippet and a relative time; Enter jumps into the session, opens the
+  record and expands its detail panel. The index is built in the background and lives in
+  memory only — never written to disk, never uploaded (path hits are shown as-is inside
+  the app precisely because search is not exported and not logged).
 - **Usage overview** — token consumption trends for the last 7 / 30 / 90 days,
   per-project and per-model distributions, and a 7×24 activity heatmap, all
   visible without scrolling on a 1440×900 screen. Every figure carries a
   provenance badge (read from the log / estimated), the estimated cost is
   priced per model against an offline pricing snapshot (date shown), and
   everything is aggregated locally — nothing is uploaded.
+- **Usage calendar** — a GitHub-contribution-graph grid over a rolling
+  12 months: cell shade = the day's estimated cost quartile (level 0 = no
+  spend), hovering shows cost / tokens / sessions / project, and clicking a
+  day expands **a day in review**: a summary line (spend as cost *and* tokens,
+  sessions, messages, the active span from first to last record, top model,
+  projects touched) above a **24-hour timeline**, one row per session — project
+  colour dot, a solid track with activity blocks whose height encodes how busy
+  that clock hour was, start–end plus duration, and the day's cost / tokens /
+  share. Rows run in start order and clicking one opens that session; a session
+  that crossed midnight is drawn as the part that falls inside the day and says
+  so. Below the legend sits a **year in insights**: six factual sentences —
+  longest / current streak, priciest day, longest gap, active share, and this
+  month vs. the same days last month — all on the same scale as the cells
+  (days with unknown pricing never count as spend), with dates that drill into
+  the day-in-review. The window is a fixed rolling 365 days and does not follow
+  the range selector; on narrow windows the grid scrolls inside its own
+  container.
+- **Milestones** — the usage overview's third sub-view folds your **entire
+  history** into three groups of facts you can check against the logs:
+  **firsts** (first session, compaction, subagent, skill, MCP tool),
+  **cumulative tiers** (tokens, sessions, messages, projects, models,
+  compactions, tool kinds — the thresholds are hard-coded constants), and
+  **single-session records** (most tokens, longest session, most compactions).
+  A reached milestone shows its evidence: a number, a date, and a link into the
+  session that earned it. An unreached one shows the honest distance to the next
+  tier — never a grey silhouette, a lock or a "??". Every badge has to be
+  recomputable from the logs, so cumulative cost (the one figure that reads an
+  expiring pricing snapshot) deliberately stays out; the KPI and the calendar
+  shading carry it. It shares the same full-history pass as the other two
+  sub-views: no extra scan, no extra request.
 - **Session explorer** — sessions grouped by timeline (today / yesterday /
   this week / this month / earlier) and by project, with incrementally
   scanned titles and relative times.
@@ -127,6 +209,18 @@ badge. Every screen, in both light and dark themes, is archived in
   line heights scale **together**, so tables, readout rows and chart labels
   grow while spacing, icons and the gauge keep their size — legibility, not a
   zoomed page. The chosen step survives a restart; pick 100% to go back.
+- **High-contrast mode** — settings → interface contrast offers *normal* and
+  *high contrast*. High contrast swaps **both palettes** (semantic colours and the
+  category/chart colours), and the values are computed, not eyeballed: body text
+  reaches at least 17.4:1, secondary text 7.29:1 and borders 3.83:1 against their
+  backgrounds (WCAG 2.1 relative luminance; thresholds 7 / 4.5 / 3). Focus rings
+  grow to 3px with a 2px offset — on a dark button the offset is what keeps the
+  ring readable from both sides. Only colours and focus rings move: font sizes,
+  spacing and control sizes stay put, because high contrast is not a zoom. With no
+  explicit choice the app follows the system's `prefers-contrast: more`; once you
+  pick a step, your choice wins and is remembered on this machine. Exported
+  documents (session report / usage snapshot) keep their own palettes in this
+  round, and Windows `forced-colors` is not handled yet.
 - **Log view with one row model** — user / LLM / tool / agent / workflow /
   wait rows plus a full-width **compact-boundary band row** (the compaction
   summary is folded into its expandable section, never counted as user
@@ -157,9 +251,19 @@ badge. Every screen, in both light and dark themes, is archived in
   feature round), check on demand and install with one click. Packages are
   signature-verified, and a check is a single read of the GitHub releases
   page — no data is uploaded.
-- **Realtime monitor** — embeds a local monitoring dashboard you run
-  yourself (not shipped in this repo), opened on demand, with a
-  floating-window mode.
+- **Monitor console** — a native, local-first dashboard for **today**: the
+  current 5-hour window, today's tokens, active sessions and compactions; a
+  24-hour activity band whose current hour is shown as incomplete and whose
+  future hours stay empty; projects ranked by their measured 15-minute rate;
+  and the latest 12 compaction, error or session-start events. Click a project
+  to filter the event stream, then click an event to open its session. No
+  external service and no network request; the external dashboard remains an
+  optional third sub-view.
+- **Realtime monitor** — opens on a native **live pulse** that reads your
+  local logs: active sessions, the last 60 minutes of token rate, the current
+  5-hour window, and context fill. The external monitoring dashboard you run
+  yourself (not shipped in this repo) is a sub-view you open on demand. The
+  whole view fits a 420px always-on-top floating widget.
 - **Performance at scale** — windowed, measured-height rendering and chunked
   parsing keep large sessions (tens of MB of JSONL) responsive.
 - **Local-first & private** — everything is parsed and rendered locally; the
@@ -265,14 +369,28 @@ package.json   build toolchain (Tauri CLI) and the packaging entry points
 
 The roadmap tracks open issues; each item links to the issue that owns it.
 
-- [ ] Local archive repo — keep sessions past Claude Code's own cleanup, and
-  analyse across months and years
+- [x] Local archive repo — keep sessions past Claude Code's own cleanup, and
+  analyse across months and years (shipped in v0.12.0; encrypted bundles that
+  move history between machines in v0.16.0)
   ([#70](https://github.com/liang-zhenxiang/cc-analyzer/issues/70))
 - [x] Structured export — CSV and single-file HTML (shipped in v0.11.0)
   ([#71](https://github.com/liang-zhenxiang/cc-analyzer/issues/71))
-- [ ] Accessibility & performance pack — ANSI rendering, virtual scrolling,
+- [x] Live pulse — the "Live monitor" tab is a native view: active sessions,
+  token rate, 5-hour burn rate and context-fill curve, with a 420×620
+  always-on-top window (shipped in v0.26.0-beta.1)
+  ([#203](https://github.com/liang-zhenxiang/cc-analyzer/issues/203))
+- [x] Accessibility & performance pack — ANSI rendering, virtual scrolling,
   font scaling
   ([#73](https://github.com/liang-zhenxiang/cc-analyzer/issues/73))
+- [ ] Milestones — every badge has to be recomputable from the logs: firsts,
+  cumulative tiers and single-session records, each shown with its evidence
+  and a link to the session or day that earned it
+  ([#214](https://github.com/liang-zhenxiang/cc-analyzer/issues/214))
+- [ ] Monitor console — replace the external dashboard that needs a separate
+  local service with a built-in native dashboard: the current window and
+  today's readouts, a per-project heat board, a 24-hour activity band and a
+  cross-session event stream
+  ([#225](https://github.com/liang-zhenxiang/cc-analyzer/issues/225))
 - [ ] Frontend upgrade to React 19, moving `@types/react` / `@types/react-dom`
   together
   ([#19](https://github.com/liang-zhenxiang/cc-analyzer/issues/19))

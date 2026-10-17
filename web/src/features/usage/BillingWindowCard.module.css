@@ -273,8 +273,8 @@
 }
 
 .attributionRow:not(:disabled):focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
 }
 
 /* 无元数据的行照列但不可点：不出现悬停底、不出现焦点环、不进 Tab 顺序

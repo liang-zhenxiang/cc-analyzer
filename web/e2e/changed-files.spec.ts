@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { test, expect, changedFilesScenario } from "./fixtures";
+import { sessionItems } from "./selectors";
 
 /**
  * 会话详情「改动」标签页（Round N / N2）。
@@ -8,10 +9,6 @@ import { test, expect, changedFilesScenario } from "./fixtures";
  * 数与口径（失败可见不计数、子链并入）、点记录真的切回日志视图并高亮到行、
  * 纯问答会话走空态。数据全部来自共享夹具 changed-files-session.jsonl。
  */
-
-function sessionItems(page: Page) {
-  return page.getByLabel("会话列表", { exact: true }).locator("button[title]:has(strong)");
-}
 
 async function openSession(page: Page, query: string) {
   await page.goto("/");

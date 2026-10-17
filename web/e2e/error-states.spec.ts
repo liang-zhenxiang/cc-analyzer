@@ -1,5 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import { test, expect, brokenScanScenario, defaultScenario } from "./fixtures";
+import { sessionItems } from "./selectors";
 
 /**
  * 错误态：一处语义，按位置分档，一次失败只在一个地方说。
@@ -27,6 +28,31 @@ async function centerOffset(inner: Locator, outer: Locator): Promise<number> {
   return Math.abs(
     innerBox!.y + innerBox!.height / 2 - (outerBox!.y + outerBox!.height / 2)
   );
+}
+
+/**
+ * dashboard 子视图自己的可用区域：常驻分段控件下沿 → `main` 下沿。
+ *
+ * Issue #203 起「实时监控」标签多了一条常驻的分段控件（脉搏 | 外部仪表盘），
+ * dashboard 的内容从它下方开始，所以「独占子视图时落在中线上」要以这条带子
+ * 下沿为基准，而不是整块 `main`。子视图高度没变，变的只是它的起点。
+ */
+async function dashboardRegion(page: Page): Promise<{ top: number; bottom: number }> {
+  const bar = await page.getByRole("tablist", { name: "监控视图" }).boundingBox();
+  const main = await page.getByRole("main").boundingBox();
+  expect(bar).not.toBeNull();
+  expect(main).not.toBeNull();
+  return { top: bar!.y + bar!.height, bottom: main!.y + main!.height };
+}
+
+async function centerOffsetInRegion(
+  inner: Locator,
+  region: { top: number; bottom: number }
+): Promise<number> {
+  const box = await inner.boundingBox();
+  expect(box).not.toBeNull();
+  const center = box!.y + box!.height / 2;
+  return Math.abs(center - (region.top + region.bottom) / 2);
 }
 
 /** 让下一次目录读取失败（见 tauri-mock 里的开关）。 */
@@ -101,6 +127,10 @@ test.describe("整页错误态", () => {
     await page.goto("/");
     await page.getByRole("tab", { name: "实时监控" }).click();
 
+    // 这个标签的默认档是原生「脉搏」（Issue #203）；下面验的是外部仪表盘的失败态，
+    // 先显式切到第二个子视图，dashboard 档本身的文案与行为一行没改。
+    await page.getByRole("tab", { name: "外部仪表盘" }).click();
+
     // 打开之前就要写清连的是哪个地址——这是「下一步做什么」里可执行的那半句。
     await expect(page.getByText(/本机 localhost:8090/)).toBeVisible();
 
@@ -117,8 +147,8 @@ test.describe("整页错误态", () => {
     expect(text).not.toContain("夹具");
     expect(text).not.toContain("/Users/");
 
-    // 与用量页同一个位置：独占主区时落在中线上，而不是顶在上沿。
-    expect(await centerOffset(alert, page.getByRole("main"))).toBeLessThan(30);
+    // 与用量页同一个位置：独占 dashboard 子视图时落在它的中线上，而不是顶在上沿。
+    expect(await centerOffsetInRegion(alert, await dashboardRegion(page))).toBeLessThan(30);
   });
 });
 
@@ -134,11 +164,8 @@ test.describe("侧栏告警条", () => {
   test("已经打开会话时刷新失败：告警落在侧栏，主区数据不被顶掉", async ({ page }) => {
     await page.goto("/");
 
-    // `button[title]` 会先命中工具栏那颗图标按钮（IconButton 把可访问名绑到
-// tooltip 上），所以必须再加 `:has(strong)`——与 smoke 的选择器一致。
-    const sessionRows = page
-      .getByLabel("会话列表", { exact: true })
-      .locator("button[title]:has(strong)");
+    // 会话条目按 role 选，不是按标签名选——理由见 `selectors.ts`。
+    const sessionRows = sessionItems(page);
     await sessionRows.first().click();
     await expect(page.getByLabel("会话图状态")).toContainText("会话图已加载", { timeout: 15_000 });
 

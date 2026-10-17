@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./fixtures";
+import { sessionItems } from "./selectors";
 
 /**
  * 记录详情面板的开合闭环。
@@ -13,10 +14,6 @@ import { test, expect } from "./fixtures";
  * 不是产品行为，断言哪一条都会把环境差异写死成预期。复制反馈的成功/失败、
  * 空摘要回退分别由 `RecordDetailPanel.test.tsx` 与 `recordSummary.test.ts` 覆盖。
  */
-
-function sessionItems(page: Page) {
-  return page.getByLabel("会话列表", { exact: true }).locator("button[title]:has(strong)");
-}
 
 /** 日志表的记录行。点一下就会把该行的主记录选进详情面板。 */
 function logRows(page: Page) {

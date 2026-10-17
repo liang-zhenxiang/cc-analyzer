@@ -1,0 +1,81 @@
+/* 脉搏两张曲线的数据墨。轴与网格的骨架仍来自 chartPrimitives 的共享类，
+   这里只放各图自己的填充、描边与说明文字——大面积填充只许 -soft，实色只给
+   描边、点与小徽标（design-round-w §3.4 / §5.3）。 */
+
+/* 正常柱：soft 填充 + 1px 实色描边收轮廓（与 BarChart 同款画法）。 */
+.bar {
+  fill: var(--chart-1-soft);
+  stroke: var(--chart-1);
+  stroke-width: 1;
+}
+
+/* 进行中的这一分钟：轮廓换虚线，填充由 45° 斜纹 pattern 给（fill 属性优先，
+   所以这里不设 fill——CSS 类会盖过 presentation attribute）。 */
+.barPartial {
+  stroke: var(--chart-1);
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+}
+
+/* 斜纹的一条线：1px / 4px 周期的墨量约 25%，与其它柱的 --chart-1-soft
+   （alpha 0.24）视觉重量相当——区分靠「变成纹理」，不靠「变淡」。 */
+.hatchLine {
+  stroke: var(--chart-1);
+  stroke-width: 1;
+}
+
+/* 「现在」参考线：最后一槽的右边界 = x 轴右端。用 --text-tertiary 而不是
+   --border-strong——后者复合后浅色下只有 1.47，读不出来（§8.3 表 B）。 */
+.nowLine {
+  stroke: var(--text-tertiary);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  shape-rendering: crispEdges;
+}
+
+/* 参考带：面积走 -soft，上下两条虚线边给实色。 */
+.band {
+  fill: var(--chart-1-soft);
+}
+
+.bandEdge {
+  stroke: var(--chart-1);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+/* 数据线是折线，不做面积填充（同一片 -soft 不能既当带又当线）。 */
+.line {
+  fill: none;
+  stroke: var(--chart-1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+/* 采样点只在断崖两侧与单样本时出现；全画会变成噪点。 */
+.sampleDot {
+  fill: var(--text);
+}
+
+/* 断崖：一条要读的线，不是发丝分层，所以走 --text-tertiary（四主题 ≥4.78）。 */
+.cliff {
+  stroke: var(--text-tertiary);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+/* 曲线图注：回答「一根柱 / 一条带是什么」，与 BarChart.caption 同款。 */
+.caption {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 没有样本时只留一行事实，不画空轴。 */
+.zeroState {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}

@@ -64,6 +64,67 @@ by tooling, **they are upheld by review** — match the surrounding file.
   by tests, so changing them is a code change, not a copy tweak.
 - **Exit conditions stay explicit**: `if (refreshIdRef.current !== requestId) return;`
   rather than letting a stale result land.
+- **A default view must stand on its own.** If the default tab depends on a
+  service the user has to start separately, it is blank on most machines. When
+  the local data already on hand can answer the question, build that view
+  natively first and keep the external service as an optional sub-view. The
+  monitor console is the concrete case: `MonitorConsolePage.tsx` renders from
+  `usePulseFeed` + `consoleModelOf` with no new request path, while
+  `ExternalDashboard` stays as the third sub-view and only probes after an
+  explicit open.
+- **When aggregating a "first" or an extreme, compare the value and its label as
+  one pair.** A reduction that keeps only the timestamp (`this.firstSkillAt`) and
+  looks the name up later will happily print `09:10` next to the `09:30` call's
+  name. `features/usage/milestones.ts` keeps a `{ at, detail }` pair
+  (`earlierMoment`) precisely so the winner carries both halves; the same hazard
+  applies to longest/fastest/most-expensive reductions wherever the display
+  needs anything besides the number. Test it by feeding candidates in an order
+  that contradicts their timestamps.
+
+---
+
+## Honest Readings
+
+A number read from the logs is a fact; a number computed from a rate is not. The
+UI must not blur the two. This is one rule with several faces:
+
+- **Activity is a fact about the log, not about the process.** The pulse's
+  active-session list (`features/monitor/PulsePage.tsx`) says
+  `N 分钟前有新记录` and footnotes `只陈述「多久前有新记录」，不代表会话正在运行。`
+  It never claims a session is "running" — mtime is all we know, and a
+  long-running tool call that writes nothing looks idle. State the timestamp,
+  not the inference.
+- **No unrequested extrapolation.** The pulse draws the context curve but not an
+  official ceiling, and never predicts "how many minutes are left"; the band it
+  *does* draw is the **measured** pre-compaction volume of recent automatic
+  compactions, labeled as such. Where an extrapolated time is shown at all
+  (predicted limit reach), it comes from the shared `predictLimitReach` and is
+  the page's only `--warning` reading — the color says "non-deterministic", the
+  label says what it is.
+- **Provenance is the same idea in another shape.** Estimated cost, unpriced
+  models and beta builds all carry a badge that says so. When you add a reading,
+  ask which of these three it is: a fact, an estimate, or a prediction — and
+  make the UI say it.
+- **One concept, one window, one screen.** A reading is only honest if its
+  window is stated with it *and* no other panel on that screen measures the same
+  concept over a different window. The calendar's year-in-insights six sentences
+  (`features/usage/calendarInsights.ts`) run over a **rolling 365 days**; the
+  milestones (`features/usage/milestones.ts`) run over the **entire history**.
+  That is why milestones ship no streak, no priciest day and no active share —
+  two windows for one concept means two numbers that disagree, and the reader
+  has no way to tell which one is right. The same rule is why the milestones
+  sub-view renders **no range selector**: a control that does not affect the
+  numbers on screen claims that it does.
+- **A badge you cannot recompute is not a fact.** Milestones apply this
+  literally — every one of them is rebuildable from the logs alone (`totalsSum`,
+  event counts, dedup sets). Cumulative cost is the one candidate that reads an
+  **expiring** artifact, the offline pricing snapshot, and "days with unknown
+  pricing don't count" would make its undercount invisible; so it stays out of
+  the milestone tiers and is carried by the KPI (provenance badge + snapshot
+  date) and the calendar shading instead. Before adding a badge, reading or tier,
+  ask: *can this be rebuilt from the logs on this machine today, with no other
+  input?* If not, it needs a label that says so — or it belongs somewhere that
+  already labels it.
 
 ---
 
@@ -118,3 +179,10 @@ layer. The end-to-end suite does stub at the Tauri boundary, deliberately — se
 - [ ] New behavior has a test; parser/duration/filter/report changes have a fixture.
 - [ ] `npm --prefix web test` and `npm --prefix web run build` pass locally.
 - [ ] User-visible change is recorded in `CHANGELOG.md` under `[Unreleased]`.
+- [ ] New readings say what they are (fact / estimate / prediction) and make no
+      "running"-style claim from a timestamp (see [Honest Readings](#honest-readings)).
+- [ ] New readings state the window they cover, and no two panels on one screen
+      compute the same concept over different windows (see
+      [Honest Readings](#honest-readings)).
+- [ ] A default view does not require a separately started service; any
+      external dependency is an optional sub-view and is probed only on demand.

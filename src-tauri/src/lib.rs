@@ -623,6 +623,9 @@ mod gui_probe {
     /* 界面字号当前档位（"1" / "1.3"）。缩放是否真的落到根元素上，这是唯一的事实
        来源；阈值与判定留给脚本。 */
     font_scale: getComputedStyle(document.documentElement).getPropertyValue('--font-scale').trim(),
+    /* 界面当前是不是高对比度档（Round U / #73）。`""` = 普通档（属性被清掉，
+       不是留着 "normal"）；阈值与判定留给脚本。 */
+    contrast: document.documentElement.getAttribute('data-contrast') || '',
     main: boxOf(mainEl),
     /* main 自身的视口矩形：限额卡「含于内容区」的横向判定要用它。 */
     mainRect: mainEl ? rectOf(mainEl) : null,
@@ -674,7 +677,10 @@ mod gui_probe {
       values: valueRects
     });
   }
-  var table = document.querySelector('table');
+  /* 锚点是 data-probe="record-table"：裸 'table' 依赖「同屏唯一 table」的旧假设，
+     消耗日历（Round V）给用量页带来第二个 table 后它会被误捕（日历无 thead，
+     lastColumnRight 为 null → 门禁误报「末列被裁切」）。 */
+  var table = document.querySelector('table[data-probe="record-table"]');
   if (table) {
     var container = table.parentElement;
     var headers = table.querySelectorAll('thead th');
@@ -700,10 +706,16 @@ mod gui_probe {
       });
     }
   }
-  var titles = document.querySelectorAll('[aria-label="会话列表"] button[title] strong');
-  for (var i = 0; i < titles.length && facts.session_rows.length < 3; i++) {
-    var button = titles[i].closest('button');
-    var row = button ? button.parentElement : null;
+  /* 行盒是 `.sessionRow` 包装层（`height: calc(54px * --font-scale)` +
+     `overflow: hidden`），行本体是它内部 `role="button"` 的 <div>——#209 之后
+     行不再是 <button>（出血点徽章得是真按钮，按钮不能嵌按钮），所以锚点从标签名
+     换成 role + title，与 web/e2e/selectors.ts 的 SESSION_ITEM_SELECTOR 同一
+     形态（那边用 `:has(strong)` 挡噪声，这里用 JS 过滤——避免老 WebKit 上
+     `:has()` 抛 SyntaxError 把整份探针带走）。 */
+  var sessionRowNodes = document.querySelectorAll('[aria-label="会话列表"] [role="button"][title]');
+  for (var i = 0; i < sessionRowNodes.length && facts.session_rows.length < 3; i++) {
+    if (!sessionRowNodes[i].querySelector('strong')) continue;
+    var row = sessionRowNodes[i].parentElement;
     if (!row) continue;
     facts.session_rows.push({
       clientHeight: row.clientHeight,
@@ -1025,6 +1037,90 @@ mod gui_probe {
   }
   facts.attribution = attributionFacts;
 
+  /* 消耗日历（Round V / #187）：网格几何与展开区的原始事实。锚点是组件自带
+     的 data-usage-calendar / data-probe / data-calendar-sessions 稳定属性
+     （同 data-tool-census 先例，不碰 CSS Module 哈希类名）；不在用量档时
+     view 为 null，判定在脚本。容器滚动几何（overflowX / scrollWidth vs
+     clientWidth）走 boxOf——「滚动收在日历容器内部、文档与 main 不溢出」
+     的事实来源。 */
+  var calendarFacts = { view: null, dayCount: null, todayCount: null, container: null, sessions: null, dayReview: null, insights: null };
+  var calendarEl = document.querySelector('[data-usage-calendar]');
+  if (calendarEl) {
+    calendarFacts.view = true;
+    /* 365 是全链条的几何锚（53 列恒等式）：pad 不挂 probe，今天标记挂 td
+       不挤占这个计数。 */
+    calendarFacts.dayCount = calendarEl.querySelectorAll('[data-probe="calendar-day"]').length;
+    calendarFacts.todayCount = document.querySelectorAll('[data-probe="calendar-today"]').length;
+    calendarFacts.container = boxOf(calendarEl);
+    var calendarSessionsEl = document.querySelector('[data-calendar-sessions]');
+    if (calendarSessionsEl) {
+      /* 「展开区行数」= 时间线里的会话行。V2 起展开区还含项目色键，色键也是
+         `<li>` 列表——直接数 section 下的 `li` 会把色键项算成会话。收窄到时间线
+         列表（`day-timeline-list`），门禁才拿得到真正的「会话行数」；时间线不在
+         （防御态）时退回整段，取的是 0。 */
+      var calendarDayRowsEl = calendarSessionsEl.querySelector('[data-probe="day-timeline-list"]');
+      var calendarRowsEl = calendarDayRowsEl || calendarSessionsEl;
+      calendarFacts.sessions = {
+        rect: rectOf(calendarSessionsEl),
+        rows: calendarRowsEl.querySelectorAll('li').length
+      };
+    }
+    /* 「一日回望」（Round V2 / #192）：展开区里的日摘要行与 24h 时间线。只收集
+       事实，判定在脚本：
+       - 摘要行在不在、有没有读数（textContent）；
+       - 时间线 rect 与每条横条的 rect + 会话键（点击 / 归属判定要用）；
+       - 组件声明的会话数（容器上的 `data-session-count`）——门禁把它与**实测
+         条数**对账，声明与实车不一致就红（谁在「声明」上撒谎都过不去）。 */
+    var daySummaryEl = document.querySelector('[data-probe="day-summary"]');
+    var timelineEl = document.querySelector('[data-probe="day-timeline"]');
+    if (daySummaryEl || timelineEl) {
+      var barNodes = document.querySelectorAll('[data-probe="day-timeline-bar"]');
+      var barFacts = [];
+      for (var b = 0; b < barNodes.length; b++) {
+        barFacts.push({
+          rect: rectOf(barNodes[b]),
+          sessionPath: barNodes[b].getAttribute('data-session-path') || '',
+          label: barNodes[b].getAttribute('aria-label') || ''
+        });
+      }
+      var declared = timelineEl ? Number(timelineEl.getAttribute('data-session-count')) : NaN;
+      calendarFacts.dayReview = {
+        summary: daySummaryEl
+          ? {
+              rect: rectOf(daySummaryEl),
+              text: (daySummaryEl.textContent || '').replace(/\s+/g, ' ').trim()
+            }
+          : null,
+        timeline: timelineEl
+          ? {
+              rect: rectOf(timelineEl),
+              bars: barFacts.length,
+              declaredSessions: isNaN(declared) ? null : declared
+            }
+          : null,
+        bars: barFacts
+      };
+    }
+    /* 「一年洞察」（Round V3 / #199）：图例之下的六句实事。只收集事实，判定在
+       脚本：容器在否、键序列（data-insight-key，Issue 契约顺序）与压平文本。
+       空 0 年的空态句不带键 → keys 为空数组、count 为 0，脚本按布景判定。 */
+    var insightsEl = document.querySelector('[data-probe="calendar-insights"]');
+    if (insightsEl) {
+      var insightKeyNodes = insightsEl.querySelectorAll('[data-insight-key]');
+      var insightKeys = [];
+      for (var ik = 0; ik < insightKeyNodes.length; ik++) {
+        insightKeys.push(insightKeyNodes[ik].getAttribute('data-insight-key') || '');
+      }
+      calendarFacts.insights = {
+        present: true,
+        count: insightKeyNodes.length,
+        keys: insightKeys,
+        text: (insightsEl.textContent || '').replace(/\s+/g, ' ').trim()
+      };
+    }
+  }
+  facts.calendar = calendarFacts;
+
   /* 会话分析页当前会话的标题：点归因行之后要拿它跟点击前那一行的标题比对，
      证「点行真的打开了那个会话」，而不是「页面没崩」。锚点是会话头的
      `header[aria-label="会话信息"]` 里那枚 title 元素。 */
@@ -1051,6 +1147,251 @@ mod gui_probe {
         disabled: snapshotEl.disabled === true
       }
     : null;
+
+  /* 「实时脉搏」（Issue #203 / Round W）：根节点、四态、浮窗细头、5 小时读数、
+     60 分钟速率柱、活跃会话行与字形高度、上下文曲线。锚点一律是组件自带的
+     `data-probe` 稳定属性（同 attribution / calendar 先例，不碰 CSS Module
+     哈希类名），并且**禁裸标签选择器**——「同屏唯一 table」那一课（消耗日历的
+     表被 `querySelector('table')` 误捕，门禁红了 9 步）就是这么欠下的。
+     不在脉搏视图时 page 为 false，判定在脚本里。 */
+  var pulseFacts = {
+    page: false,
+    state: null,
+    head_present: false,
+    container: null,
+    float_head: { present: false, drag_region: null },
+    window_readouts: { count: 0, keys: [] },
+    rate_bars: { count: 0, partial: 0 },
+    session_rows: { count: 0, recencies: [] },
+    session_ticks: [],
+    context_curve: { present: false, sample_count: null, band: false, cliffs: 0 }
+  };
+  var pulsePage = document.querySelector("[data-probe='pulse-page']");
+  if (pulsePage) {
+    pulseFacts.page = true;
+    /* 四态写在根节点的一个属性上（loading / empty / error / fresh / stale）：
+       四种状态各自找元素会把判定绑到结构上。 */
+    pulseFacts.state = pulsePage.getAttribute('data-state');
+    /* 非浮窗页头在不在——浮窗态收起整条顶栏换细头，这两条事实互为对照。 */
+    pulseFacts.head_present = !!document.querySelector("[data-probe='pulse-head']");
+    /* 横向不溢出量的是**根节点自己**的滚动几何：外壳的 `overflow: hidden` 会把
+       内容溢出藏起来，量文档量不到它（同「量 main 而不量 document」的教训）。 */
+    pulseFacts.container = boxOf(pulsePage);
+    /* 浮窗细头：无边框窗口里唯一的拖动通道。属性在不在、值是不是 `"deep"`
+       都是**声明层事实**——Tauri 2.12 的裸属性是 self-only 语义，只有 `"deep"`
+       才让子元素上的点击冒泡成拖动。拖动本身探针驱动不了（只能人工拖一次），
+       但「声明写对了」这一层必须由门禁守住。 */
+    var floatHead = document.querySelector("[data-probe='pulse-float-head']");
+    if (floatHead) {
+      pulseFacts.float_head = {
+        present: true,
+        drag_region: floatHead.getAttribute('data-tauri-drag-region')
+      };
+    }
+    /* 5 小时窗口的五个读数：个数与 `data-readout` 键序。个数恒为 5、键序是
+       Issue 契约顺序——比断言某一格的数值稳得多（数值随夹具与运行时刻漂）。 */
+    var readoutNodes = document.querySelectorAll("[data-probe='pulse-window-readout']");
+    var readoutKeys = [];
+    for (var pr = 0; pr < readoutNodes.length; pr++) {
+      readoutKeys.push(readoutNodes[pr].getAttribute('data-readout') || '');
+    }
+    pulseFacts.window_readouts = { count: readoutNodes.length, keys: readoutKeys };
+    /* 速率柱：计数恒 60（60 分钟每分钟一根），其中 `data-partial="true"` 恰好
+       1 根（进行中的这一分钟）。空桶也画短痕，所以计数不随夹具数据变。 */
+    pulseFacts.rate_bars = {
+      count: document.querySelectorAll("[data-probe='pulse-rate-bar']").length,
+      partial: document.querySelectorAll("[data-probe='pulse-rate-bar'][data-partial='true']").length
+    };
+    /* 活跃会话行：每行的 `data-recency`（live / recent / idle）与行首字形高度。
+       高度分两条给，判定留给脚本：
+       - `rectHeight` 是 `getBoundingClientRect().height`，live 档的心跳跑
+         `transform: scale()`（1 → 1.22 → 1.16），量到的是**取数那一刻**的
+         缩放后高度（12 → 约 14.6），会随动画相位变；
+       - `offsetHeight` 是布局高度，不含 transform，三档恒为 12 / 8 / 4。
+       三档几何阶梯的账用 `offsetHeight` 对，`rectHeight` 是「心跳真的在动」
+       的旁证。 */
+    var rowNodes = document.querySelectorAll("[data-probe='pulse-session-row']");
+    var recencies = [];
+    for (var prow = 0; prow < rowNodes.length; prow++) {
+      var recency = rowNodes[prow].getAttribute('data-recency') || '';
+      recencies.push(recency);
+      var tick = rowNodes[prow].querySelector("[data-probe='pulse-session-tick']");
+      pulseFacts.session_ticks.push({
+        recency: recency,
+        rectHeight: tick ? tick.getBoundingClientRect().height : null,
+        offsetHeight: tick ? tick.offsetHeight : null
+      });
+    }
+    pulseFacts.session_rows = { count: rowNodes.length, recencies: recencies };
+    /* 上下文曲线：在场 + `data-sample-count`（实际样本数，≤40）+ 参考带在不在
+       + 断崖计数（`data-probe='pulse-context-cliff'`，一次压缩一条竖线）。
+       参考带只在自动压缩 ≥ 3 次时画、断崖数 = 样本窗口内的压缩次数，而夹具的
+       live 档给了 3 次——三条一起对账，说明「视图真的拿到了夹具那几次压缩」，
+       不只是画了张空图。计数是事实，阈值与判定在脚本里。 */
+    var contextCurve = document.querySelector("[data-probe='pulse-context-curve']");
+    if (contextCurve) {
+      pulseFacts.context_curve = {
+        present: true,
+        sample_count: contextCurve.getAttribute('data-sample-count'),
+        band: !!document.querySelector("[data-probe='pulse-context-band']"),
+        cliffs: document.querySelectorAll("[data-probe='pulse-context-cliff']").length
+      };
+    }
+  }
+  facts.pulse = pulseFacts;
+
+  /* 「里程碑」（Issue #214 / Round Y）：用量页的第三档子视图。锚点一律用组件
+     自带的 `data-probe` 稳定属性（同脉搏 / 归因 / 日历先例），**禁裸标签选择器**
+     ——「同屏唯一 table」那一课（消耗日历的表被 `querySelector('table')` 误捕，
+     门禁红了 9 步）就是这么欠下的。事实只收集，阈值与判定在脚本里：
+     - 根节点（milestones-view）自己的滚动几何：外壳的 overflow 会把内容溢出藏
+       起来，量文档量不到它（同脉搏根节点的教训）；
+     - 三组（milestones-group 的 data-group）各自的卡片数——组缺席时该键为 0；
+     - 每枚卡片（milestone-card）的 state / 名称 / 值 / 填充条数 / 填充宽度：
+       「未达成卡片里取不到 fill」（§15.2 裁决）是一条**布尔几何事实**，数的是
+       `querySelectorAll` 的条数，不是 offsetWidth——宽度为 0 的元素与根本不在的
+       元素不是一回事；
+     - 距离条轨道（milestone-track）与 HC 档的 1px 描边。 */
+  var milestoneFacts = {
+    page: false,
+    empty: false,
+    container: null,
+    /* 界面当前对比度档：HC 下轨道外壳才该带描边，判定留给脚本。 */
+    contrast: document.documentElement.getAttribute('data-contrast') || '',
+    scope_present: false,
+    groups: { firsts: 0, tiers: 0, records: 0 },
+    cards: [],
+    tracks: { count: 0, ringed: 0 },
+    fallbacks: document.querySelectorAll("[data-probe='milestones-fallback']").length,
+    gap_notes: document.querySelectorAll("[data-probe='milestones-gap-note']").length
+  };
+  var milestoneView = document.querySelector("[data-probe='milestones-view']");
+  if (milestoneView) {
+    milestoneFacts.page = true;
+    /* 空态（report.empty）与三组是两条互斥的形态：空态只有一条事实行。 */
+    milestoneFacts.empty = !!document.querySelector("[data-probe='milestones-empty']");
+    milestoneFacts.container = boxOf(milestoneView);
+    milestoneFacts.scope_present = !!document.querySelector("[data-probe='milestones-scope']");
+    var milestoneGroupNames = ['firsts', 'tiers', 'records'];
+    for (var mg = 0; mg < milestoneGroupNames.length; mg++) {
+      var milestoneGroup = document.querySelector(
+        "[data-probe='milestones-group'][data-group='" + milestoneGroupNames[mg] + "']"
+      );
+      milestoneFacts.groups[milestoneGroupNames[mg]] = milestoneGroup
+        ? milestoneGroup.querySelectorAll("[data-probe='milestone-card']").length
+        : 0;
+    }
+    var milestoneCardNodes = document.querySelectorAll("[data-probe='milestone-card']");
+    for (var mc = 0; mc < milestoneCardNodes.length; mc++) {
+      var milestoneCard = milestoneCardNodes[mc];
+      var milestoneFill = milestoneCard.querySelector("[data-probe='milestone-fill']");
+      var milestoneName = milestoneCard.querySelector("[data-probe='milestone-name']");
+      var milestoneValue = milestoneCard.querySelector("[data-probe='milestone-value']");
+      var milestoneTrack = milestoneCard.querySelector("[data-probe='milestone-track']");
+      if (milestoneTrack) {
+        milestoneFacts.tracks.count += 1;
+        /* HC 档的 1px 描边挂在外壳（.trackShell）的 box-shadow 上：轨道自己是
+           overflow: hidden 的圆角盒，inset 阴影会被填充盖住下半条，所以读父级的
+           计算样式。非 HC 档期望 "none"。 */
+        if (milestoneTrack.parentElement
+            && getComputedStyle(milestoneTrack.parentElement).boxShadow !== 'none') {
+          milestoneFacts.tracks.ringed += 1;
+        }
+      }
+      milestoneFacts.cards.push({
+        key: milestoneCard.getAttribute('data-milestone') || '',
+        state: milestoneCard.getAttribute('data-state') || '',
+        /* 距离条只挂在阶梯卡上：锚点类（首次 / 记录）没有轨道，也就没有填充。
+           判别「这枚是不是阶梯卡」只能靠这条事实——state 都是 reached，
+           锚点卡的 reached 不表示「有墨迹」。 */
+        track: !!milestoneTrack,
+        name: milestoneName
+          ? (milestoneName.textContent || '').replace(/\s+/g, ' ').trim()
+          : null,
+        value: milestoneValue
+          ? (milestoneValue.textContent || '').replace(/\s+/g, ' ').trim()
+          : null,
+        fills: milestoneCard.querySelectorAll("[data-probe='milestone-fill']").length,
+        fillWidth: milestoneFill ? milestoneFill.offsetWidth : null
+      });
+    }
+  }
+  facts.milestones = milestoneFacts;
+
+  /* 「监控台」（Issue #225 / Round Z）：根节点与四态、四枚读数键序、24 小时
+     三态、项目行、事件行与可见详情。锚点一律用组件自带的 data-probe 稳定
+     属性，**禁裸标签选择器**（同脉搏 / 里程碑的教训）。
+
+     future 小时的填充必须单独数：`data-phase='future'` 的槽里若出现
+     `monitor-console-hour-fill`，界面就把「尚未发生」画成了「没有发生」。
+     这是一条布尔几何事实，不能拿未来柱高为 0 代替。 */
+  var monitorConsoleFacts = {
+    page: false,
+    state: null,
+    container: null,
+    readouts: { count: 0, keys: [] },
+    hours: {
+      count: 0,
+      slots: 0,
+      phases: { past: 0, current: 0, future: 0 },
+      future_fills: 0
+    },
+    projects: { count: 0 },
+    events: { count: 0, nonempty: 0 }
+  };
+  var monitorConsolePage = document.querySelector("[data-probe='monitor-console-page']");
+  if (monitorConsolePage) {
+    monitorConsoleFacts.page = true;
+    monitorConsoleFacts.state = monitorConsolePage.getAttribute('data-state');
+    monitorConsoleFacts.container = boxOf(monitorConsolePage);
+
+    var consoleReadoutNodes =
+      document.querySelectorAll("[data-probe='monitor-console-readout']");
+    var consoleReadoutKeys = [];
+    for (var cr = 0; cr < consoleReadoutNodes.length; cr++) {
+      consoleReadoutKeys.push(consoleReadoutNodes[cr].getAttribute('data-readout') || '');
+    }
+    monitorConsoleFacts.readouts = {
+      count: consoleReadoutNodes.length,
+      keys: consoleReadoutKeys
+    };
+
+    var consoleHourNodes =
+      document.querySelectorAll("[data-probe='monitor-console-hour']");
+    for (var ch = 0; ch < consoleHourNodes.length; ch++) {
+      var phase = consoleHourNodes[ch].getAttribute('data-phase') || '';
+      if (phase === 'past' || phase === 'current' || phase === 'future') {
+        monitorConsoleFacts.hours.phases[phase] += 1;
+      }
+    }
+    monitorConsoleFacts.hours.count = consoleHourNodes.length;
+    monitorConsoleFacts.hours.slots =
+      document.querySelectorAll("[data-probe='monitor-console-hour-slot']").length;
+    var futureHourFillSelector =
+      "[data-probe='monitor-console-hour'][data-phase='future'] [data-probe='monitor-console-hour-fill']";
+    monitorConsoleFacts.hours.future_fills =
+      document.querySelectorAll(futureHourFillSelector).length;
+
+    monitorConsoleFacts.projects.count =
+      document.querySelectorAll("[data-probe='monitor-console-project-row']").length;
+
+    var consoleEventNodes =
+      document.querySelectorAll("[data-probe='monitor-console-event-row']");
+    var consoleEventNonempty = 0;
+    for (var ce = 0; ce < consoleEventNodes.length; ce++) {
+      var eventText = (
+        consoleEventNodes[ce].innerText ||
+        consoleEventNodes[ce].textContent ||
+        ''
+      ).replace(/\s+/g, ' ').trim();
+      if (eventText.length > 0) consoleEventNonempty += 1;
+    }
+    monitorConsoleFacts.events = {
+      count: consoleEventNodes.length,
+      nonempty: consoleEventNonempty
+    };
+  }
+  facts.monitor_console = monitorConsoleFacts;
 
   return JSON.stringify(facts);
 })();"##;
@@ -1130,6 +1471,18 @@ mod gui_probe {
     pub(super) fn font_scale_target(target: &str) -> Option<&str> {
         target
             .strip_prefix("字号=")
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    }
+
+    /// 目标是不是「切界面对比度」的动作形式 `对比度=高` / `对比度=普通`（Round U / #73）。
+    ///
+    /// 与 `字号=` 同一动作协议：档位控件藏在设置浮层里，通用「找一个按钮点下去」
+    /// 够不着，而且要在**同一个浮层里区分两个 radiogroup**（字号一档、对比度一档），
+    /// 所以点选按容器锚点走（见 `contrast_js`），不靠「全文档第一枚 radio」。
+    pub(super) fn contrast_target(target: &str) -> Option<&str> {
+        target
+            .strip_prefix("对比度=")
             .map(str::trim)
             .filter(|value| !value.is_empty())
     }
@@ -1246,6 +1599,48 @@ mod gui_probe {
         )
     }
 
+    /// 在真机上把界面对比度切到指定档位（`对比度=高` / `对比度=普通`）。
+    ///
+    /// 与 `font_scale_js` 同一条动作协议，只有两处不同：一是**先按容器锚点收窄**
+    /// （设置浮层里现在有两个 radiogroup——界面字号与界面对比度，全文档扫 radio
+    /// 会按 DOM 顺序撞上另一档），二是面板本来就开着时不再点「设置」（那枚按钮是
+    /// toggle，点一次就把面板关了）。
+    pub(super) fn contrast_js(label: &str) -> String {
+        let escaped = js_string(label);
+        format!(
+            r#"(function () {{
+  var wanted = "{escaped}";
+  function group() {{
+    return document.querySelector('[data-probe="contrast-group"]')
+      || document.querySelector('[data-probe="contrast-group"] [role="radiogroup"]')
+      || document.querySelector('[role="radiogroup"][aria-label="界面对比度"]');
+  }}
+  function clickRadio() {{
+    var box = group();
+    if (!box) return false;
+    var items = box.querySelectorAll('[role="radio"]');
+    for (var i = 0; i < items.length; i++) {{
+      var text = (items[i].textContent || '').replace(/\s+/g, ' ').trim();
+      if (text.indexOf(wanted) === 0) {{
+        items[i].click();
+        console.log('gui-capture: 已切界面对比度 ' + wanted);
+        return true;
+      }}
+    }}
+    return false;
+  }}
+  if (clickRadio()) return;
+  var buttons = document.querySelectorAll('button');
+  for (var i = 0; i < buttons.length; i++) {{
+    if (buttons[i].getAttribute('aria-label') === '设置') {{ buttons[i].click(); break; }}
+  }}
+  setTimeout(function () {{
+    if (!clickRadio()) console.warn('gui-capture: 找不到界面对比度档位 ' + wanted);
+  }}, 200);
+}})();"#
+        )
+    }
+
     /// 找到目标并点击：优先标签页，其次任意按钮。匹配可取访问名的三种来源——
     /// `aria-label`、`title`、可见文本——所以既能点标签页（文本 / aria-label），
     /// 也能点会话条目（它的 `title` 是 cwd）。`eval` 是单向的（拿不到脚本返回值），
@@ -1351,6 +1746,9 @@ mod gui_probe {
         if let Some(label) = font_scale_target(target) {
             return font_scale_js(label);
         }
+        if let Some(label) = contrast_target(target) {
+            return contrast_js(label);
+        }
         if let Some(label) = view_target(target) {
             return view_click_js(label);
         }
@@ -1366,7 +1764,15 @@ mod gui_probe {
   var wanted = "{escaped}";
   var scopes = [
     document.querySelectorAll('[role="tablist"] button'),
-    document.querySelectorAll('button')
+    document.querySelectorAll('button'),
+    /* 会话条目（#209 起）的本体是 `role="button"` 的 <div>，**不再是 <button>**
+       ——出血点徽章得是真按钮，而按钮不能嵌按钮，所以外层降级成 role=button。
+       只看 `button` 的旧扫描因此一条都选不到「点标题打开会话」的目标：门禁里
+       `/repo/demo` 那一步静默落空，后面「导出 / 上下文 / 改动」与记录表、会话行
+       的覆盖判定跟着整片红。锚点与 web/e2e/selectors.ts 的 SESSION_ITEM_SELECTOR
+       （`[role="button"][title]:has(strong)`）同一形态：这里同样要 `[title]`，
+       少了它会把工具栏那颗 IconButton 也卷进候选。 */
+    document.querySelectorAll('[role="button"][title]')
   ];
   for (var s = 0; s < scopes.length; s++) {{
     var buttons = scopes[s];
@@ -1528,6 +1934,32 @@ mod gui_probe {
         }
 
         #[test]
+        fn contrast_target_only_matches_the_action_form() {
+            assert_eq!(contrast_target("对比度=高"), Some("高"));
+            assert_eq!(contrast_target("对比度= 普通 "), Some("普通"));
+            assert_eq!(contrast_target("对比度="), None);
+            // 普通目标与另外几个动作都不归它管。
+            assert_eq!(contrast_target("设置=开"), None);
+            assert_eq!(contrast_target("字号=130%"), None);
+            assert_eq!(contrast_target("用量总览"), None);
+            // 字号动作也不该被对比度吞掉（两条动作名字相邻，最易写错）。
+            assert_eq!(font_scale_target("对比度=高"), None);
+        }
+
+        #[test]
+        fn the_contrast_action_targets_its_own_group() {
+            let js = click_target_js("对比度=高");
+            // 设置浮层里有两个 radiogroup（界面字号 / 界面对比度），所以点选必须
+            // 按容器锚点收窄——直接扫全文档 radio 会按 DOM 顺序撞上另一档。
+            assert!(js.contains("[data-probe=\"contrast-group\"]"));
+            assert!(js.contains("[role=\"radio\"]"));
+            assert!(js.contains("已切界面对比度"));
+            assert!(js.contains("var wanted = \"高\""));
+            // 面板本来就开着时不许再点「设置」——那是 toggle，会把面板关掉。
+            assert!(js.contains("aria-label') === '设置"));
+        }
+
+        #[test]
         fn the_view_action_clicks_the_segment_with_a_receipt() {
             let js = view_click_receipt_js("视图=用量").expect("视图= 动作应有回执脚本");
             // 走的是总览视图分段的真实 tab 控件（SegmentedControl 默认 tablist；
@@ -1571,6 +2003,17 @@ mod gui_probe {
         }
 
         #[test]
+        fn the_generic_scan_also_reaches_role_button_session_rows() {
+            // #209 把会话行从 <button> 降级成 `role="button"` 的 <div>（出血点徽章
+            // 得是真按钮，而按钮不能嵌按钮）。通用扫描只看 `button` 时，「点标题
+            // 打开会话」那几步会**静默落空**——门禁里表现为导出 / 上下文 / 改动
+            // 一连串红，而报错全在别处。锚点与 web/e2e/selectors.ts 同一形态。
+            let js = click_target_js("/repo/demo");
+            assert!(js.contains(r#"[role="button"][title]"#));
+            assert!(js.contains("SESSION_ITEM_SELECTOR") || js.contains("出血点徽章"));
+        }
+
+        #[test]
         fn the_click_query_action_targets_a_selector() {
             let js = click_target_js("点选=[data-probe='compact-event-2']");
             // 动作走 querySelector（可访问名带动态数字的控件够不着通用扫描），
@@ -1585,7 +2028,14 @@ mod gui_probe {
         fn the_probe_reports_the_font_scale_and_session_rows() {
             assert!(PROBE_JS.contains("font_scale:"));
             assert!(PROBE_JS.contains("--font-scale"));
+            // 高对比度档：根元素属性是「档位真的落地了」的唯一事实来源。
+            assert!(PROBE_JS
+                .contains("contrast: document.documentElement.getAttribute('data-contrast')"));
             assert!(PROBE_JS.contains("session_rows"));
+            // 会话行的锚点是 role + title（#209 起行本体不再是 <button>），
+            // 与 web/e2e/selectors.ts 的 SESSION_ITEM_SELECTOR 同一形态。
+            assert!(PROBE_JS.contains(r#"[aria-label="会话列表"] [role="button"][title]"#));
+            assert!(!PROBE_JS.contains("[aria-label=\"会话列表\"] button[title]"));
         }
 
         #[test]
@@ -1695,6 +2145,28 @@ mod gui_probe {
         }
 
         #[test]
+        fn the_probe_reports_the_day_review_summary_and_timeline() {
+            // 「一日回望」（Round V2 / #192）：摘要行、时间线 rect、每条横条的
+            // 会话键，以及组件声明的会话数——门禁拿**实测条数**跟它对账。
+            assert!(PROBE_JS.contains("[data-probe=\"day-summary\"]"));
+            assert!(PROBE_JS.contains("[data-probe=\"day-timeline\"]"));
+            assert!(PROBE_JS.contains("[data-probe=\"day-timeline-bar\"]"));
+            assert!(PROBE_JS.contains("data-session-path"));
+            assert!(PROBE_JS.contains("data-session-count"));
+            assert!(PROBE_JS.contains("calendarFacts.dayReview"));
+        }
+
+        #[test]
+        fn the_probe_reports_the_calendar_insights_facts() {
+            // 「一年洞察」（Round V3 / #199）：六句实事的容器锚点（data-probe）
+            // 与键序列（data-insight-key）——门禁把键序与六个稳定词逐字对账
+            // （DAY_SUMMARY_LABELS 的同款做法）。
+            assert!(PROBE_JS.contains("[data-probe=\"calendar-insights\"]"));
+            assert!(PROBE_JS.contains("data-insight-key"));
+            assert!(PROBE_JS.contains("calendarFacts.insights"));
+        }
+
+        #[test]
         fn the_probe_reports_the_usage_snapshot_export_entry() {
             // 用量快照入口（Round S / #149）：探针只回答「按钮在不在、可不可点」，
             // 不去点它——点了会弹系统保存对话框、探针驱动不了那一步。锚点用
@@ -1702,6 +2174,92 @@ mod gui_probe {
             assert!(PROBE_JS.contains("[data-probe=\"usage-snapshot-export\"]"));
             assert!(PROBE_JS.contains("facts.snapshot_export"));
             assert!(PROBE_JS.contains("disabled: snapshotEl.disabled === true"));
+        }
+
+        #[test]
+        fn the_probe_targets_the_main_log_table_by_anchor_not_by_tag() {
+            // 「记录表末列可达」检查的采集锚点（Round V / #187 期间修正）：此前是
+            // 裸 querySelector('table')，依赖「文档第一个 table 恰是主日志表」的
+            // 旧假设——消耗日历给用量页带来 table 后在用量页被误捕（日历无
+            // thead → lastColumnRight 为 null → 误报「末列被裁切」）。锚点收紧到
+            // LogView 主表的 data-probe，侧栏 / 浮层小表与日历都不再进这条检查。
+            assert!(PROBE_JS.contains("table[data-probe=\"record-table\"]"));
+        }
+
+        #[test]
+        fn the_probe_reports_the_usage_calendar_facts() {
+            // 消耗日历（Round V / #187）的锚点：滚动容器（data-usage-calendar，
+            // overflowX / 滚动几何走 boxOf）、365 天格计数（data-probe，pad 不挂）、
+            // 今天格唯一性（挂在 td 上）、展开区（data-calendar-sessions）。
+            assert!(PROBE_JS.contains("[data-usage-calendar]"));
+            assert!(PROBE_JS.contains("calendar-day"));
+            assert!(PROBE_JS.contains("calendar-today"));
+            assert!(PROBE_JS.contains("facts.calendar = calendarFacts"));
+            assert!(PROBE_JS.contains("data-calendar-sessions"));
+        }
+
+        #[test]
+        fn the_probe_reports_the_pulse_view_facts() {
+            // 「实时脉搏」（Issue #203 / Round W）：根节点（pulse-page）、四态
+            // （根节点上的 data-state）、浮窗细头与拖动声明、5 个窗口读数的键序、
+            // 60 根速率柱与进行中那一根、活跃会话行与字形高度、上下文曲线的样本数 /
+            // 参考带 / 断崖计数。
+            // 锚点一律 data-probe，**禁裸标签选择器**（日历表被 `querySelector('table')`
+            // 误捕那一课：门禁红了 9 步才定位到）。
+            assert!(PROBE_JS.contains("[data-probe='pulse-page']"));
+            assert!(PROBE_JS.contains("pulseFacts.state"));
+            assert!(PROBE_JS.contains("[data-probe='pulse-float-head']"));
+            assert!(PROBE_JS.contains("data-tauri-drag-region"));
+            assert!(PROBE_JS.contains("[data-probe='pulse-window-readout']"));
+            assert!(PROBE_JS.contains("[data-probe='pulse-rate-bar']"));
+            assert!(PROBE_JS.contains("[data-probe='pulse-session-row']"));
+            assert!(PROBE_JS.contains("[data-probe='pulse-session-tick']"));
+            assert!(PROBE_JS.contains("[data-probe='pulse-context-curve']"));
+            assert!(PROBE_JS.contains("[data-probe='pulse-context-band']"));
+            assert!(PROBE_JS.contains("[data-probe='pulse-context-cliff']"));
+            assert!(PROBE_JS.contains("facts.pulse = pulseFacts"));
+        }
+
+        #[test]
+        fn the_probe_reports_the_milestones_view_facts() {
+            // 「里程碑」（Issue #214 / Round Y）：用量页第三档子视图。锚点：根节点
+            // （milestones-view）、空态（milestones-empty）、三组
+            // （milestones-group 的 data-group）、每枚卡片（milestone-card 的
+            // state / 名称 / 值 / 填充）、距离条轨道（milestone-track）。
+            // 锚点一律 data-probe，**禁裸标签选择器**（日历表被误捕那一课）。
+            // 「未达成卡片里取不到 fill」（§15.2 的裁决）是一条布尔几何事实——
+            // 探针数的是 querySelectorAll 的条数，这条选择器字符串必须留在脚本里，
+            // 不然实现期把 milestone-fill 从探针里删掉也没人察觉。
+            assert!(PROBE_JS.contains("[data-probe='milestones-view']"));
+            assert!(PROBE_JS.contains("[data-probe='milestones-group']"));
+            assert!(PROBE_JS.contains("[data-probe='milestone-card']"));
+            assert!(PROBE_JS.contains("[data-probe='milestone-name']"));
+            assert!(PROBE_JS.contains("[data-probe='milestone-value']"));
+            assert!(PROBE_JS.contains("[data-probe='milestone-fill']"));
+            assert!(PROBE_JS.contains("[data-probe='milestone-track']"));
+            // 锚点类（首次 / 记录）没有轨道，也就没有填充——脚本靠这条事实
+            // 把「阶梯卡的两态」与「锚点卡的无填充」分开，字段名必须留着。
+            assert!(PROBE_JS.contains("track: !!milestoneTrack"));
+            assert!(PROBE_JS.contains("facts.milestones = milestoneFacts"));
+        }
+
+        #[test]
+        fn the_probe_reports_the_monitor_console_view_facts() {
+            // 「监控台」（Issue #225 / Round Z）：根节点与四态、四枚读数键序、
+            // 24 小时三态、项目行、事件行与可见详情。锚点一律 data-probe，
+            // **禁裸标签选择器**；尤其 future 小时必须用组合选择器证明槽内
+            // **没有任何填充**，不能把「未来」画成「0 token」。
+            assert!(PROBE_JS.contains("[data-probe='monitor-console-page']"));
+            assert!(PROBE_JS.contains("[data-probe='monitor-console-readout']"));
+            assert!(PROBE_JS.contains("[data-probe='monitor-console-hour']"));
+            assert!(PROBE_JS.contains("[data-probe='monitor-console-hour-slot']"));
+            assert!(PROBE_JS.contains("[data-probe='monitor-console-project-row']"));
+            assert!(PROBE_JS.contains("[data-probe='monitor-console-event-row']"));
+            assert!(PROBE_JS.contains(
+                "[data-probe='monitor-console-hour'][data-phase='future'] \
+                 [data-probe='monitor-console-hour-fill']"
+            ));
+            assert!(PROBE_JS.contains("facts.monitor_console = monitorConsoleFacts"));
         }
 
         #[test]

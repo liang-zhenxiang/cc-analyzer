@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { test, expect, largeScenario, WINDOW_ROW_THRESHOLDS } from "./fixtures";
+import { sessionItems } from "./selectors";
 
 /**
  * 日志表的列预算与状态语义（Round I · I1）。
@@ -14,10 +15,6 @@ import { test, expect, largeScenario, WINDOW_ROW_THRESHOLDS } from "./fixtures";
  * 4. **失败是红的**——`.container td` 的基色曾经把失败语义色整个盖掉
  *    （v0.11.0 起失效），所以这条只能在浏览器里按**计算色**验。
  */
-
-function sessionItems(page: Page) {
-  return page.getByLabel("会话列表", { exact: true }).locator("button[title]:has(strong)");
-}
 
 /** 打开某个夹具会话（按目录名筛会话列表，再进日志视图）。 */
 async function openSession(page: Page, query: string) {

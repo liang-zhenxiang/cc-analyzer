@@ -1,10 +1,11 @@
+import { useState } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { ThemeProvider, useTheme } from "../../app/ThemeProvider";
 import { BridgesProvider } from "../../api/bridges";
 import type { Bridges } from "../../api/types";
-import { MonitorPage } from "./MonitorPage";
+import { MonitorPage, type MonitorView } from "./MonitorPage";
 
 const RETRY_DELAY_MS = 800;
 const FRAME_TITLE = "实时监控仪表盘";
@@ -23,6 +24,17 @@ function createBridges({
   enterFloatMode?: () => Promise<void>;
 } = {}): Bridges {
   return {
+    // 脉搏档会驱动 `usePulseFeed`（列会话 → 读文件）。这里给一份「一个会话都
+    // 没有」的 fs：默认档的脉搏走空态，不会把测试拖进一堆异步状态更新。
+    fs: {
+      homeDir: async () => "/home/tester",
+      appDataDir: async () => "/app-data",
+      readDir: async () => [],
+      readText: async () => "{}",
+      readHead: async () => "",
+      writeText: async () => undefined,
+      stat: async () => ({ is_file: true, size: 0, mtime_ms: 0 })
+    },
     monitor: { monitorPort, pingMonitor },
     custom: { enterFloatMode }
   } as unknown as Bridges;
@@ -37,13 +49,37 @@ function ThemeToggle() {
   );
 }
 
-function renderMonitor(bridges: Bridges, onEnterFloat?: () => void) {
+/**
+ * 受控分段容器（Issue #203）：`MonitorPage` 不再自带子视图状态，测试由一个
+ * 小 harness 持有 `view`，默认停在 `dashboard` 以保留 #55 的断言；新用例显式
+ * 从 `pulse` 起步。
+ */
+function Harness({
+  bridges,
+  initialView,
+  onEnterFloat
+}: {
+  bridges: Bridges;
+  initialView: MonitorView;
+  onEnterFloat?: () => void;
+}) {
+  const [view, setView] = useState<MonitorView>(initialView);
+  return (
+    <BridgesProvider bridges={bridges}>
+      <MonitorPage view={view} onViewChange={setView} onEnterFloat={onEnterFloat} />
+    </BridgesProvider>
+  );
+}
+
+function renderMonitor(
+  bridges: Bridges,
+  onEnterFloat?: () => void,
+  initialView: MonitorView = "dashboard"
+) {
   return render(
     <ThemeProvider>
       <ThemeToggle />
-      <BridgesProvider bridges={bridges}>
-        <MonitorPage onEnterFloat={onEnterFloat} />
-      </BridgesProvider>
+      <Harness bridges={bridges} initialView={initialView} onEnterFloat={onEnterFloat} />
     </ThemeProvider>
   );
 }
@@ -57,6 +93,75 @@ function openMonitor() {
 }
 
 describe("MonitorPage", () => {
+  test("默认渲染脉搏，且不调用 monitor_port / monitor_ping（R1）", () => {
+    const monitorPort = vi.fn(async () => 8090);
+    const pingMonitor = vi.fn(async () => true);
+
+    renderMonitor(createBridges({ monitorPort, pingMonitor }), undefined, "pulse");
+
+    expect(document.querySelector('[data-probe="pulse-page"]')).not.toBeNull();
+    // 挂载脉搏不产生任何**探测**：monitor_port 是仪表盘档才读的常量，
+    // pingMonitor 是探测本身——两者都必须一次都没跑。
+    expect(monitorPort).not.toHaveBeenCalled();
+    expect(pingMonitor).not.toHaveBeenCalled();
+  });
+
+  test("实时监控有三档，监控台排在脉搏之后、外部仪表盘之前", () => {
+    renderMonitor(createBridges(), undefined, "pulse");
+
+    expect(screen.getByRole("tab", { name: "脉搏" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "监控台" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "外部仪表盘" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "脉搏" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  test("切到监控台走本机日志，不调用 monitor_port / monitor_ping", async () => {
+    const monitorPort = vi.fn(async () => 8090);
+    const pingMonitor = vi.fn(async () => true);
+
+    renderMonitor(createBridges({ monitorPort, pingMonitor }), undefined, "pulse");
+    fireEvent.click(screen.getByRole("tab", { name: "监控台" }));
+
+    await waitFor(() =>
+      expect(document.querySelector('[data-probe="monitor-console-page"]')).not.toBeNull()
+    );
+    expect(monitorPort).not.toHaveBeenCalled();
+    expect(pingMonitor).not.toHaveBeenCalled();
+  });
+
+  test("切到「外部仪表盘」后，显式打开与失败重试仍成立（R1 / #55）", async () => {
+    vi.useFakeTimers();
+    try {
+      const monitorPort = vi.fn(async () => 8090);
+      const pingMonitor = vi.fn(async () => false);
+      renderMonitor(createBridges({ monitorPort, pingMonitor }), undefined, "pulse");
+
+      fireEvent.click(screen.getByRole("tab", { name: "外部仪表盘" }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      // 切过去也**不自动探测**：只有点「打开监控」才探测。
+      expect(screen.getByRole("button", { name: "打开监控" })).toBeInTheDocument();
+      expect(pingMonitor).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "打开监控" }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(RETRY_DELAY_MS * 3);
+      });
+      expect(screen.getByText("监控仪表盘未连接")).toBeInTheDocument();
+      expect(pingMonitor).toHaveBeenCalledTimes(3);
+
+      fireEvent.click(screen.getByRole("button", { name: "重试" }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(RETRY_DELAY_MS * 3);
+      });
+      expect(pingMonitor).toHaveBeenCalledTimes(6);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("does not probe or embed a frame until the user opens the monitor", () => {
     const monitorPort = vi.fn(async () => 8090);
     const pingMonitor = vi.fn(async () => true);
@@ -272,9 +377,16 @@ describe("MonitorPage theme and float bridging", () => {
     );
   });
 
-  test("enters float mode when the dashboard asks for it", async () => {
+  /**
+   * Issue #203 起，**窗口命令只由 `AppShell` 发**（它同时要切浮窗版式，两件事
+   * 必须成对发生，见 `AppShell.tsx` 里 `enterFloatMode` 的注释）。这里钉住
+   * 「MonitorPage 不再自己调一次」——否则同一条消息会让 `float.enter` 跑两遍。
+   * 对应的正向断言在 `AppShell.test.tsx` 与「notifies the shell…」两条用例里。
+   */
+  test("translates the dashboard's float request without calling the window command itself", async () => {
     const enterFloatMode = vi.fn(async () => undefined);
-    renderMonitor(createBridges({ enterFloatMode }));
+    const onEnterFloat = vi.fn();
+    renderMonitor(createBridges({ enterFloatMode }), onEnterFloat);
 
     openMonitor();
     await screen.findByTitle(FRAME_TITLE);
@@ -287,7 +399,8 @@ describe("MonitorPage theme and float bridging", () => {
       );
     });
 
-    expect(enterFloatMode).toHaveBeenCalledTimes(1);
+    expect(onEnterFloat).toHaveBeenCalledTimes(1);
+    expect(enterFloatMode).not.toHaveBeenCalled();
   });
 
   test("notifies the shell after entering float mode", async () => {

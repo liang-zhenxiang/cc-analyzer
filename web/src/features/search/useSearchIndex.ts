@@ -16,19 +16,26 @@ const PUBLISH_EVERY = 8;
  * Fire-and-forget by design: the palette answers with whatever is indexed and
  * shows how much is still pending.
  */
-export function useSearchIndex(): { indexed: number; total: number } {
+export function useSearchIndex(): { indexed: number; total: number; entries: number } {
   const bridges = useBridges();
   const { sessions, loading } = useSessions();
   const [indexed, setIndexed] = useState(sharedSearchIndex.sessionCount);
+  // `indexed` 的分数是会话口径（还剩几个会话没搜过），`entries` 是条目口径
+  // （一条记录可能产出两个）——两个数各有各的用途，读数里并存。
+  const [entries, setEntries] = useState(sharedSearchIndex.entryCount);
   const scanTarget = loading ? null : sessions;
 
   useEffect(() => {
     if (!scanTarget) return;
     let cancelled = false;
+    const publish = () => {
+      setIndexed(sharedSearchIndex.sessionCount);
+      setEntries(sharedSearchIndex.entryCount);
+    };
     const scan = async () => {
       const paths = new Set(scanTarget.map((session) => session.path));
       sharedSearchIndex.retain(paths);
-      setIndexed(sharedSearchIndex.sessionCount);
+      publish();
       for (const session of scanTarget) {
         if (cancelled) return;
         if (sharedSearchIndex.has(session.path)) continue;
@@ -44,11 +51,11 @@ export function useSearchIndex(): { indexed: number; total: number } {
           // An unreadable session drops out of the index, not out of the app.
         }
         if (sharedSearchIndex.sessionCount % PUBLISH_EVERY === 0) {
-          setIndexed(sharedSearchIndex.sessionCount);
+          publish();
         }
         await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
       }
-      setIndexed(sharedSearchIndex.sessionCount);
+      publish();
     };
     void scan();
     return () => {
@@ -58,5 +65,5 @@ export function useSearchIndex(): { indexed: number; total: number } {
     // refresh/import, which legitimately restarts the scan (warm cache).
   }, [scanTarget, bridges]);
 
-  return { indexed, total: loading ? 0 : sessions.length };
+  return { indexed, total: loading ? 0 : sessions.length, entries };
 }

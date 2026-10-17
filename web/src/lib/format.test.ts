@@ -4,6 +4,7 @@ import {
   formatBytes,
   formatDateTime,
   formatDuration,
+  formatFullDate,
   formatModelId,
   formatProjectPath,
   formatRelativeTime,
@@ -42,6 +43,16 @@ describe("format helpers", () => {
     // mono 列里每位等宽，1 月 3 日 9:07 不会比 12 月 31 日短一截。
     expect(formatShortStamp(new Date(2026, 0, 3, 9, 7).getTime())).toBe("01-03 09:07");
     expect(formatShortStamp(new Date(2026, 11, 31, 23, 59).getTime())).toBe("12-31 23:59");
+  });
+
+  it("formats full dates as YYYY-MM-DD, zero-padded across the year", () => {
+    // 单数字月份与日子都补零：全历史窗口没有年份表头，日期得自己带年份。
+    expect(formatFullDate(new Date(2026, 0, 3).getTime())).toBe("2026-01-03");
+    expect(formatFullDate(new Date(2026, 11, 31).getTime())).toBe("2026-12-31");
+    expect(formatFullDate(new Date(2025, 11, 31).getTime())).toBe("2025-12-31");
+    expect(formatFullDate(new Date(2026, 0, 1).getTime())).toBe("2026-01-01");
+    // 与 formatDayLabel 的 `5/31` 是两种用途，不共享输出。
+    expect(formatFullDate(new Date(2026, 4, 31).getTime())).toBe("2026-05-31");
   });
 
   it("formats relative time labels for the session list", () => {

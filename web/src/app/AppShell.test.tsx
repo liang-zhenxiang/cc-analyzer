@@ -31,11 +31,13 @@ const bridges = {
 } as unknown as Bridges;
 
 /**
- * 切到监控标签并打开面板。面板不再在挂载时自动探测，
- * 所以「仪表盘已经内嵌」这件事之前必须先有这一次点击。
+ * 切到监控标签、进入「外部仪表盘」子视图并打开面板。Issue #203 起默认档是
+ * 原生「脉搏」，而且面板不再在挂载时自动探测，所以「仪表盘已经内嵌」这件事
+ * 之前必须先把子视图切过去、再点一次「打开监控」。
  */
 async function openMonitor(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("tab", { name: "实时监控" }));
+  await user.click(screen.getByRole("tab", { name: "外部仪表盘" }));
   await user.click(screen.getByRole("button", { name: "打开监控" }));
   await screen.findByTitle("实时监控仪表盘");
 }
@@ -65,7 +67,7 @@ test("⌘K 唤起全局搜索面板，Esc 关闭；顶栏按钮亦可唤起", as
   fireEvent.keyDown(window, { key: "k", metaKey: true });
   const dialog = screen.getByRole("dialog", { name: "全局搜索" });
   expect(dialog).toBeInTheDocument();
-  expect(screen.getByLabelText("搜索消息")).toHaveFocus();
+  expect(screen.getByLabelText("搜索会话记录")).toHaveFocus();
 
   // Esc 关闭
   await user.keyboard("{Escape}");
@@ -102,6 +104,79 @@ test("falls back to the analyzer when the stored tab is unknown", () => {
   render(<AppShell bridges={bridges} />);
 
   expect(screen.getByRole("tab", { name: "会话分析", selected: true })).toBeInTheDocument();
+});
+
+test("监控默认停在脉搏档，并持久化子视图选择", async () => {
+  const user = userEvent.setup();
+  render(<AppShell bridges={bridges} />);
+
+  await user.click(screen.getByRole("tab", { name: "实时监控" }));
+  // 挂载即渲染原生脉搏（不探测外部服务）。
+  expect(document.querySelector('[data-probe="pulse-page"]')).not.toBeNull();
+  expect(localStorage.getItem("cca-monitor-view")).toBe("pulse");
+
+  await user.click(screen.getByRole("tab", { name: "监控台" }));
+  expect(localStorage.getItem("cca-monitor-view")).toBe("console");
+
+  await user.click(screen.getByRole("tab", { name: "外部仪表盘" }));
+  expect(localStorage.getItem("cca-monitor-view")).toBe("dashboard");
+});
+
+test("未知的监控子视图存值回落到脉搏", async () => {
+  const user = userEvent.setup();
+  window.localStorage.setItem("cca-monitor-view", "bogus");
+  render(<AppShell bridges={bridges} />);
+
+  await user.click(screen.getByRole("tab", { name: "实时监控" }));
+  expect(screen.getByRole("tab", { name: "脉搏", selected: true })).toBeInTheDocument();
+});
+
+test("已保存的监控台子视图会被恢复", async () => {
+  const user = userEvent.setup();
+  window.localStorage.setItem("cca-monitor-view", "console");
+  render(<AppShell bridges={bridges} />);
+
+  await user.click(screen.getByRole("tab", { name: "实时监控" }));
+  expect(screen.getByRole("tab", { name: "监控台", selected: true })).toBeInTheDocument();
+});
+
+test("浮窗态（脉搏档）收起顶栏、换成可拖动的细头，退出后恢复", async () => {
+  const user = userEvent.setup();
+  const exitFloatMode = vi.fn(async () => undefined);
+  const enterFloatMode = vi.fn(async () => undefined);
+  render(
+    <AppShell
+      bridges={
+        {
+          ...bridges,
+          custom: { enterFloatMode, exitFloatMode }
+        } as unknown as Bridges
+      }
+    />
+  );
+
+  await user.click(screen.getByRole("tab", { name: "实时监控" }));
+  // 默认就是脉搏档：页头的「悬浮」按钮直接可点。
+  await user.click(screen.getByRole("button", { name: "悬浮" }));
+
+  // 进浮窗 = 窗口命令 + 版式切换，缺一不可（2026-10-15 真机门禁抓到过
+  // 「只切版式、窗口没变」的那一版）。
+  await waitFor(() => expect(enterFloatMode).toHaveBeenCalledTimes(1));
+
+  // 整条顶栏被细头替换：工作区分段标签消失。
+  expect(screen.queryByRole("tab", { name: "实时监控" })).not.toBeInTheDocument();
+  const head = document.querySelector('[data-probe="pulse-float-head"]')!;
+  expect(head).not.toBeNull();
+  expect(head.getAttribute("data-tauri-drag-region")).toBe("deep");
+  expect(head.textContent).toContain("实时脉搏");
+
+  await user.click(screen.getByRole("button", { name: "退出浮窗" }));
+  expect(exitFloatMode).toHaveBeenCalledTimes(1);
+  await waitFor(() =>
+    expect(document.querySelector('[data-probe="pulse-float-head"]')).toBeNull()
+  );
+  // 顶栏回来。
+  expect(screen.getByRole("tab", { name: "实时监控" })).toBeInTheDocument();
 });
 
 test("shows the float exit button only after the dashboard enters float mode", async () => {

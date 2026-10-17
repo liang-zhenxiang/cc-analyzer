@@ -23,8 +23,10 @@ const SAVED = "/Users/e2e/usage-snapshot-out.html";
 const DASHBOARD = "用量总览";
 const EXPORT_BUTTON = "导出用量快照（单文件 HTML）";
 
-/** 快照的契约文案（Issue #149 评论里定死的原句）——写死在这里，改动必须显式。 */
-const SCOPE_NOTE = "本快照包含用量总览的读数与图表；不含工具与 skill 普查、压缩统计、错误档。";
+/** 快照的契约文案（Issue #149 评论里定死的原句；Round V / #187 补「消耗日历」）
+ * ——写死在这里，改动必须显式，且与 usageSnapshot.ts 的 SNAPSHOT_SCOPE_NOTE 只有一个原文。 */
+const SCOPE_NOTE =
+  "本快照包含用量总览的读数与图表；不含消耗日历、工具与 skill 普查、压缩统计、错误档。";
 const EMPTY_TITLE = "所选区间内没有会话记录";
 
 function writtenFiles(page: Page) {

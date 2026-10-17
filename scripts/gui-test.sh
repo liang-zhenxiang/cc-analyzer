@@ -54,16 +54,22 @@
 #                                        # 点击并在每步取一张图，各走相同的转 PNG + 非空白
 #                                        # 与几何判定。**单个值沿用旧文件名 -tab.pdf**。
 #
-# 默认的视图清单是「会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
+# 默认的视图清单是「实时监控 → 脉搏档 → 悬浮（浮窗细头）→ 退出浮窗 → 监控台 →
+# 脉搏（清理子视图残留）→ 会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 →
+# 终端转义夹具会话 →
 # 日志视图 → 导出 → 关闭导出窗口 → 压缩夹具会话 → 上下文 → 点选第 2 枚压缩事件 chip →
 # 改动夹具会话 → 改动 → 点选首个文件行 →
-# 用量总览 → 视图=用量 → 滚到底 → 点选工具普查榜首行 → 近 7 天 → 错误档 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→
-# 实时监控 → 字号恢复 100%」；每张图都配一份
+# 用量总览 → 视图=用量 → 滚到底 → 点选工具普查榜首行 → 用量总览 → 视图=里程碑 → 视图=用量 →
+# 滚到底 → 近 7 天 → 错误档 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→
+# 设置=开 → 导出归档包 → 取消 → 对比度恢复普通 → 字号恢复 100%」；每张图都配一份
 # 几何探针 JSON（`CCA_GUI_PROBE`），脚本据它判定
 # **布局不变量**：无横向溢出、表盘有界且含于卡片、记录表末列可达、会话行不裁字、
 # 两层限额读数在卡内、用量页三块面板滚一次可达、上下文曲线有界且命中区与压缩次数一致、
 # 取证卡在视口内、被丢清单不是假列表、错误档趋势有界且事件列表是真列表、
-# 改动文件列表是真列表且展开区可达、工具普查四栏清单是真列表且下钻区可达。目标既可写
+# 改动文件列表是真列表且展开区可达、工具普查四栏清单是真列表且下钻区可达、
+# 脉搏四块面板齐备（5 个读数 / 60 根柱 / 三档字形高度 12·8·4 / 上下文曲线与参考带）、
+# 浮窗细头在场且拖动声明为 deep、里程碑三组齐备（阶梯恒 7 枚 / reached 恰一枚填充且宽 ≥ 2px /
+# unreached 取不到填充）。目标既可写
 # 可访问名/可见文本（标签页），也可写会话 cwd
 # （会匹配按钮的 `title`）、`字号=<档位>` / `视图=<用量页子视图名>` / `滚动=<选择器>` /
 # `点选=<CSS 选择器>` 四种动作。
@@ -117,17 +123,23 @@ gui-test.sh —— 真机 GUI 冒烟测试
                                        # 不删临时工作目录，并把路径打印出来。
   -h, --help                           # 显示帮助
 
-默认视图清单：会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
+默认视图清单：实时监控 → 脉搏档 → 悬浮（浮窗细头：顶栏收起、拖动声明为 deep）→ 退出浮窗 →
+监控台 → 切回脉搏 → 会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
+（切成高对比度后，余下每个视图都在 130% + 高对比度下重验）→
 日志视图 → 导出 → 关闭导出窗口 → 压缩夹具会话（/repo/compact-demo）→ 上下文 → 点选第 2 枚压缩
 事件 chip → 改动夹具会话（/repo/changed-demo）→ 改动 → 点选首个文件行 → 用量总览 → 视图=用量 →
-滚到底 → 点选工具普查榜首行 → 点选配额归因第一行 → 用量总览 → 视图=用量 → 滚到底 →
-近 7 天 → 错误档 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→ 实时监控 → 设置=开 →
+滚到底 → 点选工具普查榜首行 → 点选配额归因第一行 → 用量总览 → 视图=里程碑 → 视图=用量 → 滚到底 →
+近 7 天 → 错误档 → 滚到底 → 全局搜索（开）→ 全局搜索（关）→ 设置=开 →
 导出归档包（口令浮层）→ 取消 →
 字号恢复 100%。
+（脉搏四步排在最前面：新近度的 live 档只有 2 分钟，排在清单末尾时夹具早已掉出那一档。）
 每张图都配一份几何探针 JSON，脚本据它判定布局不变量（无横向溢出 / 表盘有界且含于卡片 /
 记录表末列可达 / 文字里无 ESC 转义字节 / 两层限额读数在卡内 / 用量页三块面板滚一次可达 /
 上下文曲线有界且命中区与压缩次数一致 / 取证卡在视口内 / 被丢清单不是假列表 / 错误档趋势
 有界且事件列表是真列表 / 改动文件列表是真列表且展开区可达 / 工具普查四栏清单是真列表且下钻区可达 /
+脉搏四块面板齐备（5 个窗口读数 / 60 根速率柱其中 1 根进行中 / 三档字形高度 12·8·4px /
+上下文曲线与参考带）/ 浮窗细头在场且拖动声明为 deep /
+里程碑三组齐备（首次 / 阶梯恒 7 枚 / 单会话记录；reached 恰一枚填充且宽 ≥ 2px，unreached 取不到填充）/
 归档包口令浮层在窗口内且两份口令输入与「口令无法找回」警告真的渲染出来 / 配额归因面板是真列表且
 点行真的打开了那个会话）。
 
@@ -136,6 +148,9 @@ gui-test.sh —— 真机 GUI 冒烟测试
 因为 WebKit 的 localStorage 不受 HOME 隔离，不恢复会把这个偏好留给下一次运行与使用者。
 `设置=开` 也是动作目标，且是**幂等**的：设置浮层已经打开就什么都不做，没开才点顶栏那枚
 按钮（它是 toggle，面板开着再点一次会把它关掉——靠 `aria-expanded` 判当前状态）。
+`对比度=高` / `对比度=普通` 与 `字号=<档位>` 同一动作协议：先在设置浮层里把界面对比度
+切到该档，再取图与探针——默认清单在 130% 之后切一次高对比度，末尾切回普通（两枚旋钮
+各恢复各的）。
 `滚动=<选择器>`（如 `滚动=main`）、`视图=<用量页子视图名>`（如 `视图=用量`，重置 N1 的
 「用量|错误」分段状态——它记在不受 HOME 隔离的真实 WebKit localStorage 里，不重置时上次
 停在错误档的残留会让用量档的判定整段落空）与 `点选=<CSS 选择器>`（如 `点选=[data-probe='compact-event-2']`）
@@ -564,7 +579,7 @@ install_fixture "${FIXTURE_SRC}/error-session.jsonl" "-repo-error-demo" "error-s
 #    平移出「近 7 天」窗口，错误档的 7 条期望失配；
 # 2. 平移只改绝对位置、不改相对间距——本夹具若只早两三天，平移后自己会落进
 #    「近 7 天」窗口，它那条 is_error 的 Edit 就成了错误档的第 8 条。
-#    （两个方向都是真���门禁抓到过的；13 天 > 窗口 7 天 + 舍入余量。）
+#    （两个方向都是真机门禁抓到过的；13 天 > 窗口 7 天 + 舍入余量。）
 install_fixture "${FIXTURE_SRC}/changed-files-session.jsonl" "-repo-changed-demo" "changed-files-session"
 # 工具统计夹具（Round N / N3）：「工具与 skill」面板的门禁步骤靠它——主链 13 次
 # tool_use（Skill 裸名 + ns:name、MCP 3 段名 + 2 段防御名、Agent 带
@@ -575,6 +590,189 @@ install_fixture "${FIXTURE_SRC}/changed-files-session.jsonl" "-repo-changed-demo
 # changed-files，其 Edit/Read/Write 与前两者重类不重名），榜单行数恒为
 # Top-6 + 折尾（8 类内置），榜首恒为 Bash（7 次并列时按名字稳定排序胜出）。
 install_fixture "${FIXTURE_SRC}/tool-census-session.jsonl" "-repo-census-demo" "tool-census-session"
+# 消耗日历（Round V / #187）：门禁要 `点选=[data-probe='calendar-today'] button`
+# 展开当天清单，而上面全部夹具统一平移到「最新活动日 = 昨天」——今天的格子
+# 恒无数据、点不开。这里**在内存里合成**一个「今天」的会话补上（时间戳相对
+# now 取值、不参与平移，同 e2e quotaAttributionScenario 的做法）：sonnet
+# 600K input。它不带 tool_use / 错误信号，工具普查与错误档的夹具账不动；
+# 归因面板的当前 5h 窗口会多一行（判据按「≥1 行 / 有余项时恰 5 行」对账，
+# 加一个会话只会让无余项变有余项，两分支都兼容）。
+# 直接格式化「现在」，不做 epoch 往返——`date -r <epoch>` 是 BSD 语法，GNU date
+# 的 `-r` 是「读文件 mtime」，CI（Linux）上会报 "date: <epoch>: No such file or
+# directory" 并被 set -e 放大成「假应用没启动」。两次调用几乎同秒（assistant
+# 与 user 时间非递减即可，解析按行序），不需要严格 +5s。
+CALENDAR_T0="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+CALENDAR_T1="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+mkdir -p "${HOME_DIR}/.claude/projects/-repo-calendar-demo"
+cat >"${HOME_DIR}/.claude/projects/-repo-calendar-demo/calendar-today-0001.jsonl" <<JSONL
+{"type":"user","sessionId":"calendar-today-0001","cwd":"/repo/calendar","timestamp":"${CALENDAR_T0}","uuid":"cal-today-user-1","parentUuid":null,"isSidechain":false,"message":{"role":"user","content":"日历门禁的今天会话"}}
+{"type":"assistant","sessionId":"calendar-today-0001","timestamp":"${CALENDAR_T1}","uuid":"cal-today-llm-1","parentUuid":"cal-today-user-1","isSidechain":false,"message":{"id":"cal-today-msg-1","role":"assistant","model":"claude-sonnet-4","content":[{"type":"text","text":"日历门禁夹具"}],"usage":{"input_tokens":600000}}}
+JSONL
+# 脉搏夹具（Issue #203 / Round W）：三个会话按**最后活动时间**分三档，让门禁能
+# 断言「12 / 8 / 4 的字形阶梯」与三档分布——这是本轮唯一的「此刻」几何。
+#
+# 两件事必须自己控制，走不了 install_fixture：
+#   1. **mtime**。脉搏的活跃集合（5 小时）、新近度、最新会话全读文件 mtime，而
+#      重定向写文件只会得到「脚本写它的那一刻」——三个会话会挤在同一毫秒上，
+#      三档分不开。这里用 node 写文件 + `utimesSync` 把 mtime 分别钉在
+#      now / now−8min / now−40min。
+#   2. **时间戳相对当下现算**。5 小时窗口必须覆盖 now；写死日期过几天就把会话
+#      甩出窗外，门禁会以「页面空着」这种毫无线索的方式假红（同上面日历夹具的
+#      理由）。node 直接算 `Date.now() - offset`，不做 epoch 往返——
+#      `date -r <epoch>` 是 BSD 专有语法，GNU date 的 `-r` 是「读文件 mtime」，
+#      那是「只在 CI / 发布时暴露的坑」里记过的一条。
+#
+# live 档带 **3 次自动压缩**（preTokens 齐全）：上下文曲线的参考带要 n ≥ 3 才画，
+# 断崖也靠它。最新会话取「活跃度倒序里第一个有记录的」，而 live 档最后写入、
+# mtime 是全场最新——所以参考带与断崖一定落在 live 档那条会话上。记录结构照
+# web/tests/fixtures/compact-session.jsonl 与 session-token-usage.jsonl。
+node - "${HOME_DIR}" <<'NODE'
+const fs = require("fs");
+const path = require("path");
+
+const home = process.argv[2];
+const projectsRoot = path.join(home, ".claude", "projects");
+const now = Date.now();
+const MINUTE = 60_000;
+const HOUR = 3_600_000;
+
+/** 与 Claude Code 一致：项目目录名 = cwd 的路径分隔符换成 `-`。 */
+function projectDir(cwd) {
+  return cwd.replace(/\//g, "-");
+}
+
+/** 把记录渲染成 JSONL 文本：行结构照真实日志（compact 出 boundary + 摘要两行）。 */
+function render(sessionId, cwd, records) {
+  const lines = [];
+  let lastUuid = null;
+  for (const record of records) {
+    const uuid = `${sessionId}-${lines.length}`;
+    const timestamp = new Date(record.at).toISOString();
+    if (record.kind === "compact") {
+      lines.push(
+        JSON.stringify({
+          sessionId,
+          cwd,
+          timestamp,
+          uuid,
+          parentUuid: null,
+          isSidechain: false,
+          type: "system",
+          subtype: "compact_boundary",
+          content: "Conversation compacted",
+          level: "info",
+          logicalParentUuid: lastUuid,
+          compactMetadata: {
+            trigger: record.trigger,
+            preTokens: record.preTokens,
+            postTokens: record.postTokens,
+            cumulativeDroppedTokens: record.preTokens - record.postTokens,
+            durationMs: 32_000
+          }
+        })
+      );
+      lastUuid = uuid;
+      const summaryUuid = `${sessionId}-${lines.length}`;
+      lines.push(
+        JSON.stringify({
+          sessionId,
+          cwd,
+          timestamp,
+          uuid: summaryUuid,
+          parentUuid: uuid,
+          isSidechain: false,
+          type: "user",
+          isCompactSummary: true,
+          isVisibleInTranscriptOnly: true,
+          message: { role: "user", content: record.summary }
+        })
+      );
+      lastUuid = summaryUuid;
+      continue;
+    }
+    const base = { sessionId, cwd, timestamp, uuid, parentUuid: lastUuid, isSidechain: false };
+    if (record.kind === "user") {
+      lines.push(JSON.stringify({ ...base, type: "user", message: { role: "user", content: record.text } }));
+    } else {
+      lines.push(
+        JSON.stringify({
+          ...base,
+          type: "assistant",
+          message: {
+            id: `${sessionId}-msg-${lines.length}`,
+            role: "assistant",
+            model: "claude-sonnet-4",
+            content: [{ type: "text", text: record.text }],
+            usage: {
+              input_tokens: record.usage.input,
+              output_tokens: record.usage.output,
+              cache_creation_input_tokens: record.usage.cacheCreation,
+              cache_read_input_tokens: record.usage.cacheRead
+            }
+          }
+        })
+      );
+    }
+    lastUuid = uuid;
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+/** 写一个会话文件并把 mtime 钉死在指定时刻（mtime 就是脉搏的活跃度事实）。 */
+function write(cwd, sessionId, records, mtimeMs) {
+  const dir = path.join(projectsRoot, projectDir(cwd));
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `${sessionId}.jsonl`);
+  fs.writeFileSync(file, render(sessionId, cwd, records), "utf8");
+  fs.utimesSync(file, mtimeMs / 1000, mtimeMs / 1000);
+  return file;
+}
+
+const liveId = "3d2a5442-9c65-4b28-9c30-bb3d1a200001";
+const recentId = "3d2a5442-9c65-4b28-9c30-bb3d1a200002";
+const idleId = "3d2a5442-9c65-4b28-9c30-bb3d1a200003";
+
+/** live 档：30 秒前还有新记录，整段回溯 4 小时（仍在 5 小时窗口内），夹 3 次自动压缩。 */
+const liveLast = now - 30_000;
+const liveRecords = [
+  { kind: "user", at: liveLast - 4 * HOUR, text: "把实时脉搏这条线铺开" },
+  { kind: "assistant", at: liveLast - 4 * HOUR + 30_000, text: "先盘点现有的监控页状态机。", usage: { input: 1600, output: 700, cacheCreation: 3200, cacheRead: 118_000 } },
+  { kind: "assistant", at: liveLast - 3 * HOUR - 50 * MINUTE, text: "上下文涨得有点快，做一轮自动压缩。", usage: { input: 1800, output: 640, cacheCreation: 3200, cacheRead: 148_600 } },
+  { kind: "compact", at: liveLast - 3 * HOUR - 48 * MINUTE, trigger: "auto", preTokens: 167_400, postTokens: 11_200, summary: "会话摘要：完成既有监控页盘点，下一步实现脉搏调度。" },
+  { kind: "assistant", at: liveLast - 3 * HOUR - 40 * MINUTE, text: "压缩后继续读调度约定。", usage: { input: 220, output: 180, cacheCreation: 2400, cacheRead: 18_600 } },
+  { kind: "user", at: liveLast - 3 * HOUR - 20 * MINUTE, text: "接着看 e2e 桩。" },
+  { kind: "assistant", at: liveLast - 3 * HOUR - 10 * MINUTE, text: "桩的 stat 现在锁死了 mtime，需要可变钩子。", usage: { input: 1400, output: 520, cacheCreation: 2600, cacheRead: 86_400 } },
+  { kind: "compact", at: liveLast - 2 * HOUR - 50 * MINUTE, trigger: "auto", preTokens: 158_900, postTokens: 10_400, summary: "会话摘要：确认需要可变文件与 mtime 的测试钩子。" },
+  { kind: "assistant", at: liveLast - 2 * HOUR - 40 * MINUTE, text: "钩子设计：改写、追加、读 mtime。", usage: { input: 260, output: 210, cacheCreation: 2400, cacheRead: 24_100 } },
+  { kind: "user", at: liveLast - 2 * HOUR, text: "夹具也要跟上。" },
+  { kind: "assistant", at: liveLast - 1 * HOUR - 50 * MINUTE, text: "夹具的时间戳必须相对 Date.now() 现算。", usage: { input: 1200, output: 460, cacheCreation: 2500, cacheRead: 106_800 } },
+  { kind: "compact", at: liveLast - 1 * HOUR - 20 * MINUTE, trigger: "auto", preTokens: 172_300, postTokens: 11_800, summary: "会话摘要：夹具将按会话年龄分成三档。" },
+  { kind: "assistant", at: liveLast - 40 * MINUTE, text: "三档会话就位。", usage: { input: 240, output: 190, cacheCreation: 2400, cacheRead: 17_300 } },
+  { kind: "user", at: liveLast - 5 * MINUTE, text: "再补一条 usage 记录。" },
+  { kind: "assistant", at: liveLast, text: "补上最后一条记录，正好落在 live 档。", usage: { input: 300, output: 240, cacheCreation: 2400, cacheRead: 6100 } }
+];
+
+const recentLast = now - 8 * MINUTE;
+const recentRecords = [
+  { kind: "user", at: recentLast - 2 * MINUTE, text: "八分钟前收尾的那个会话" },
+  { kind: "assistant", at: recentLast, text: "最近一档：几分钟前还有记录。", usage: { input: 420, output: 260, cacheCreation: 2400, cacheRead: 41_200 } }
+];
+
+const idleLast = now - 40 * MINUTE;
+const idleRecords = [
+  { kind: "user", at: idleLast - 2 * MINUTE, text: "四十分钟前停下的那个会话" },
+  { kind: "assistant", at: idleLast, text: "闲置一档：已经有一阵子没动静。", usage: { input: 380, output: 220, cacheCreation: 2400, cacheRead: 11_500 } }
+];
+
+// live 档最后写、mtime 取「现在」：它必须是全场最新（latest 会话就是它），
+// 否则上下文曲线会画在日历那条只有一条记录的合成会话上。
+write("/repo/pulse-recent", recentId, recentRecords, recentLast);
+write("/repo/pulse-idle", idleId, idleRecords, idleLast);
+write("/repo/pulse-live", liveId, liveRecords, now);
+process.stdout.write(
+  `  脉搏夹具：3 个会话，mtime 分别钉在 now / now−8min / now−40min（live 档带 3 次自动压缩）\n`
+);
+NODE
 # 归档夹具：源文件**不在**隔离家目录里（模拟 Claude Code 已清理），只有副本与索引。
 # 应用若真的把副本并回列表并解析，元数据缓存里会出现一条**键为副本路径**的条目——
 # 这是「归档 → 发现 → 解析 → 缓存」整条真机链路的直接证据。
@@ -601,7 +799,7 @@ cat >"${ARCHIVE_ROOT}/archive-index.json" <<JSON
 }
 JSON
 printf '  隔离家目录：%s\n' "$HOME_DIR"
-printf '  夹具会话：9 个（另有 1 个只剩归档副本的会话）\n'
+printf '  夹具会话：13 个（含 1 个内存合成的「今天」日历会话与 3 个脉搏夹具；另有 1 个只剩归档副本的会话）\n'
 
 CACHE_PATH="${HOME_DIR}/Library/Application Support/${BUNDLE_ID}/meta-cache-v2.json"
 
@@ -615,9 +813,13 @@ step "启动应用"
 # CCA_GUI_PROBE 让应用在每张图之后额外取回一份几何事实。
 #
 # 采集计划（视图清单）：默认视图先取一张，然后按顺序点击每个目标各取一张。
-# **第一个目标固定是「会话分析」**：应用会把上次所在的标签页记进 WebKit 的
-# localStorage，而那份存储落在使用者真实的 ~/Library/WebKit（不受 HOME 隔离影响），
-# 于是应用未必从「会话分析」启动——不先显式切回去，后面的会话点击会落空。
+# **分析器那一串步骤之前固定先点「会话分析」**：应用会把上次所在的标签页记进
+# WebKit 的 localStorage，而那份存储落在使用者真实的 ~/Library/WebKit（不受 HOME
+# 隔离影响），于是应用未必从「会话分析」启动——不先显式切回去，后面的会话点击会落空。
+# 它现在排在第 5 位：前面是脉搏四步（「实时监控」→「脉搏」→「悬浮」→ 退出浮窗），
+# 那四步只碰顶栏标签与监控子视图，不需要先切标签页；**放最前面是为了「刚写过」那一档**
+# ——新近度的 live 阈值只有 2 分钟，而清单每步约 3 秒，排在 30 多步之后时，
+# 夹具写入与渲染之间已经过去三分钟，三档必然退化成两档（实测踩过）。
 # 会话条目没有稳定的可访问名，靠它的 `title`（即 cwd）匹配；夹具会话的 cwd 固定为
 # /repo/demo（见 web/tests/fixtures/session-basic.jsonl）；改夹具要同步改这里。
 # 可用环境变量 CCA_GUI_CAPTURE_TAB 覆盖（逗号分隔），此时不做「视图覆盖」判定。
@@ -626,6 +828,8 @@ if [[ -n "${CCA_GUI_CAPTURE_TAB:-}" ]]; then
   IFS=',' read -r -a CAPTURE_TARGETS <<< "$CCA_GUI_CAPTURE_TAB"
 else
   COVERAGE=1
+  # 「脉搏」紧跟「实时监控」（都在清单最前面，理由见上面那段：live 档只有 2 分钟，
+  # 这两步必须在夹具写完之后立刻跑）；判定脚本的脉搏断言挂在「脉搏」这一步。
   # 「日志视图」单独点名：分析器子视图也被记进那份 localStorage，不显式切回日志视图，
   # 打开会话后可能停在树视图——树视图没有记录表，末列可达那条就无从判定。
   # 「导出」紧跟日志视图：它只在会话打开且解析完成时才渲染，离开会话页就没了；
@@ -677,7 +881,7 @@ else
   # （下钻在场、会话行是真列表的账目在这一步判定）。榜首恒为 Bash（夹具账见
   # install_fixture 处的注释），可访问名带动态数字，按稳定属性点。下钻不切
   # 标签页，所以配额归因的点选可以排在它后面。
-  # 归档包三步（Round Q / #152）插在实时监控之后：`设置=开` 确保设置浮层打开
+  # 归档包三步（Round Q / #152）：`设置=开` 确保设置浮层打开
   # （**幂等**动作——顶栏那枚按钮是 toggle，面板本来就开着时按名点「设置」会把
   # 它关掉，这是本轮真机踩到的坑）→ 点「导出归档包…」开**应用内**口令浮层
   # （导入那一步要开系统文件选择器，探针驱动不了，所以真机只走到这儿）→
@@ -688,7 +892,44 @@ else
   # 配额归因一步（Round R / #151）插在工具普查之后：点第一行会话 → 之后
   # **必须**再点回「用量总览」并重置子视图，否则后面的 `滚动=main` 与三块面板
   # 可达性判定会跑在会话分析页上（点行会切标签页）。
-  CAPTURE_TARGETS=("会话分析" "字号=130%" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "点选=[data-tool-census-row='Bash']" "点选=[data-probe='attribution-row']" "用量总览" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "实时监控" "设置=开" "导出归档包…" "取消" "字号=100%")
+  # 高对比度（Round U / #73）跟在 `字号=130%` 之后：此后**每一个视图都在 130% +
+  # 高对比度下重验一遍**（几何不变量与颜色无关，但「切档之后界面仍成立」要真验），
+  # 末尾在字号恢复前先切回普通对比度——两枚旋钮各恢复各的，别互相盖。
+  # 消耗日历两步（Round V / #187）插在「滚动=main」之后：滚到底让日历面板
+  # 渲染完成，`点选=[data-probe='calendar-today'] button` 展开「当天会话 Top
+  # 清单」（展开态截图 + 几何事实落在这一步），紧接一步同名点选收起——避免
+  # 污染后续步骤的截图（同「对比度=普通」清理动作的先例逻辑）。选择器写
+  # `td button` 后代形式：今天标记挂在 td、data-probe="calendar-day" 挂按钮，
+  # 点击要落在按钮上才触发 React 的 onClick（同 data-changes-file 的先例）。
+  #
+  # 脉搏四步（Issue #203 / Round W）排在清单最前面（理由见上面「采集计划」那段，
+  # 一句话：新近度的 live 档只有 2 分钟，排在 30 多步之后必然掉档）：「实时监控」标签现在
+  # 默认落到脉搏档（MonitorPage 的默认子视图），紧跟的「脉搏」是**自愈**动作
+  # （子视图档也在不隔离的 localStorage 里，上一次停在仪表盘时点回来），四处断言
+  # 尺寸/计数/字形高度都挂在「脉搏」这一步；`悬浮` 让脉搏页头换成浮窗细头
+  # （顶栏收起、细头带 `data-tauri-drag-region="deep"`），紧接一步
+  # `点选=[data-probe='pulse-float-exit']` 退出——**必须退出**，因为浮窗态顶栏
+  # 整条不在，后面的「设置=开」够不着设置按钮。
+  # 浮窗窗口本身（plugin:float|enter 把窗口缩到 420×620）**没被这一步触发**：
+  # 脉搏页头的「悬浮」目前只切布局状态、没调那个命令，所以这里取到的是常规
+  # 窗口里的浮窗版式。判定脚本对这一步只断言「细头在场 + 拖动声明 + 顶栏收起」，
+  # 并在窗口宽度仍 > 430 时打一条 NOTE 说明紧凑档（≤420 无横向溢出）由 e2e 覆盖。
+  #
+  # 监控台一步（Issue #225 / Round Z）插在退出浮窗之后、会话分析之前：
+  # 「监控台」走通用分段按钮扫描显式切档（不能写 `视图=监控台`——那个动作只
+  # 认识用量页的「总览视图」）。判定挂在「监控台」这一步；紧随其后的「脉搏」
+  # 是**清理动作**，把子视图切回默认档，避免这份不隔离的 localStorage 残留
+  # 影响后续运行与步骤。
+  #
+  # 里程碑一步（Issue #214 / Round Y）插在**第二次**「用量总览」之后、既有的
+  # 「视图=用量」之前：`点选=[data-probe='attribution-row']` 那一步点开会话、
+  # 切走了标签页，所以先「用量总览」切回来；紧跟的「视图=里程碑」是判定步
+  # （三组卡片 / 逐枚 state 与填充 / 轨道描边 / 无横向溢出），**随后那条既有的
+  # 「视图=用量」顺手把子视图重置回用量档**——里程碑档若不重置，它会随
+  # localStorage 漏给下一次运行（同「字号=100%」的清理逻辑）。这一步同时落在
+  # 130% 字号 + 高对比度档下（两枚旋钮在前面的步骤里已切过去、末尾才恢复），
+  # 所以「HC 轨道描边」的那条断言在这里量得到。
+  CAPTURE_TARGETS=("实时监控" "脉搏" "悬浮" "点选=[data-probe='pulse-float-exit']" "监控台" "脉搏" "会话分析" "字号=130%" "对比度=高" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "点选=[data-probe='calendar-today'] button" "点选=[data-probe='calendar-today'] button" "点选=[data-tool-census-row='Bash']" "点选=[data-probe='attribution-row']" "用量总览" "视图=里程碑" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "设置=开" "导出归档包…" "取消" "对比度=普通" "字号=100%")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
@@ -827,10 +1068,10 @@ PY
   COUNT="$(printf '%s\n' "$CACHE_REPORT" | grep '^COUNT ' | awk '{print $2}')"
   OUTSIDE="$(printf '%s\n' "$CACHE_REPORT" | grep '^OUTSIDE ' | awk '{print $2}')"
 
-  if [[ "${COUNT:-}" == "10" ]]; then
-    ok "缓存条目数 = 10（9 个夹具 + 1 个归档副本）"
+  if [[ "${COUNT:-}" == "14" ]]; then
+    ok "缓存条目数 = 14（13 个夹具 + 1 个归档副本；含消耗日历的「今天」合成会话与 3 个脉搏夹具）"
   else
-    bad "缓存条目数 = ${COUNT:-解析失败}，期望 10"
+    bad "缓存条目数 = ${COUNT:-解析失败}，期望 14"
     printf '  %s  %s%s\n' "$C_YELLOW" "$CACHE_REPORT" "$C_RESET"
   fi
 
@@ -959,6 +1200,10 @@ BUNDLE_CANCEL_LABEL = "取消"
 ATTRIBUTION_CLICK_LABEL = "点选=[data-probe='attribution-row']"
 ATTRIBUTION_TOP = 5
 ATTRIBUTION_FOOTNOTE = "占比分母 = 本窗口总消耗（与表盘中心同一个数）。"
+# 高对比度档（Round U / #73）：`对比度=高` / `对比度=普通` 两个动作目标。
+# 事实来自根元素 `data-contrast`（普通档必须**没有**这个属性，不是留着 "normal"）。
+CONTRAST_HIGH_LABEL = "对比度=高"
+CONTRAST_NORMAL_LABEL = "对比度=普通"
 # 用量页下半屏的三块面板。「滚动=main」那一步（且上一步是用量总览）判定
 # 它们滚一次可达；「用量总览」那一步判定它们真的渲染了出来。
 USAGE_PANEL_TITLES = ["按项目分布", "按模型分布", "活跃时段（周 × 小时）"]
@@ -988,6 +1233,63 @@ CENSUS_PANEL_TITLE = "工具与 skill"
 CENSUS_RANK_LABEL = "内置工具调用排行"
 CENSUS_RANK_ROWS = 7
 CENSUS_TOP_ROW = "Bash"
+# 消耗日历（Round V / #187）。365 是全链条的几何锚（53 列恒等式：365 天格 +
+# 6 pad）；门禁清单里两次同名点选分别判「展开态在场且高度有界」与「收起态
+# 离场」——滚动收在容器内部（overflowX=auto）由 calendarFacts.container 出证，
+# 文档 / main 无横向溢出由上方通用判定自动覆盖。
+CALENDAR_PANEL_TITLE = "消耗日历（近 12 个月）"
+CALENDAR_DAY_COUNT = 365
+CALENDAR_CLICK_LABEL = "点选=[data-probe='calendar-today'] button"
+CALENDAR_SESSIONS_MAX_HEIGHT = 400
+# 「一日回望」（Round V2 / #192）：日摘要必须含六项标签逐字；时间线整块高度
+# 上界 = 轴（≤20.8，130% 字号）+ gap 4 + 行区内部上限 144 ≈ 169，取 180 留余量。
+DAY_SUMMARY_LABELS = ["当日消耗", "会话数", "消息数", "活跃跨度", "最常用模型", "涉及项目"]
+DAY_TIMELINE_MAX_HEIGHT = 180
+# 「一年洞察」（Round V3 / #199）：图例之下的六句实事。键序是 Issue 契约顺序，
+# 门禁逐字对账（DAY_SUMMARY_LABELS 的同款做法）；文本只断稳定词——日期随运行
+# 日漂移，环比的值随夹具活动日落进哪个月漂移，current-streak 的三态随「今天
+# 有没有会话」变化（门禁夹具今天有会话 → active 态「当前连胜」，但断言留
+# 「连胜」宽松档防夹具演进误伤）。
+INSIGHT_KEYS = ["longest-streak", "current-streak", "peak-day", "longest-gap", "active-share", "month-compare"]
+INSIGHT_TEXT_WORDS = ["最长连胜", "最贵一天", "最长空白", "天有消耗", "本月前", "连胜"]
+# 「实时脉搏」（Issue #203 / Round W）。判定挂在**子视图那一步**（「脉搏」）而不是
+# 标签页（「实时监控」）：监控标签的子视图档也记在那份**不隔离**的 localStorage 里，
+# 上一次运行停在「外部仪表盘」时，点进标签页渲染的是仪表盘——先显式点回脉搏档
+# （同「视图=用量」自愈用量页子视图的先例），判定才有意义。
+# 三步：脉搏档（脉搏根 + 5 个窗口读数 + 60 根速率柱 + 会话行与字形阶梯 + 上下文曲线）、
+# `悬浮`（浮窗细头与拖动声明）、`点选=` 退出浮窗（细头离场、非浮窗页头回来）。
+PULSE_LABEL = "脉搏"
+PULSE_FLOAT_LABEL = "悬浮"
+PULSE_FLOAT_EXIT_LABEL = "点选=[data-probe='pulse-float-exit']"
+# 5 小时窗口的五个读数，键序 = Issue 契约顺序（data-readout）。
+PULSE_READOUT_KEYS = ["used", "closes", "avg-rate", "recent-rate", "prediction"]
+# 速率曲线恒 60 根柱（每分钟一根）；进行中的那一分钟恒 1 根 partial。
+PULSE_RATE_BARS = 60
+# 新近度三档的字形高度（design §2.2）。**量 offsetHeight 而不是
+# getBoundingClientRect**：live 档的心跳跑 transform: scale()，rect 是缩放后的
+# 高度（12 → 约 14.6）且随动画相位变——拿它做等值断言就是在断言动画相位。
+PULSE_TICK_HEIGHTS = {"live": 12, "recent": 8, "idle": 4}
+# 浮窗是 420 逻辑宽。给一点余量：窗口边框 / 缩放会让 viewport 略大于 420。
+PULSE_COMPACT_MAX_WIDTH = 430
+# 上下文曲线的断崖数 = **样本窗口内的压缩次数**（一次压缩一条竖线）。夹具的 live
+# 档有 3 次自动压缩，而曲线只取尾部 ≤40 个样本、这条会话一共 8 个样本——三次全在
+# 窗口内。实测值（2026-10-15 真机门禁，三次运行都是 3）就是这里写的数，不是估的。
+PULSE_CONTEXT_CLIFFS = 3
+# 「监控台」（Issue #225 / Round Z）：判定挂在**子视图那一步**（「监控台」）。
+# 该动作走通用分段按钮扫描显式切档，随后紧跟的「脉搏」负责把子视图状态清理
+# 回默认档。事实全在 facts.monitor_console（应用侧只收集，阈值与判定在这里）。
+MONITOR_CONSOLE_LABEL = "监控台"
+MONITOR_CONSOLE_READOUT_KEYS = ["window", "today", "active-sessions", "today-compactions"]
+MONITOR_CONSOLE_HOURS = 24
+# 「里程碑」（Issue #214 / Round Y）。判定挂在**子视图那一步**（`视图=里程碑`）
+# 而不是标签页：「用量 | 里程碑 | 错误」的分段把选择记进那份**不隔离**的
+# localStorage（同 N1 的用量 / 错误两档），上一次运行停在里程碑档时，点「用量总览」
+# 只会得到里程碑——所以清单里先 `用量总览` 再显式 `视图=里程碑`（同「视图=用量」
+# 的自愈先例），判定才有意义；紧随其后的 `视图=用量` 既是本轮既有的用量档判定、
+# 也把子视图重置回用量档，**别让里程碑档的残留漏给后面的步骤**。
+MILESTONE_LABEL = "视图=里程碑"
+# 累计阶梯的枚数 = MILESTONE_TIER_TABLE 的行数（写死的常量，不随夹具变）。
+MILESTONE_TIER_COUNT = 7
 coverage = os.environ.get("COVERAGE") == "1"
 seen_gauge = 0
 seen_table = 0
@@ -998,9 +1300,15 @@ seen_census = 0
 seen_context = 0
 seen_error = 0
 seen_changes = 0
+seen_calendar = 0
+seen_insights = 0
+seen_pulse = 0
+seen_monitor_console = 0
+seen_milestones = 0
+calendar_clicks = 0
 
 # 「滚动=main」的判定要知道滚的是哪个页面：清单是有序的，靠上一步的 label
-# 把动作与页面挂上钩（默认清单里它紧跟「用量总���」）。自定义清单把它用在
+# 把动作与页面挂上钩（默认清单里它紧跟「用量总览」）。自定义清单把它用在
 # 别处时，三块面板的判定不适用，退化为 NOTE。
 prev_label = None
 # 「点归因行」那一步要比对的标题：归因面板只在用量页存在，点完就跳走了，
@@ -1245,6 +1553,57 @@ for arg in sys.argv[1:]:
         else:
             seen_usage_panels += 1
             print(f"OK|{label}：三块用量面板都在文档里（标题齐全）")
+        # 消耗日历（Round V / #187）同档在场：面板标题 + 365 天格 + 今天格唯一 +
+        # 滚动容器是 overflow-x:auto（滚动收在日历内部，文档 / main 的无溢出
+        # 判定已由上方通用段覆盖）。
+        calendar = data.get("calendar") or {}
+        cal_problems = []
+        if CALENDAR_PANEL_TITLE not in titles:
+            cal_problems.append("面板标题不在文档里")
+        if calendar.get("view") is not True:
+            cal_problems.append("探针锚点缺失（data-usage-calendar）")
+        else:
+            if calendar.get("dayCount") != CALENDAR_DAY_COUNT:
+                cal_problems.append(
+                    f"天格 {calendar.get('dayCount')!r} 个，期望 {CALENDAR_DAY_COUNT}（53 列恒等式）"
+                )
+            if calendar.get("todayCount") != 1:
+                cal_problems.append(f"今天格 {calendar.get('todayCount')!r} 个，期望恰 1")
+            container = calendar.get("container") or {}
+            if container.get("overflowX") != "auto":
+                cal_problems.append(f"滚动容器 overflowX={container.get('overflowX')!r}，期望 auto")
+        if cal_problems:
+            for problem in cal_problems:
+                print(f"BAD|{label}：消耗日历——{problem}")
+        else:
+            seen_calendar += 1
+            print(f"OK|{label}：消耗日历在场（{CALENDAR_DAY_COUNT} 天格，今天格唯一，滚动收在容器内）")
+        # 一年洞察（Round V3 / #199）同档在场：容器 + 六键逐字 + 稳定词。门禁
+        # 夹具今天有会话 → 必须六句全渲染（全 0 年的空态是 count=0，在这里就是
+        # 失败——洞察没接上 calendar）。
+        insights = calendar.get("insights")
+        ins_problems = []
+        if not isinstance(insights, dict) or insights.get("present") is not True:
+            ins_problems.append("洞察区没有渲染（data-probe='calendar-insights' 不在）")
+        else:
+            if insights.get("count") != len(INSIGHT_KEYS):
+                ins_problems.append(
+                    f"洞察句 {insights.get('count')!r} 句，期望 {len(INSIGHT_KEYS)}（夹具今天有会话，六句必须全渲染）"
+                )
+            if insights.get("keys") != INSIGHT_KEYS:
+                ins_problems.append(f"洞察键序 {insights.get('keys')!r}，期望 {INSIGHT_KEYS}")
+            ins_text = insights.get("text") or ""
+            missing_words = [word for word in INSIGHT_TEXT_WORDS if word not in ins_text]
+            if missing_words:
+                ins_problems.append(
+                    "洞察文本缺稳定词：" + "，".join(missing_words) + f"（text={ins_text!r}）"
+                )
+        if ins_problems:
+            for problem in ins_problems:
+                print(f"BAD|{label}：一年洞察——{problem}")
+        else:
+            seen_insights += 1
+            print(f"OK|{label}：一年洞察在场（六键逐字，{len(INSIGHT_TEXT_WORDS)} 个稳定词齐全）")
         # 工具与 skill 面板（N3）同档在场：面板标题 + 体首行双读数（夹具保证
         # 窗内必有工具调用，全空态在这里就是失败——面板没接上聚合）。
         census = data.get("toolCensus") or {}
@@ -1323,6 +1682,25 @@ for arg in sys.argv[1:]:
             print(f"OK|{label}：界面字号已切到 {expected}（根元素 --font-scale={font_scale_raw}）")
         else:
             print(f"BAD|{label}：字号没切过去（根元素 --font-scale={font_scale_raw!r}，期望 {want!r}）")
+
+    # 高对比度档（Round U / #73）：动作目标必须真的把根元素属性切过去——高对比度
+    # 写 `data-contrast="high"`，切回普通必须把属性**删掉**（留着 "normal" 会让
+    # `[data-contrast]` 类选择器误命中，也会让「当前是不是高对比度」多出一种表示法）。
+    if label.startswith("对比度="):
+        contrast_raw = data.get("contrast")
+        expected = label.split("=", 1)[1].strip()
+        if expected == "高":
+            if contrast_raw == "high":
+                print(f"OK|{label}：界面对比度已切到高对比度（根元素 data-contrast={contrast_raw!r}）")
+            else:
+                print(f"BAD|{label}：高对比度没生效（根元素 data-contrast={contrast_raw!r}，期望 'high'）")
+        elif expected == "普通":
+            if contrast_raw in (None, ""):
+                print(f"OK|{label}：界面对比度已切回普通（根元素没有 data-contrast）")
+            else:
+                print(f"BAD|{label}：切回普通后根元素仍留着 data-contrast={contrast_raw!r}")
+        else:
+            print(f"NOTE|{label}：未知对比度档位「{expected}」，只记录事实（data-contrast={contrast_raw!r}）")
 
     # 上下文标签页（Round J）：曲线 SVG 存在且 viewBox 有界、压缩命中区数量与
     # 夹具的压缩次数一致、M>0 的会话上覆盖率 chip 真的在场。
@@ -1501,6 +1879,127 @@ for arg in sys.argv[1:]:
             seen_changes += 1
             print(f"OK|{label}：展开区可达（{records['rows']} 条记录，高 {records['height']}px），账目含展开高度")
 
+    # 消耗日历点选（Round V / #187）：两次同名点选按计数分流——第 1 次判展开态
+    # （清单在场、行数 ≥ 1、展开区高度有界，防长清单把后续面板顶出可滚范围），
+    # 第 2 次判收起态（清单离场，后续步骤的截图不被展开区污染）。日历的滚动
+    # 容器几何与「文档 / main 无横向溢出」由「视图=用量」与通用判定覆盖。
+    if label == CALENDAR_CLICK_LABEL:
+        calendar_clicks += 1
+        calendar = data.get("calendar") or {}
+        sessions = calendar.get("sessions")
+        if calendar.get("view") is not True:
+            print(f"BAD|{label}：用量档状态丢了（data-usage-calendar 不见了）")
+        elif calendar_clicks == 1:
+            problems = []
+            if not isinstance(sessions, dict):
+                problems.append("展开区没有渲染（data-calendar-sessions）——今天格点击没生效")
+            else:
+                rect = sessions.get("rect") or {}
+                height = rect.get("height")
+                rows = sessions.get("rows")
+                if not isinstance(rows, int) or rows < 1:
+                    problems.append(f"展开区行数 {rows!r}，期望 ≥ 1（今天格有夹具会话）")
+                if not isinstance(height, (int, float)) or height <= 0:
+                    problems.append("展开区高度缺失")
+                elif height >= CALENDAR_SESSIONS_MAX_HEIGHT:
+                    problems.append(f"展开区高度失界（{height:.0f}px ≥ {CALENDAR_SESSIONS_MAX_HEIGHT}px）")
+            # 「一日回望」（Round V2 / #192）：展开区里除了会话行，还要有日摘要行与
+            # 24h 时间线。契约（设计规格 §10.4）：① 摘要含六项标签逐字；② **时间线条数
+            # = 声明会话数 = 展开区行数 = 横条明细数**（谁折尾或谁在
+            # `data-session-count` 上撒谎都过不去）；③ 每条横条带会话键、可点名以
+            # 「打开会话：」开头（今天会话必有元数据 → 必然可点）；④ 时间线含于展开区、
+            # 每条含于时间线，且时间线高度有界（轴 + 行区上限）。
+            def rect_inside(outer, inner, tol=1.0):
+                keys = ("x", "y", "width", "height")
+                if not isinstance(outer, dict) or not isinstance(inner, dict):
+                    return False
+                if not all(isinstance(outer.get(k), (int, float)) for k in keys):
+                    return False
+                if not all(isinstance(inner.get(k), (int, float)) for k in keys):
+                    return False
+                return (
+                    inner["x"] >= outer["x"] - tol
+                    and inner["y"] >= outer["y"] - tol
+                    and inner["x"] + inner["width"] <= outer["x"] + outer["width"] + tol
+                    and inner["y"] + inner["height"] <= outer["y"] + outer["height"] + tol
+                )
+
+            review = calendar.get("dayReview")
+            if not isinstance(review, dict):
+                problems.append("「一日回望」没有渲染（探针里没有 dayReview）——摘要行与时间线都不在")
+            else:
+                summary = review.get("summary")
+                if not isinstance(summary, dict):
+                    problems.append("日摘要行没有渲染（data-probe='day-summary' 不在）")
+                else:
+                    summary_text = summary.get("text") or ""
+                    missing_labels = [name for name in DAY_SUMMARY_LABELS if name not in summary_text]
+                    if missing_labels:
+                        problems.append(
+                            "日摘要行缺标签：" + "，".join(missing_labels) + f"（text={summary_text!r}）"
+                        )
+                timeline = review.get("timeline")
+                if not isinstance(timeline, dict):
+                    problems.append("24h 时间线没有渲染（data-probe='day-timeline' 不在）")
+                else:
+                    timeline_rect = timeline.get("rect") or {}
+                    bars = timeline.get("bars")
+                    declared = timeline.get("declaredSessions")
+                    bar_list = review.get("bars") or []
+                    # 「今天有会话」这件事必须成立（日摘要与时间线都靠它才有内容），
+                    # 但**条数不写死**：本文件的夹具里，日历合成的那份 JSONL 恒在
+                    # 今天，而脉搏的三档夹具（now / now−8min / now−40min）也落在今天
+                    # ——总条数随运行时刻在 2–4 之间浮动（凌晨那几十分钟里，−8 / −40
+                    # 分钟可能已经跨到昨天）。真正的账是**三方相等**（下面那几条），
+                    # 不是某个具体条数。
+                    if not isinstance(bars, int) or bars < 1:
+                        problems.append(f"时间线条数 {bars!r}，期望 ≥ 1（今天格有夹具会话）")
+                    if declared is None:
+                        problems.append("时间线容器缺少 data-session-count 声明")
+                    elif declared != bars:
+                        problems.append(f"声明会话数 {declared} ≠ 实测条数 {bars}——声明与实车不一致")
+                    if isinstance(sessions, dict) and sessions.get("rows") != bars:
+                        problems.append(
+                            f"时间线条数 {bars} ≠ 展开区行数 {sessions.get('rows')}——时间线不完整或有行被折尾"
+                        )
+                    if len(bar_list) != bars:
+                        problems.append(f"横条明细 {len(bar_list)} 条 ≠ 时间线条数 {bars}")
+                    if not rect_inside(sessions.get("rect"), timeline_rect):
+                        problems.append("时间线跑出展开区（timeline.rect 不在 sessions.rect 内）")
+                    timeline_h = timeline_rect.get("height")
+                    if isinstance(timeline_h, (int, float)) and timeline_h > DAY_TIMELINE_MAX_HEIGHT:
+                        problems.append(
+                            f"时间线高度失界（{timeline_h:.0f}px > {DAY_TIMELINE_MAX_HEIGHT}px）"
+                        )
+                    for index, bar in enumerate(bar_list):
+                        if not bar.get("sessionPath"):
+                            problems.append(f"第 {index + 1} 条横条缺少 data-session-path（点不可点无从判定）")
+                        if not str(bar.get("label") or "").startswith("打开会话："):
+                            problems.append(
+                                f"第 {index + 1} 条横条可访问名不以「打开会话：」开头"
+                                f"（label={bar.get('label')!r}）"
+                            )
+                        if not rect_inside(timeline_rect, bar.get("rect")):
+                            problems.append(f"第 {index + 1} 条横条跑出时间线（bar.rect 不在 timeline.rect 内）")
+            if problems:
+                for problem in problems:
+                    print(f"BAD|{label}（展开）：{problem}")
+            else:
+                seen_calendar += 1
+                review_bars = ((calendar.get("dayReview") or {}).get("timeline") or {}).get("bars")
+                print(
+                    f"OK|{label}（展开）：一日回望在场"
+                    f"（摘要含 {len(DAY_SUMMARY_LABELS)} 项标签；时间线 {review_bars} 条 = 展开区 "
+                    f"{sessions['rows']} 行 = 声明会话数，每条含于时间线且可点；"
+                    f"展开区高 {sessions['rect']['height']:.0f}px < {CALENDAR_SESSIONS_MAX_HEIGHT}px）"
+                )
+        else:
+            if isinstance(sessions, dict):
+                print(f"BAD|{label}（收起）：展开区仍在场——第二次点击没有收起它")
+            else:
+                seen_calendar += 1
+                print(f"OK|{label}（收起）：展开区已离场，后续截图不被污染")
+
     # 工具普查点选（Round N / N3）：点榜单首行（data-tool-census-row，值 = 行
     # label）后下钻区要在场——过滤态锚点的值就是被点的行名（「点击没落地」与
     # 「落地了但列表没渲染」靠它分辨），会话行是真列表（行高 × 行数对 <ul>
@@ -1539,10 +2038,11 @@ for arg in sys.argv[1:]:
     # 几十行却声称几百条、或垫片高度不随行数变，都会在这里红。当前夹具 82 条
     # 低于窗口化阈值（120），走「无垫片、全量铺开」分支；垫片分支为更大的
     # 清单留判据（事实在应用、断言在此，两个分支都成立才叫防得住）。
-    # （改动视图、工具普查与配额归因各有自己的「点选=」步骤——改动档由
-    #   prev_label 分流（见上面改动档），工具普查由选择器里的 tool-census 分流，
-    #   配额归因由 ATTRIBUTION_CLICK_LABEL 分流（见各自段落）。）
-    if label.startswith("点选=") and "tool-census" not in label and prev_label != CHANGES_TAB_LABEL and label != ATTRIBUTION_CLICK_LABEL:
+    # （改动视图、工具普查、配额归因与脉搏浮窗退出各有自己的「点选=」步骤——
+    #   改动档由 prev_label 分流（见上面改动档），工具普查由选择器里的 tool-census
+    #   分流，配额归因由 ATTRIBUTION_CLICK_LABEL、浮窗退出由 PULSE_FLOAT_EXIT_LABEL
+    #   分流（见各自段落）。这一条是兜底，所以每加一个「点选=」目标都要在这里点一次名。）
+    if label.startswith("点选=") and "tool-census" not in label and prev_label != CHANGES_TAB_LABEL and label != ATTRIBUTION_CLICK_LABEL and label != CALENDAR_CLICK_LABEL and label != PULSE_FLOAT_EXIT_LABEL:
         ctx = data.get("context") or {}
         viewport = data.get("viewport") or {}
         card = ctx.get("forensicCard")
@@ -1729,6 +2229,384 @@ for arg in sys.argv[1:]:
         else:
             print(f"OK|{label}：点归因行真的打开了那个会话（标题逐字一致：{session_title}）")
 
+    # 「里程碑」（Issue #214 / Round Y）：事实全在 facts.milestones（应用侧只收集
+    # 事实，阈值与判定在这里）。夹具的十几个会话把 7 档累计阶梯的**首档**全都跨了
+    # 过去，所以实测每一枚阶梯卡都是 `reached`；`unreached` 恒 0 条——这并不代表
+    # 断言是空的：逐枚的「reached 恰一枚填充且宽 ≥ 2px」在本轮是真判，而
+    # 「unreached 取不到 fill」（§15.2）在这里空洞成立（夹具造不出未达成档），
+    # 由组件测试守着，脚本会为此打一条 NOTE 明说。
+    if label == MILESTONE_LABEL:
+        ms = data.get("milestones") or {}
+        if ms.get("page") is not True:
+            print(f"BAD|{label}：里程碑根节点不在场（data-probe='milestones-view'）——子视图没切过去，或整块没渲染")
+        elif ms.get("empty") is True:
+            print(f"BAD|{label}：里程碑渲染成了空态（milestones-empty）——夹具里有十几个会话，绝不该是空")
+        else:
+            problems = []
+            # ① 横向不溢出：量的是根节点自己的滚动几何（外壳的 overflow:hidden 会把
+            # 内容溢出藏起来，量文档量不到它——同脉搏根节点的教训）。
+            container = ms.get("container") or {}
+            sw, cw = container.get("scrollWidth"), container.get("clientWidth")
+            if isinstance(sw, int) and isinstance(cw, int):
+                if sw > cw + 1:
+                    problems.append(f"里程碑根节点横向溢出（scrollWidth {sw} > clientWidth {cw}）")
+            else:
+                problems.append("里程碑根节点的滚动几何缺失")
+            # ② 三组卡片在场：阶梯恒 7 枚（写死的档位表），首次 / 记录各至少一枚
+            # （夹具里有会话 + 压缩 + skill/MCP 调用）。组数按 data-group 取。
+            groups = ms.get("groups") or {}
+            if groups.get("tiers") != MILESTONE_TIER_COUNT:
+                problems.append(
+                    f"累计阶梯 {groups.get('tiers')!r} 枚，期望 {MILESTONE_TIER_COUNT}（档位表是写死的常量）"
+                )
+            if not isinstance(groups.get("firsts"), int) or groups.get("firsts") < 1:
+                problems.append(f"首次组一枚都没有（{groups.get('firsts')!r}）——夹具里有会话，至少该有「会话」那枚")
+            if not isinstance(groups.get("records"), int) or groups.get("records") < 1:
+                problems.append(f"单会话记录组一枚都没有（{groups.get('records')!r}）")
+            # ③ 逐枚对账：名称 / 值非空（R6 的「不出现假读数」），填充是**布尔几何
+            # 事实**——reached 恰一枚填充且宽 ≥ 2px，unreached 一枚都取不到。
+            cards = ms.get("cards") or []
+            total = (
+                (groups.get("firsts") or 0)
+                + (groups.get("tiers") or 0)
+                + (groups.get("records") or 0)
+            )
+            if len(cards) != total:
+                problems.append(f"卡片数 {len(cards)} 与三组之和 {total} 对不上")
+            unknown_state = [
+                c.get("key") for c in cards if c.get("state") not in ("reached", "unreached")
+            ]
+            if unknown_state:
+                problems.append(
+                    f"卡片出现未识别的 data-state：{unknown_state!r}（只应有 reached / unreached）"
+                )
+            unreached = [c for c in cards if c.get("state") == "unreached"]
+            reached = [c for c in cards if c.get("state") == "reached"]
+            for card in cards:
+                key = card.get("key") or "?"
+                if not card.get("name"):
+                    problems.append(f"{key} 的名称槽是空的（milestone-name）")
+                if not card.get("value"):
+                    problems.append(f"{key} 的值槽是空的（milestone-value）")
+                fills = card.get("fills")
+                # 距离条只挂在阶梯卡上（锚点类没有轨道，也就没有填充）。两态几何只
+                # 对阶梯卡判：reached 恰一枚填充且宽 ≥ 2px；unreached **取不到**
+                # 填充（§15.2 的裁决——数的是元素在不在，不是宽为 0）。
+                if card.get("track") is True:
+                    if card.get("state") == "reached":
+                        if fills != 1:
+                            problems.append(f"{key} 是 reached 却带了 {fills!r} 个填充元素，期望恰 1（milestone-fill）")
+                        elif not isinstance(card.get("fillWidth"), int) or card["fillWidth"] < 2:
+                            problems.append(
+                                f"{key} 的填充宽 {card.get('fillWidth')!r}px < 2px（「已达」的墨迹范围是个几何事实）"
+                            )
+                    elif card.get("state") == "unreached":
+                        if fills != 0:
+                            problems.append(f"{key} 是 unreached 却带了 {fills!r} 个填充元素——期望取不到（§15.2 的裁决）")
+                elif fills != 0:
+                    # 锚点类（首次 / 记录）永远不该出现填充元素：它们是「日期 / 极值」
+                    # 事实，没有「进度」这回事。
+                    problems.append(f"{key} 是锚点类（无轨道）却带了 {fills!r} 个填充元素，期望 0")
+            # ④ 距离条轨道：每枚阶梯一条；HC 档下轨道外壳该带 1px 描边（非 HC 档为 none）。
+            tracks = ms.get("tracks") or {}
+            if tracks.get("count") != MILESTONE_TIER_COUNT:
+                problems.append(f"距离条轨道 {tracks.get('count')!r} 条，期望 {MILESTONE_TIER_COUNT}（每枚阶梯一条）")
+            contrast = ms.get("contrast") or ""
+            if contrast == "high":
+                if tracks.get("ringed") != tracks.get("count"):
+                    problems.append(
+                        f"HC 档下只有 {tracks.get('ringed')!r}/{tracks.get('count')!r} 条轨道带描边（期望全部）"
+                    )
+            elif tracks.get("ringed"):
+                problems.append(
+                    f"非 HC 档（contrast={contrast!r}）下有 {tracks.get('ringed')!r} 条轨道带描边，期望 0"
+                )
+            # ⑤ 口径行与三张面板脚注：全历史声明（R2）与每张 Panel 各一条脚注。
+            if ms.get("scope_present") is not True:
+                problems.append("窗口声明行不在场（data-probe='milestones-scope'）——全历史口径必须逐字在场")
+            if ms.get("fallbacks") != 3:
+                problems.append(f"面板脚注 {ms.get('fallbacks')!r} 条，期望 3（三张 Panel 各一条）")
+            if problems:
+                for problem in problems:
+                    print(f"BAD|{label}：里程碑——{problem}")
+            else:
+                seen_milestones += 1
+                print(
+                    f"OK|{label}：里程碑三组齐备（首次 {groups.get('firsts')} / 阶梯 {groups.get('tiers')} / "
+                    f"记录 {groups.get('records')} 枚，reached {len(reached)} · unreached {len(unreached)}），"
+                    f"根节点无横向溢出，{tracks.get('count')} 条距离条（HC 描边 {tracks.get('ringed')}）"
+                )
+                if not unreached:
+                    # 夹具的十几个会话把全部阶梯的**首档**都跨过去了（token 9M+ /
+                    # 会话 13 / 消息 300+ …），所以本轮实测 unreached 恒 0——「未达成
+                    # 里取不到 fill」这条在这里**空洞成立**，两态几何由组件测试
+                    # （MilestonesPanel.test.tsx 的 unreached 用例）守。如实打一条
+                    # NOTE，不假装它被验过；夹具将来退化成有未达成档时断言自动生效。
+                    print(
+                        f"NOTE|{label}：夹具跨过了全部阶梯首档，unreached 为 0——"
+                        "「未达成里取不到 fill」在门禁里空洞成立（由组件测试覆盖两态）"
+                    )
+
+    # 「监控台」（Issue #225 / Round Z）：事实全在 facts.monitor_console。
+    # 「监控台」走通用分段按钮扫描显式切档；夹具里既有今天的会话，也有压缩 /
+    # 错误 / 会话开始事件，所以这一拍必须是 fresh，四枚读数、24 个小时槽、
+    # 项目行与事件行都必须真的渲染出来。future 小时数随运行时刻变化（23 点后
+    # 为 0），但 current 恒 1；真正的不变量是 future 槽里**一个填充都不能有**。
+    if label == MONITOR_CONSOLE_LABEL:
+        mc = data.get("monitor_console") or {}
+        if mc.get("page") is not True:
+            print(f"BAD|{label}：监控台根节点不在场（data-probe='monitor-console-page'）——子视图没切过去，或整块没渲染")
+        else:
+            problems = []
+            state = mc.get("state")
+            if state != "fresh":
+                problems.append(
+                    f"根节点 data-state={state!r}，期望 'fresh'（夹具里有会话，读到别的档说明这拍没跑通）"
+                )
+            container = mc.get("container") or {}
+            csw, ccw = container.get("scrollWidth"), container.get("clientWidth")
+            if isinstance(csw, int) and isinstance(ccw, int):
+                if csw > ccw + 1:
+                    problems.append(f"监控台根节点横向溢出（scrollWidth {csw} > clientWidth {ccw}）")
+            else:
+                problems.append("监控台根节点的滚动几何缺失")
+
+            readouts = mc.get("readouts") or {}
+            if readouts.get("count") != len(MONITOR_CONSOLE_READOUT_KEYS):
+                problems.append(
+                    f"读数 {readouts.get('count')!r} 枚，期望 {len(MONITOR_CONSOLE_READOUT_KEYS)} 枚"
+                )
+            if readouts.get("keys") != MONITOR_CONSOLE_READOUT_KEYS:
+                problems.append(
+                    f"读数键序 {readouts.get('keys')!r}，期望 {MONITOR_CONSOLE_READOUT_KEYS}"
+                )
+
+            hours = mc.get("hours") or {}
+            phases = hours.get("phases") or {}
+            phase_counts = {
+                phase: phases.get(phase)
+                for phase in ("past", "current", "future")
+            }
+            if hours.get("count") != MONITOR_CONSOLE_HOURS:
+                problems.append(
+                    f"小时柱 {hours.get('count')!r} 根，期望 {MONITOR_CONSOLE_HOURS}"
+                )
+            if hours.get("slots") != MONITOR_CONSOLE_HOURS:
+                problems.append(
+                    f"小时槽 {hours.get('slots')!r} 个，期望 {MONITOR_CONSOLE_HOURS}"
+                )
+            if not all(isinstance(value, int) for value in phase_counts.values()):
+                problems.append(f"小时三态计数缺失或不完整（{phase_counts!r}）")
+            elif sum(phase_counts.values()) != MONITOR_CONSOLE_HOURS:
+                problems.append(
+                    f"小时三态计数之和 {sum(phase_counts.values())} ≠ {MONITOR_CONSOLE_HOURS}（{phase_counts!r}）"
+                )
+            if phase_counts.get("current") != 1:
+                problems.append(
+                    f"当前小时 {phase_counts.get('current')!r} 个，期望恰 1"
+                )
+            if hours.get("future_fills") != 0:
+                problems.append(
+                    f"future 小时里有 {hours.get('future_fills')!r} 个填充元素，期望 0"
+                    "（「尚未发生」不能被画成「没有发生」）"
+                )
+
+            projects = mc.get("projects") or {}
+            if not isinstance(projects.get("count"), int) or projects["count"] < 1:
+                problems.append(
+                    f"项目行为 {projects.get('count')!r} 条——夹具里有今天的 /repo/calendar 会话"
+                )
+            events = mc.get("events") or {}
+            event_count = events.get("count")
+            if not isinstance(event_count, int) or event_count < 1:
+                problems.append(
+                    f"事件行为 {event_count!r} 条——夹具里有压缩 / 错误 / 会话开始事件"
+                )
+            elif events.get("nonempty") != event_count:
+                problems.append(
+                    f"事件行可见文本非空的只有 {events.get('nonempty')!r}/{event_count} 条"
+                )
+
+            if problems:
+                for problem in problems:
+                    print(f"BAD|{label}：监控台——{problem}")
+            else:
+                seen_monitor_console += 1
+                print(
+                    f"OK|{label}：监控台四枚读数键序正确（{readouts.get('keys')}），"
+                    f"{hours.get('count')} 个小时槽 = past {phase_counts.get('past')} / "
+                    f"current {phase_counts.get('current')} / future {phase_counts.get('future')}，"
+                    f"future 填充 {hours.get('future_fills')}，"
+                    f"项目 {projects.get('count')} 行、事件 {event_count} 行且文本非空，"
+                    f"根节点无横向溢出（scrollWidth {csw} ≤ clientWidth {ccw}），state={state!r}"
+                )
+                if phase_counts.get("future") == 0:
+                    print(
+                        f"NOTE|{label}：本次运行已完成当天全部 24 小时，future=0——"
+                        "「future 无填充」由选择器事实保留，下一次白天运行会自动覆盖非空 future"
+                    )
+
+    # 「实时脉搏」（Issue #203 / Round W）：几何事实全在 facts.pulse（应用侧只
+    # 收集事实，阈值与判定在这里）。三步各有各的账：
+    #   ① 「脉搏」——脉搏根在场、横向不溢出、5 个窗口读数与键序、60 根速率柱
+    #      （进行中恰好 1 根）、活跃会话行的三档新近度与字形阶梯（12 / 8 / 4，
+    #      量 offsetHeight）、上下文曲线与参考带（夹具的 live 档给了 3 次自动压缩）；
+    #   ② 「悬浮」——浮窗细头在场且拖动声明是 `"deep"`、非浮窗页头收起，
+    #      同时判「窗口真的缩到紧凑档了吗」；
+    #   ③ 退出浮窗——细头离场、非浮窗页头回来。
+    if label in (PULSE_LABEL, PULSE_FLOAT_LABEL, PULSE_FLOAT_EXIT_LABEL):
+        pulse = data.get("pulse") or {}
+        if pulse.get("page") is not True:
+            print(f"BAD|{label}：脉搏根节点不在场（data-probe='pulse-page'）——标签页没切过去，或整块没渲染")
+        elif label == PULSE_LABEL:
+            problems = []
+            # 四态：夹具给了会话，这一拍必然拿到数据 → fresh。读到别的档说明
+            # 「这一拍没跑通」（error / stale）或「会话没被发现」（empty）。
+            if pulse.get("state") != "fresh":
+                problems.append(f"根节点 data-state={pulse.get('state')!r}，期望 'fresh'（夹具里有会话，读到别的档说明这拍没跑通）")
+            container = pulse.get("container") or {}
+            csw, ccw = container.get("scrollWidth"), container.get("clientWidth")
+            if isinstance(csw, int) and isinstance(ccw, int):
+                if csw > ccw + 1:
+                    problems.append(f"脉搏根节点横向溢出（scrollWidth {csw} > clientWidth {ccw}）")
+            else:
+                problems.append("脉搏根节点的滚动几何缺失")
+            if pulse.get("head_present") is not True:
+                problems.append("非浮窗页头不在场（data-probe='pulse-head'）")
+            if (pulse.get("float_head") or {}).get("present") is not False:
+                problems.append("主窗口里出现了浮窗细头——浮窗态泄漏到常规窗口")
+            readouts = pulse.get("window_readouts") or {}
+            if readouts.get("count") != len(PULSE_READOUT_KEYS):
+                problems.append(
+                    f"5 小时窗口读数 {readouts.get('count')!r} 个，期望 {len(PULSE_READOUT_KEYS)} 个"
+                )
+            if readouts.get("keys") != PULSE_READOUT_KEYS:
+                problems.append(
+                    f"读数键序 {readouts.get('keys')!r}，期望 {PULSE_READOUT_KEYS}"
+                )
+            bars = pulse.get("rate_bars") or {}
+            if bars.get("count") != PULSE_RATE_BARS:
+                problems.append(f"速率柱 {bars.get('count')!r} 根，期望 {PULSE_RATE_BARS}（60 分钟每分钟一根）")
+            if bars.get("partial") != 1:
+                problems.append(
+                    f"进行中的柱子 {bars.get('partial')!r} 根，期望恰 1 根（data-partial='true'）"
+                )
+            rows = pulse.get("session_rows") or {}
+            row_count = rows.get("count")
+            recencies = rows.get("recencies") or []
+            if not isinstance(row_count, int) or row_count < 1:
+                problems.append(f"活跃会话行一行都没有（count={row_count!r}）——夹具里明明有会话")
+            unknown = [r for r in recencies if r not in PULSE_TICK_HEIGHTS]
+            if unknown:
+                problems.append(f"新近度出现未识别的档位 {unknown!r}（只应有 live / recent / idle）")
+            # 三档齐全：夹具特意摆出 now / now−8min / now−40min 三个会话，缺档就说明
+            # 新近度算错了（或者活跃集合的窗口不对），而不是「数据不够」。
+            missing_tiers = [tier for tier in PULSE_TICK_HEIGHTS if tier not in recencies]
+            if missing_tiers:
+                problems.append(
+                    f"三档新近度不全（缺 {'、'.join(missing_tiers)}；实测 {recencies!r}）——夹具摆了三个档位各一个会话"
+                )
+            ticks = pulse.get("session_ticks") or []
+            if len(ticks) != row_count:
+                problems.append(f"字形高度事实只有 {len(ticks)} 条，与 {row_count!r} 行对不上")
+            for tick in ticks:
+                recency = tick.get("recency")
+                expected = PULSE_TICK_HEIGHTS.get(recency)
+                height = tick.get("offsetHeight")
+                if expected is None:
+                    continue
+                if height != expected:
+                    problems.append(
+                        f"{recency} 档字形高 {height!r}px，期望 {expected}px（offsetHeight，不含心跳的 transform）"
+                    )
+            curve = pulse.get("context_curve") or {}
+            if curve.get("present") is not True:
+                problems.append("上下文曲线 SVG 不在场（data-probe='pulse-context-curve'）")
+            else:
+                try:
+                    samples = int(curve.get("sample_count"))
+                except (TypeError, ValueError):
+                    samples = -1
+                if samples < 2:
+                    problems.append(
+                        f"上下文曲线样本数 {curve.get('sample_count')!r} < 2（live 档夹具给了 8 条带用量的记录，至少连得成一条线）"
+                    )
+                if curve.get("band") is not True:
+                    problems.append(
+                        "参考带不在场（pulse-context-band）——live 档夹具给了 3 次自动压缩，n≥3 时必须画"
+                    )
+                # 断崖计数：它在窗口内压缩次数与实画条数之间对账——少了说明压缩事件
+                # 在索引平移时被吃掉（曲线看似正常却漏了断崖），多了说明同一次压缩
+                # 被画了两遍。锚点是 `data-probe='pulse-context-cliff'`。
+                cliffs = curve.get("cliffs")
+                if cliffs != PULSE_CONTEXT_CLIFFS:
+                    problems.append(
+                        f"上下文断崖 {cliffs!r} 条，期望 {PULSE_CONTEXT_CLIFFS}"
+                        "（live 档夹具的 3 次自动压缩都落在 40 个样本窗口内）"
+                    )
+            if problems:
+                for problem in problems:
+                    print(f"BAD|{label}：脉搏——{problem}")
+            else:
+                seen_pulse += 1
+                print(
+                    f"OK|{label}：脉搏四个面板齐全（{row_count} 行会话，"
+                    f"{len(PULSE_READOUT_KEYS)} 个窗口读数，{bars.get('count')} 根速率柱其中 1 根进行中，"
+                    f"上下文 {curve.get('sample_count')} 个样本 + 参考带 + {cliffs} 条断崖），"
+                    f"根节点无横向溢出，"
+                    f"三档字形高度 = {PULSE_TICK_HEIGHTS['live']}/{PULSE_TICK_HEIGHTS['recent']}/{PULSE_TICK_HEIGHTS['idle']}px"
+                )
+        elif label == PULSE_FLOAT_LABEL:
+            problems = []
+            float_head = pulse.get("float_head") or {}
+            if float_head.get("present") is not True:
+                problems.append("浮窗细头不在场（data-probe='pulse-float-head'）——顶栏没换成细头")
+            elif float_head.get("drag_region") != "deep":
+                problems.append(
+                    f"细头的 data-tauri-drag-region={float_head.get('drag_region')!r}，期望 'deep'"
+                    "（裸属性是 self-only 语义，只有 'deep' 才会让子元素上的点击冒泡成拖动）"
+                )
+            if pulse.get("head_present") is True:
+                problems.append("浮窗态下非浮窗页头还在场——顶栏没有收起")
+            viewport = data.get("viewport") or {}
+            width = viewport.get("width")
+            if isinstance(width, (int, float)) and width <= PULSE_COMPACT_MAX_WIDTH:
+                container = pulse.get("container") or {}
+                csw, ccw = container.get("scrollWidth"), container.get("clientWidth")
+                if not isinstance(csw, int) or not isinstance(ccw, int):
+                    problems.append("紧凑档下脉搏根节点的滚动几何缺失")
+                elif csw > ccw + 1:
+                    problems.append(f"紧凑档（{width:.0f}px）下脉搏横向溢出（scrollWidth {csw} > clientWidth {ccw}）")
+            if problems:
+                for problem in problems:
+                    print(f"BAD|{label}：浮窗细头——{problem}")
+            else:
+                seen_pulse += 1
+                if isinstance(width, (int, float)) and width <= PULSE_COMPACT_MAX_WIDTH:
+                    print(f"OK|{label}：浮窗细头在场、拖动声明为 'deep'、顶栏收起，紧凑档（{width:.0f}px）无横向溢出")
+                else:
+                    print(
+                        f"OK|{label}：浮窗细头在场、拖动声明为 'deep'、顶栏收起"
+                    )
+                    print(
+                        f"NOTE|{label}：窗口宽度仍是 {width!r}px（未缩到 420 紧凑档）——"
+                        "脉搏页头的「悬浮」只切了布局状态，没调 plugin:float|enter，"
+                        "所以紧凑档的横向不溢出不在这条路径上；它由 e2e 的 420px 视口覆盖"
+                    )
+        else:
+            problems = []
+            float_head = pulse.get("float_head") or {}
+            if float_head.get("present") is True:
+                problems.append("退出浮窗后细头还在场（data-probe='pulse-float-head'）")
+            if pulse.get("head_present") is not True:
+                problems.append("退出浮窗后非浮窗页头没有回来（顶栏仍缺席）")
+            if problems:
+                for problem in problems:
+                    print(f"BAD|{label}：退出浮窗——{problem}")
+            else:
+                seen_pulse += 1
+                print(f"OK|{label}：退出浮窗后细头离场、顶栏恢复")
+
     # 用量快照导出入口（Round S / #149）：这一步只判「入口在真机上真的渲染、
     # 真的可点」。**刻意不点它**——点了会弹系统保存对话框，探针驱动不了那一步
     # （同归档导入的限制）；快照内容层由单测与 e2e 覆盖，两边共用同一个生成器。
@@ -1797,6 +2675,16 @@ if coverage and seen_error == 0:
     print("BAD|视图覆盖：没有任何视图产出错误档几何——「错误」分段没被覆盖")
 if coverage and seen_changes == 0:
     print("BAD|视图覆盖：没有任何视图产出改动档几何——「改动」标签页没被覆盖")
+if coverage and seen_calendar == 0:
+    print("BAD|视图覆盖：没有任何视图产出消耗日历几何——日历面板没被覆盖")
+if coverage and seen_insights == 0:
+    print("BAD|视图覆盖：没有任何视图产出一年洞察的锚点——洞察句没被覆盖")
+if coverage and seen_pulse == 0:
+    print("BAD|视图覆盖：没有任何视图产出脉搏的几何事实——「脉搏」档没被覆盖")
+if coverage and seen_monitor_console == 0:
+    print("BAD|视图覆盖：没有任何视图产出监控台的几何事实——「监控台」档没被覆盖")
+if coverage and seen_milestones == 0:
+    print("BAD|视图覆盖：没有任何视图产出里程碑的几何事实——「里程碑」档没被覆盖")
 PY
 )" || PROBE_STATUS=$?
 

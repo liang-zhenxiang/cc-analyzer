@@ -134,14 +134,19 @@
   height: 4px;
 }
 
-/* 会话按钮的样式，**刻意限定在会话行内**。
+/* 会话行的样式，**刻意限定在会话行内**。
    早先这里写的是不分青红皂白的 `.groups button`，它把分组折叠按钮也一并选中——
    而 `0,1,1` 的特异性高过 `.groupToggle` 的 `0,1,0`，于是静默覆盖了后者的
    `display: flex`。折叠按钮因此变成纵向网格、撑破 38px 的行高，
    计数徽标压在下面第一条会话上，**把本该属于它的点击吞掉了**。
-   收窄到会话行，是为了让「往 .groups 里再加按钮」不再重蹈覆辙。 */
-.groups .sessionRow button,
-.groups .sessionRowWithStatus button {
+   收窄到会话行，是为了让「往 .groups 里再加按钮」不再重蹈覆辙。
+
+   行的本体现在是 `.sessionButton`（一个 `role="button"` 的 div，见 SessionList.tsx），
+   不再是 `<button>` 元素——因为出血点徽章是一个真的 <button>，而按钮不能嵌按钮。
+   选择器因此从元素名改成类名。**必须排除 `.bleedTag`**：徽章也在会话行内，
+   若被这条的 `display: grid` / `padding` 选中，它会从行内小牌被撑成整行方块。 */
+.groups .sessionRow .sessionButton,
+.groups .sessionRowWithStatus .sessionButton {
   display: grid;
   width: 100%;
   gap: var(--sp-05);
@@ -158,16 +163,22 @@
   transition: background-color var(--dur-hover) var(--ease-in-out);
 }
 
-.groups .sessionRow button:hover,
-.groups .sessionRowWithStatus button:hover {
+.groups .sessionRow .sessionButton:hover,
+.groups .sessionRowWithStatus .sessionButton:hover {
   background: var(--bg-hover);
+}
+
+.groups .sessionRow .sessionButton:focus-visible,
+.groups .sessionRowWithStatus .sessionButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-inset);
 }
 
 /* 选中态：底色 + 2px 内嵌竖条。竖条是非颜色的第二信号——
    灰度截图和色弱用户下，只有 --accent-soft 的选中态会消失。
    用内嵌阴影而不是边框，选中前后不位移。 */
-.groups .sessionRow button[aria-current="true"],
-.groups .sessionRowWithStatus button[aria-current="true"] {
+.groups .sessionRow .sessionButton[aria-current="true"],
+.groups .sessionRowWithStatus .sessionButton[aria-current="true"] {
   background: var(--accent-soft);
   box-shadow: inset 2px 0 0 var(--accent);
 }
@@ -175,8 +186,8 @@
 /* 只染元信息行。早先这条是 `.groups .sessionRow button span`（通配所有行内 span），
    现在标题行多了一层 `.titleLine` 包装 span，通配会把标题也连带染成灰色小字；
    收窄到 `.meta` 后，标题、归档徽标各自决定自己的颜色。 */
-.groups .sessionRow button .meta,
-.groups .sessionRowWithStatus button .meta {
+.groups .sessionRow .sessionButton .meta,
+.groups .sessionRowWithStatus .sessionButton .meta {
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
@@ -200,8 +211,8 @@
    与 ProvenanceBadge 同一语言。高度取 --lh-xs(16)，不撑高标题行。
    选择器比 `.groups .sessionRow button span`（0,2,2）更具体：即便通配规则
    日后回潮，这里的 --text-secondary 也不会被染成灰色的元信息小字。 */
-.groups .sessionRow button .archiveTag,
-.groups .sessionRowWithStatus button .archiveTag {
+.groups .sessionRow .sessionButton .archiveTag,
+.groups .sessionRowWithStatus .sessionButton .archiveTag {
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -214,6 +225,44 @@
   font-size: var(--fs-xs);
   line-height: 1;
   white-space: nowrap;
+}
+
+/* 出血点徽章：与归档徽标同一套语言（细描边 + 小字 + --r-xs），高度同为
+   --lh-xs(16)，所以标题行的高度契约不变。
+   它是**唯一带颜色的**：归档标记是中性事实，而「这个会话被压缩过 N 次」
+   是这行里唯一需要用户采取行动的信号，值得用 --warning* 把它和元信息分开。
+   颜色全部走令牌，不硬编码色值。 */
+.groups .sessionRow .sessionButton .bleedTag,
+.groups .sessionRowWithStatus .sessionButton .bleedTag {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: var(--lh-xs);
+  margin: 0;
+  padding: 0 var(--sp-1);
+  border: 1px solid var(--warning);
+  border-radius: var(--r-xs);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font: inherit;
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.groups .sessionRow .sessionButton .bleedTag:hover,
+.groups .sessionRowWithStatus .sessionButton .bleedTag:hover {
+  /* 悬停加深：把「这是能点的」说清楚，靠的是可点击的反馈，不是颜色本身。 */
+  background: var(--bg-active);
+}
+
+/* 嵌在会话行里，键盘焦点环不能被父级裁掉。 */
+.groups .sessionRow .sessionButton .bleedTag:focus-visible,
+.groups .sessionRowWithStatus .sessionButton .bleedTag:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 /* 只看不读的补充文字（徽标的完整含义）。 */
@@ -236,18 +285,28 @@
 }
 
 /* Rows are fixed height, so every line stays on one line and ends with an
-   ellipsis instead of wrapping into the clipped area. */
-.sessionRow button strong,
-.sessionRowWithStatus button strong,
-.sessionRow button span,
-.sessionRowWithStatus button span {
+   ellipsis instead of wrapping into the clipped area.
+   **排除 `.bleedTag`**：它已经是 `display: inline-flex` 的高度固定小牌，
+   再叠一层 `overflow: hidden` + `text-overflow` 只会把它的圆角与内边距裁掉。 */
+.sessionRow .sessionButton strong,
+.sessionRowWithStatus .sessionButton strong,
+.sessionRow .sessionButton span,
+.sessionRowWithStatus .sessionButton span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.sessionRow button strong,
-.sessionRowWithStatus button strong {
+/* 徽章自己要 `display: inline-flex`（上面那条 span 通配的 `overflow: hidden`
+   是给文字用的），所以两条规则在这里合流：宽度自适应、内容不截断。 */
+.sessionRow .sessionButton .bleedTag,
+.sessionRowWithStatus .sessionButton .bleedTag {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.sessionRow .sessionButton strong,
+.sessionRowWithStatus .sessionButton strong {
   font-size: var(--fs-base);
   font-weight: 600;
   line-height: var(--lh-base);

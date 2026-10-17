@@ -93,12 +93,21 @@
   font-weight: 600;
 }
 
-/* 「界面字号」一节：标题 / 说明 / 五档控件 / 预览行 依次排开。
-   gap 用 --sp-15，让控件与预览贴得比面板默认的 --sp-2 更紧一点。 */
-.fontScaleSection {
+/* 「界面字号」与「界面对比度」两节的共同骨架：一条偏好 + 一枚分段控件，
+   标题 / 说明 / 控件依次排开。gap 用 --sp-15，让控件与文字贴得比面板默认的
+   --sp-2 更紧一点。两节共用同一个名字——三行声明重复两份不如一个名字。 */
+.preferenceSection {
   display: flex;
   flex-direction: column;
   gap: var(--sp-15);
+}
+
+/* 锚点容器只为真机门禁提供收窄点，不能改变控件布局：SegmentedControl 是
+   inline-flex，直接放进 block 容器会收缩到内容宽（实测 126px），把「高对比度」
+   挤成两行。1fr 单列让控件照旧撑满。 */
+.preferenceControl {
+  display: grid;
+  grid-template-columns: 1fr;
 }
 
 /* 预览行：数据墨色 + 等宽数字，上边线照 .archiveRow 的画法把示例读数与控件分开。 */

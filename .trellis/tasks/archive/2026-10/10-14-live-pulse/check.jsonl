@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端完成标准"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "调度 hook 的竞态与清理核对"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Rust 侧完成标准（clippy -D warnings）"}
+{"file": ".trellis/spec/backend/security-and-permissions.md", "reason": "权限变更是否有理由、清单是否同步"}
+{"file": ".trellis/spec/testing/index.md", "reason": "完成标准"}
+{"file": ".trellis/spec/testing/pitfalls.md", "reason": "恒真断言、裸标签选择器、像素相等"}
+{"file": ".trellis/spec/guides/collaboration-workflow.md", "reason": "红线核对"}

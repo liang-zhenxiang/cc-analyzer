@@ -1,0 +1,355 @@
+/* @import 让 @keyframes 与本模块处在同一个作用域：Vite 会把模块里 `animation:`
+   引用的名字改写成 _name_hash（它假定你引用的是本模块的 @keyframes），共享的
+   cca-breathe / cca-heartbeat 必须先 import 进来，动画才不会静默失效。 */
+@import "../../styles/animations.css";
+
+/* 脉搏页（design-round-w §1 / §7）。容器查询挂在根节点上：主窗最小 960、
+   浮窗 420，两个宽度不重叠，所以「紧凑档」只会在浮窗命中。
+
+   局部变量全是「形」不是「色」，也不进 --sp-* 间距档位（与日历经线的
+   `--cal-cell` 同款）；它们不参与主题换挡。 */
+.pulsePage {
+  --pulse-row-h: calc(var(--row-pad-y-tight) * 2 + var(--lh-xs));
+  --pulse-rows-max: calc(var(--pulse-row-h) * 4);
+  display: flex;
+  min-width: 0;
+  min-height: 100%;
+  flex-direction: column;
+  container-type: inline-size;
+}
+
+/* 内层承担文档流的间距与内边距：容器查询**不能命中容器自己**，所以紧凑档的
+   内边距变化必须落在一个子元素上。 */
+.pulseInner {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+}
+
+/* 页头：视图身份（分段控件在 MonitorPage 上）之后是读数新不新与「悬浮」。 */
+.pulseHead {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+}
+
+.refreshState {
+  min-width: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 过期态：只把这一行变红，不清空任何旧读数。 */
+.refreshState[data-stale="true"] {
+  color: var(--danger);
+}
+
+.floatButton {
+  margin-left: auto;
+}
+
+/* 面板槽：给 Panel 一个稳定的探针锚点（Panel 不转发任意属性）。 */
+.panelSlot {
+  min-width: 0;
+}
+
+/* 空 / 错态的舞台：页头留在顶部，读数区在剩余空间里居中。 */
+.stage {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* ── 5 小时窗口读数（§4）──────────────────────────────────────────── */
+
+.readouts {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--sp-2) var(--sp-4);
+}
+
+.readout {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: var(--sp-05);
+}
+
+.readoutLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+/* 读数语言：标签小字 + 数值 600 + tabular（与 BillingWindowCard / 压缩统计同款）。 */
+.readoutValue {
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: var(--lh-md);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 「样本不足 / 未设预算」是缺数据的占位，不是读数：降一档字号、去 600、
+   去掉 tabular（不是数字就不该占数字位）。两种退化共用这一套画法。 */
+.readoutValueMuted {
+  color: var(--text-tertiary);
+  font-size: var(--fs-base);
+  font-weight: 400;
+  line-height: var(--lh-md);
+}
+
+/* 预测触顶早于窗口关闭时：页面上唯一一处合法的语义色——推算出来的时刻。 */
+.readout[data-warning="true"] .readoutValue {
+  color: var(--warning);
+}
+
+.readoutSub {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.panelFootnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 上下文面板标题行右侧的观察对象（会话标题）：不写它就不知道这条曲线是谁的。 */
+.sessionName {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 活跃会话（§2）───────────────────────────────────────────────── */
+
+/* 行高由令牌相加而来，不写死：130% 字号下 --lh-xs 会涨，行高跟着涨，
+   行盒才不会被裁（§13 修正二）。行数封顶 4 行，超出在面板体内竖滚。 */
+.sessionList {
+  display: grid;
+  min-width: 0;
+  max-height: var(--pulse-rows-max);
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  gap: 0;
+  list-style: none;
+}
+
+.sessionItem {
+  min-width: 0;
+}
+
+/* 行与行之间用内阴影发丝线，不占布局高度（列表高 = 行数 × 行高）。 */
+.sessionItem + .sessionItem {
+  box-shadow: inset 0 1px 0 var(--border);
+}
+
+.sessionOpen {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  height: calc(var(--row-pad-y-tight) * 2 + var(--lh-xs));
+  align-items: center;
+  gap: var(--sp-2);
+  /* 第 1 列 14px 与字形 12px 是「形」，不进间距档位。 */
+  grid-template-columns: 14px minmax(0, 1fr) auto auto;
+  padding: 0 var(--sp-1);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-hover) var(--ease-out);
+}
+
+/* 悬停底用 --bg-active：浅色主题下 --bg-hover 与面板底同色，悬停看不见。 */
+.sessionOpen:hover {
+  background: var(--bg-active);
+}
+
+.sessionOpen:hover .sessionTitle {
+  color: var(--text);
+}
+
+/* 全宽控件用 --focus-ring-inset：正偏移会被列表的 overflow 裁掉。 */
+.sessionOpen:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-inset);
+}
+
+/* 新近度字形：几何为主通道（12 / 8 / 4），中性墨阶为辅。不用圆形——
+   全站没有圆点。transform 需要块级元素。 */
+.sessionTick {
+  display: block;
+  width: 10px;
+  justify-self: center;
+  border-radius: var(--r-xs);
+  background: var(--text-tertiary);
+}
+
+.sessionItem[data-recency="live"] .sessionTick {
+  height: 12px;
+  background: var(--text);
+}
+
+.sessionItem[data-recency="recent"] .sessionTick {
+  height: 8px;
+  background: var(--text-secondary);
+}
+
+.sessionItem[data-recency="idle"] .sessionTick {
+  height: 4px;
+  background: var(--text-tertiary);
+}
+
+/* 心跳只挂在 live 一档，且由组件按「页面可见」决定挂不挂；终帧是静止实心块，
+   prefers-reduced-motion 归零后留下稳定字形。 */
+.sessionTick[data-beat="true"] {
+  animation: cca-heartbeat var(--dur-pulse) var(--ease-in-out) infinite;
+}
+
+.sessionTitle {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* live 行的标题提权到 --text：本轮唯一的「此刻」层级信号，不花一个颜色。 */
+.sessionItem[data-recency="live"] .sessionTitle {
+  color: var(--text);
+}
+
+.sessionProject {
+  max-width: 5.5em;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sessionAge {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── 加载骨架（§6.1）────────────────────────────────────────────── */
+
+.skeletonStack {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.skeletonReadouts {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--sp-2) var(--sp-4);
+}
+
+/* 曲线位：形状等于真图（viewBox 720×140 的等比缩放），基色 --bg-hover 本身
+   就是静止可见的形态，cca-breathe 只把它压暗再放开。 */
+.chartSkeleton {
+  width: 100%;
+  aspect-ratio: 720 / 140;
+  border-radius: var(--r-sm);
+  background: var(--bg-hover);
+  animation: cca-breathe var(--dur-pulse) var(--ease-in-out) infinite alternate;
+}
+
+/* ── 浮窗细头（§7.3）──────────────────────────────────────────── */
+
+/* 细头是浮窗里唯一一条拖动通道（无边框窗口）；底色 --bg-subtle + 发丝下边框。 */
+.floatHead {
+  display: flex;
+  min-width: 0;
+  height: var(--control-h-lg);
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-2);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-subtle);
+}
+
+/* 拖动把手：两条 8px × 1px 短横，行距 --sp-05（用内阴影画第二条，不占布局）。 */
+.floatGrip {
+  width: 8px;
+  height: 1px;
+  flex: none;
+  background: var(--text-tertiary);
+  box-shadow: 0 var(--sp-05) 0 0 var(--text-tertiary);
+}
+
+.floatTitle {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floatExit {
+  margin-left: auto;
+  flex: none;
+}
+
+/* ── 紧凑档（浮窗 ≤420px）───────────────────────────────────────── */
+
+@container (max-width: 420px) {
+  .pulseInner {
+    gap: var(--sp-2);
+    padding: var(--sp-2);
+  }
+
+  /* 5 项在 2 列里会留一个空格子：第 5 格跨满整行。 */
+  .readouts,
+  .skeletonReadouts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .readout:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* 窄浏览器视口（主窗最小 960，这条只服务 e2e 的 800px 档）。 */
+@media (max-width: 900px) {
+  .readouts,
+  .skeletonReadouts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .readout:last-child {
+    grid-column: 1 / -1;
+  }
+}

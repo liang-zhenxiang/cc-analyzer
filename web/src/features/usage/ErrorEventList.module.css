@@ -36,8 +36,8 @@
 }
 
 .clear:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .scroller {
@@ -85,9 +85,9 @@
 }
 
 .row:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-  box-shadow: inset 2px 0 0 var(--accent);
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-inset);
+  box-shadow: inset var(--focus-ring-width) 0 0 var(--accent);
 }
 
 /* 时间列：min-width 是 100% 字号下的列预算（design §3.5 的 88px），字号放大

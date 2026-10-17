@@ -1,0 +1,26 @@
+{
+  "views": [
+    "analyzer-empty",
+    "analyzer-log",
+    "analyzer-tree",
+    "analyzer-report",
+    "analyzer-report-full",
+    "settings",
+    "settings-below",
+    "monitor",
+    "monitor-console",
+    "pulse",
+    "pulse-float",
+    "usage",
+    "usage-below",
+    "milestones",
+    "analyzer-log-compact",
+    "context",
+    "context-empty",
+    "error-view",
+    "error-events",
+    "changed-files",
+    "usage-day",
+    "bleed"
+  ]
+}

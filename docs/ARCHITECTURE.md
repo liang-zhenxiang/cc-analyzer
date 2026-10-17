@@ -21,7 +21,8 @@ web/ (React 18 + TypeScript + Vite)
 | `api/` | **UI 组件不直接碰 Tauri**。`bridges.ts` 定义注入接口，`tauri.ts` 是 Tauri 实现，`types.ts` 是与 Rust 命令对齐的参数/返回类型 |
 | `app/` | 应用壳：`AppShell`、`WorkspaceTabs`（会话分析 / 实时监控 两个工作区页）、主题与通知 Provider |
 | `features/sessions/` | 会话分析主功能：仓库读取、JSONL 解析、会话图、日志行模型、筛选、耗时树、报告生成 |
-| `features/monitor/` | 实时监控页（用户点「打开监控」后才探测并内嵌外部仪表盘）与浮窗消息协议 |
+| `features/monitor/` | 实时监控页：默认的原生「脉搏」视图（活跃会话 / 速率曲线 / 5 小时窗口 / 上下文填充）+ 原生「监控台」（今天读数 / 24 小时活动 / 项目热度 / 事件流）+「外部仪表盘」第三档（显式打开后才探测）+ 浮窗消息协议 |
+| `features/usage/` | 用量总览：渐进扫描（`useUsageOverview`）、区间聚合与计费窗口、消耗日历与一年洞察、工具普查、错误聚合、**里程碑**（全历史的三层可核对事实）与快照导出 |
 | `features/settings/` | 分析预算（阈值）的持久化与设置面板 |
 | `lib/` | 通用工具（路径、格式化、JSON 序列化、剪贴板） |
 | `components/` | 跨 feature 的共享组件 |
@@ -55,8 +56,12 @@ web/ (React 18 + TypeScript + Vite)
 - **进程**：`run_lines`（流式跑子进程，供报告生成；`stdin_text` 可注入，
   `timeout_ms` 可超时）、`cancel_lines`（用户点「停止分析」时杀掉运行中的
   子进程）、`exec_text`、`spawn_detached`（打开文件/终端）。
-- **监控**：`monitor_port` / `monitor_ping`（探测外部仪表盘；只在用户点「打开监控」后调用）。
-- **浮窗**：`float` 插件的 `enter` / `exit`（保存与恢复窗口几何）。
+- **监控**：`monitor_port` / `monitor_ping`（探测外部仪表盘；只在「外部仪表盘」子视图里、
+  用户点「打开监控」后调用——默认的「脉搏」与原生「监控台」都不碰这两个命令）。
+- **浮窗**：`float` 插件的 `enter` / `exit`（保存与恢复窗口几何）。浮窗是无边框窗口
+  （`set_decorations(false)`），脉搏的浮窗细头靠 `data-tauri-drag-region="deep"` + 能力
+  文件里的 `core:window:allow-start-dragging` 拖动窗口——无边框窗口没有别的地方可拖，
+  这是本轮唯一新增的能力（见 `.trellis/spec/backend/security-and-permissions.md`）。
 
 ## 数据流
 
@@ -69,6 +74,30 @@ parseJsonl ──▶ 会话图（子会话递归）──▶ 时长聚合 ──
         ▼                                    ▼
 meta-cache-v2.json（标题缓存）        run_lines(claude CLI) ──▶ Markdown 报告
 ```
+
+「脉搏」复用同一条链路，不新写窗口数学：`usePulseFeed` 每拍调 `listSessions()`，
+对 mtime/size 变过的文件重解析（命中 `sharedSessionParseCache` 则零成本），再交给
+`billingReadoutsOf` / `burnRateOf` / `predictLimitReach` / `contextSeriesOf` ——
+与用量总览和菜单栏读数**同一批纯函数**（所以脉搏的 5 小时消耗与用量表盘逐位相等）。
+一个陷阱值得记住：正在被写的会话每次写入都让 `meta-cache-v2.json` 失配，
+`listSessions` 一律把它们标成 `pending`、拿不到缓存标题；活跃会话的标题必须自己
+`readHead` 现取（细节见 `.trellis/spec/frontend/hook-guidelines.md`）。
+
+「监控台」复用同一个 `usePulseFeed`，不新增扫描通道：
+`usePulseFeed().snapshot → consoleModelOf(inputs, rows, now)` 一次折出今天 token、
+今天压缩数、项目热度、24 小时桶与最近 12 条事件；`billingReadoutsOf` 继续提供
+「本窗口已用」的唯一读数。监控台与脉搏各持一个 hook 实例，但共用解析缓存；
+项目筛选与事件类型筛选只过滤已经算好的报告，不扩大事件窗口。它不新增 `Bridges`
+接口、不调用监控探测命令、不发网络请求；`ExternalDashboard` 仍只在第三档挂载，
+并保持「显式打开后才探测」的状态机。
+
+「里程碑」（Issue #214）同样不新写数学，也不新增扫描：
+`useUsageOverview().inputs → milestonesOf(inputs, now)` 一次遍历折成
+`tiers` / `firsts` / `records` 三层清单，`MilestonesPanel` 只负责排版（达成与否、
+到下一档的距离、哪几枚缺席全部由纯逻辑层判好）。它的口径是**全历史**，与页面上的
+7 / 30 / 90 天区间正交，所以那个 `useMemo` 的依赖里没有 `days`——切档既不重扫，
+也不改变任何一个数字；这一点正是「同一概念不许有两个窗口」的落点（六句一年洞察是
+滚动 365 天口径，里程碑因此刻意不做连胜 / 最贵一天 / 活跃占比）。
 
 ## 设计取舍（含被否掉的方案）
 
@@ -98,6 +127,11 @@ meta-cache-v2.json（标题缓存）        run_lines(claude CLI) ──▶ Mark
   让整个面板空白。
 - **时长口径以「时间区间并集」为准**，不做简单求和：嵌套子会话会被重复
   计数，轮间等待单独成行而不是摊进工具耗时。
+- **里程碑不做成本类。** 里程碑的承诺是「每枚都能从本机日志复算」，而累计成本读的是
+  内嵌定价快照——一张**会过期**的表；「定价未知的天不计入」还会造成用户看不见的低估，
+  让同一屏上的数字有**不同的完备性**（token 类 100% 完备，成本类不是）。它已经由
+  KPI「估算成本」（带来源徽章与快照日期）与日历色深承载，所以 `milestonesOf` 的七枚
+  阶梯全部只读日志本身（`totalsSum` / 事件计数 / 去重集合），不发第二枚金额徽章。
 - **前端工具链跟随最新主版本，React 暂留 18。** vite / vitest / plugin-react
   只影响开发与构建：安全补丁与构建速度的收益明确，又被测试和 CI 兜住，
   一次升到位成本最低。React 19 则要求 `@types` 成套更换并适配 cleanup
