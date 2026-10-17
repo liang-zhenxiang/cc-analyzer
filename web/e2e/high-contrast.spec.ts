@@ -3,6 +3,7 @@ import {
   test,
   expect,
   recentActivityScenario,
+  quotaAttributionScenario,
   pulseScenario,
   monitorConsoleScenario,
   MONITOR_CONSOLE_NOW
@@ -100,6 +101,39 @@ function parseColor(value: string): [number, number, number] | null {
 
 function expectColor(actual: string, hex: string) {
   expect(parseColor(actual), `无法解析计算色 ${JSON.stringify(actual)}`).toEqual(parseColor(hex));
+}
+
+function expectShadowColor(actual: string, hex: string, inset: boolean) {
+  const rgb = parseColor(hex);
+  expect(rgb, `测试内部的期望色解析失败：${hex}`).not.toBeNull();
+  const [red, green, blue] = rgb as [number, number, number];
+  expect(actual).toContain(`rgb(${red}, ${green}, ${blue})`);
+  expect(actual).toContain("1px");
+  expect(actual.includes("inset")).toBe(inset);
+}
+
+function relativeLuminance(rgb: [number, number, number]): number {
+  const [red, green, blue] = rgb.map((value) => {
+    const channel = value / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
+function expectGraphicContrast(foreground: string, background: string) {
+  const front = parseColor(foreground);
+  const back = parseColor(background);
+  expect(front, `无法解析填充色 ${JSON.stringify(foreground)}`).not.toBeNull();
+  expect(back, `无法解析轨道色 ${JSON.stringify(background)}`).not.toBeNull();
+  const lighter = Math.max(
+    relativeLuminance(front as [number, number, number]),
+    relativeLuminance(back as [number, number, number])
+  );
+  const darker = Math.min(
+    relativeLuminance(front as [number, number, number]),
+    relativeLuminance(back as [number, number, number])
+  );
+  expect((lighter + 0.05) / (darker + 0.05)).toBeGreaterThanOrEqual(3);
 }
 
 async function setFontScale(page: Page, name: string) {
@@ -356,6 +390,102 @@ test.describe("高对比度 · 几何不变量", () => {
     expect(measured.document).toBeLessThanOrEqual(1);
     expect(measured.wrapper).toBeLessThanOrEqual(1);
     expect(measured.table).toBeLessThanOrEqual(1);
+  });
+});
+
+test.describe("高对比度 · 用量进度条边界", () => {
+  test.use({
+    scenario: quotaAttributionScenario({ sessions: 6 })
+  });
+
+  async function prepareUsage(page: Page, theme: "light" | "dark") {
+    await page.addInitScript((value) => {
+      window.localStorage.setItem("cca-theme", value);
+      window.localStorage.setItem("cca-contrast", "high");
+      window.localStorage.setItem(
+        "cca-billing-plan",
+        JSON.stringify({
+          id: "none",
+          customLimitTokens: null,
+          customWeeklyLimitTokens: 3_000_000
+        })
+      );
+    }, theme);
+    await page.goto("/");
+    await page.getByRole("tab", { name: SNAPSHOT_TITLE }).click();
+    await expect(page.getByText(/纳入统计/)).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByLabel("周用量（滚动 7 天）").locator("[class*='weeklyBarTrack']")
+    ).toBeVisible();
+  }
+
+  for (const [theme, background, border] of [
+    ["light", "#eef1f5", "#3f4854"],
+    ["dark", "#000000", "#9e9e9e"]
+  ] as const) {
+    test(`${theme} 主题：两条轨道与归因余项的边界都可计算`, async ({ page }) => {
+      await prepareUsage(page, theme);
+
+      expect(await rootContrast(page)).toBe("high");
+      expectColor(await rootToken(page, "--bg-inset"), background);
+      expectColor(await rootToken(page, "--border-strong"), border);
+
+      const tracks = [
+        {
+          track: page
+            .getByLabel("周用量（滚动 7 天）")
+            .locator("[class*='weeklyBarTrack']"),
+          fill: page
+            .getByLabel("周用量（滚动 7 天）")
+            .locator("[class*='weeklyBarFill']")
+        },
+        {
+          track: page
+            .locator('[data-probe="attribution-row"] [class*="attributionBarTrack"]')
+            .first(),
+          fill: page.locator('[data-probe="attribution-row-bar"]').first()
+        }
+      ];
+
+      for (const { track, fill } of tracks) {
+        await expect(track).toBeVisible();
+        await expect(fill).toBeVisible();
+        const style = await track.evaluate((node) => {
+          const computed = getComputedStyle(node);
+          return { background: computed.backgroundColor, shadow: computed.boxShadow };
+        });
+        const fillColor = await fill.evaluate((node) => getComputedStyle(node).backgroundColor);
+        expectColor(style.background, background);
+        expectShadowColor(style.shadow, border, false);
+        expectGraphicContrast(fillColor, style.background);
+      }
+
+      const rest = page.locator('[data-probe="attribution-rest"] [class*="attributionRestFill"]');
+      await expect(rest).toBeVisible();
+      expectShadowColor(
+        await rest.evaluate((node) => getComputedStyle(node).boxShadow),
+        border,
+        true
+      );
+    });
+  }
+
+  test("普通档：页头扫描进度改用 --text-secondary 的实际计算色", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        "cca-billing-plan",
+        JSON.stringify({
+          id: "none",
+          customLimitTokens: null,
+          customWeeklyLimitTokens: 3_000_000
+        })
+      );
+    });
+    await page.goto("/");
+    await page.getByRole("tab", { name: SNAPSHOT_TITLE }).click();
+    const progress = page.locator('[data-probe="usage-progress"]');
+    await expect(progress).toContainText("纳入统计", { timeout: 15_000 });
+    expectColor(await progress.evaluate((node) => getComputedStyle(node).color), "#4a5260");
   });
 });
 

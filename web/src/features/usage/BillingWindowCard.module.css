@@ -90,6 +90,14 @@
   background: var(--border-strong);
 }
 
+/* HC 的实色填充与 --border-strong 轨道只差 1.19 / 1.27，读不出填充边界。
+   换 --bg-inset 作轨道底，再用外层 1px 描边把轨道从面板上分出来。
+   用 box-shadow 不用 outline：焦点环守卫会把裸 outline 当成未走令牌的焦点环。 */
+:global([data-contrast="high"]) .weeklyBarTrack {
+  background: var(--bg-inset);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+
 /* 4px 的窄条属描边档语言（同日志表占比条与表盘进度弧），实色允许。 */
 .weeklyBarFill {
   height: 100%;
@@ -336,6 +344,11 @@
   background: var(--border-strong);
 }
 
+:global([data-contrast="high"]) .attributionBarTrack {
+  background: var(--bg-inset);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+
 .attributionBarFill {
   /* 填充是行内 <span>，没有这一行 width/height 全都不生效——占比条会整根消失。 */
   display: block;
@@ -352,6 +365,12 @@
   min-width: var(--sp-05);
   border-radius: var(--r-xs);
   background: var(--chart-1-soft);
+}
+
+/* 余项的 -soft 填充对 HC 的 --bg-inset 只有 1.22 / 2.37；轨道描边落在填充外侧，
+   仍需一圈内描边让余项自己的起止边界可见。 */
+:global([data-contrast="high"]) .attributionRestFill {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 
 .attributionBarEmpty {

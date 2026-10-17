@@ -36,7 +36,7 @@
 }
 
 .progress {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--fs-xs);
   line-height: var(--lh-xs);
 }
