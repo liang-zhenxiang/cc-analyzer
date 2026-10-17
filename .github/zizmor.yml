@@ -13,12 +13,22 @@ rules:
   # pull_request_target 的危险点在于「以可写 token 运行 PR 代码」，
   # 而这里根本没有运行 PR 代码，风险不存在。
   #
-  # 同样的豁免不需要给 labeler.yml：它虽然同样使用 pull_request_target，
-  # 但当前版本 zizmor 对它没有告警——不为没有告警的文件预先写豁免，
-  # 豁免清单应当与真实告警一一对应。
+  # labeler.yml 也使用 pull_request_target，Issue #221 起它多了一步 checkout。
+  # 这里的安全依据可以逐条验证：
+  #   1. checkout 的 `ref` 显式写成 `github.event.pull_request.base.ref`——
+  #      拿的是**目标分支**，不是 PR 的 head 或 merge commit。PR 作者无法通过
+  #      修改自己分支里的文件来影响这次 checkout。
+  #   2. 随后执行的 `scripts/pr-nature-label.sh` 来自上面那个 base 分支，
+  #      不是 PR 提交的内容。
+  #   3. 工作流对 PR 的唯一读取是 `gh pr view` 的**标题**（API，纯数据），
+  #      `${{ }}` 一律经 `env:` 中转，不拼进 `run:`。
+  #   4. 需要写权限的那一步只有 `gh pr edit --add-label/--remove-label`。
+  # 换句话说：它仍然**不执行任何来自 PR 的代码**，checkout 只是为了让审计者
+  # 看见「脚本从哪来」。若将来有人把 `ref` 改成 `head.ref`，本豁免立刻失效。
   #
-  # 若未来任何一个工作流要 checkout PR 的 head 分支，必须改用 pull_request
-  # + 显式授权，而不是在这里加豁免。
+  # 原则不变：**若任何一个工作流要 checkout PR 的 head 分支，必须改用
+  # pull_request + 显式授权，而不是在这里加豁免。**
   dangerous-triggers:
     ignore:
       - welcome.yml
+      - labeler.yml
