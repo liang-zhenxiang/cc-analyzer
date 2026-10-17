@@ -37,7 +37,7 @@ tokio = { version = "1", features = ["process", "io-util", "time", "macros", "rt
 # 需要的部分——此功能用不到 age 的其它收件人类型。
 tar = "0.4"
 age = { version = "0.12", default-features = false }
-sha2 = "0.10"
+sha2 = "0.11"
 base64 = "0.23"
 
 # 仅 `gui-capture` feature 需要：让应用把自己的 webview 渲染成 PNG，
