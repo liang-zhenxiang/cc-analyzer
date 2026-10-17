@@ -743,6 +743,29 @@ jobs:
       - name: 运行脚本自测
         run: ./scripts/promote-changelog-test.sh
 
+  # ---------------------------------------------------------------------------
+  # PR 性质标签自测
+  #
+  # `scripts/pr-nature-label.sh` 决定 PR 标题前缀该打哪个「性质标签」，而发布说明
+  # 的「变更清单」按标签分类（Issue #221）。这段映射原先内联在 labeler workflow
+  # 的 `run:` 里，唯一的验证方式是「提一个 PR，看标签对不对」——而分类错了要等
+  # 下一次发版才看得见。抽成脚本后每种前缀都钉成用例，见
+  # scripts/pr-nature-label-test.sh。
+  # ---------------------------------------------------------------------------
+  pr-label-test:
+    name: PR 性质标签自测
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: 运行脚本自测
+        run: ./scripts/pr-nature-label-test.sh
+
 
   # ---------------------------------------------------------------------------
   # 视觉基线一致性检查
@@ -829,7 +852,7 @@ jobs:
   ci-summary:
     name: CI 总览
     runs-on: ubuntu-latest
-    needs: [actionlint, yamllint, shellcheck, web-test, web-e2e, web-build, rust-fmt, rust-clippy, rust-check, rust-test, commit-messages, zizmor, lint-selftest, release-notes-test, changelog-section-test, promote-changelog-test, screenshots-baseline, readme-parity, gui-test-shutdown]
+    needs: [actionlint, yamllint, shellcheck, web-test, web-e2e, web-build, rust-fmt, rust-clippy, rust-check, rust-test, commit-messages, zizmor, lint-selftest, release-notes-test, changelog-section-test, promote-changelog-test, pr-label-test, screenshots-baseline, readme-parity, gui-test-shutdown]
     if: always()
     steps:
       - name: Checkout Repos
@@ -856,6 +879,7 @@ jobs:
           R_RELEASE_NOTES_TEST: ${{ needs.release-notes-test.result }}
           R_CHANGELOG_SECTION_TEST: ${{ needs.changelog-section-test.result }}
           R_PROMOTE_CHANGELOG_TEST: ${{ needs.promote-changelog-test.result }}
+          R_PR_LABEL_TEST: ${{ needs.pr-label-test.result }}
           R_SCREENSHOTS_BASELINE: ${{ needs.screenshots-baseline.result }}
           R_README_PARITY: ${{ needs.readme-parity.result }}
           R_GUI_TEST_SHUTDOWN: ${{ needs.gui-test-shutdown.result }}
@@ -886,6 +910,7 @@ jobs:
             "release-notes-test:发布说明转换自测"
             "changelog-section-test:发布说明抽段自测"
             "promote-changelog-test:晋升归档自测"
+            "pr-label-test:PR 性质标签自测"
             "screenshots-baseline:视觉基线一致性"
             "readme-parity:README 结构一致性"
             "gui-test-shutdown:真机测试中断清理自测"

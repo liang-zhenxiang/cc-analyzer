@@ -28,6 +28,15 @@ jobs:
     name: 按改动路径打标签
     runs-on: ubuntu-latest
     steps:
+      # 只读目标分支（pull_request_target 的默认 ref 就是 base，**不是** PR 的
+      # merge commit），安全前提不变。这一步是为了拿到 scripts/pr-nature-label.sh。
+      # `ref` 显式写出来而不是依赖默认值：审计时一眼就能看到「拿的是 base」。
+      - name: Checkout 目标分支
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          persist-credentials: false
+
       - name: 应用标签规则
         uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13 # v7
         with:
@@ -35,3 +44,47 @@ jobs:
           configuration-path: .github/labeler.yml
           # 当 PR 中的相关改动被撤销时，同步移除对应标签
           sync-labels: true
+
+      # -------------------------------------------------------------------
+      # 按 PR 标题的 conventional 前缀打**性质**标签（Issue #221）
+      #
+      # `actions/labeler` 只能按改动路径打标签，所以它只会给 `frontend` /
+      # `documentation` 这类「改到哪一层」的标签。而发布说明的分类是按**性质**
+      # 分的（新功能 / 修复 / …），性质标签原先只靠人工打——AI 维护者建 PR 时
+      # 从不打，于是每个 PR 都只剩路径标签；再加上每个 PR 都要写 CHANGELOG
+      # （`.md`），`documentation` 人人都有，发布说明的「变更清单」就一路落到
+      # 「文档」那一格（v0.26.0-beta.1 与 v0.27.0-beta.1 都是这样）。
+      #
+      # 这里只读 PR 标题、不 checkout 任何 PR 代码，`pull_request_target` 的
+      # 安全前提不受影响。
+      # -------------------------------------------------------------------
+      - name: 按标题前缀打性质标签
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          title="$(gh pr view "$PR_NUMBER" --json title --jq .title)"
+          echo "PR 标题：${title}"
+
+          # 映射收在 scripts/pr-nature-label.sh 里（带自测）：前缀后面必须紧跟
+          # `(` / `:` / 空格，所以 `fixup! feat: …` 这种 rebase 中间产物不会被
+          # 误判成 fix。内联在这里的话，唯一的验证方式是「提一个 PR 看标签」。
+          pair="$(./scripts/pr-nature-label.sh "$title")"
+          add="${pair%%:*}"
+          remove="${pair#*:}"
+
+          if [ -z "$add" ]; then
+            echo "标题前缀不是 feat/fix，跳过性质标签"
+            exit 0
+          fi
+
+          # 标题从 feat 改成 fix（或反过来）时，把另一个性质标签摘掉，
+          # 否则发布说明会按上一次的标签分类。
+          if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -qx "$remove"; then
+            gh pr edit "$PR_NUMBER" --remove-label "$remove"
+          fi
+          gh pr edit "$PR_NUMBER" --add-label "$add"
+          echo "已打标签：${add}"

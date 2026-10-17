@@ -92,7 +92,23 @@ PR 清单里 `###` 那一层的分类标题**不靠这张表**，由
 
 - **`### 分类标题`** 由仓库级 [`.github/release.yml`](../../../.github/release.yml)
   提供中文标题。分类是**按 PR 标签**匹配的（GitHub 只支持标签，不支持按提交
-  前缀匹配），标签由 `.github/labeler.yml` 按改动路径自动打。
+  前缀匹配）。标签有**两条来源**：
+  1. [`.github/labeler.yml`](../../../.github/labeler.yml) 按**改动路径**自动打
+     （frontend / tauri / ci / documentation …）；
+  2. [`.github/workflows/labeler.yml`](../../../.github/workflows/labeler.yml) 按
+     **PR 标题前缀**打**性质**标签（`feat*` → enhancement、`fix*` → bug），
+     映射收在 [`scripts/pr-nature-label.sh`](../../../scripts/pr-nature-label.sh)。
+
+  第 2 条是 [Issue #221](https://github.com/liang-zhenxiang/cc-analyzer/issues/221)
+  的修复：性质标签原先只靠人工打，AI 维护者建 PR 时从不打；再加上流程要求每个
+  用户可感知的改动都写 CHANGELOG（`.md`），`documentation` 几乎人人都有——
+  于是发布说明的变更清单**一路落到「文档」**（v0.26.0-beta.1 与 v0.27.0-beta.1
+  都是这样）。
+
+  **`documentation` 在 `release.yml` 里必须排在构建 / CI / 依赖之后**：它按
+  `**/*.md` 匹配、人人都有，排在前面就会吞掉功能与修复。只有**纯文档** PR 才该
+  落到「文档」那一格。
+
   `labels: ['*']` 的通配必须放最后：一个 PR 归入**第一个命中**的分类，
   少了通配，未匹配的 PR 会从发布说明里静默消失。
 - **`## What's Changed` / `## New Contributors` / `**Full Changelog**`**
