@@ -36,7 +36,7 @@ tokio = { version = "1", features = ["process", "io-util", "time", "macros", "rt
 # async / cli-common / plugin 那几组（rsa、aes、rpassword…），只留 scrypt 口令加解密
 # 需要的部分——此功能用不到 age 的其它收件人类型。
 tar = "0.4"
-age = { version = "0.11", default-features = false }
+age = { version = "0.12", default-features = false }
 sha2 = "0.10"
 base64 = "0.23"
 
