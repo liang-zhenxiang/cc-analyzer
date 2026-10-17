@@ -106,6 +106,29 @@ describe("MonitorPage", () => {
     expect(pingMonitor).not.toHaveBeenCalled();
   });
 
+  test("实时监控有三档，监控台排在脉搏之后、外部仪表盘之前", () => {
+    renderMonitor(createBridges(), undefined, "pulse");
+
+    expect(screen.getByRole("tab", { name: "脉搏" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "监控台" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "外部仪表盘" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "脉搏" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  test("切到监控台走本机日志，不调用 monitor_port / monitor_ping", async () => {
+    const monitorPort = vi.fn(async () => 8090);
+    const pingMonitor = vi.fn(async () => true);
+
+    renderMonitor(createBridges({ monitorPort, pingMonitor }), undefined, "pulse");
+    fireEvent.click(screen.getByRole("tab", { name: "监控台" }));
+
+    await waitFor(() =>
+      expect(document.querySelector('[data-probe="monitor-console-page"]')).not.toBeNull()
+    );
+    expect(monitorPort).not.toHaveBeenCalled();
+    expect(pingMonitor).not.toHaveBeenCalled();
+  });
+
   test("切到「外部仪表盘」后，显式打开与失败重试仍成立（R1 / #55）", async () => {
     vi.useFakeTimers();
     try {

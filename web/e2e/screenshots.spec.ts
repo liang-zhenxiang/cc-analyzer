@@ -10,7 +10,9 @@ import {
   errorScenario,
   changedFilesScenario,
   calendarScenario,
-  pulseScenario
+  pulseScenario,
+  monitorConsoleScenario,
+  MONITOR_CONSOLE_NOW
 } from "./fixtures";
 import { milestonesScenario } from "../tests/fixtures/milestones-scenario";
 import { sessionItems } from "./selectors";
@@ -141,6 +143,7 @@ const V_USAGE_DAY = declareView("usage-day");
 const V_PULSE = declareView("pulse");
 const V_PULSE_FLOAT = declareView("pulse-float");
 const V_MILESTONES = declareView("milestones");
+const V_MONITOR_CONSOLE = declareView("monitor-console");
 
 // 出血点标签页（Round X）。与其余视图一样显式写成「常量 = declareView(字面量)」
 // 的形态——不能从某张表的键里循环：check-screenshots.sh 的正则只认这种形态，
@@ -582,6 +585,54 @@ test.describe("截图归档 · 实时脉搏", () => {
       await page.waitForTimeout(300);
       await settleImages(page);
       await page.screenshot({ path: path.join(OUT_DIR, `${V_PULSE_FLOAT}-${theme}${suffix}.png`) });
+    });
+  }
+});
+
+/*
+ * 监控台（Issue #225）要一份「今天真的有三个项目、三种事件」的夹具：
+ * `monitorConsoleScenario()` 给 2,200 token、3 个活跃会话、2 次压缩与 2 条错误。
+ * 四个读数在首屏同排出现，项目榜和事件流也都有确定内容；错误正文带绝对路径，
+ * 截图前同时断言页面源码里已脱敏。
+ */
+test.describe("截图归档 · 监控台", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: monitorConsoleScenario({ updater: { currentVersion: APP_VERSION } }) });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`监控台 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.clock.setFixedTime(MONITOR_CONSOLE_NOW);
+
+      await page.goto("/");
+      await page.getByRole("tab", { name: "实时监控" }).click();
+      await page.getByRole("tab", { name: "监控台" }).click();
+      const view = page.locator("[data-probe='monitor-console-page']");
+      await expect(view).toHaveAttribute("data-state", "fresh", { timeout: 15_000 });
+      await expect(page.locator("[data-probe='monitor-console-readout']")).toHaveCount(4);
+      await expect(page.locator("[data-probe='monitor-console-project-row']")).toHaveCount(3);
+      await expect(page.locator("[data-probe='monitor-console-event-row']")).not.toHaveCount(0);
+
+      // 截图与 DOM 都不该包含夹具里的真实路径形状。
+      const rendered = await view.evaluate((node) => `${node.textContent}\n${node.innerHTML}`);
+      expect(rendered).not.toContain("/Users/");
+      expect(rendered).not.toContain("/home/");
+      expect(rendered).not.toContain("/repo/");
+
+      await page.waitForTimeout(300);
+      await settleImages(page);
+      await page.screenshot({
+        path: path.join(OUT_DIR, `${V_MONITOR_CONSOLE}-${theme}${suffix}.png`)
+      });
     });
   }
 });

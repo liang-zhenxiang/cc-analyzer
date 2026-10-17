@@ -42,6 +42,7 @@ function readStoredTab(): WorkspaceTab {
 function readStoredMonitorView(): MonitorView {
   try {
     const stored = localStorage.getItem(MONITOR_VIEW_KEY);
+    if (stored === "console") return "console";
     if (stored === "dashboard") return "dashboard";
   } catch {
     // See readStoredTab: persistence is optional.

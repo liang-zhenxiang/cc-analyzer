@@ -54,8 +54,9 @@
 #                                        # 点击并在每步取一张图，各走相同的转 PNG + 非空白
 #                                        # 与几何判定。**单个值沿用旧文件名 -tab.pdf**。
 #
-# 默认的视图清单是「实时监控 → 脉搏档 → 悬浮（浮窗细头）→ 退出浮窗 → 会话分析 →
-# 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
+# 默认的视图清单是「实时监控 → 脉搏档 → 悬浮（浮窗细头）→ 退出浮窗 → 监控台 →
+# 脉搏（清理子视图残留）→ 会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 →
+# 终端转义夹具会话 →
 # 日志视图 → 导出 → 关闭导出窗口 → 压缩夹具会话 → 上下文 → 点选第 2 枚压缩事件 chip →
 # 改动夹具会话 → 改动 → 点选首个文件行 →
 # 用量总览 → 视图=用量 → 滚到底 → 点选工具普查榜首行 → 用量总览 → 视图=里程碑 → 视图=用量 →
@@ -123,7 +124,7 @@ gui-test.sh —— 真机 GUI 冒烟测试
   -h, --help                           # 显示帮助
 
 默认视图清单：实时监控 → 脉搏档 → 悬浮（浮窗细头：顶栏收起、拖动声明为 deep）→ 退出浮窗 →
-会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
+监控台 → 切回脉搏 → 会话分析 → 切成 130% 界面字号 → 打开首个会话 → 日志视图 → 终端转义夹具会话 →
 （切成高对比度后，余下每个视图都在 130% + 高对比度下重验）→
 日志视图 → 导出 → 关闭导出窗口 → 压缩夹具会话（/repo/compact-demo）→ 上下文 → 点选第 2 枚压缩
 事件 chip → 改动夹具会话（/repo/changed-demo）→ 改动 → 点选首个文件行 → 用量总览 → 视图=用量 →
@@ -914,6 +915,12 @@ else
   # 窗口里的浮窗版式。判定脚本对这一步只断言「细头在场 + 拖动声明 + 顶栏收起」，
   # 并在窗口宽度仍 > 430 时打一条 NOTE 说明紧凑档（≤420 无横向溢出）由 e2e 覆盖。
   #
+  # 监控台一步（Issue #225 / Round Z）插在退出浮窗之后、会话分析之前：
+  # 「监控台」走通用分段按钮扫描显式切档（不能写 `视图=监控台`——那个动作只
+  # 认识用量页的「总览视图」）。判定挂在「监控台」这一步；紧随其后的「脉搏」
+  # 是**清理动作**，把子视图切回默认档，避免这份不隔离的 localStorage 残留
+  # 影响后续运行与步骤。
+  #
   # 里程碑一步（Issue #214 / Round Y）插在**第二次**「用量总览」之后、既有的
   # 「视图=用量」之前：`点选=[data-probe='attribution-row']` 那一步点开会话、
   # 切走了标签页，所以先「用量总览」切回来；紧跟的「视图=里程碑」是判定步
@@ -922,7 +929,7 @@ else
   # localStorage 漏给下一次运行（同「字号=100%」的清理逻辑）。这一步同时落在
   # 130% 字号 + 高对比度档下（两枚旋钮在前面的步骤里已切过去、末尾才恢复），
   # 所以「HC 轨道描边」的那条断言在这里量得到。
-  CAPTURE_TARGETS=("实时监控" "脉搏" "悬浮" "点选=[data-probe='pulse-float-exit']" "会话分析" "字号=130%" "对比度=高" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "点选=[data-probe='calendar-today'] button" "点选=[data-probe='calendar-today'] button" "点选=[data-tool-census-row='Bash']" "点选=[data-probe='attribution-row']" "用量总览" "视图=里程碑" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "设置=开" "导出归档包…" "取消" "对比度=普通" "字号=100%")
+  CAPTURE_TARGETS=("实时监控" "脉搏" "悬浮" "点选=[data-probe='pulse-float-exit']" "监控台" "脉搏" "会话分析" "字号=130%" "对比度=高" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "点选=[data-probe='calendar-today'] button" "点选=[data-probe='calendar-today'] button" "点选=[data-tool-census-row='Bash']" "点选=[data-probe='attribution-row']" "用量总览" "视图=里程碑" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "设置=开" "导出归档包…" "取消" "对比度=普通" "字号=100%")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
@@ -1268,6 +1275,12 @@ PULSE_COMPACT_MAX_WIDTH = 430
 # 档有 3 次自动压缩，而曲线只取尾部 ≤40 个样本、这条会话一共 8 个样本——三次全在
 # 窗口内。实测值（2026-10-15 真机门禁，三次运行都是 3）就是这里写的数，不是估的。
 PULSE_CONTEXT_CLIFFS = 3
+# 「监控台」（Issue #225 / Round Z）：判定挂在**子视图那一步**（「监控台」）。
+# 该动作走通用分段按钮扫描显式切档，随后紧跟的「脉搏」负责把子视图状态清理
+# 回默认档。事实全在 facts.monitor_console（应用侧只收集，阈值与判定在这里）。
+MONITOR_CONSOLE_LABEL = "监控台"
+MONITOR_CONSOLE_READOUT_KEYS = ["window", "today", "active-sessions", "today-compactions"]
+MONITOR_CONSOLE_HOURS = 24
 # 「里程碑」（Issue #214 / Round Y）。判定挂在**子视图那一步**（`视图=里程碑`）
 # 而不是标签页：「用量 | 里程碑 | 错误」的分段把选择记进那份**不隔离**的
 # localStorage（同 N1 的用量 / 错误两档），上一次运行停在里程碑档时，点「用量总览」
@@ -1290,6 +1303,7 @@ seen_changes = 0
 seen_calendar = 0
 seen_insights = 0
 seen_pulse = 0
+seen_monitor_console = 0
 seen_milestones = 0
 calendar_clicks = 0
 
@@ -2333,6 +2347,105 @@ for arg in sys.argv[1:]:
                         "「未达成里取不到 fill」在门禁里空洞成立（由组件测试覆盖两态）"
                     )
 
+    # 「监控台」（Issue #225 / Round Z）：事实全在 facts.monitor_console。
+    # 「监控台」走通用分段按钮扫描显式切档；夹具里既有今天的会话，也有压缩 /
+    # 错误 / 会话开始事件，所以这一拍必须是 fresh，四枚读数、24 个小时槽、
+    # 项目行与事件行都必须真的渲染出来。future 小时数随运行时刻变化（23 点后
+    # 为 0），但 current 恒 1；真正的不变量是 future 槽里**一个填充都不能有**。
+    if label == MONITOR_CONSOLE_LABEL:
+        mc = data.get("monitor_console") or {}
+        if mc.get("page") is not True:
+            print(f"BAD|{label}：监控台根节点不在场（data-probe='monitor-console-page'）——子视图没切过去，或整块没渲染")
+        else:
+            problems = []
+            state = mc.get("state")
+            if state != "fresh":
+                problems.append(
+                    f"根节点 data-state={state!r}，期望 'fresh'（夹具里有会话，读到别的档说明这拍没跑通）"
+                )
+            container = mc.get("container") or {}
+            csw, ccw = container.get("scrollWidth"), container.get("clientWidth")
+            if isinstance(csw, int) and isinstance(ccw, int):
+                if csw > ccw + 1:
+                    problems.append(f"监控台根节点横向溢出（scrollWidth {csw} > clientWidth {ccw}）")
+            else:
+                problems.append("监控台根节点的滚动几何缺失")
+
+            readouts = mc.get("readouts") or {}
+            if readouts.get("count") != len(MONITOR_CONSOLE_READOUT_KEYS):
+                problems.append(
+                    f"读数 {readouts.get('count')!r} 枚，期望 {len(MONITOR_CONSOLE_READOUT_KEYS)} 枚"
+                )
+            if readouts.get("keys") != MONITOR_CONSOLE_READOUT_KEYS:
+                problems.append(
+                    f"读数键序 {readouts.get('keys')!r}，期望 {MONITOR_CONSOLE_READOUT_KEYS}"
+                )
+
+            hours = mc.get("hours") or {}
+            phases = hours.get("phases") or {}
+            phase_counts = {
+                phase: phases.get(phase)
+                for phase in ("past", "current", "future")
+            }
+            if hours.get("count") != MONITOR_CONSOLE_HOURS:
+                problems.append(
+                    f"小时柱 {hours.get('count')!r} 根，期望 {MONITOR_CONSOLE_HOURS}"
+                )
+            if hours.get("slots") != MONITOR_CONSOLE_HOURS:
+                problems.append(
+                    f"小时槽 {hours.get('slots')!r} 个，期望 {MONITOR_CONSOLE_HOURS}"
+                )
+            if not all(isinstance(value, int) for value in phase_counts.values()):
+                problems.append(f"小时三态计数缺失或不完整（{phase_counts!r}）")
+            elif sum(phase_counts.values()) != MONITOR_CONSOLE_HOURS:
+                problems.append(
+                    f"小时三态计数之和 {sum(phase_counts.values())} ≠ {MONITOR_CONSOLE_HOURS}（{phase_counts!r}）"
+                )
+            if phase_counts.get("current") != 1:
+                problems.append(
+                    f"当前小时 {phase_counts.get('current')!r} 个，期望恰 1"
+                )
+            if hours.get("future_fills") != 0:
+                problems.append(
+                    f"future 小时里有 {hours.get('future_fills')!r} 个填充元素，期望 0"
+                    "（「尚未发生」不能被画成「没有发生」）"
+                )
+
+            projects = mc.get("projects") or {}
+            if not isinstance(projects.get("count"), int) or projects["count"] < 1:
+                problems.append(
+                    f"项目行为 {projects.get('count')!r} 条——夹具里有今天的 /repo/calendar 会话"
+                )
+            events = mc.get("events") or {}
+            event_count = events.get("count")
+            if not isinstance(event_count, int) or event_count < 1:
+                problems.append(
+                    f"事件行为 {event_count!r} 条——夹具里有压缩 / 错误 / 会话开始事件"
+                )
+            elif events.get("nonempty") != event_count:
+                problems.append(
+                    f"事件行可见文本非空的只有 {events.get('nonempty')!r}/{event_count} 条"
+                )
+
+            if problems:
+                for problem in problems:
+                    print(f"BAD|{label}：监控台——{problem}")
+            else:
+                seen_monitor_console += 1
+                print(
+                    f"OK|{label}：监控台四枚读数键序正确（{readouts.get('keys')}），"
+                    f"{hours.get('count')} 个小时槽 = past {phase_counts.get('past')} / "
+                    f"current {phase_counts.get('current')} / future {phase_counts.get('future')}，"
+                    f"future 填充 {hours.get('future_fills')}，"
+                    f"项目 {projects.get('count')} 行、事件 {event_count} 行且文本非空，"
+                    f"根节点无横向溢出（scrollWidth {csw} ≤ clientWidth {ccw}），state={state!r}"
+                )
+                if phase_counts.get("future") == 0:
+                    print(
+                        f"NOTE|{label}：本次运行已完成当天全部 24 小时，future=0——"
+                        "「future 无填充」由选择器事实保留，下一次白天运行会自动覆盖非空 future"
+                    )
+
     # 「实时脉搏」（Issue #203 / Round W）：几何事实全在 facts.pulse（应用侧只
     # 收集事实，阈值与判定在这里）。三步各有各的账：
     #   ① 「脉搏」——脉搏根在场、横向不溢出、5 个窗口读数与键序、60 根速率柱
@@ -2568,6 +2681,8 @@ if coverage and seen_insights == 0:
     print("BAD|视图覆盖：没有任何视图产出一年洞察的锚点——洞察句没被覆盖")
 if coverage and seen_pulse == 0:
     print("BAD|视图覆盖：没有任何视图产出脉搏的几何事实——「脉搏」档没被覆盖")
+if coverage and seen_monitor_console == 0:
+    print("BAD|视图覆盖：没有任何视图产出监控台的几何事实——「监控台」档没被覆盖")
 if coverage and seen_milestones == 0:
     print("BAD|视图覆盖：没有任何视图产出里程碑的几何事实——「里程碑」档没被覆盖")
 PY

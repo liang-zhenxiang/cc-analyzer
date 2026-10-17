@@ -1,4 +1,10 @@
-import { test, expect, pulseScenario } from "./fixtures";
+import {
+  test,
+  expect,
+  monitorConsoleScenario,
+  MONITOR_CONSOLE_NOW,
+  pulseScenario
+} from "./fixtures";
 import { sessionItems } from "./selectors";
 import type { Page } from "@playwright/test";
 import { milestonesScenario } from "../tests/fixtures/milestones-scenario";
@@ -278,5 +284,55 @@ test.describe("字号缩放 · 里程碑几何", () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
 
     await expectMilestonesGeometry(page);
+  });
+});
+
+/**
+ * 130% 下监控台的几何事实。与高对比度那侧共用同一份场景账目；这里只量
+ * 真实排版，不把 130% 截图塞进基线。
+ */
+async function expectMonitorConsoleGeometry(page: Page) {
+  const container = page.locator("[data-probe='monitor-console-page']");
+  await expect(container).toHaveAttribute("data-state", "fresh", { timeout: 15_000 });
+
+  const box = await container.evaluate((el) => ({
+    scrollWidth: el.scrollWidth,
+    clientWidth: el.clientWidth
+  }));
+  expect(box.scrollWidth).toBeLessThanOrEqual(box.clientWidth + 1);
+
+  for (const probe of ["monitor-console-project-row", "monitor-console-event-row"]) {
+    const rows = page.locator(`[data-probe='${probe}']`);
+    expect(await rows.count()).toBeGreaterThan(0);
+    const clipped = await rows.evaluateAll((nodes) =>
+      nodes
+        .map((node, index) => ({
+          index,
+          scrollHeight: (node as HTMLElement).scrollHeight,
+          clientHeight: (node as HTMLElement).clientHeight
+        }))
+        .filter((item) => item.scrollHeight > item.clientHeight + 1)
+    );
+    expect(clipped, `${probe} 被纵向裁切：${JSON.stringify(clipped)}`).toEqual([]);
+  }
+}
+
+test.describe("字号缩放 · 监控台几何", () => {
+  test.use({ scenario: monitorConsoleScenario() });
+
+  test("130% 字号下监控台不横向溢出，项目与事件行不被裁切", async ({ page }) => {
+    await page.clock.setFixedTime(MONITOR_CONSOLE_NOW);
+    await page.goto("/");
+    await openSettings(page);
+    await fontScaleGroup(page).getByRole("radio", { name: "130%" }).click();
+    await page.getByRole("button", { name: "关闭" }).click();
+
+    await page.getByRole("tab", { name: "实时监控" }).click();
+    await page.getByRole("tab", { name: "监控台" }).click();
+
+    expect(await rootFontScale(page)).toBe("1.3");
+    const { scrollWidth, clientWidth } = await horizontalOverflow(page);
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
+    await expectMonitorConsoleGeometry(page);
   });
 });

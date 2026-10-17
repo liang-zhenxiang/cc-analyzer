@@ -956,6 +956,349 @@ export function pulseScenario(overrides: Partial<MockScenario> = {}): MockScenar
   return { ...emptyScenario(), files, fileMtimes, ...overrides };
 }
 
+/**
+ * 「监控台」场景（Issue #225）：三个项目、三个活跃会话，所有时间都相对
+ * `Date.now()` 现算。写死日期会让「今天」「近 15 分钟」和 24 小时窗口在第二天
+ * 同时失效，断言会以空面板这种毫无线索的方式假红。
+ *
+ * 账目（e2e 与截图逐项对账）：
+ *  - token：alpha 600 + beta 1,000 + gamma 600 = 2,200；
+ *  - 活跃会话：3；今天压缩：2（alpha 自动、beta 手动）；
+ *  - 事件流：7 条——3 个会话开始、2 条错误、2 次压缩；
+ *  - 项目速率：beta 4,000/时，alpha / gamma 各 2,400/时（并列按项目名升序）。
+ *
+ * 错误正文刻意带 `/Users/...` 与 `/home/...`：页面上只允许出现脱敏预览，
+ * 截图与 DOM 都不该泄漏这些绝对路径。
+ */
+export const MONITOR_CONSOLE_TITLES = {
+  alpha: "修复构建脚本的失败路径",
+  beta: "排查导出日志缺失",
+  gamma: "整理监控台端到端断言"
+} as const;
+
+export const MONITOR_CONSOLE_TOTAL_TOKENS = 2_200;
+
+/**
+ * 监控台夹具与页面共同使用的本地时刻：当天 12:30。
+ *
+ * 24 小时活动带要同时出现 past / current / future，凌晨 0 点或深夜 23 点运行
+ * 时这个前提天然不成立。`page.clock.setFixedTime()` 只冻结 `Date`，保留真实
+ * 定时器，所以 feed 的 5 秒拍点照常运行。
+ */
+export const MONITOR_CONSOLE_NOW = (() => {
+  const date = new Date();
+  date.setHours(12, 30, 0, 0);
+  return date.getTime();
+})();
+
+export const MONITOR_CONSOLE_EVENT_COUNTS = {
+  all: 7,
+  compaction: 2,
+  error: 2,
+  session: 3
+} as const;
+
+type MonitorConsoleSession = {
+  cwd: string;
+  id: string;
+  prefix: string;
+};
+
+const MONITOR_CONSOLE_SESSIONS: Record<keyof typeof MONITOR_CONSOLE_TITLES, MonitorConsoleSession> = {
+  alpha: {
+    cwd: "/repo/console-alpha",
+    id: "3d2a5442-9c65-4b28-9c30-bb3d1a210001",
+    prefix: "monitor-console-alpha"
+  },
+  beta: {
+    cwd: "/repo/console-beta",
+    id: "3d2a5442-9c65-4b28-9c30-bb3d1a210002",
+    prefix: "monitor-console-beta"
+  },
+  gamma: {
+    cwd: "/repo/console-gamma",
+    id: "3d2a5442-9c65-4b28-9c30-bb3d1a210003",
+    prefix: "monitor-console-gamma"
+  }
+};
+
+type MonitorConsoleRecord =
+  | { kind: "user"; at: number; text: string }
+  | { kind: "assistant"; at: number; text: string; usage?: PulseUsage }
+  | {
+      kind: "toolUse";
+      at: number;
+      toolId: string;
+      toolName: string;
+      input: Record<string, unknown>;
+    }
+  | { kind: "toolError"; at: number; toolId: string; text: string }
+  | { kind: "apiError"; at: number; text: string }
+  | {
+      kind: "compact";
+      at: number;
+      trigger: "auto" | "manual";
+      preTokens: number;
+      summary: string;
+    };
+
+function monitorConsoleSessionLines(
+  session: MonitorConsoleSession,
+  records: readonly MonitorConsoleRecord[]
+): { content: string; mtimeMs: number } {
+  const lines: string[] = [];
+  let lastUuid: string | null = null;
+
+  for (const record of records) {
+    const timestamp = new Date(record.at).toISOString();
+    const uuid = `${session.prefix}-${lines.length}`;
+
+    if (record.kind === "compact") {
+      lines.push(
+        JSON.stringify({
+          sessionId: session.id,
+          cwd: session.cwd,
+          timestamp,
+          uuid,
+          parentUuid: null,
+          isSidechain: false,
+          type: "system",
+          subtype: "compact_boundary",
+          content: "Conversation compacted",
+          level: "info",
+          logicalParentUuid: lastUuid,
+          compactMetadata: {
+            trigger: record.trigger,
+            preTokens: record.preTokens,
+            postTokens: 2_000,
+            cumulativeDroppedTokens: record.preTokens - 2_000,
+            durationMs: 12_000
+          }
+        })
+      );
+      lastUuid = uuid;
+      const summaryUuid = `${session.prefix}-${lines.length}`;
+      lines.push(
+        JSON.stringify({
+          sessionId: session.id,
+          cwd: session.cwd,
+          timestamp,
+          uuid: summaryUuid,
+          parentUuid: uuid,
+          isSidechain: false,
+          type: "user",
+          isCompactSummary: true,
+          isVisibleInTranscriptOnly: true,
+          message: { role: "user", content: record.summary }
+        })
+      );
+      lastUuid = summaryUuid;
+      continue;
+    }
+
+    const base = {
+      sessionId: session.id,
+      cwd: session.cwd,
+      timestamp,
+      uuid,
+      parentUuid: lastUuid,
+      isSidechain: false
+    };
+
+    if (record.kind === "user") {
+      lines.push(
+        JSON.stringify({
+          ...base,
+          type: "user",
+          message: { role: "user", content: record.text }
+        })
+      );
+    } else if (record.kind === "toolUse") {
+      lines.push(
+        JSON.stringify({
+          ...base,
+          type: "assistant",
+          message: {
+            id: `${session.prefix}-msg-${lines.length}`,
+            role: "assistant",
+            model: PULSE_MODEL,
+            content: [
+              {
+                type: "tool_use",
+                id: record.toolId,
+                name: record.toolName,
+                input: record.input
+              }
+            ]
+          }
+        })
+      );
+    } else if (record.kind === "toolError") {
+      lines.push(
+        JSON.stringify({
+          ...base,
+          type: "user",
+          message: {
+            role: "user",
+            content: [
+              {
+                type: "tool_result",
+                tool_use_id: record.toolId,
+                content: record.text,
+                is_error: true
+              }
+            ]
+          }
+        })
+      );
+    } else if (record.kind === "apiError") {
+      lines.push(
+        JSON.stringify({
+          ...base,
+          type: "assistant",
+          isApiErrorMessage: true,
+          message: {
+            id: `${session.prefix}-api-error-${lines.length}`,
+            role: "assistant",
+            model: "<synthetic>",
+            content: [{ type: "text", text: record.text }],
+            usage: {
+              input_tokens: 0,
+              output_tokens: 0,
+              cache_creation_input_tokens: 0,
+              cache_read_input_tokens: 0
+            }
+          }
+        })
+      );
+    } else {
+      lines.push(
+        JSON.stringify({
+          ...base,
+          type: "assistant",
+          message: {
+            id: `${session.prefix}-msg-${lines.length}`,
+            role: "assistant",
+            model: PULSE_MODEL,
+            content: [{ type: "text", text: record.text }],
+            ...(record.usage
+              ? {
+                  usage: {
+                    input_tokens: record.usage.input,
+                    output_tokens: record.usage.output,
+                    cache_creation_input_tokens: record.usage.cacheCreation,
+                    cache_read_input_tokens: record.usage.cacheRead
+                  }
+                }
+              : {})
+          }
+        })
+      );
+    }
+
+    lastUuid = uuid;
+  }
+
+  const last = records.at(-1);
+  return {
+    content: `${lines.join("\n")}\n`,
+    mtimeMs: last?.at ?? Date.now()
+  };
+}
+
+function monitorConsoleSessionPath(session: MonitorConsoleSession): string {
+  return `${HOME}/.claude/projects/${projectDir(session.cwd)}/${session.id}.jsonl`;
+}
+
+export function monitorConsoleScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  const now = MONITOR_CONSOLE_NOW;
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const ago = (minutes: number, seconds = 0) =>
+    Math.max(todayStart.getTime(), now - minutes * 60_000 - seconds * 1_000);
+
+  const alpha = monitorConsoleSessionLines(MONITOR_CONSOLE_SESSIONS.alpha, [
+    { kind: "user", at: ago(14), text: MONITOR_CONSOLE_TITLES.alpha },
+    {
+      kind: "assistant",
+      at: ago(13),
+      text: "先检查构建入口。",
+      usage: pulseUsage(100, 20, 30, 50)
+    },
+    {
+      kind: "compact",
+      at: ago(12),
+      trigger: "auto",
+      preTokens: 10_000,
+      summary: "会话摘要：构建入口已定位，下一步检查失败路径。"
+    },
+    {
+      kind: "assistant",
+      at: ago(11),
+      text: "再跑一次失败用例。",
+      usage: pulseUsage(200, 40, 60, 100)
+    },
+    {
+      kind: "toolUse",
+      at: ago(10, 2),
+      toolId: "monitor-console-alpha-bash",
+      toolName: "Bash",
+      input: { command: "npm test" }
+    },
+    {
+      kind: "toolError",
+      at: ago(10),
+      toolId: "monitor-console-alpha-bash",
+      text: "Exit code 2\n/Users/alice/private/build.log: permission denied"
+    }
+  ]);
+
+  const beta = monitorConsoleSessionLines(MONITOR_CONSOLE_SESSIONS.beta, [
+    { kind: "user", at: ago(8), text: MONITOR_CONSOLE_TITLES.beta },
+    {
+      kind: "assistant",
+      at: ago(7),
+      text: "先跑导出并检查日志。",
+      usage: pulseUsage(500, 100, 150, 250)
+    },
+    {
+      kind: "apiError",
+      at: ago(6),
+      text: "ENOENT /Users/alice/private/export.json\n/home/alice/private/export.log"
+    },
+    {
+      kind: "compact",
+      at: ago(5),
+      trigger: "manual",
+      preTokens: 50_000,
+      summary: "会话摘要：导出错误已复现，等待重新运行。"
+    }
+  ]);
+
+  const gamma = monitorConsoleSessionLines(MONITOR_CONSOLE_SESSIONS.gamma, [
+    { kind: "user", at: ago(4), text: MONITOR_CONSOLE_TITLES.gamma },
+    {
+      kind: "assistant",
+      at: ago(3),
+      text: "端到端断言的账目已对齐。",
+      usage: pulseUsage(300, 60, 90, 150)
+    }
+  ]);
+
+  const files: Record<string, string> = {
+    [monitorConsoleSessionPath(MONITOR_CONSOLE_SESSIONS.alpha)]: alpha.content,
+    [monitorConsoleSessionPath(MONITOR_CONSOLE_SESSIONS.beta)]: beta.content,
+    [monitorConsoleSessionPath(MONITOR_CONSOLE_SESSIONS.gamma)]: gamma.content
+  };
+  const fileMtimes: Record<string, number> = {
+    [monitorConsoleSessionPath(MONITOR_CONSOLE_SESSIONS.alpha)]: alpha.mtimeMs,
+    [monitorConsoleSessionPath(MONITOR_CONSOLE_SESSIONS.beta)]: beta.mtimeMs,
+    [monitorConsoleSessionPath(MONITOR_CONSOLE_SESSIONS.gamma)]: gamma.mtimeMs
+  };
+
+  return { ...emptyScenario(), files, fileMtimes, ...overrides };
+}
+
 type Fixtures = { scenario: MockScenario };
 
 export const test = base.extend<Fixtures>({
