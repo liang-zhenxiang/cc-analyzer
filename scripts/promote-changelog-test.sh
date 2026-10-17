@@ -120,13 +120,23 @@ set +e
 "$under_test" >/dev/null 2>&1
 code=$?
 set -e
-[[ "$code" -eq 2 ]] && ok "无参数：exit 2" || bad "无参数：期望 exit 2，实得 $code"
+# 写成 `[[ … ]] && ok … || bad …` 的话，`ok` 自身失败时 `bad` 也会跑
+# （`A && B || C` 不是 if-then-else，shellcheck SC2015）。
+if [[ "$code" -eq 2 ]]; then
+  ok "无参数：exit 2"
+else
+  bad "无参数：期望 exit 2，实得 $code"
+fi
 
 set +e
 "$under_test" "0.27.0" "0.27.0-beta.1" "2026-10-17" "" "$work/does-not-exist.md" >/dev/null 2>&1
 code=$?
 set -e
-[[ "$code" -eq 2 ]] && ok "文件不存在：exit 2" || bad "文件不存在：期望 exit 2，实得 $code"
+if [[ "$code" -eq 2 ]]; then
+  ok "文件不存在：exit 2"
+else
+  bad "文件不存在：期望 exit 2，实得 $code"
+fi
 
 # 全局对照：夹具本身必须「真的会变」——如果 in 与 expected 逐字相同，
 # 上面那几条「与 expected 一致」就什么也没测。
