@@ -115,6 +115,9 @@ test("监控默认停在脉搏档，并持久化子视图选择", async () => {
   expect(document.querySelector('[data-probe="pulse-page"]')).not.toBeNull();
   expect(localStorage.getItem("cca-monitor-view")).toBe("pulse");
 
+  await user.click(screen.getByRole("tab", { name: "监控台" }));
+  expect(localStorage.getItem("cca-monitor-view")).toBe("console");
+
   await user.click(screen.getByRole("tab", { name: "外部仪表盘" }));
   expect(localStorage.getItem("cca-monitor-view")).toBe("dashboard");
 });
@@ -126,6 +129,15 @@ test("未知的监控子视图存值回落到脉搏", async () => {
 
   await user.click(screen.getByRole("tab", { name: "实时监控" }));
   expect(screen.getByRole("tab", { name: "脉搏", selected: true })).toBeInTheDocument();
+});
+
+test("已保存的监控台子视图会被恢复", async () => {
+  const user = userEvent.setup();
+  window.localStorage.setItem("cca-monitor-view", "console");
+  render(<AppShell bridges={bridges} />);
+
+  await user.click(screen.getByRole("tab", { name: "实时监控" }));
+  expect(screen.getByRole("tab", { name: "监控台", selected: true })).toBeInTheDocument();
 });
 
 test("浮窗态（脉搏档）收起顶栏、换成可拖动的细头，退出后恢复", async () => {

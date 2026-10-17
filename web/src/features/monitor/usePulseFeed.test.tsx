@@ -226,6 +226,9 @@ describe("usePulseFeed", () => {
     expect(calls.readText).not.toContain(OLD_PATH);
     expect(snapshot?.inputs).toHaveLength(1);
     expect(snapshot?.inputs[0].projectLabel).toBe("-repo-demo");
+    // 压缩事件必须跟记录一起交出去：监控台的「今天压缩」与事件流都从它读。
+    // 漏传这一项不会报错，只会让那两个数恒为 0（e2e 抓到过一次）。
+    expect(snapshot?.inputs[0].compactEvents).toEqual([]);
     expect(snapshot?.rows).toHaveLength(1);
     expect(snapshot?.rows[0].recency).toBe("live");
     expect(snapshot?.latest?.session.path).toBe(SESSION_PATH);
