@@ -64,6 +64,14 @@ by tooling, **they are upheld by review** — match the surrounding file.
   by tests, so changing them is a code change, not a copy tweak.
 - **Exit conditions stay explicit**: `if (refreshIdRef.current !== requestId) return;`
   rather than letting a stale result land.
+- **A default view must stand on its own.** If the default tab depends on a
+  service the user has to start separately, it is blank on most machines. When
+  the local data already on hand can answer the question, build that view
+  natively first and keep the external service as an optional sub-view. The
+  monitor console is the concrete case: `MonitorConsolePage.tsx` renders from
+  `usePulseFeed` + `consoleModelOf` with no new request path, while
+  `ExternalDashboard` stays as the third sub-view and only probes after an
+  explicit open.
 - **When aggregating a "first" or an extreme, compare the value and its label as
   one pair.** A reduction that keeps only the timestamp (`this.firstSkillAt`) and
   looks the name up later will happily print `09:10` next to the `09:30` call's
@@ -176,3 +184,5 @@ layer. The end-to-end suite does stub at the Tauri boundary, deliberately — se
 - [ ] New readings state the window they cover, and no two panels on one screen
       compute the same concept over different windows (see
       [Honest Readings](#honest-readings)).
+- [ ] A default view does not require a separately started service; any
+      external dependency is an optional sub-view and is probed only on demand.
