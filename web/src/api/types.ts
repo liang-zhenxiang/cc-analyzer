@@ -177,7 +177,7 @@ export interface UpdaterBridge {
 }
 
 export interface CustomBridge {
-  enterFloatMode(): Promise<void>;
+  enterFloatMode(size: { width: number; height: number }): Promise<void>;
   exitFloatMode?(): Promise<void>;
 }
 

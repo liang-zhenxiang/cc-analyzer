@@ -58,7 +58,9 @@ web/ (React 18 + TypeScript + Vite)
   子进程）、`exec_text`、`spawn_detached`（打开文件/终端）。
 - **监控**：`monitor_port` / `monitor_ping`（探测外部仪表盘；只在「外部仪表盘」子视图里、
   用户点「打开监控」后调用——默认的「脉搏」与原生「监控台」都不碰这两个命令）。
-- **浮窗**：`float` 插件的 `enter` / `exit`（保存与恢复窗口几何）。浮窗是无边框窗口
+- **浮窗**：`float` 插件的 `enter` / `exit`（保存与恢复窗口几何）。`enter` 接收前端
+  传入的 `window.innerWidth/innerHeight`，因此记录和恢复的都是页面内容区口径；恢复基线
+  只在窗口命令全部成功后才清除，退出失败可原样重试。浮窗是无边框窗口
   （`set_decorations(false)`），脉搏的浮窗细头靠 `data-tauri-drag-region="deep"` + 能力
   文件里的 `core:window:allow-start-dragging` 拖动窗口——无边框窗口没有别的地方可拖，
   这是本轮唯一新增的能力（见 `.trellis/spec/backend/security-and-permissions.md`）。

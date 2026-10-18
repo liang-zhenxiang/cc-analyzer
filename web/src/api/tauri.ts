@@ -198,8 +198,8 @@ export function installTauriBridges(): Bridges {
       relaunch: () => invoke<void>("relaunch_app")
     },
     custom: {
-      enterFloatMode: async () => {
-        await invoke<void>("plugin:float|enter");
+      enterFloatMode: async (size) => {
+        await invoke<void>("plugin:float|enter", size);
       },
       exitFloatMode: async () => {
         await invoke<void>("plugin:float|exit");

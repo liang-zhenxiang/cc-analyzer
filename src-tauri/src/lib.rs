@@ -424,7 +424,9 @@ mod float_plugin {
     /// Mirrors `minWidth`/`minHeight` in `tauri.conf.json`.
     const NORMAL_MIN_WIDTH: f64 = 960.0;
     const NORMAL_MIN_HEIGHT: f64 = 640.0;
+    #[cfg(test)]
     const DEFAULT_WIDTH: f64 = 1400.0;
+    #[cfg(test)]
     const DEFAULT_HEIGHT: f64 = 900.0;
 
     /// `enter()` 依赖这条关系：浮动尺寸小于常规最小尺寸，所以必须先放松 `min_size`
@@ -439,56 +441,184 @@ mod float_plugin {
     #[derive(Default)]
     struct RestoreState(Mutex<Option<LogicalSize<f64>>>);
 
+    fn gui_capture_enabled() -> bool {
+        std::env::var_os("CCA_GUI_CAPTURE").is_some()
+    }
+
+    fn log_window_geometry(label: &str, window: &tauri::WebviewWindow) {
+        if !gui_capture_enabled() {
+            return;
+        }
+        let scale = window.scale_factor();
+        let scale_value = scale.as_ref().copied().unwrap_or(1.0);
+        let scale_error = scale.err().map(|err| err.to_string());
+        let inner = window.inner_size();
+        let inner_error = inner.as_ref().err().map(ToString::to_string);
+        let inner_physical = inner.as_ref().ok().copied();
+        let inner_logical = inner_physical.map(|size| size.to_logical::<f64>(scale_value));
+        let webview = window.as_ref().size();
+        let webview_error = webview.as_ref().err().map(ToString::to_string);
+        let webview_physical = webview.as_ref().ok().copied();
+        let webview_logical = webview_physical.map(|size| size.to_logical::<f64>(scale_value));
+        let outer = window.outer_size();
+        let outer_error = outer.as_ref().err().map(ToString::to_string);
+        let outer_physical = outer.as_ref().ok().copied();
+        let outer_logical = outer_physical.map(|size| size.to_logical::<f64>(scale_value));
+        eprintln!(
+            "float-debug: {label}: scale_factor={scale_value:.4} \
+             inner_physical={inner_physical:?} inner_logical={inner_logical:?} \
+             webview_physical={webview_physical:?} webview_logical={webview_logical:?} \
+             outer_physical={outer_physical:?} outer_logical={outer_logical:?} \
+             scale_error={scale_error:?} inner_error={inner_error:?} \
+             webview_error={webview_error:?} outer_error={outer_error:?}"
+        );
+    }
+
+    fn remember_restore_size(
+        state: &Mutex<Option<LogicalSize<f64>>>,
+        size: LogicalSize<f64>,
+    ) -> Result<bool, String> {
+        let mut restore = state
+            .lock()
+            .map_err(|e| format!("RestoreState 加锁失败: {e}"))?;
+        let recorded = restore.is_none();
+        if recorded {
+            *restore = Some(size);
+        }
+        Ok(recorded)
+    }
+
+    fn restore_size(state: &Mutex<Option<LogicalSize<f64>>>) -> Result<LogicalSize<f64>, String> {
+        state
+            .lock()
+            .map_err(|e| format!("RestoreState 加锁失败: {e}"))?
+            .as_ref()
+            .copied()
+            .ok_or_else(|| "没有可恢复的浮窗前窗口尺寸".to_string())
+    }
+
+    fn clear_restore_size(state: &Mutex<Option<LogicalSize<f64>>>) -> Result<(), String> {
+        *state
+            .lock()
+            .map_err(|e| format!("RestoreState 加锁失败: {e}"))? = None;
+        Ok(())
+    }
+
+    fn viewport_size(width: f64, height: f64) -> Result<LogicalSize<f64>, String> {
+        if !width.is_finite() || !height.is_finite() || width <= 0.0 || height <= 0.0 {
+            return Err(format!(
+                "浮窗前 viewport 尺寸无效（width={width}, height={height}）"
+            ));
+        }
+        Ok(LogicalSize::new(width, height))
+    }
+
+    /// `enter` 中途失败后的尽力回滚：每项都尝试，单项失败不阻止其余状态修复。
+    fn restore_after_failed_enter(
+        window: &tauri::WebviewWindow,
+        restore: LogicalSize<f64>,
+    ) -> Result<(), String> {
+        let mut errors = Vec::new();
+        if let Err(err) = window.set_always_on_top(false) {
+            errors.push(format!("取消置顶失败: {err}"));
+        }
+        if let Err(err) = window.set_decorations(true) {
+            errors.push(format!("恢复窗口装饰失败: {err}"));
+        }
+        if let Err(err) =
+            window.set_min_size(Some(LogicalSize::new(NORMAL_MIN_WIDTH, NORMAL_MIN_HEIGHT)))
+        {
+            errors.push(format!("恢复最小尺寸失败: {err}"));
+        }
+        if let Err(err) = window.set_size(restore) {
+            errors.push(format!("恢复窗口尺寸失败: {err}"));
+        }
+        if let Err(err) = window.show() {
+            errors.push(format!("恢复窗口显示失败: {err}"));
+        }
+        if let Err(err) = window.set_focus() {
+            errors.push(format!("恢复窗口焦点失败: {err}"));
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors.join("; "))
+        }
+    }
+
     fn main_window(app: &tauri::AppHandle) -> Result<tauri::WebviewWindow, String> {
         app.get_webview_window(MAIN_WINDOW)
             .ok_or_else(|| "找不到主窗口".to_string())
     }
 
     #[tauri::command]
-    fn enter(app: tauri::AppHandle, state: tauri::State<'_, RestoreState>) -> Result<(), String> {
+    fn enter(
+        app: tauri::AppHandle,
+        state: tauri::State<'_, RestoreState>,
+        width: f64,
+        height: f64,
+    ) -> Result<(), String> {
         let window = main_window(&app)?;
+        log_window_geometry("enter:before", &window);
 
-        // Record the pre-float size once, so repeated enters keep the original geometry.
-        if let Ok(size) = window.inner_size() {
-            let scale = window.scale_factor().unwrap_or(1.0);
-            let mut restore = state.0.lock().map_err(|e| e.to_string())?;
-            if restore.is_none() {
-                *restore = Some(size.to_logical(scale));
-            }
+        // 当前 macOS/Tauri 组合里 inner_size() 与 Webview::size() 都返回外框，
+        // 与页面 window.innerHeight 相差一个标题栏。恢复基线只能取前端同一口径。
+        let content = viewport_size(width, height)?;
+        let recorded = remember_restore_size(&state.0, content)?;
+        if gui_capture_enabled() {
+            eprintln!("float-debug: enter:restore recorded={recorded} content_logical={content:?}");
         }
 
-        // Float mode is smaller than the normal minimum size, so relax the constraint first.
-        window
-            .set_min_size(Some(LogicalSize::new(FLOAT_WIDTH, FLOAT_HEIGHT)))
-            .map_err(|e| e.to_string())?;
-        window
-            .set_size(LogicalSize::new(FLOAT_WIDTH, FLOAT_HEIGHT))
-            .map_err(|e| e.to_string())?;
-        window.set_always_on_top(true).map_err(|e| e.to_string())?;
-        window.set_decorations(false).map_err(|e| e.to_string())?;
-        window.show().map_err(|e| e.to_string())?;
-        window.set_focus().map_err(|e| e.to_string())?;
+        let apply = (|| -> Result<(), String> {
+            // Float mode is smaller than the normal minimum size, so relax the constraint first.
+            window
+                .set_min_size(Some(LogicalSize::new(FLOAT_WIDTH, FLOAT_HEIGHT)))
+                .map_err(|e| e.to_string())?;
+            log_window_geometry("enter:after_min_size", &window);
+            window
+                .set_size(LogicalSize::new(FLOAT_WIDTH, FLOAT_HEIGHT))
+                .map_err(|e| e.to_string())?;
+            log_window_geometry("enter:after_set_size", &window);
+            window.set_always_on_top(true).map_err(|e| e.to_string())?;
+            window.set_decorations(false).map_err(|e| e.to_string())?;
+            log_window_geometry("enter:after_decorations", &window);
+            window.show().map_err(|e| e.to_string())?;
+            window.set_focus().map_err(|e| e.to_string())?;
+            Ok(())
+        })();
+        if let Err(enter_error) = apply {
+            return match restore_after_failed_enter(&window, content) {
+                Ok(()) => Err(enter_error),
+                Err(rollback_error) => Err(format!(
+                    "{enter_error}; 进入失败后的窗口回滚也未完成: {rollback_error}"
+                )),
+            };
+        }
         Ok(())
     }
 
     #[tauri::command]
     fn exit(app: tauri::AppHandle, state: tauri::State<'_, RestoreState>) -> Result<(), String> {
         let window = main_window(&app)?;
-        let restore = state
-            .0
-            .lock()
-            .map_err(|e| e.to_string())?
-            .take()
-            .unwrap_or(LogicalSize::new(DEFAULT_WIDTH, DEFAULT_HEIGHT));
+        let restore = restore_size(&state.0)?;
+        if gui_capture_enabled() {
+            eprintln!("float-debug: exit:restore target_logical={restore:?}");
+        }
+        log_window_geometry("exit:before", &window);
 
         window.set_always_on_top(false).map_err(|e| e.to_string())?;
         window.set_decorations(true).map_err(|e| e.to_string())?;
+        log_window_geometry("exit:after_decorations", &window);
         window
             .set_min_size(Some(LogicalSize::new(NORMAL_MIN_WIDTH, NORMAL_MIN_HEIGHT)))
             .map_err(|e| e.to_string())?;
+        log_window_geometry("exit:after_min_size", &window);
         window.set_size(restore).map_err(|e| e.to_string())?;
+        log_window_geometry("exit:after_set_size", &window);
         window.show().map_err(|e| e.to_string())?;
         window.set_focus().map_err(|e| e.to_string())?;
+        // 窗口命令全部成功后才消费基线；中途失败时保留它，用户重试仍有正确目标。
+        clear_restore_size(&state.0)?;
         Ok(())
     }
 
@@ -504,8 +634,13 @@ mod float_plugin {
 
     #[cfg(test)]
     mod tests {
+        use std::sync::Mutex;
+
+        use tauri::LogicalSize;
+
         use super::{
-            DEFAULT_HEIGHT, DEFAULT_WIDTH, MAIN_WINDOW, NORMAL_MIN_HEIGHT, NORMAL_MIN_WIDTH,
+            clear_restore_size, remember_restore_size, restore_size, viewport_size, DEFAULT_HEIGHT,
+            DEFAULT_WIDTH, MAIN_WINDOW, NORMAL_MIN_HEIGHT, NORMAL_MIN_WIDTH,
         };
 
         /// 编译期把配置读进来：改 `tauri.conf.json` 会重新编译本文件，测试不会读到旧值。
@@ -534,6 +669,53 @@ mod float_plugin {
             // get_webview_window("main") 找不到窗口时只会返回「找不到主窗口」，
             // label 一旦漂移，浮动模式会在运行时整体失效。
             assert_eq!(main_window_config()["label"].as_str(), Some(MAIN_WINDOW));
+        }
+
+        #[test]
+        fn repeated_enter_keeps_the_first_restore_size() {
+            let state = Mutex::new(None);
+            let first = LogicalSize::new(1400.0, 872.0);
+            let second = LogicalSize::new(1200.0, 700.0);
+
+            assert_eq!(remember_restore_size(&state, first), Ok(true));
+            assert_eq!(remember_restore_size(&state, second), Ok(false));
+            assert_eq!(restore_size(&state), Ok(first));
+        }
+
+        #[test]
+        fn exit_without_enter_does_not_use_a_hard_coded_fallback() {
+            let state = Mutex::new(None);
+
+            assert_eq!(
+                restore_size(&state),
+                Err("没有可恢复的浮窗前窗口尺寸".to_string())
+            );
+        }
+
+        #[test]
+        fn restore_size_survives_a_failed_exit_until_it_is_cleared() {
+            let state = Mutex::new(None);
+            let size = LogicalSize::new(1400.0, 872.0);
+            remember_restore_size(&state, size).expect("记录首次基线");
+
+            // 模拟 exit 中途失败：读基线不能消费它，第二次仍拿到同一目标。
+            assert_eq!(restore_size(&state), Ok(size));
+            assert_eq!(restore_size(&state), Ok(size));
+
+            clear_restore_size(&state).expect("完整退出后清理基线");
+            assert!(restore_size(&state).is_err());
+        }
+
+        #[test]
+        fn viewport_size_requires_finite_positive_dimensions() {
+            assert_eq!(
+                viewport_size(1400.0, 872.0),
+                Ok(LogicalSize::new(1400.0, 872.0))
+            );
+            assert!(viewport_size(0.0, 872.0).is_err());
+            assert!(viewport_size(1400.0, 0.0).is_err());
+            assert!(viewport_size(1400.0, f64::NAN).is_err());
+            assert!(viewport_size(f64::INFINITY, 872.0).is_err());
         }
     }
 }

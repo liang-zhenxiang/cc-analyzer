@@ -25,6 +25,17 @@ describe("Tauri bridges", () => {
     await expect(bridges.monitor.monitorPort()).resolves.toBe("monitor_port");
     await expect(bridges.events.onSessionImport(() => undefined)).resolves.toBeTypeOf("function");
   });
+
+  it("forwards the current viewport to the float command", async () => {
+    const bridges = installTauriBridges();
+
+    await bridges.custom?.enterFloatMode?.({ width: 1400, height: 872 });
+
+    expect(invoke).toHaveBeenCalledWith("plugin:float|enter", {
+      width: 1400,
+      height: 872
+    });
+  });
 });
 
 describe("open Claude terminal", () => {

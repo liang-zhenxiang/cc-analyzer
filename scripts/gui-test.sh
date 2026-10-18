@@ -1261,6 +1261,10 @@ INSIGHT_TEXT_WORDS = ["最长连胜", "最贵一天", "最长空白", "天有消
 PULSE_LABEL = "脉搏"
 PULSE_FLOAT_LABEL = "悬浮"
 PULSE_FLOAT_EXIT_LABEL = "点选=[data-probe='pulse-float-exit']"
+# 浮窗目标视口（Issue #204）。边框 / 引擎取整允许 2px 误差；退出恢复必须
+# 与「脉搏」步记录的基线逐像素相等。
+FLOAT_VIEWPORT = (420, 620)
+FLOAT_VIEWPORT_ALLOWANCE = 2
 # 5 小时窗口的五个读数，键序 = Issue 契约顺序（data-readout）。
 PULSE_READOUT_KEYS = ["used", "closes", "avg-rate", "recent-rate", "prediction"]
 # 速率曲线恒 60 根柱（每分钟一根）；进行中的那一分钟恒 1 根 partial。
@@ -1305,7 +1309,23 @@ seen_insights = 0
 seen_pulse = 0
 seen_monitor_console = 0
 seen_milestones = 0
+seen_float_enter = 0
+seen_float_exit = 0
 calendar_clicks = 0
+pulse_baseline_viewport = None
+float_enter_viewport = None
+
+
+def viewport_size(data):
+    viewport = data.get("viewport") or {}
+    width, height = viewport.get("width"), viewport.get("height")
+    if not isinstance(width, (int, float)) or not isinstance(height, (int, float)):
+        return None
+    return (round(width), round(height))
+
+
+def viewport_text(size):
+    return "缺失" if size is None else f"{size[0]}×{size[1]}"
 
 # 「滚动=main」的判定要知道滚的是哪个页面：清单是有序的，靠上一步的 label
 # 把动作与页面挂上钩（默认清单里它紧跟「用量总览」）。自定义清单把它用在
@@ -1328,6 +1348,65 @@ for arg in sys.argv[1:]:
         continue
 
     doc = data.get("document") or {}
+    geometry_viewport = viewport_size(data)
+    if label == PULSE_LABEL:
+        if geometry_viewport is None:
+            print(f"BAD|{label}：缺少浮窗前 viewport 基线（探针没有 width/height）")
+        elif float_enter_viewport is None:
+            # 每轮进入浮窗前都重新取基线；退出步骤结算后清空本轮状态。
+            pulse_baseline_viewport = geometry_viewport
+            print(
+                f"OK|{label}：已记录浮窗前 viewport 基线 "
+                f"{viewport_text(pulse_baseline_viewport)}"
+            )
+    elif label == PULSE_FLOAT_LABEL:
+        if geometry_viewport is None:
+            print(f"BAD|{label}：浮窗中 viewport 缺失（探针没有 width/height）")
+        else:
+            float_enter_viewport = geometry_viewport
+            seen_float_enter += 1
+            expected_width, expected_height = FLOAT_VIEWPORT
+            width_ok = abs(float_enter_viewport[0] - expected_width) <= FLOAT_VIEWPORT_ALLOWANCE
+            height_ok = abs(float_enter_viewport[1] - expected_height) <= FLOAT_VIEWPORT_ALLOWANCE
+            if width_ok and height_ok:
+                print(
+                    f"OK|{label}：浮窗中 viewport {viewport_text(float_enter_viewport)}"
+                    f"（目标 {viewport_text(FLOAT_VIEWPORT)}，允许 ±{FLOAT_VIEWPORT_ALLOWANCE}px）"
+                )
+            else:
+                print(
+                    f"BAD|{label}：浮窗中 viewport {viewport_text(float_enter_viewport)}"
+                    f" ≠ 目标 {viewport_text(FLOAT_VIEWPORT)}（允许 ±{FLOAT_VIEWPORT_ALLOWANCE}px）"
+                )
+    elif label == PULSE_FLOAT_EXIT_LABEL:
+        if geometry_viewport is None or pulse_baseline_viewport is None or float_enter_viewport is None:
+            print(
+                f"BAD|{label}：退出浮窗 viewport 对账缺少事实"
+                f"（进浮窗前={viewport_text(pulse_baseline_viewport)}，"
+                f"浮窗中={viewport_text(float_enter_viewport)}，"
+                f"退出后={viewport_text(geometry_viewport)}）"
+            )
+        elif geometry_viewport != pulse_baseline_viewport:
+            seen_float_exit += 1
+            print(
+                f"BAD|{label}：退出浮窗后 viewport {viewport_text(geometry_viewport)}"
+                f" ≠ 进浮窗前 {viewport_text(pulse_baseline_viewport)}"
+                f"（进浮窗前={viewport_text(pulse_baseline_viewport)}，"
+                f"浮窗中={viewport_text(float_enter_viewport)}，"
+                f"退出后={viewport_text(geometry_viewport)}）"
+            )
+        else:
+            seen_float_exit += 1
+            print(
+                f"OK|{label}：退出浮窗后 viewport 与进浮窗前逐像素相等"
+                f"（进浮窗前={viewport_text(pulse_baseline_viewport)}，"
+                f"浮窗中={viewport_text(float_enter_viewport)}，"
+                f"退出后={viewport_text(geometry_viewport)}）"
+            )
+        # 一轮结束，避免自定义清单里的下一轮误用上一轮基线。
+        pulse_baseline_viewport = None
+        float_enter_viewport = None
+
     sw, cw = doc.get("scrollWidth"), doc.get("clientWidth")
     if isinstance(sw, int) and isinstance(cw, int):
         if sw <= cw + 1:
@@ -2685,6 +2764,10 @@ if coverage and seen_monitor_console == 0:
     print("BAD|视图覆盖：没有任何视图产出监控台的几何事实——「监控台」档没被覆盖")
 if coverage and seen_milestones == 0:
     print("BAD|视图覆盖：没有任何视图产出里程碑的几何事实——「里程碑」档没被覆盖")
+if coverage and seen_float_enter == 0:
+    print("BAD|视图覆盖：没有进入浮窗的 viewport 断言——「悬浮」步骤没被覆盖")
+if coverage and seen_float_exit == 0:
+    print("BAD|视图覆盖：没有退出浮窗的 viewport 对账——浮窗往返几何没被覆盖")
 PY
 )" || PROBE_STATUS=$?
 
