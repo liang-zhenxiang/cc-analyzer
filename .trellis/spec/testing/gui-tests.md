@@ -187,6 +187,10 @@ The invariants the script asserts (each prints the measured numbers, so a failur
    progress line and an OSC title, so a regression that prints escape sequences as text
    (or that stops stripping them in the log table) fails on the real window instead of
    looking like slightly odd colouring in a screenshot.
+6. **Float round trip restores the content viewport** — record the viewport before
+   `悬浮`, require the floating window to be `420×620` ±2px, then require the viewport
+   after `点选=[data-probe='pulse-float-exit']` to equal that baseline pixel for pixel.
+   Under full coverage, missing either half is a failure rather than a silent skip.
 
 ### `position: fixed` overlays never reach the PDF (measured)
 

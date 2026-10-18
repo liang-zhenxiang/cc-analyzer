@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Rust 门禁与 float 命令测试边界"}
+{"file": ".trellis/spec/testing/gui-tests.md", "reason": "真机探针与几何不变量"}
+{"file": ".trellis/spec/testing/pitfalls.md", "reason": "真机门禁已知陷阱"}
+{"file": ".trellis/spec/guides/collaboration-workflow.md", "reason": "子 agent 分工与验收红线"}

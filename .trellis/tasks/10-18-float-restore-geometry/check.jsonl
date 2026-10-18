@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "检查 Rust 门禁与测试要求"}
+{"file": ".trellis/spec/testing/gui-tests.md", "reason": "复核真机断言是否真的覆盖"}

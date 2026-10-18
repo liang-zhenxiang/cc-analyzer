@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ThemeProvider, useTheme } from "./ThemeProvider";
 import { NotificationProvider, useNotifications } from "./NotificationProvider";
 import { SessionAnalyzerPage } from "../features/sessions/SessionAnalyzerPage";
@@ -117,6 +117,7 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
   const [tab, setTab] = useState<WorkspaceTab>(readStoredTab);
   const [monitorView, setMonitorView] = useState<MonitorView>(readStoredMonitorView);
   const [floating, setFloating] = useState(false);
+  const floatTransitionPending = useRef(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [revealRequest, setRevealRequest] = useState<{
@@ -155,10 +156,18 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
   }, [monitorView]);
 
   const exitFloatMode = useCallback(async () => {
+    if (floatTransitionPending.current) return;
+    const exit = bridges.custom?.exitFloatMode;
+    if (!exit) return;
+
+    floatTransitionPending.current = true;
     try {
-      await bridges.custom?.exitFloatMode?.();
-    } finally {
+      await exit();
       setFloating(false);
+    } catch {
+      // 窗口仍是浮窗时保留细头，用户可以重试；先退版式会变成「细窗 + 常规顶栏」。
+    } finally {
+      floatTransitionPending.current = false;
     }
   }, [bridges]);
 
@@ -170,11 +179,20 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
    * 下面的 `exitFloatMode` 是对称的：进出浮窗都归这一层管。
    */
   const enterFloatMode = useCallback(async () => {
-    setFloating(true);
+    if (floatTransitionPending.current) return;
+    const enter = bridges.custom?.enterFloatMode;
+    if (!enter) return;
+
+    // 尺寸必须在切版式之前、命令发出之前取：它代表进入前的主窗内容区。
+    const size = { width: window.innerWidth, height: window.innerHeight };
+    floatTransitionPending.current = true;
     try {
-      await bridges.custom?.enterFloatMode?.();
+      await enter(size);
+      setFloating(true);
     } catch {
-      // 窗口没改成浮窗尺寸不该把界面回滚：细头仍在，用户还能点「退出浮窗」。
+      // 窗口命令失败时保持常规版式；只有窗口和界面都切成功才算进入浮窗。
+    } finally {
+      floatTransitionPending.current = false;
     }
   }, [bridges]);
   const canExitFloatMode = floating && typeof bridges.custom?.exitFloatMode === "function";

@@ -144,6 +144,7 @@ test("浮窗态（脉搏档）收起顶栏、换成可拖动的细头，退出�
   const user = userEvent.setup();
   const exitFloatMode = vi.fn(async () => undefined);
   const enterFloatMode = vi.fn(async () => undefined);
+  const viewport = { width: window.innerWidth, height: window.innerHeight };
   render(
     <AppShell
       bridges={
@@ -161,7 +162,11 @@ test("浮窗态（脉搏档）收起顶栏、换成可拖动的细头，退出�
 
   // 进浮窗 = 窗口命令 + 版式切换，缺一不可（2026-10-15 真机门禁抓到过
   // 「只切版式、窗口没变」的那一版）。
-  await waitFor(() => expect(enterFloatMode).toHaveBeenCalledTimes(1));
+  await waitFor(() =>
+    expect(enterFloatMode).toHaveBeenCalledWith({
+      ...viewport
+    })
+  );
 
   // 整条顶栏被细头替换：工作区分段标签消失。
   expect(screen.queryByRole("tab", { name: "实时监控" })).not.toBeInTheDocument();
@@ -177,6 +182,56 @@ test("浮窗态（脉搏档）收起顶栏、换成可拖动的细头，退出�
   );
   // 顶栏回来。
   expect(screen.getByRole("tab", { name: "实时监控" })).toBeInTheDocument();
+});
+
+test("进入浮窗失败时保持常规窗口版式", async () => {
+  const user = userEvent.setup();
+  const enterFloatMode = vi.fn(async () => {
+    throw new Error("float enter failed");
+  });
+  render(
+    <AppShell
+      bridges={
+        {
+          ...bridges,
+          custom: { enterFloatMode, exitFloatMode: vi.fn(async () => undefined) }
+        } as unknown as Bridges
+      }
+    />
+  );
+
+  await user.click(screen.getByRole("tab", { name: "实时监控" }));
+  await user.click(screen.getByRole("button", { name: "悬浮" }));
+
+  await waitFor(() => expect(enterFloatMode).toHaveBeenCalledTimes(1));
+  expect(screen.getByRole("tab", { name: "实时监控" })).toBeInTheDocument();
+  expect(document.querySelector('[data-probe="pulse-float-head"]')).toBeNull();
+});
+
+test("退出浮窗失败时保持浮窗版式，便于重试", async () => {
+  const user = userEvent.setup();
+  const exitFloatMode = vi.fn(async () => {
+    throw new Error("float exit failed");
+  });
+  render(
+    <AppShell
+      bridges={
+        {
+          ...bridges,
+          custom: { enterFloatMode: vi.fn(async () => undefined), exitFloatMode }
+        } as unknown as Bridges
+      }
+    />
+  );
+
+  await user.click(screen.getByRole("tab", { name: "实时监控" }));
+  await user.click(screen.getByRole("button", { name: "悬浮" }));
+  await screen.findByRole("button", { name: "退出浮窗" });
+  await user.click(screen.getByRole("button", { name: "退出浮窗" }));
+
+  await waitFor(() => expect(exitFloatMode).toHaveBeenCalledTimes(1));
+  expect(document.querySelector('[data-probe="pulse-float-head"]')).not.toBeNull();
+  expect(screen.queryByRole("tab", { name: "实时监控" })).not.toBeInTheDocument();
 });
 
 test("shows the float exit button only after the dashboard enters float mode", async () => {
