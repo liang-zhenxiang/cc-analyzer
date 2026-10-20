@@ -120,11 +120,11 @@ describe("焦点环的几何只走令牌", () => {
     // 不含 `var(...)`，不能被算进消费方。
     const consumingRules = ALL_RULES.filter((rule) => /var\(--focus-ring-/.test(rule.body));
 
-    expect(count(/outline(?:-width)?:\s*var\(--focus-ring-width\)/g)).toBe(31);
-    expect(count(/outline-offset:\s*var\(--focus-ring-offset\)/g)).toBe(18);
-    expect(count(/outline-offset:\s*var\(--focus-ring-inset\)/g)).toBe(10);
+    expect(count(/outline(?:-width)?:\s*var\(--focus-ring-width\)/g)).toBe(34);
+    expect(count(/outline-offset:\s*var\(--focus-ring-offset\)/g)).toBe(20);
+    expect(count(/outline-offset:\s*var\(--focus-ring-inset\)/g)).toBe(11);
     expect(count(/inset\s+var\(--focus-ring-width\)\s+0\s+0\s+var\(--accent\)/g)).toBe(7);
-    expect(consumingRules.length).toBe(35);
+    expect(consumingRules.length).toBe(38);
   });
 });
 

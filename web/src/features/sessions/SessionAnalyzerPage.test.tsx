@@ -557,6 +557,34 @@ test("改动标签页：空态如实，时间线与筛选隐藏，选择被持�
   expect(await screen.findByRole("application", { name: "时间轨道" })).toBeInTheDocument();
 });
 
+test("重放标签页隐藏时间线与筛选，选择被持久化", async () => {
+  window.localStorage.clear();
+  const user = userEvent.setup();
+  render(
+    <BridgesProvider bridges={createBridges()}>
+      <NotificationProvider>
+        <SessionAnalyzerPage />
+      </NotificationProvider>
+    </BridgesProvider>
+  );
+
+  await user.click(await screen.findByRole("button", { name: /project-a/ }));
+  expect(await screen.findByRole("application", { name: "时间轨道" })).toBeInTheDocument();
+
+  await user.click(screen.getByRole("tab", { name: "重放" }));
+
+  // 默认桥接只有一条用户记录：重放如实说明没有跨度可播，不伪造一帧。
+  expect(await screen.findByText("只有 1 条记录，没有时间跨度可播放。")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "播放" })).toBeDisabled();
+  // 与 context/changes/bleed 同款理由：会话级全量胶片，记录级筛选会让倍速读数失真。
+  expect(screen.queryByRole("application", { name: "时间轨道" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "记录筛选" })).not.toBeInTheDocument();
+  expect(window.localStorage.getItem("cca-analyzer-view")).toBe("replay");
+
+  await user.click(screen.getByRole("tab", { name: "日志视图" }));
+  expect(await screen.findByRole("application", { name: "时间轨道" })).toBeInTheDocument();
+});
+
 test("enters a child session from the tree view", async () => {
   window.localStorage.clear();
   const user = userEvent.setup();
