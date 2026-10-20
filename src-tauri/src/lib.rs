@@ -1575,6 +1575,145 @@ mod gui_probe {
   }
   facts.monitor_console = monitorConsoleFacts;
 
+  /* 「会话重放」（Round AA）：设计 §13.1 的锚点只收**事实**——根 / 舞台 / 读数 /
+     胶片带 / 轨道 / 播放头 / 走带的矩形与滚动几何，轨道自己的 aria 读数，舞台
+     与卡片文案。阈值与判定一律留在 scripts/gui-test.sh：应用侧不写「应该是
+     多少」，否则规格一改，探针和实现会一起错（同脉搏 / 里程碑 / 监控台）。 */
+  var replayFacts = {
+    present: false,
+    root: null,
+    stage: null,
+    stage_text: '',
+    stage_kind: null,
+    stage_error: false,
+    reads: null,
+    reads_text: '',
+    film: null,
+    film_text: '',
+    lane: null,
+    lane_value: null,
+    lane_text: null,
+    lane_min: null,
+    lane_max: null,
+    head: null,
+    transport: null,
+    play_label: '',
+    gap_switch: null,
+    speed_text: '',
+    marks: [],
+    nested_scrollers: 0,
+    documentBox: {
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+      scrollHeight: document.documentElement.scrollHeight,
+      clientHeight: document.documentElement.clientHeight
+    }
+  };
+  var replayRoot = document.querySelector("[data-probe='replay-root']");
+  if (replayRoot) {
+    replayFacts.present = true;
+    replayFacts.root = {
+      rect: rectOf(replayRoot),
+      scrollWidth: replayRoot.scrollWidth,
+      clientWidth: replayRoot.clientWidth,
+      scrollHeight: replayRoot.scrollHeight,
+      clientHeight: replayRoot.clientHeight,
+      overflowY: getComputedStyle(replayRoot).overflowY
+    };
+
+    var replayStage = replayRoot.querySelector("[data-probe='replay-stage']");
+    if (replayStage) {
+      replayFacts.stage = rectOf(replayStage);
+      replayFacts.stage_text = (replayStage.innerText || '')
+        .replace(/\s+/g, ' ').trim();
+      var replayErrorCard = replayStage.querySelector("[data-error='true']");
+      replayFacts.stage_error = !!replayErrorCard;
+      /* 舞台卡片按 kind 上色，卡片本体带 data-kind：拿到它就能把「舞台真的
+         渲染了这类事件」作为文案之外的第二条证据。 */
+      var replayCard = replayStage.querySelector("[data-kind]");
+      if (replayCard) {
+        replayFacts.stage_kind = replayCard.getAttribute('data-kind');
+      }
+    }
+
+    var replayReads = replayRoot.querySelector("[data-probe='replay-reads']");
+    if (replayReads) {
+      replayFacts.reads = rectOf(replayReads);
+      replayFacts.reads_text = (replayReads.innerText || '')
+        .replace(/\s+/g, ' ').trim();
+    }
+
+    var replayFilm = replayRoot.querySelector("[data-probe='replay-film']");
+    if (replayFilm) {
+      replayFacts.film = rectOf(replayFilm);
+      replayFacts.film_text = (replayFilm.innerText || '')
+        .replace(/\s+/g, ' ').trim();
+    }
+
+    var replayLane = replayRoot.querySelector("[data-probe='replay-lane']");
+    if (replayLane) {
+      replayFacts.lane = rectOf(replayLane);
+      replayFacts.lane_value = replayLane.getAttribute('aria-valuenow');
+      replayFacts.lane_text = replayLane.getAttribute('aria-valuetext');
+      replayFacts.lane_min = replayLane.getAttribute('aria-valuemin');
+      replayFacts.lane_max = replayLane.getAttribute('aria-valuemax');
+    }
+
+    var replayHead = replayRoot.querySelector("[data-probe='replay-head']");
+    if (replayHead) {
+      replayFacts.head = rectOf(replayHead);
+    }
+
+    var replayTransport = replayRoot.querySelector("[data-probe='replay-transport']");
+    if (replayTransport) {
+      replayFacts.transport = rectOf(replayTransport);
+      var replayPlay = replayTransport.querySelector(
+        "button[aria-label='播放'], button[aria-label='暂停']"
+      );
+      if (replayPlay) {
+        replayFacts.play_label = replayPlay.getAttribute('aria-label') || '';
+      }
+      var replayGap = replayTransport.querySelector("button[aria-pressed]");
+      if (replayGap) {
+        replayFacts.gap_switch = {
+          text: (replayGap.innerText || '').replace(/\s+/g, ' ').trim(),
+          pressed: replayGap.getAttribute('aria-pressed')
+        };
+      }
+      var replaySpeed = replayTransport.querySelector("[class*='speed']");
+      if (replaySpeed) {
+        replayFacts.speed_text = (replaySpeed.innerText || '')
+          .replace(/\s+/g, ' ').trim();
+      }
+    }
+
+    /* 胶片带里的跃点是真按钮，可访问名形如「首次失败 · LLM+工具 · command failed」。
+       只收带「 · 」的名字：走带那几枚图标按钮也叫 button[aria-label]，但名字里
+       没有分隔点，混进来会让「跃点数」虚高。 */
+    var replayMarkNodes = replayFilm
+      ? replayFilm.querySelectorAll("button[aria-label]")
+      : [];
+    for (var rm = 0; rm < replayMarkNodes.length; rm++) {
+      var replayMarkLabel = replayMarkNodes[rm].getAttribute('aria-label') || '';
+      if (replayMarkLabel.indexOf(' \u00b7 ') < 0) continue;
+      replayFacts.marks.push({
+        label: replayMarkLabel,
+        rect: rectOf(replayMarkNodes[rm])
+      });
+    }
+
+    /* 第二条竖向滚动轴：文档本身不滚（main 才滚），重放内部也不该有 auto/scroll
+       容器。这里只数事实，判定在脚本。 */
+    var replayAll = replayRoot.querySelectorAll('*');
+    for (var rs = 0; rs < replayAll.length; rs++) {
+      var replayOverflowY = getComputedStyle(replayAll[rs]).overflowY;
+      if (replayOverflowY === 'auto' || replayOverflowY === 'scroll') {
+        replayFacts.nested_scrollers += 1;
+      }
+    }
+  }
+  facts.replay = replayFacts;
+
   return JSON.stringify(facts);
 })();"##;
 
