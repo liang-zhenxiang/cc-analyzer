@@ -673,6 +673,54 @@ jobs:
           fi
           echo "✓ 引入真实告警后 actionlint 项确实失败"
 
+      - name: 引入 U+FFFD 时 lint.sh 会红
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          # 清存量与门禁必须在同一 PR 落地；这里在副本里让检查真实失败一次，
+          # 证明 lint.sh 的确调用了检查脚本，而不只是旁边多了一个未被使用的脚本。
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          tar -cf - --exclude=.git . | (cd "$work" && tar -xf -)
+          git -C "$work" init -q
+          git -C "$work" add -A
+
+          target="$work/unicode-fixture.txt"
+          printf '第一行\n第二行\n' >"$target"
+          git -C "$work" add unicode-fixture.txt
+          printf '第一行\n第二行含\357\277\275\n' >"$target"
+
+          set +e
+          out="$(cd "$work" && ./scripts/lint.sh 2>&1)"
+          rc=$?
+          set -e
+          printf '%s\n' "$out"
+
+          if [[ "$rc" -eq 0 ]]; then
+            echo "::error::已跟踪文本含 U+FFFD，lint.sh 却绿了"
+            exit 1
+          fi
+          section="$(sed -n '/▶ U+FFFD 扫描（已跟踪文本文件）/,/^▶ /p' <<<"$out")"
+          if ! grep -qF '✗ 失败' <<<"$section"; then
+            printf '%s\n' "$section"
+            echo "::error::lint.sh 红了，但 U+FFFD 扫描项没有失败"
+            exit 1
+          fi
+          if ! grep -qF 'unicode-fixture.txt:2: 1 处 U+FFFD' <<<"$section"; then
+            printf '%s\n' "$section"
+            echo "::error::U+FFFD 扫描失败，但没有指出准确的文件与行号"
+            exit 1
+          fi
+          echo "✓ 引入 U+FFFD 后 lint.sh 的扫描项确实失败"
+
+      - name: 运行 U+FFFD 门禁与自测
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          ./scripts/check-unicode-replacement.sh
+          ./scripts/check-unicode-replacement-test.sh
+
   # ---------------------------------------------------------------------------
   # 发布说明转换脚本自测
   #

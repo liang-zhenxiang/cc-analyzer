@@ -3,7 +3,7 @@
 ## Goal
 
 `web/src/features/monitor/MonitorPage.tsx` 在挂载时立刻 `useEffect(() => void probe())`,
-即**一进入「实时监控」标签页就探测并内嵌 iframe**。用户要求：点进去不要马上���开,
+即**一进入「实时监控」标签页就探测并内嵌 iframe**。用户要求：点进去不要马上打开,
 要有开关，点击之后才打开。同时用户对现状有两处困惑：
 
 - 失败文案「端口 8090 无响应（已尝试 3 次，可能被旧 cc-monitor 占用）」

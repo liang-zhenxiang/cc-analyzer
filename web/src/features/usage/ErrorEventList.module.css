@@ -71,7 +71,7 @@
   border: 0;
   border-radius: var(--r-xs);
   background: transparent;
-  /* 行内基准字号：各段自设 fs-*，但没设的段（行尾箭头��不该吃到继承来的
+  /* 行内基准字号：各段自设 fs-*，但没设的段（行尾箭头也不该吃到继承来的
      更大字号——放大字号时它会成为最高的行内盒。 */
   font-size: var(--fs-sm);
   line-height: var(--lh-sm);

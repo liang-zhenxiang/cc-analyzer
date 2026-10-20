@@ -48,7 +48,7 @@ export function buildCoverageReport(coverage: ParseCoverage, sessionLabel: strin
 /**
  * 解析覆盖率提示（design §5）：viewBar 右侧的一枚琥珀点文字 chip。M = 0 时
  * **什么都不渲染**——「全部解析」是默认期望，常驻报喜是 provenance 噪音。
- * 点击���非模态 popover（无遮罩，Esc / 点击外部关闭，焦点还触发元素）。
+ * 点击后非模态 popover（无遮罩，Esc / 点击外部关闭，焦点还触发元素）。
  */
 export function ParseCoverageChip({
   coverage,

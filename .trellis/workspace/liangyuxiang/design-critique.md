@@ -42,7 +42,7 @@ grep 验证过；`tabular-nums` 12 处；阴影只出现在脱离文档流的浮
 
 - **层级倒挂**：越重要的数字字号越小、对比越弱。会话标题 15px 抢走了全部第一眼，
   而「这个会话花了多少 token、多长时间」——用户打开这个应用要回答的问题——以 11px 三级灰出现。
-- **Token 总量默认���可见**：`TokenPanel` 折叠在 `chipButton`（`aria-expanded={tokenPanelOpen}`）后面，
+- **Token 总量默认不可见**：`TokenPanel` 折叠在 `chipButton`（`aria-expanded={tokenPanelOpen}`）后面，
   首屏看不到任何 token 数字。对一个 Token 分析器来说，这是最贵的点击。
 - `SessionHeader` 是一条等权重的 chip 串：总耗时、Token、项目路径、相对时间四件事视觉上同级，
   没有主次。
@@ -225,7 +225,7 @@ Toast 右下角 `role="status"`。
 
 ---
 
-## Top 10 改进清单（按影���力排序）
+## Top 10 改进清单（按影响力排序）
 
 | # | 改什么 | 为什么 | 涉及文件 | 工作量 |
 | --- | --- | --- | --- | --- |
