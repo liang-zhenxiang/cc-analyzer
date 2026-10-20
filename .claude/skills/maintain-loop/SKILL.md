@@ -42,6 +42,28 @@ git status --short && git log --oneline -3
 检查点：本地与远端是否一致、main 的 CI 是否绿、`[Unreleased]` 是否积压了未发布的改动
 （积压即说明「发布」这一步欠着，优先补上）。
 
+### 网络与代理（本机环境，不是代码问题）
+
+`git fetch` / `git push` / `gh` 报连不上 github.com
+（`Failed to connect to github.com port 443 after ...ms`）时，**先查本机代理**，
+把三个变量导出到当前 shell 后重试——这通常是本地网络需要代理，而不是仓库、
+权限或远端出了问题：
+
+```bash
+# 端口去你自己的代理软件里看：每家软件、每台机器的默认值都不同
+export https_proxy=http://127.0.0.1:<端口> http_proxy=http://127.0.0.1:<端口> \
+       all_proxy=socks5://127.0.0.1:<端口>
+git fetch origin
+```
+
+- **不要把具体地址 / 端口写进仓库**。代理是本机环境事实，写进脚本、文档或 CI
+  就会变成「在别人机器上必然失败」的配置；这里只写「先去找本机代理」。
+- 代理生效后 `git` 与 `gh` 走同一条 HTTPS 通道；`git ls-remote` 这类只读探测
+  也能用来在推 tag 前确认远端真实状态。
+- 先分清是网络还是凭证：`gh auth status` 正常而 `git fetch` 超时，就是链路问题。
+- 变量只对当前 shell 生效，用完 `unset https_proxy http_proxy all_proxy` 即可，
+  不会影响本机直连的其他服务。
+
 ## 二、规划
 
 1. **建里程碑**：`gh api repos/liang-zhenxiang/cc-analyzer/milestones -f title="vX.Y.Z" -f state=open -f description="主题"`
