@@ -1,0 +1,7 @@
+[
+  {"number": 1000, "title": "feat(web): 四位数编号", "labels": []},
+  {"number": 2, "title": "fix: 个位数编号", "labels": []},
+  {"number": 290, "title": "feat(web): 三位数编号", "labels": []},
+  {"number": 2, "title": "fix: 同一条 PR 在列表里出现两次", "labels": []},
+  {"number": 1000, "title": "feat(web): 重复的四位数编号", "labels": []}
+]
