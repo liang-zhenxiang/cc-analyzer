@@ -42,12 +42,39 @@ The context bleed view — what ate this session's context. One line states the
 fact, then every attributable category is listed with its own evidence grade:
 `logged` readings are checkable against the log, while `countOnly` rows (tool
 calls, whose token volume does not exist in the log at all) report a count and
-say why. Every screen, in both light and dark themes, is archived in
+say why. ![CC Analyzer's session replay view: a film-like stage naming the compaction that happened at 17:33:57, a readout band counting only what has played so far (messages, tools, errors, compactions, prompt and output tokens, cost), a context waterline, and a scrubable film strip marked with jump points above a transport bar with 30/60/120-second lengths](docs/screenshots/replay-light.png)
+
+Session replay — the whole session as a film you can scrub. A fixed 30 / 60 / 120
+second cut (60 by default) compresses the wall clock into something you can
+watch; the stage shows only what is happening at the playhead and, between two
+records, says "pause 2m 41s" out loud instead of parking the nearest event
+there. The readouts count only what has played so far — prompt and output
+tokens apart, and unknown pricing says so rather than reporting `$0.00`. Jump
+points are computed, not curated: first failure, costliest minute, longest
+pause, every compaction.
+
+Every screen, in both light and dark themes, is archived in
 [`docs/screenshots/`](docs/screenshots).
 
 ## Features
 
-- **Context forensics (new)** — every Claude Code session carries a context
+- **Session replay (new)** — time is the one dimension this app never turned
+  into an axis: every other view flattens events into equal-height rows, so a
+  two-minute pause and a batch call occupy the same space. Replay turns a
+  session into a fixed 30 / 60 / 120 second film (60 by default). The
+  **stage** shows only what the playhead is on, and between two records it
+  states "pause 2m 41s" with both events named, instead of parking the nearest
+  one there. **Readouts** count only what has played so far — messages, tools,
+  errors, compactions, prompt and output tokens kept apart, cost with unknown
+  pricing said out loud rather than `$0.00`. A **film strip** maps the session
+  to scale and draws compactions as a dashed cliff rather than borrowing a
+  category colour. **Jump points** are computed, never curated: first failure,
+  costliest minute, longest pause, every compaction. The playhead can be
+  clicked and dragged, Space / ← / → / Home / End work throughout, `aria-live`
+  announces event changes only, and nothing ever autoplays. Zero new Tauri
+  commands, zero new network requests, zero new permissions, zero new colour
+  tokens.
+- **Context forensics** — every Claude Code session carries a context
   that fills up and is occasionally compacted: old messages are rewritten into
   a summary and silently leave the model's working memory. CC Analyzer is the
   first tool that makes this visible and *attributable*. The session's
@@ -391,6 +418,11 @@ The roadmap tracks open issues; each item links to the issue that owns it.
   today's readouts, a per-project heat board, a 24-hour activity band and a
   cross-session event stream (merged; ships in v0.28.0-beta.1)
   ([#225](https://github.com/liang-zhenxiang/cc-analyzer/issues/225))
+- [x] Session replay — turn a whole session into a fixed-length film: a
+  scrubbable timeline, counters of what has played so far, a context waterline
+  and jump points (first error, costliest minute, longest pause, every
+  compaction) (merged; ships in v0.29.0)
+  ([#246](https://github.com/liang-zhenxiang/cc-analyzer/issues/246))
 - [ ] Frontend upgrade to React 19, moving `@types/react` / `@types/react-dom`
   together
   ([#19](https://github.com/liang-zhenxiang/cc-analyzer/issues/19))

@@ -21,6 +21,7 @@
     "error-events",
     "changed-files",
     "usage-day",
-    "bleed"
+    "bleed",
+    "replay"
   ]
 }

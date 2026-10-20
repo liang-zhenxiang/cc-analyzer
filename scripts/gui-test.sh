@@ -929,7 +929,7 @@ else
   # localStorage 漏给下一次运行（同「字号=100%」的清理逻辑）。这一步同时落在
   # 130% 字号 + 高对比度档下（两枚旋钮在前面的步骤里已切过去、末尾才恢复），
   # 所以「HC 轨道描边」的那条断言在这里量得到。
-  CAPTURE_TARGETS=("实时监控" "脉搏" "悬浮" "点选=[data-probe='pulse-float-exit']" "监控台" "脉搏" "会话分析" "字号=130%" "对比度=高" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "点选=[data-probe='calendar-today'] button" "点选=[data-probe='calendar-today'] button" "点选=[data-tool-census-row='Bash']" "点选=[data-probe='attribution-row']" "用量总览" "视图=里程碑" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "设置=开" "导出归档包…" "取消" "对比度=普通" "字号=100%")
+  CAPTURE_TARGETS=("实时监控" "脉搏" "悬浮" "点选=[data-probe='pulse-float-exit']" "监控台" "脉搏" "会话分析" "字号=130%" "对比度=高" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "点选=[data-probe='calendar-today'] button" "点选=[data-probe='calendar-today'] button" "点选=[data-tool-census-row='Bash']" "点选=[data-probe='attribution-row']" "用量总览" "视图=里程碑" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "设置=开" "导出归档包…" "取消" "对比度=普通" "字号=100%" "点选=button[aria-label='设置']" "会话分析" "/repo/demo" "重放" "点选=button[aria-label^='最长停顿']")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
@@ -1294,6 +1294,19 @@ MONITOR_CONSOLE_HOURS = 24
 MILESTONE_LABEL = "视图=里程碑"
 # 累计阶梯的枚数 = MILESTONE_TIER_TABLE 的行数（写死的常量，不随夹具变）。
 MILESTONE_TIER_COUNT = 7
+# 「会话重放」（Round AA / 设计 §13.2）。判定挂在标签页那一步（「重放」）：
+# 真机窗口比 e2e 的 1440×900 略窄，所以只判与窗口宽度无关的不变量——舞台不
+# 溢出重放 pane、胶片带高度落在设计值（112px）附近、播放头落在轨道内、竖直
+# 方向没有第二条滚动轴。舞台 / 读数 / 走带的高度都按 100% 字号量（清单末尾
+# 已把字号恢复成 100%）。
+REPLAY_TAB_LABEL = "重放"
+REPLAY_SEEK_LABEL = "点选=button[aria-label^='最长停顿']"
+REPLAY_SETTINGS_CLOSE_LABEL = "点选=button[aria-label='设置']"
+REPLAY_STAGE_HEIGHT_MIN = 148
+REPLAY_FILM_HEIGHT_MIN = 100
+REPLAY_FILM_HEIGHT_MAX = 130
+REPLAY_READS_HEIGHT_MIN = 60
+REPLAY_LANE_MIN_WIDTH = 400
 coverage = os.environ.get("COVERAGE") == "1"
 seen_gauge = 0
 seen_table = 0
@@ -1309,6 +1322,7 @@ seen_insights = 0
 seen_pulse = 0
 seen_monitor_console = 0
 seen_milestones = 0
+seen_replay = 0
 seen_float_enter = 0
 seen_float_exit = 0
 calendar_clicks = 0
@@ -2121,7 +2135,7 @@ for arg in sys.argv[1:]:
     #   改动档由 prev_label 分流（见上面改动档），工具普查由选择器里的 tool-census
     #   分流，配额归因由 ATTRIBUTION_CLICK_LABEL、浮窗退出由 PULSE_FLOAT_EXIT_LABEL
     #   分流（见各自段落）。这一条是兜底，所以每加一个「点选=」目标都要在这里点一次名。）
-    if label.startswith("点选=") and "tool-census" not in label and prev_label != CHANGES_TAB_LABEL and label != ATTRIBUTION_CLICK_LABEL and label != CALENDAR_CLICK_LABEL and label != PULSE_FLOAT_EXIT_LABEL:
+    if label.startswith("点选=") and "tool-census" not in label and prev_label != CHANGES_TAB_LABEL and label != ATTRIBUTION_CLICK_LABEL and label != CALENDAR_CLICK_LABEL and label != PULSE_FLOAT_EXIT_LABEL and label not in (REPLAY_SEEK_LABEL, REPLAY_SETTINGS_CLOSE_LABEL):
         ctx = data.get("context") or {}
         viewport = data.get("viewport") or {}
         card = ctx.get("forensicCard")
@@ -2525,6 +2539,172 @@ for arg in sys.argv[1:]:
                         "「future 无填充」由选择器事实保留，下一次白天运行会自动覆盖非空 future"
                     )
 
+    # 「会话重放」（Round AA）：设计 §13.2 的不变量。事实来自 facts.replay
+    # （应用侧只收集，阈值在这里）。`点选=button[aria-label^='最长停顿']` 那一步
+    # 把播放头送到最长停顿的起点，所以「播放头落在轨道内」是在一个非零位置上量的。
+    if label in (REPLAY_TAB_LABEL, REPLAY_SEEK_LABEL):
+        replay = data.get("replay") or {}
+        if replay.get("present") is not True:
+            print(f"BAD|{label}：重放根节点不在场（data-probe='replay-root'）——标签页没切过去，或整块没渲染")
+        else:
+            problems = []
+
+            def replay_rect(rect):
+                return isinstance(rect, dict) and all(
+                    isinstance(rect.get(key), (int, float))
+                    for key in ("x", "y", "width", "height")
+                )
+
+            root = replay.get("root") or {}
+            root_rect = root.get("rect") or {}
+            stage = replay.get("stage") or {}
+            reads = replay.get("reads") or {}
+            film = replay.get("film") or {}
+            lane = replay.get("lane") or {}
+            head = replay.get("head") or {}
+            transport = replay.get("transport") or {}
+
+            if not replay_rect(stage):
+                problems.append("舞台矩形缺失（data-probe='replay-stage'）")
+            else:
+                if stage["height"] < REPLAY_STAGE_HEIGHT_MIN:
+                    problems.append(
+                        f"舞台高 {stage['height']:.0f}px，低于设计下界 {REPLAY_STAGE_HEIGHT_MIN}px"
+                    )
+                if replay_rect(root_rect):
+                    if stage["x"] < root_rect["x"] - 1:
+                        problems.append("舞台左沿溢出重放 pane")
+                    if stage["x"] + stage["width"] > root_rect["x"] + root_rect["width"] + 1:
+                        problems.append("舞台右沿溢出重放 pane（横向）")
+                    if stage["y"] + stage["height"] > root_rect["y"] + root_rect["height"] + 1:
+                        problems.append("舞台下沿溢出重放 pane（纵向）")
+            stage_text = replay.get("stage_text") or ""
+            if label == REPLAY_TAB_LABEL:
+                # 刚切过去时播放头在 0，舞台是「还没有事件」——不能要求卡片。
+                if "还没有事件" not in stage_text:
+                    problems.append(f"t=0 的舞台文案不是「还没有事件」（实测 {stage_text!r}）")
+                if replay.get("stage_kind"):
+                    problems.append(f"t=0 的舞台不该有事件卡片（data-kind={replay.get('stage_kind')!r}）")
+            else:
+                if not isinstance(replay.get("stage_text"), str) or "第" not in stage_text:
+                    problems.append(f"舞台文本里没有事件序号（实测 {stage_text!r}）")
+                if not replay.get("stage_kind"):
+                    problems.append("舞台卡片没有 data-kind")
+            if not replay_rect(reads) or reads["height"] < REPLAY_READS_HEIGHT_MIN:
+                problems.append(f"读数区高 {reads.get('height')!r}px，低于 {REPLAY_READS_HEIGHT_MIN}px")
+
+            if not replay_rect(film):
+                problems.append("胶片带矩形缺失（data-probe='replay-film'）")
+            else:
+                if not (REPLAY_FILM_HEIGHT_MIN <= film["height"] <= REPLAY_FILM_HEIGHT_MAX):
+                    problems.append(
+                        f"胶片带高 {film['height']:.1f}px，期望 {REPLAY_FILM_HEIGHT_MIN}–{REPLAY_FILM_HEIGHT_MAX}px"
+                        "（设计值 112，130% 字号会更高，所以这一步必须在 100% 字号下量）"
+                    )
+                if replay_rect(root_rect) and film["y"] + film["height"] > root_rect["y"] + root_rect["height"] + 1:
+                    problems.append("胶片带下沿溢出重放 pane")
+
+            if not replay_rect(lane):
+                problems.append("轨道矩形缺失（data-probe='replay-lane'）")
+            else:
+                if lane["width"] < REPLAY_LANE_MIN_WIDTH:
+                    problems.append(
+                        f"轨道宽 {lane['width']:.0f}px，低于 {REPLAY_LANE_MIN_WIDTH}px"
+                    )
+                if replay_rect(film) and lane["x"] + lane["width"] > film["x"] + film["width"] + 1:
+                    problems.append("轨道右沿越出胶片带")
+                if replay.get("lane_min") != "0" or replay.get("lane_max") != "100":
+                    problems.append(
+                        f"轨道 aria 范围 {replay.get('lane_min')!r}–{replay.get('lane_max')!r}，期望 0–100"
+                    )
+                try:
+                    lane_value = int(replay.get("lane_value"))
+                except (TypeError, ValueError):
+                    lane_value = None
+                lane_text = replay.get("lane_text")
+                if lane_value is None or not (0 <= lane_value <= 100):
+                    problems.append(f"轨道 aria-valuenow {replay.get('lane_value')!r}，期望 0–100")
+                elif label == REPLAY_TAB_LABEL and lane_value != 0:
+                    problems.append(f"刚切到重放时轨道应停在 0%（实测 {lane_value}%）")
+                elif label == REPLAY_SEEK_LABEL and not (0 < lane_value < 100):
+                    problems.append(
+                        f"轨道停在 {lane_value}%——「最长停顿」跃点没把播放头送走"
+                    )
+                if label == REPLAY_TAB_LABEL:
+                    if not isinstance(lane_text, str) or "第一个事件之前" not in lane_text:
+                        problems.append(f"t=0 的轨道文案不是「第一个事件之前」（实测 {lane_text!r}）")
+                elif not isinstance(lane_text, str) or not re.search(r"第 \d+ / \d+ 条", lane_text):
+                    problems.append(f"轨道 aria-valuetext 里没有事件序号（实测 {lane_text!r}）")
+
+            if not replay_rect(head):
+                problems.append("播放头矩形缺失（data-probe='replay-head'）")
+            elif replay_rect(lane) and lane["width"] > 0:
+                head_percent = (head["x"] + head["width"] / 2 - lane["x"]) / lane["width"] * 100
+                if head_percent < -1 or head_percent > 101:
+                    problems.append(
+                        f"播放头落在轨道 {head_percent:.1f}%，期望 0–100%"
+                    )
+                if head["y"] < lane["y"] - 1 or head["y"] + head["height"] > lane["y"] + lane["height"] + 1:
+                    problems.append("播放头纵向越出轨道")
+
+            if not replay_rect(transport):
+                problems.append("走带矩形缺失（data-probe='replay-transport'）")
+            if replay.get("play_label") not in ("播放", "暂停"):
+                problems.append(f"走带的播放按钮可访问名 {replay.get('play_label')!r}")
+            gap_switch = replay.get("gap_switch") or {}
+            if gap_switch.get("text") != "跳过停顿" or gap_switch.get("pressed") != "false":
+                problems.append(
+                    f"跳过停顿开关 {gap_switch.get('text')!r} / pressed={gap_switch.get('pressed')!r}"
+                )
+            if not re.search(r"约 [\d.]+×，60 秒看完", replay.get("speed_text") or ""):
+                problems.append(f"倍速读数 {replay.get('speed_text')!r}")
+
+            marks = replay.get("marks") or []
+            if len(marks) < 2:
+                problems.append(f"胶片带跃点 {len(marks)} 枚，期望至少 2 枚")
+            mark_labels = [mark.get("label") for mark in marks if isinstance(mark, dict)]
+            if not any(str(text).startswith("最长停顿") for text in mark_labels):
+                problems.append(f"跃点里没有「最长停顿」（实测 {mark_labels}）")
+
+            doc_box = replay.get("documentBox") or {}
+            doc_sw, doc_cw = doc_box.get("scrollWidth"), doc_box.get("clientWidth")
+            if isinstance(doc_sw, int) and isinstance(doc_cw, int):
+                if doc_sw > doc_cw + 1:
+                    problems.append(f"文档横向溢出（scrollWidth {doc_sw} > clientWidth {doc_cw}）")
+            else:
+                problems.append("文档宽度事实缺失")
+            doc_sh, doc_ch = doc_box.get("scrollHeight"), doc_box.get("clientHeight")
+            if isinstance(doc_sh, int) and isinstance(doc_ch, int):
+                if doc_sh > doc_ch + 1:
+                    problems.append(
+                        f"文档出现竖向滚动（scrollHeight {doc_sh} > clientHeight {doc_ch}）——竖直方向出现了第二条滚动轴"
+                    )
+            else:
+                problems.append("文档高度事实缺失")
+            root_sw, root_cw = root.get("scrollWidth"), root.get("clientWidth")
+            if isinstance(root_sw, int) and isinstance(root_cw, int):
+                if root_sw > root_cw + 1:
+                    problems.append(f"重放根节点横向溢出（scrollWidth {root_sw} > clientWidth {root_cw}）")
+            else:
+                problems.append("重放根节点宽度事实缺失")
+            nested = replay.get("nested_scrollers")
+            if nested != 0:
+                problems.append(f"重放内部有 {nested!r} 个 auto/scroll 容器——第二条竖向滚动轴")
+
+            if problems:
+                for problem in problems:
+                    print(f"BAD|{label}：{problem}")
+            else:
+                seen_replay += 1
+                print(
+                    f"OK|{label}：舞台 {stage['width']:.0f}×{stage['height']:.0f}px 不溢出 pane，"
+                    f"读数 {reads['height']:.0f}px，胶片带 {film['height']:.1f}px（{REPLAY_FILM_HEIGHT_MIN}–{REPLAY_FILM_HEIGHT_MAX}），"
+                    f"轨道 {lane['width']:.0f}px / 播放头 {lane_value}%（轨道内 {head_percent:.1f}%），"
+                    f"跃点 {len(marks)} 枚（{mark_labels[0]!r} …），"
+                    f"文档 {doc_sh}≤{doc_ch} 无第二条竖轴、无横向溢出，"
+                    f"走带 {transport['height']:.0f}px / {replay.get('play_label')} / {gap_switch.get('pressed')}"
+                )
+
     # 「实时脉搏」（Issue #203 / Round W）：几何事实全在 facts.pulse（应用侧只
     # 收集事实，阈值与判定在这里）。三步各有各的账：
     #   ① 「脉搏」——脉搏根在场、横向不溢出、5 个窗口读数与键序、60 根速率柱
@@ -2764,6 +2944,8 @@ if coverage and seen_monitor_console == 0:
     print("BAD|视图覆盖：没有任何视图产出监控台的几何事实——「监控台」档没被覆盖")
 if coverage and seen_milestones == 0:
     print("BAD|视图覆盖：没有任何视图产出里程碑的几何事实——「里程碑」档没被覆盖")
+if coverage and seen_replay == 0:
+    print("BAD|视图覆盖：没有任何视图产出重放的几何事实——「重放」标签页没被覆盖")
 if coverage and seen_float_enter == 0:
     print("BAD|视图覆盖：没有进入浮窗的 viewport 断言——「悬浮」步骤没被覆盖")
 if coverage and seen_float_exit == 0:

@@ -1,0 +1,728 @@
+/* Session replay: two cards, no card-in-card.
+   Card A is the stage (what happened at the head) plus the readings; card B is
+   the film (where the head is) plus the transport. Both use the same face so the
+   eye reads one instrument, not two panels. */
+
+.replay {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+/* Card A — stage + readings ------------------------------------------------ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 222px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+  overflow: hidden;
+}
+
+.stage {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  min-height: 148px;
+  padding: var(--sp-3);
+}
+
+.stage > * {
+  max-width: 100%;
+}
+
+.stageNote {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-align: center;
+}
+
+/* The card has no surface of its own: the kind stripe and the type hierarchy
+   are the card. A second border here would double the card around it. */
+.card {
+  width: 100%;
+  max-width: 720px;
+  min-width: 0;
+  padding-left: var(--sp-3);
+  border-left: 2px solid var(--text-tertiary);
+}
+
+.card[data-kind="user"] {
+  border-left-color: var(--cat-user);
+}
+
+.card[data-kind="llm"] {
+  border-left-color: var(--cat-compute);
+}
+
+.card[data-kind="tool"] {
+  border-left-color: var(--cat-direct);
+}
+
+.card[data-kind="subagent"] {
+  border-left-color: var(--cat-delegated);
+}
+
+.card[data-kind="workflow"] {
+  border-left-color: var(--cat-workflow);
+}
+
+.card[data-kind="wait"] {
+  border-left-color: var(--cat-wait);
+}
+
+.card[data-error="true"] {
+  border-left-color: var(--danger);
+}
+
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+  min-width: 0;
+}
+
+.kindChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.position,
+.sameTick {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-xs);
+}
+
+.sameTick {
+  color: var(--text-secondary);
+}
+
+.cardLabel {
+  margin: var(--sp-1) 0 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  line-height: var(--lh-lg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardDetail {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: var(--sp-1) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.cardFoot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  margin-top: var(--sp-2);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-xs);
+}
+
+.errorLine {
+  margin: var(--sp-1) 0 0;
+  color: var(--danger);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-sm);
+}
+
+.endNote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* A pause is not an event, so it must not borrow the event card's anatomy. */
+.pause {
+  width: 100%;
+  max-width: 720px;
+  min-width: 0;
+  padding-left: var(--sp-3);
+  border-left: 2px solid var(--border-strong);
+}
+
+.pauseTitle {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: var(--lh-md);
+}
+
+.pauseRow {
+  overflow: hidden;
+  margin: var(--sp-1) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pauseNote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* Readings ----------------------------------------------------------------- */
+
+.reads {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--sp-15);
+  min-width: 0;
+  padding: var(--sp-3);
+  border-top: 1px solid var(--border);
+}
+
+.readRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-05) var(--sp-4);
+  min-width: 0;
+  min-height: 22px;
+}
+
+.groupLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.read {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.readLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.readValue {
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: var(--lh-md);
+}
+
+.readValueWarning {
+  color: var(--warning);
+  font-size: var(--fs-md);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: var(--lh-md);
+}
+
+.tokenNote {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+.costNote {
+  margin-left: auto;
+  color: var(--warning);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+.water {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  min-height: 20px;
+}
+
+.waterLabel {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.waterTrack {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 60px;
+  height: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  background: var(--bg-inset);
+}
+
+.waterFill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: var(--r-xs);
+  background: var(--chart-1);
+}
+
+.waterNotch {
+  position: absolute;
+  top: -2px;
+  width: 2px;
+  height: 16px;
+  border-radius: 1px;
+  background: var(--text-tertiary);
+  transform: translateX(-50%);
+}
+
+.waterCliff {
+  position: absolute;
+  top: -2px;
+  width: 1px;
+  height: 16px;
+  background: repeating-linear-gradient(
+    180deg,
+    var(--text-tertiary) 0 2px,
+    transparent 2px 5px
+  );
+}
+
+.waterCliff[data-passed="true"] {
+  background: var(--text-secondary);
+}
+
+.waterEmpty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0 var(--sp-1);
+  color: var(--text-tertiary);
+  font-size: 10px;
+  line-height: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.waterValue {
+  flex: none;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+/* Card B — film + transport ------------------------------------------------- */
+
+.reel {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+  overflow: hidden;
+}
+
+.film {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+  min-height: 112px;
+  padding: var(--sp-3);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-05) var(--sp-3);
+  min-height: 16px;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.legendCount {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.glyph {
+  display: block;
+  flex: none;
+}
+
+/* The lane is the one scrolling-looking surface that must not scroll: every
+   child is positioned as a percentage of its width, and the overflow clip is
+   what keeps a mark at 100% from drawing outside the track. */
+.lane {
+  position: relative;
+  height: 48px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background-color: var(--bg-elevated);
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--border) 0 1px,
+    transparent 1px 64px
+  );
+  cursor: ew-resize;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+
+.lane:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-inset);
+}
+
+.dense,
+.errorTicks,
+.slots,
+.cliffs,
+.marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.binGlyph {
+  position: absolute;
+  bottom: 6px;
+  display: flex;
+  transform: translateX(-50%);
+}
+
+.binBar {
+  position: absolute;
+  bottom: 6px;
+  width: 6px;
+  border: 1px solid;
+  transform: translateX(-50%);
+}
+
+.errorTick {
+  position: absolute;
+  top: 20px;
+  width: 2px;
+  height: 2px;
+  background: var(--danger);
+  transform: translateX(-50%);
+}
+
+.slot {
+  position: absolute;
+  bottom: 0;
+  height: 6px;
+  border-right: 1px solid var(--border-strong);
+  border-left: 1px solid var(--border-strong);
+  background: var(--bg-inset);
+}
+
+.cliff {
+  position: absolute;
+  top: 8px;
+  bottom: 0;
+  width: 1px;
+  background: repeating-linear-gradient(
+    180deg,
+    var(--text-tertiary) 0 2px,
+    transparent 2px 5px
+  );
+}
+
+.cliff::before {
+  position: absolute;
+  top: 0;
+  left: -3px;
+  width: 8px;
+  height: 2px;
+  border: 1px solid var(--text-tertiary);
+  content: "";
+}
+
+.cliff[data-passed="true"] {
+  background: var(--text-tertiary);
+}
+
+.cliff[data-passed="true"]::before {
+  border: 0;
+  background: var(--text-tertiary);
+}
+
+.mark {
+  position: absolute;
+  height: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.mark:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.markError,
+.markCompact,
+.markMerged {
+  top: 8px;
+  transform: translateX(-50%);
+}
+
+.markCostliest {
+  top: 8px;
+  display: flex;
+  align-items: flex-start;
+}
+
+.markGap {
+  bottom: 0;
+}
+
+.markBand {
+  display: block;
+  width: 100%;
+  height: 3px;
+  background: var(--chart-1);
+}
+
+.markDiamond {
+  display: block;
+  width: 8px;
+  height: 8px;
+  background: var(--danger);
+  transform: rotate(45deg);
+}
+
+.markGapLine {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--text-secondary);
+}
+
+.markCliffBar {
+  display: block;
+  width: 8px;
+  height: 2px;
+  margin: 0 auto;
+  background: var(--text-tertiary);
+}
+
+.markMerged {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-xs);
+  background: var(--bg-elevated);
+}
+
+.mergedText {
+  color: var(--text-secondary);
+  font-size: 9px;
+  line-height: 1;
+}
+
+.head {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.head::before {
+  position: absolute;
+  top: 0;
+  left: -2px;
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  content: "";
+}
+
+.axis {
+  position: relative;
+  height: 16px;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-xs);
+}
+
+.axisStart,
+.axisMid,
+.axisSingle {
+  position: absolute;
+  top: 0;
+}
+
+.axisStart {
+  left: 0;
+}
+
+.axisMid,
+.axisSingle {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.axisEnd {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+/* Transport ---------------------------------------------------------------- */
+
+.transport {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  min-width: 0;
+  min-height: 40px;
+  padding: var(--sp-1) var(--sp-3);
+  border-top: 1px solid var(--border);
+}
+
+.transportGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.transportLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.gapSwitch {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h-sm);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  cursor: pointer;
+}
+
+.gapSwitch:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.gapSwitch[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--bg-active);
+  color: var(--text);
+}
+
+.gapSwitch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.gapSwitch:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.speed {
+  margin-left: auto;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+.speedWarning {
+  color: var(--warning);
+}
+
+/* Accessibility ------------------------------------------------------------ */
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gapSwitch,
+  .mark,
+  .lane {
+    transition: none;
+  }
+}

@@ -149,6 +149,8 @@ const V_MONITOR_CONSOLE = declareView("monitor-console");
 // 的形态——不能从某张表的键里循环：check-screenshots.sh 的正则只认这种形态，
 // 循环调用会让该视图被误报成「清单里有、spec 没声明」。
 const V_BLEED = declareView("bleed");
+// 重放（Round AA）
+const V_REPLAY = declareView("replay");
 
 /** 主题在 ThemeProvider 初始化时读 localStorage，所以要在页面脚本之前埋好。 */
 async function useTheme(page: Page, theme: "light" | "dark") {
@@ -725,6 +727,53 @@ test.describe("截图归档 · 出血点", () => {
   }
 });
 
+// 重放（Round AA / 会话重放）：用压缩会话（/repo/compact-demo，242 条记录、
+// 2 次压缩）——胶片带上同时有「最烧一分钟」「最长停顿」「压缩 #1/#2」四枚跃点，
+// 滑到第 1 次压缩时舞台、读数区与播放头都在一个确定的时刻上（TZ 无关的次数与
+// token 账）。截的是「正在重放某一段」的常态，不是空态。
+test.describe("截图归档 · 重放", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: compactScenario() });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`重放 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+
+      await page.goto("/");
+      await page.getByPlaceholder("搜会话 ID 或目录…").fill("/repo/compact-demo");
+      await sessionItems(page).first().click();
+      await expect(page.getByLabel("会话图状态")).toContainText("会话图已加载", { timeout: 15_000 });
+      await page.waitForTimeout(300);
+
+      await page.getByRole("tab", { name: "重放", exact: true }).click();
+      await expect(page.locator("[data-probe='replay-root']")).toBeVisible();
+      await expect(page.getByLabel("会话胶片")).toContainText("共 242 条记录");
+
+      // 停在第 1 次压缩：舞台卡片、已播放读数与播放头都换成那一刻的事实。
+      await page
+        .getByLabel("会话胶片")
+        .getByRole("button", { name: /^压缩 #1 · / })
+        .click();
+      await expect(page.getByLabel("重放舞台")).toContainText("第 103 / 242 条");
+      await expect(page.getByLabel("重放舞台")).toContainText("压缩 #1（自动）");
+      await expect(page.getByRole("slider", { name: "重放进度" })).toHaveAttribute(
+        "aria-valuenow",
+        "43"
+      );
+      await page.waitForTimeout(250);
+
+      await settleImages(page);
+      await page.screenshot({ path: path.join(OUT_DIR, `${V_REPLAY}-${theme}${suffix}.png`) });
+    });
+  }
+});
 
 //
 // 权威清单里的每个视图名，都必须在本文件里被 `declareView` 声明过；本文件声明

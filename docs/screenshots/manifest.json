@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-17T13:49:33.225Z",
-  "commit": "a5cc3f1+dirty",
+  "generatedAt": "2026-10-20T17:00:53.262Z",
+  "commit": "679b33f+dirty",
   "dirty": true,
   "files": [
     "analyzer-empty-dark-webkit.png",
@@ -71,6 +71,10 @@
     "pulse-float-light.png",
     "pulse-light-webkit.png",
     "pulse-light.png",
+    "replay-dark-webkit.png",
+    "replay-dark.png",
+    "replay-light-webkit.png",
+    "replay-light.png",
     "settings-below-dark-webkit.png",
     "settings-below-dark.png",
     "settings-below-light-webkit.png",
