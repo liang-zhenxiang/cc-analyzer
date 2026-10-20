@@ -313,7 +313,7 @@ hover 态：竖线加深为 `--chart-1`、菱形放大到 12px（`--dur-hover`�
 
 - **M = 0：什么都不显示。**（§1-9 的取舍。）「全部解析」是默认期望；
   常驻报喜 = 重复 Round I 的 provenance 噪音错误。
-- **M > 0：文字 chip** `◦ 85 行未识别`—��8px `--warning` 圆点（与
+- **M > 0：文字 chip** `◦ 85 行未识别`—带 8px `--warning` 圆点（与
   ProvenanceBadge 同款画法：不确定性用琥珀，这里语义成立——「这些行我们没
   读懂」正是非确定信息）+ `--text-secondary` `--fs-xs` 文字 + hover 下划线。
   amber 通道在此干净：压缩不占类别色后，分析页没有第二个琥珀信号与之争。

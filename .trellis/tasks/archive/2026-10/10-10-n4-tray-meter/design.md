@@ -42,7 +42,7 @@ pub struct TrayMeter {
 - `set_title(&meter.title)`（Windows Unsupported——按平台编译分支跳过 title，
   tooltip 照设）；`set_tooltip(&meter.tooltip)`；
 - **两态图标保持 template**（2026-10-10 裁决，采纳设计师推翻本草案）：同一
-  32×32 黑色 alpha ��图内「描边环（常态）→ 实心饼（near_limit，同外接圆
+  32×32 黑色 alpha 位图内「描边环（常态）→ 实心饼（near_limit，同外接圆
   22px）」，只在状态切换时原子 set——彩色菜单栏图标违反 macOS 单色惯例且深浅
   菜单栏必有一边不可读；位图 `Image::new_owned` 纯代码生成（零新依赖，两枚
   启动时缓存）；

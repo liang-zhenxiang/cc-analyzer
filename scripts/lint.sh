@@ -3,7 +3,7 @@
 # lint.sh —— 本地统一校验入口
 #
 # 一条命令跑完 CI 里**本地能跑**的那些静态检查：actionlint、yamllint、shellcheck、
-# bash -n、zizmor（工作流安全扫描）。提交 PR 之前跑一次，
+# bash -n、U+FFFD 扫描、zizmor（工作流安全扫描）。提交 PR 之前跑一次，
 # 可以把「推上去 → CI 红 → 改了再推」这个来回省掉。
 #
 # 用法：
@@ -15,7 +15,8 @@
 # 跑完整套检查，看起来像是选项被接受了。拒绝比忽略诚实（见下面的参数检查）。
 #
 # 覆盖范围（别把它当成 CI 的替代品）：
-#   - 覆盖：actionlint、yamllint、shellcheck、bash -n、PowerShell 编码、zizmor
+#   - 覆盖：actionlint、yamllint、shellcheck、bash -n、PowerShell 编码、
+#     U+FFFD 扫描、zizmor
 #   - **不覆盖：前端测试/构建与 Rust 检查**（vitest / tsc / cargo fmt / clippy /
 #     check）。它们是「测试与构建」不是静态检查，本地开发时本来就会跑，
 #     命令见 CONTRIBUTING.md；CI 里各有独立 job
@@ -300,7 +301,38 @@ if [[ ${#JSON_TARGETS[@]} -gt 0 ]] && command -v python3 >/dev/null 2>&1; then
 fi
 
 # ---------------------------------------------------------------------------
-# 8. Shell 变量展开紧邻多字节字符 —— macOS 自带 bash 3.2 会解析错
+# 8. U+FFFD —— 已跟踪文本文件不得含替换字符
+#
+#    文件集来自 git ls-files，内容读工作区而不是 index/blob：编辑到一半、尚未
+#    暂存的坏字符也必须被发现。图片等二进制由扩展名与 NUL 探测双重跳过。
+#
+#    GitHub source tarball 不含 .git，无法确定「已跟踪文件」；此时明确跳过并
+#    说明原因，不把「无法检查」伪装成通过。
+# ---------------------------------------------------------------------------
+UNICODE_GATE_NAME="U+FFFD 扫描（已跟踪文本文件）"
+
+is_git_worktree_root() {
+  local inside prefix
+  inside="$(git rev-parse --is-inside-work-tree 2>/dev/null)" || return 1
+  [[ "$inside" == "true" ]] || return 1
+  prefix="$(git rev-parse --show-prefix 2>/dev/null)" || return 1
+  [[ -z "$prefix" ]]
+}
+
+if ! command -v python3 >/dev/null 2>&1; then
+  skip_check "$UNICODE_GATE_NAME" "未安装 python3" "brew install python3"
+elif ! command -v git >/dev/null 2>&1; then
+  skip_check "$UNICODE_GATE_NAME" "未安装 git，无法取得已跟踪文件集" "安装 Git"
+elif is_git_worktree_root; then
+  run_check "$UNICODE_GATE_NAME" ./scripts/check-unicode-replacement.sh
+else
+  skip_check "$UNICODE_GATE_NAME" \
+    "当前目录不是独立的 Git 工作树根目录，无法确定本项目的已跟踪文件" \
+    "在仓库检出中运行本检查；GitHub source tarball 不携带已跟踪文件清单"
+fi
+
+# ---------------------------------------------------------------------------
+# 9. Shell 变量展开紧邻多字节字符 —— macOS 自带 bash 3.2 会解析错
 #
 #    `"$ARCH（请用…）"` 这种写法，变量名后面紧跟一个全角字符，
 #    bash 3.2 会把该多字节字符的首字节当成变量名的一部分，于是变量名变成
@@ -342,7 +374,7 @@ elif [[ ${#SH_TARGETS[@]} -gt 0 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 9. zizmor —— 工作流安全扫描（对应 CI 的 zizmor job）
+# 10. zizmor —— 工作流安全扫描（对应 CI 的 zizmor job）
 #
 #    镜像引用从 ci.yml 抽，不写第二份：写死会在 CI 升级时静默漂移，
 #    而这一项的全部价值就是「本地过 = CI 过」。
@@ -378,7 +410,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 10. 视觉基线一致性 —— README 引用的截图必须存在且在截图套清单里
+# 11. 视觉基线一致性 —— README 引用的截图必须存在且在截图套清单里
 #
 #     docs/screenshots/ 是 README 的门面，更新却全凭「人记得重出图」。上一轮
 #     目录里混着相隔一天的两代截图（同一批里 usage-dark 还没有计费卡片），
@@ -393,7 +425,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 11. 中英 README 结构一致性 —— 两版 README 的标题层级序列、docs/ 链接顺序与
+# 12. 中英 README 结构一致性 —— 两版 README 的标题层级序列、docs/ 链接顺序与
 #     相对链接可达性必须一致
 #
 #     仓库声明「两份 README 结构一致」，但在此之前没有任何检查。结构漂移是静默的：
@@ -408,7 +440,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 12. e2e 版本桩防漂移 —— 场景工厂的版本必须与 web/package.json 同源
+# 13. e2e 版本桩防漂移 —— 场景工厂的版本必须与 web/package.json 同源
 #
 #     e2e 桩里的版本号曾经写死成 "0.10.0"，之后两次发版都没人改它——每一版
 #     归档截图的顶栏徽章都印着旧版本，截图在撒谎而没人发现。check-e2e-mock

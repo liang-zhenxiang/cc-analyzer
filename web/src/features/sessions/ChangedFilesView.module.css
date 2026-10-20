@@ -288,7 +288,7 @@
     calc(var(--row-pad-x) + var(--control-h-sm) + var(--sp-2));
 }
 
-/* 小结行：firstAt 与失败数的非���停路径（tooltip 非唯一通道）。 */
+/* 小结行：firstAt 与失败数的非悬停路径（tooltip 非唯一通道）。 */
 .summary {
   margin: 0 0 var(--sp-1);
   color: var(--text-tertiary);

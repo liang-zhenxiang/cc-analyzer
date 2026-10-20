@@ -207,7 +207,7 @@ export function calendarInsightsOf(
    prevStart = addLocalDays(lastMonthEnd, -(lastMonthEnd.getDate() - 1))        // 上月第 1 天
    previousUsd = Σ costUsd(prevStart .. addLocalDays(prevStart, N - 1))         // 上月第 1..N 天
    （主会话工程评审修正：初稿公式 prevStart = addLocalDays(lastMonthEnd, -(N-1))
-     算出的是**上月末 N 天**，与 §3.5 的「上月第 1..N 天（同期）」文���矛盾——
+     算出的是**上月末 N 天**，与 §3.5 的「上月第 1..N 天（同期）」文本矛盾——
      两个区间各 N 天、两端闭区间，首日对齐各自的月首。）
 ```
 
@@ -312,7 +312,7 @@ export function calendarInsightsOf(
   的「重复 ⇔ 都带」同精神：**需要区分时才带年**。六句只有一两个日期，
   不是 13 个标签，正文短式 + 全格式 title 的信息成本最优。
 - 日期**按钮**的 `title` 与 `aria-label`：`{Y}年{M}月{D}日 · 打开一日回望`
-  ——带年（`cellLabelOf` 的既有原则：跨年窗口里���号必须有可靠落点，
+  ——带年（`cellLabelOf` 的既有原则：跨年窗口里符号必须有可靠落点，
   `UsageCalendarPanel.tsx:46-49` 注释）。
 - 区间两端各自适用年份规则；跨年区间如 `2025年12月28日–2026年1月20日`，
   连接符用 en dash `–`（`formatClock` 的 `00:25–18:41` 同款先例）。

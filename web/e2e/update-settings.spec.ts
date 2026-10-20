@@ -2,7 +2,7 @@ import { test, expect, defaultScenario, APP_VERSION } from "./fixtures";
 import type { Page } from "@playwright/test";
 
 /**
- * 软件更新设置的端到端：更新区渲染、渠道���换持久化、检查的两态
+ * 软件更新设置的端到端：更新区渲染、渠道切换持久化、检查的两态
  * （已是最新 / 发现新版→安装按钮）。更新检查本身走 tauri-mock，
  * 真实的 GitHub 更新源由发布流水线验证。
  */

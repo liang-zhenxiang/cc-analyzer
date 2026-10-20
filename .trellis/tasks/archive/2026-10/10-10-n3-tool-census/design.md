@@ -36,7 +36,7 @@ export type ToolCensus = {
   buckets: CensusBucket[];    // 按 callsWithSidechain 降序，同数按 label 稳定排序
   /** MCP 桶按 server 聚合（tools 明细在桶内）；其余桶 key 不变。 */
   totalCalls: { main: number; withSidechain: number };
-  /** Agent 结构化结果的 totalToolUseCount 抽样对账（��究报告建议的交叉验证）。 */
+  /** Agent 结构化结果的 totalToolUseCount 抽样对账（研究报告建议的交叉验证）。 */
   agentReportedTotal: number;
 };
 

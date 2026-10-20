@@ -149,7 +149,7 @@ export type CalendarDayFacts = {
   messages: number;
   /** 当天有上述记录的会话数（按会话去重，不是记录数）。 */
   sessions: number;
-  /** 当天 token ��多的项目；并列取 label 字典序最小；当天无 token 为 null。 */
+  /** 当天 token 最多的项目；并列取 label 字典序最小；当天无 token 为 null。 */
   topProject: { label: string; path?: string } | null;
 };
 

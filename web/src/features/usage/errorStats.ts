@@ -24,7 +24,7 @@ export type ErrorEvent = {
   /** 会话文件路径（下钻用）。 */
   path: string;
   projectLabel: string;
-  /** ≤200 字符的脱敏预览：只取平台���定文案的首行（design §2.1）。 */
+  /** ≤200 字符的脱敏预览：只取平台特定文案的首行（design §2.1）。 */
   preview: string;
 };
 

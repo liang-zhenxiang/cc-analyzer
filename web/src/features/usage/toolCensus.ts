@@ -34,7 +34,7 @@ const UNKNOWN_LABEL = "(unknown)";
  */
 export function classifyToolUse(name: string, input: unknown): ToolBucketKey {
   // 实测 mcp__<server>__<tool> 的 split("__") 恒 3 段（server 可含单下划线）；
-  // 段数 <3 的畸形名整个名字当工具名，server ��仅有的一段（缺则兜底）。
+  // 段数 <3 的畸形名整个名字当工具名，server 后仅有的一段（缺则兜底）。
   if (name.startsWith("mcp__")) {
     const parts = name.split("__");
     const server = parts[1] && parts[1].length > 0 ? parts[1] : UNKNOWN_LABEL;
@@ -169,7 +169,7 @@ function labelOf(key: ToolBucketKey): string {
 
 /**
  * 窗口化聚合（与 aggregateRange / compactionStats 同一口径的本地日时间窗）：
- * 只吃 `toolCalls` 事实，没有该字段的输入（手造测试数据）���普查不可见。
+ * 只吃 `toolCalls` 事实，没有该字段的输入（手造测试数据）对普查不可见。
  */
 export function toolCensus(
   inputs: readonly UsageSessionInput[],
