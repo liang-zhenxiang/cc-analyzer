@@ -283,8 +283,8 @@ package.json   构建工具链（Tauri CLI）与打包入口
 - [x] **结构化导出** —— CSV 与单文件 HTML（v0.11.0 已发布）（[#71](https://github.com/liang-zhenxiang/cc-analyzer/issues/71)）
 - [x] **实时脉搏** —— 「实时监控」标签做成原生视图：活跃会话、token 速率、5 小时窗口燃烧率、上下文填充曲线，并能常驻 420×620 浮窗（v0.26.0-beta.1 已发布）（[#203](https://github.com/liang-zhenxiang/cc-analyzer/issues/203)）
 - [x] **无障碍与性能细节包** —— ANSI 渲染、虚拟滚动、字号缩放（[#73](https://github.com/liang-zhenxiang/cc-analyzer/issues/73)）
-- [ ] **里程碑** —— 每枚徽章都必须能从日志复算：首次、累计阶梯与单会话记录，每枚给出证据数字与可点开的会话 / 那一天（[#214](https://github.com/liang-zhenxiang/cc-analyzer/issues/214)）
-- [ ] **监控台** —— 把「实时监控」里那个依赖外部服务的外部仪表盘做成自带原生仪表盘：本窗口 / 今天读数、项目热度榜、24 小时活动带与跨会话事件流（[#225](https://github.com/liang-zhenxiang/cc-analyzer/issues/225)）
+- [x] **里程碑** —— 每枚徽章都必须能从日志复算：首次、累计阶梯与单会话记录，每枚给出证据数字与可点开的会话 / 那一天（v0.27.0 已发布）（[#214](https://github.com/liang-zhenxiang/cc-analyzer/issues/214)）
+- [x] **监控台** —— 把「实时监控」里那个依赖外部服务的外部仪表盘做成自带原生仪表盘：本窗口 / 今天读数、项目热度榜、24 小时活动带与跨会话事件流（已合并，随 v0.28.0-beta.1 发布）（[#225](https://github.com/liang-zhenxiang/cc-analyzer/issues/225)）
 - [ ] **前端升级到 React 19** —— 需与 `@types/react` / `@types/react-dom` 成套迁移（[#19](https://github.com/liang-zhenxiang/cc-analyzer/issues/19)）
 
 有想法？欢迎
