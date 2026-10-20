@@ -52,6 +52,11 @@ git status --short && git log --oneline -3
 检查三件事：本地与远端是否一致、`main` 的 CI 是否绿、`CHANGELOG.md` 的
 `[Unreleased]` 是否积压了未发布的改动（积压即说明「发布」这一步欠着，优先补上）。
 
+`git fetch` / `git push` / `gh` 连不上 GitHub 时**先查本机代理**再重试——这是
+本地网络问题，不是远端或权限问题；做法见
+[`.claude/skills/maintain-loop/SKILL.md`](.claude/skills/maintain-loop/SKILL.md)
+的「网络与代理」一节（代理地址因人而异，不要写进仓库）。
+
 ### 2. 实现：一个 Issue 一个分支一个 PR
 
 - 分支名 `feat/*`、`fix/*`、`docs/*`、`chore/*`
