@@ -1,0 +1,8 @@
+[
+  {"number": 280, "title": "chore(task): archive 00-bootstrap-guidelines", "labels": [{"name": "documentation"}]},
+  {"number": 281, "title": "docs(trellis): 更新协作流程", "labels": []},
+  {"number": 282, "title": "build(deps): bump serde from 1.0.1 to 1.0.2", "labels": [{"name": "dependencies"}]},
+  {"number": 283, "title": "ci(deps): bump actions/checkout", "labels": [{"name": "ci"}]},
+  {"number": 284, "title": "refactor(web): 抽公共函数", "labels": []},
+  {"number": 285, "title": "fixup! feat: rebase 中间产物", "labels": []}
+]

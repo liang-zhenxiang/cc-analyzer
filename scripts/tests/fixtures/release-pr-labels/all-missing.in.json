@@ -1,0 +1,5 @@
+[
+  {"number": 250, "title": "feat(web): 新增一个视图", "labels": [{"name": "frontend"}]},
+  {"number": 251, "title": "fix: 修一个空指针", "labels": []},
+  {"number": 252, "title": "hotfix(tauri): 修窗口尺寸", "labels": [{"name": "documentation"}, {"name": "automation"}]}
+]

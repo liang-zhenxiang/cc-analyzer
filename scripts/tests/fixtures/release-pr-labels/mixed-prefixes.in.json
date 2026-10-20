@@ -1,0 +1,9 @@
+[
+  {"number": 290, "title": "feat(web): 本该有 enhancement", "labels": [{"name": "frontend"}]},
+  {"number": 291, "title": "chore(task): archive something", "labels": [{"name": "documentation"}]},
+  {"number": 292, "title": "fix(ci): 本该有 bug", "labels": [{"name": "ci"}]},
+  {"number": 293, "title": "docs: 补说明", "labels": []},
+  {"number": 294, "title": "feat(web): 已带 enhancement", "labels": [{"name": "enhancement"}]},
+  {"number": 295, "title": "feature(api): 旧写法，同样该有 enhancement", "labels": [{"name": "api"}]},
+  {"number": 296, "title": "hotfix(tauri): 旧写法，同样该有 bug", "labels": []}
+]

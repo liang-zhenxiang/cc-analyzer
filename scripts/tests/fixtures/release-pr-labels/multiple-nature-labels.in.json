@@ -1,0 +1,5 @@
+[
+  {"number": 270, "title": "feat(web): 同时被打了三种性质标签", "labels": [{"name": "enhancement"}, {"name": "bug"}, {"name": "security"}]},
+  {"number": 271, "title": "fix(web): 同一标签出现两次", "labels": [{"name": "bug"}, {"name": "bug"}]},
+  {"number": 272, "title": "fix(web): 一个性质标签都没有", "labels": [{"name": "documentation"}, {"name": "frontend"}, {"name": "ci"}]}
+]

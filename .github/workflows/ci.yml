@@ -814,6 +814,54 @@ jobs:
       - name: 运行脚本自测
         run: ./scripts/pr-nature-label-test.sh
 
+  # ---------------------------------------------------------------------------
+  # 发布前性质标签校验自测
+  #
+  # `scripts/check-release-pr-labels.sh` 在**发布时**检查区间内那些「标题前缀
+  # 本来要求性质标签」的 PR 是否真的带上了 enhancement / bug / security。
+  # 它坏掉的表现是「发布照常成功、日志里什么都没说」——与「全都带了标签」
+  # 无法区分，而分类跑偏要等发布页对用户可见后才发现（Issue #244）。
+  # 这里钉住七种输入形态与退出码，包括最容易过报的一类：chore / docs / build /
+  # ci 缺标签**不该**报警；另有正反两条变异对照与一条映射同源对照，见
+  # scripts/check-release-pr-labels-test.sh。
+  # ---------------------------------------------------------------------------
+  release-pr-labels-test:
+    name: 发布前性质标签校验自测
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: 运行脚本自测
+        run: ./scripts/check-release-pr-labels-test.sh
+
+  # ---------------------------------------------------------------------------
+  # 发布区间计算自测
+  #
+  # `scripts/release-pr-range.sh` 由 release.yml 调用来算「上一版之后、这一版
+  # 之前」的 PR 查询区间。它踩过一个**静默漏报**的坑：`%cs` 用提交自身时区，
+  # 而 GitHub 的 `merged:>=` 按 UTC 解释，深夜 +08 发布的 tag 会让下界晚一天。
+  # 这类错误不会报错，只会让告警少列几个编号——看起来一切正常。自测用真实
+  # git 仓库造出该时区边界，并覆盖上界、颠倒的 tag 与无法解析的 tag，见
+  # scripts/release-pr-range-test.sh。
+  # ---------------------------------------------------------------------------
+  release-pr-range-test:
+    name: 发布区间计算自测
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Repos
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: 运行脚本自测
+        run: ./scripts/release-pr-range-test.sh
 
   # ---------------------------------------------------------------------------
   # 视觉基线一致性检查
@@ -900,7 +948,7 @@ jobs:
   ci-summary:
     name: CI 总览
     runs-on: ubuntu-latest
-    needs: [actionlint, yamllint, shellcheck, web-test, web-e2e, web-build, rust-fmt, rust-clippy, rust-check, rust-test, commit-messages, zizmor, lint-selftest, release-notes-test, changelog-section-test, promote-changelog-test, pr-label-test, screenshots-baseline, readme-parity, gui-test-shutdown]
+    needs: [actionlint, yamllint, shellcheck, web-test, web-e2e, web-build, rust-fmt, rust-clippy, rust-check, rust-test, commit-messages, zizmor, lint-selftest, release-notes-test, changelog-section-test, promote-changelog-test, pr-label-test, release-pr-labels-test, release-pr-range-test, screenshots-baseline, readme-parity, gui-test-shutdown]
     if: always()
     steps:
       - name: Checkout Repos
@@ -928,6 +976,8 @@ jobs:
           R_CHANGELOG_SECTION_TEST: ${{ needs.changelog-section-test.result }}
           R_PROMOTE_CHANGELOG_TEST: ${{ needs.promote-changelog-test.result }}
           R_PR_LABEL_TEST: ${{ needs.pr-label-test.result }}
+          R_RELEASE_PR_LABELS_TEST: ${{ needs.release-pr-labels-test.result }}
+          R_RELEASE_PR_RANGE_TEST: ${{ needs.release-pr-range-test.result }}
           R_SCREENSHOTS_BASELINE: ${{ needs.screenshots-baseline.result }}
           R_README_PARITY: ${{ needs.readme-parity.result }}
           R_GUI_TEST_SHUTDOWN: ${{ needs.gui-test-shutdown.result }}
@@ -959,6 +1009,8 @@ jobs:
             "changelog-section-test:发布说明抽段自测"
             "promote-changelog-test:晋升归档自测"
             "pr-label-test:PR 性质标签自测"
+            "release-pr-labels-test:发布前性质标签校验自测"
+            "release-pr-range-test:发布区间计算自测"
             "screenshots-baseline:视觉基线一致性"
             "readme-parity:README 结构一致性"
             "gui-test-shutdown:真机测试中断清理自测"

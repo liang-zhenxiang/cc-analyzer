@@ -1,0 +1,7 @@
+[
+  {"number": 230, "title": "fix(web): 修一个空指针", "labels": [{"name": "bug"}, {"name": "frontend"}]},
+  {"number": 233, "title": "fix(ci): 修发布说明分类", "labels": [{"name": "bug"}, {"name": "automation"}]},
+  {"number": 240, "title": "feat(web): 支持导出", "labels": [{"name": "enhancement"}, {"name": "documentation"}]},
+  {"number": 242, "title": "fix: 修掉一个安全问题", "labels": [{"name": "security"}]},
+  {"number": 243, "title": "chore(task): archive 00-bootstrap-guidelines", "labels": [{"name": "documentation"}]}
+]

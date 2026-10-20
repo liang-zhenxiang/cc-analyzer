@@ -144,6 +144,10 @@ jobs:
     permissions:
       # 创建 Release 与上传产物需要写 contents；只给这一个 job
       contents: write
+      # 性质标签校验（Issue #244）用 `gh pr list` 读区间内的 PR 标签。
+      # 只要 read：这里不写 PR。**省略这一条会让校验每次都 403 后降级成
+      # 警告**——步骤看起来正常运行，实际上一次都没检查过。
+      pull-requests: read
     steps:
       - name: Checkout Repos
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -257,6 +261,109 @@ jobs:
           fi
 
           echo "已生成 $(wc -l < pr-list.md | tr -d ' ') 行变更清单"
+
+      # -----------------------------------------------------------------------
+      # ②-b 性质标签校验（Issue #244）
+      #
+      # `generate-notes` 按 **PR 标签** 分类，而 labeler 只在 PR 事件发生时打
+      # 性质标签：修复上线前合并的 PR、或那一步失败后没有重跑的 PR，永远只剩
+      # 路径标签。它们会被分进「持续集成与自动化」或「文档」，而且**发布照常
+      # 成功、没有任何报错**——v0.28.0-beta.1 的功能 PR 就是这么跑偏的。
+      #
+      # 这里在说明拼装之前把缺失编号显式暴露出来。输入用 `gh pr list` 的结构化
+      # JSON 而不是 pr-list.md：后者是给人看的 Markdown，拿正则猜编号会在模板
+      # 变动时静默漏报（PRD 的取舍）。JSON 里必须带 `title`：脚本要靠标题前缀
+      # 判断「这个 PR 应不应当有性质标签」，否则 chore / docs / build / ci
+      # 会被全部误报成缺失（真实数据 25 个 PR 报 21 个，几乎全是噪音）。
+      #
+      # **只警告、不失败**：历史区间里必然有无法补救的已合并 PR，硬失败会把
+      # 「重推 tag 补发」这条幂等路径堵死。任何一步拿不到数据都降级为警告。
+      # 结果只进日志，绝不写进 release-notes.md——发布说明面向用户。
+      # -----------------------------------------------------------------------
+      - name: 校验区间内的 PR 性质标签
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREV_TAG: ${{ steps.prs.outputs.prev_tag }}
+          TAG: ${{ github.ref_name }}
+          BASE_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          if [[ -z "$PREV_TAG" ]]; then
+            echo "::notice::没有上一个 tag，跳过 PR 性质标签校验"
+            exit 0
+          fi
+
+          # 区间边界全部由 scripts/release-pr-range.sh 计算，并有一份自测
+          # （CI 的「发布区间计算自测」）。这里**不内联**日期与 epoch 的推导：
+          # `%cs` 用提交自身时区、而 `merged:` 按 UTC 解释，深夜 +08 发布的
+          # tag 会让下界晚一天、静默漏报；抽出去是为了让那个边界能被测到。
+          # 取不到边界必须降级：这一步的职责是提醒分类可能不准，
+          # 不该因为一个本地 git 查询把整次发布拦下来。
+          if ! range="$(./scripts/release-pr-range.sh "$PREV_TAG" "$TAG")"; then
+            echo "::warning::无法由 ${PREV_TAG} 与 ${TAG} 计算出 PR 查询区间，跳过性质标签校验（发布继续）"
+            exit 0
+          fi
+
+          search_since="" prev_epoch="" tag_epoch=""
+          while IFS='=' read -r key value; do
+            case "$key" in
+              SEARCH_SINCE) search_since="$value" ;;
+              PREV_EPOCH)   prev_epoch="$value" ;;
+              TAG_EPOCH)    tag_epoch="$value" ;;
+            esac
+          done <<< "$range"
+
+          if [[ -z "$search_since" ]] || [[ -z "$prev_epoch" ]] || [[ -z "$tag_epoch" ]]; then
+            echo "::warning::发布区间脚本的输出不完整（${range//$'\n'/ }），跳过性质标签校验（发布继续）"
+            exit 0
+          fi
+
+          if ! gh pr list \
+              --state merged \
+              --base "$BASE_BRANCH" \
+              --search "merged:>=${search_since}" \
+              --json number,title,labels,mergedAt \
+              --limit 1000 > prs-in-range.json; then
+            echo "::warning::无法获取区间内的 PR 列表，跳过性质标签校验（发布继续）"
+            exit 0
+          fi
+
+          # `merged:` 只能按日期粗筛（它不保证吃完整时间戳），上下界要在本地
+          # 按精确时刻卡：
+          #   下界 `> PREV_EPOCH`：上一版发布 PR 的合并时刻**等于**上个 tag
+          #     的提交时刻，带等号就会把它算进这一版。但只靠严格大于不够——
+          #     当前 tag 正指着这一版发布 PR 的合并提交，而三平台构建期间
+          #     也可能有 feat/fix 合进来（实测 #243 的 mergedAt 比 tag 晚 1 秒）。
+          #   上界 `<= TAG_EPOCH`：把这两类排除掉，它们属于下一次发布。
+          if ! jq --argjson since "$prev_epoch" --argjson until "$tag_epoch" \
+              '[.[] | select(.mergedAt != null
+                              and (.mergedAt | fromdateiso8601) > $since
+                              and (.mergedAt | fromdateiso8601) <= $until)]' \
+              prs-in-range.json > prs-in-range-filtered.json; then
+            echo "::warning::PR 列表过滤失败，跳过性质标签校验（发布继续）"
+            exit 0
+          fi
+
+          rc=0
+          missing="$(./scripts/check-release-pr-labels.sh prs-in-range-filtered.json)" || rc=$?
+          case "$rc" in
+            0)
+              echo "区间内每个 PR 都带性质标签"
+              ;;
+            1)
+              # 编号压成一行，工作流的告警注解才读得顺；同时保留逐行日志。
+              # 只列 feat / fix 类：chore / docs 等按约定本来就不打性质标签，
+              # 它们落进「文档」或「其他变更」是预期结果，不是需要修的缺陷。
+              echo "以下 PR 的标题前缀应当带性质标签（enhancement / bug）却缺失："
+              printf '%s\n' "$missing"
+              echo "::warning::区间内有 PR 缺少性质标签：$(printf '%s' "$missing" | tr '\n' ' ')——发布说明的分类可能不准"
+              ;;
+            *)
+              echo "::warning::性质标签校验脚本未能执行（exit ${rc}），发布继续"
+              ;;
+          esac
 
       # -----------------------------------------------------------------------
       # ③ AI 摘要（可选）
