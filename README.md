@@ -382,14 +382,14 @@ The roadmap tracks open issues; each item links to the issue that owns it.
 - [x] Accessibility & performance pack — ANSI rendering, virtual scrolling,
   font scaling
   ([#73](https://github.com/liang-zhenxiang/cc-analyzer/issues/73))
-- [ ] Milestones — every badge has to be recomputable from the logs: firsts,
+- [x] Milestones — every badge has to be recomputable from the logs: firsts,
   cumulative tiers and single-session records, each shown with its evidence
-  and a link to the session or day that earned it
+  and a link to the session or day that earned it (shipped in v0.27.0)
   ([#214](https://github.com/liang-zhenxiang/cc-analyzer/issues/214))
-- [ ] Monitor console — replace the external dashboard that needs a separate
+- [x] Monitor console — replace the external dashboard that needs a separate
   local service with a built-in native dashboard: the current window and
   today's readouts, a per-project heat board, a 24-hour activity band and a
-  cross-session event stream
+  cross-session event stream (merged; ships in v0.28.0-beta.1)
   ([#225](https://github.com/liang-zhenxiang/cc-analyzer/issues/225))
 - [ ] Frontend upgrade to React 19, moving `@types/react` / `@types/react-dom`
   together
