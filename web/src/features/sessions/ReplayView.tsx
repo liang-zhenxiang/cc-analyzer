@@ -467,7 +467,11 @@ export function ReplayView({ parsed }: { parsed: ParsedSession }) {
 
   const [filmSeconds, setFilmSeconds] = useState<FilmSeconds>(DEFAULT_FILM_SECONDS);
   const [skipPauses, setSkipPauses] = useState(false);
-  const [instantIndex, setInstantIndex] = useState<number | null>(null);
+  // The keyboard's step cursor: which event the reader asked to stand on.
+  // Time alone cannot tell two events with the same timestamp apart, so a step
+  // records the index explicitly; any free seek clears it and hands the stage
+  // back to the clock.
+  const [stepIndex, setStepIndex] = useState<number | null>(null);
   const [laneWidth, setLaneWidth] = useState(FALLBACK_LANE_WIDTH);
   const laneRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
@@ -489,10 +493,16 @@ export function ReplayView({ parsed }: { parsed: ParsedSession }) {
   // and painting a 「停顿 0 秒」 frame.
   const realMs = Math.round(realMsAt(film, clock.progress, PLAYBACK_MODE));
   const frame = frameAt(film, realMs, samples, PLAYBACK_MODE);
+  // While paused, a step cursor wins as long as the head still stands on that
+  // event (±1 ms covers float noise from `progressAt`/`realMsAt`). Playback
+  // never consults it: the film must run on the clock alone.
+  const stepEvent = stepIndex !== null ? film.events[stepIndex] ?? null : null;
+  const stepHolds =
+    !clock.playing &&
+    stepEvent !== null &&
+    (zeroSpan || Math.abs(frame.at - stepEvent.at) <= 1);
   const stageIndex =
-    zeroSpan && instantIndex !== null
-      ? Math.min(film.events.length - 1, Math.max(0, instantIndex))
-      : indexAtOrBefore(film.events, frame.at);
+    stepIndex !== null && stepHolds ? stepIndex : indexAtOrBefore(film.events, frame.at);
   const stageEvent = stageIndex >= 0 ? film.events[stageIndex] : null;
   const passed: ReplayTotals =
     stageIndex >= 0 && film.cumulative[stageIndex]
@@ -503,10 +513,16 @@ export function ReplayView({ parsed }: { parsed: ParsedSession }) {
   // different session's head position.
   const { seek: seekClock, pause: pauseClock } = clock;
   useEffect(() => {
-    setInstantIndex(null);
+    setStepIndex(null);
     pauseClock();
     seekClock(0);
   }, [film, pauseClock, seekClock]);
+
+  // Playback must never inherit a step cursor: once the clock runs, it alone
+  // decides which event is current.
+  useEffect(() => {
+    if (clock.playing) setStepIndex(null);
+  }, [clock.playing]);
 
   // The lane is resized with the window; density bins follow its pixel width.
   useEffect(() => {
@@ -557,38 +573,55 @@ export function ReplayView({ parsed }: { parsed: ParsedSession }) {
     return [...groups.entries()].sort((a, b) => a[0] - b[0]);
   }, [film.marks]);
 
+  // Stepping is by event index, never by timestamp: two events can share an
+  // instant, and a time-based step would keep landing on the last of the tie.
+  const stepTo = useCallback(
+    (target: number) => {
+      if (target < 0) {
+        // One step before the first event is the same honest place as Home.
+        setStepIndex(null);
+        seekClock(0);
+        return;
+      }
+      if (target >= film.events.length) return;
+      // Mid-playback the clock stays the only source of truth, so a step must
+      // not leave a cursor behind for the next pause to pick up.
+      setStepIndex(clock.playing ? null : target);
+      seekClock(progressAt(film, film.events[target].at, PLAYBACK_MODE));
+    },
+    [clock.playing, film.events, seekClock]
+  );
+
   const goPrev = useCallback(() => {
-    if (!canStep || film.events.length === 0) return;
+    if (!canStep || stageIndex < 0) return;
+    // A zero-span film has no "before the first instant" to stand on, so the
+    // first event is where stepping back stops.
     if (zeroSpan) {
-      setInstantIndex(Math.max(0, stageIndex - 1));
+      stepTo(Math.max(0, stageIndex - 1));
       return;
     }
-    if (stageIndex < 0) return;
-    const target =
-      frame.at > film.events[stageIndex].at ? stageIndex : Math.max(0, stageIndex - 1);
-    seekClock(progressAt(film, film.events[target].at, PLAYBACK_MODE));
-  }, [canStep, film, frame.at, seekClock, stageIndex, zeroSpan]);
+    // A head resting inside a pause stands on the pause's opening event;
+    // stepping back from there should show that event, not skip it.
+    const inPause = !stepHolds && frame.gap !== null;
+    stepTo(inPause ? stageIndex : stageIndex - 1);
+  }, [canStep, frame.gap, stageIndex, stepHolds, stepTo, zeroSpan]);
 
   const goNext = useCallback(() => {
-    if (!canStep || film.events.length === 0) return;
-    if (zeroSpan) {
-      setInstantIndex(Math.min(film.events.length - 1, stageIndex + 1));
-      return;
-    }
-    const target = stageIndex + 1;
-    if (target >= film.events.length) return;
-    seekClock(progressAt(film, film.events[target].at, PLAYBACK_MODE));
-  }, [canStep, film, seekClock, stageIndex, zeroSpan]);
+    if (!canStep) return;
+    stepTo(stageIndex + 1);
+  }, [canStep, stageIndex, stepTo]);
 
   const goStart = useCallback(() => {
-    setInstantIndex(zeroSpan ? 0 : null);
+    setStepIndex(zeroSpan ? 0 : null);
     seekClock(0);
   }, [seekClock, zeroSpan]);
 
   const goEnd = useCallback(() => {
-    setInstantIndex(zeroSpan ? film.events.length - 1 : null);
+    // Landing on the last event by index keeps 「上一事件」 able to walk back
+    // through events that share the film's final instant.
+    setStepIndex(film.events.length > 0 ? film.events.length - 1 : null);
     seekClock(1);
-  }, [film.events.length, seekClock, zeroSpan]);
+  }, [film.events.length, seekClock]);
 
   const seekFromClientX = useCallback(
     (clientX: number, snapToBlock: boolean) => {
@@ -606,13 +639,13 @@ export function ReplayView({ parsed }: { parsed: ParsedSession }) {
           return Math.abs(clientX - center) <= blockRadius;
         });
         if (block) {
-          setInstantIndex(null);
+          setStepIndex(null);
           seekClock(progressAt(film, block.event?.at ?? block.firstAt, PLAYBACK_MODE));
           return;
         }
       }
       const next = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-      setInstantIndex(null);
+      setStepIndex(null);
       seekClock(next);
     },
     [binCount, density, film, seekClock]
@@ -654,6 +687,7 @@ export function ReplayView({ parsed }: { parsed: ParsedSession }) {
     }
     event.preventDefault();
     const step = event.key === "ArrowRight" ? 0.01 : -0.01;
+    setStepIndex(null);
     seekClock(clock.progress + step);
   };
 
@@ -662,10 +696,11 @@ export function ReplayView({ parsed }: { parsed: ParsedSession }) {
     setSkipPauses(next);
     if (
       next &&
-      instantIndex === null &&
+      !stepHolds &&
       frame.gap &&
       frame.gap.end - frame.gap.start >= SKIP_PAUSE_MS
     ) {
+      setStepIndex(null);
       seekClock(progressAt(film, frame.gap.end, PLAYBACK_MODE));
     }
   };
@@ -706,7 +741,7 @@ export function ReplayView({ parsed }: { parsed: ParsedSession }) {
   };
 
   const pauseText =
-    frame.gap !== null && instantIndex === null
+    frame.gap !== null && !stepHolds
       ? `停顿中（${formatClock(frame.gap.start, true)} 至 ${formatClock(
           frame.gap.end,
           true
@@ -813,16 +848,9 @@ export function ReplayView({ parsed }: { parsed: ParsedSession }) {
       ? null
       : `约 ${speed >= 10 ? Math.round(speed) : speed.toFixed(1)}×，${filmSeconds} 秒看完`;
 
-  const canPrev =
-    canStep &&
-    (zeroSpan
-      ? stageIndex > 0
-      : stageEvent !== null && frame.at > film.events[0].at);
-  const canNext =
-    canStep &&
-    (zeroSpan
-      ? stageIndex < film.events.length - 1
-      : stageIndex >= 0 && frame.at < film.events[film.events.length - 1].at);
+  // Both buttons follow the step cursor's unit (events, not instants).
+  const canPrev = canStep && stageIndex >= 0;
+  const canNext = canStep && stageIndex < film.events.length - 1;
 
   const filmSecondItems: SegmentedItem<FilmSeconds>[] = FILM_SECONDS.map((value) => ({
     value,
@@ -832,7 +860,7 @@ export function ReplayView({ parsed }: { parsed: ParsedSession }) {
   }));
 
   const valueText = (() => {
-    if (frame.gap && instantIndex === null) {
+    if (frame.gap && !stepHolds) {
       return `${formatClock(frame.at, true)}，${pauseText}`;
     }
     if (!stageEvent) return `${formatClock(film.start, true)}，第一个事件之前`;
@@ -845,7 +873,7 @@ export function ReplayView({ parsed }: { parsed: ParsedSession }) {
     <div className={styles.replay} data-probe="replay-root" onKeyDown={onViewKeyDown}>
       <section className={styles.screen} aria-label="重放舞台">
         <div className={styles.stage} data-probe="replay-stage">
-          {frame.gap && instantIndex === null && stageEvent ? (
+          {frame.gap && !stepHolds && stageEvent ? (
             <div className={styles.pause}>
               <h3 className={styles.pauseTitle}>停顿 {formatPause(frame.gap.end - frame.gap.start)}</h3>
               <p className={styles.pauseRow}>
@@ -1077,7 +1105,7 @@ export function ReplayView({ parsed }: { parsed: ParsedSession }) {
                     laneWidth={laneWidth}
                     film={film}
                     onSeek={(target) => {
-                      setInstantIndex(null);
+                      setStepIndex(null);
                       seekClock(progressAt(film, target, PLAYBACK_MODE));
                     }}
                   />
@@ -1093,7 +1121,7 @@ export function ReplayView({ parsed }: { parsed: ParsedSession }) {
                       aria-label={`合并跃点：${labels.join("、")}`}
                       title={labels.join("、")}
                       onClick={() => {
-                        setInstantIndex(null);
+                        setStepIndex(null);
                         seekClock(progressAt(film, at, PLAYBACK_MODE));
                       }}
                     >

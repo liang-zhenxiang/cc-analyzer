@@ -502,6 +502,119 @@ describe("ReplayView — keyboard", () => {
     expect(screen.getByRole("button", { name: "播放" })).toBeInTheDocument();
   });
 
+  // Defect A (browser repro, /repo/errors): after Home the head sits before the
+  // first event, and a time-based 「next」 stepped onto the last event of the
+  // first instant — the first event card could never be reached.
+  it("steps onto the first event from before it, even when two events share an instant", () => {
+    render(
+      <ReplayView
+        parsed={parsedOf([
+          // A filtered compact summary keeps `film.start` before the first row
+          // without producing an event of its own, exactly like a real log.
+          recordOf({
+            id: "c1",
+            fullId: "c1",
+            kind: "user",
+            timestamp: T0,
+            text: "压缩摘要",
+            compactSummary: true
+          }),
+          userRecord("u1", T0 + 10_000, "第一条"),
+          toolRecord("t1", T0 + 10_000, { command: "ls" }),
+          assistantRecord("a1", T0 + 40_000, { text: "收尾" })
+        ])}
+      />
+    );
+
+    fireEvent.keyDown(root(), { key: "Home" });
+    expect(lane()).toHaveAttribute("aria-valuenow", "0");
+    expect(within(stageCard()).getByText("还没有事件")).toBeInTheDocument();
+    expect(within(stageCard()).getByText("播放头在第一个事件之前。")).toBeInTheDocument();
+
+    fireEvent.keyDown(root(), { key: "ArrowRight" });
+    expect(within(stageCard()).getByText("第 1 / 3 条")).toBeInTheDocument();
+    expect(within(stageCard()).getByText("同刻 1 / 2")).toBeInTheDocument();
+    expect(lane()).toHaveAttribute("aria-valuenow", "25");
+    expect(lane().getAttribute("aria-valuetext")).toContain("第 1 / 3 条");
+
+    fireEvent.keyDown(root(), { key: "ArrowRight" });
+    expect(within(stageCard()).getByText("第 2 / 3 条")).toBeInTheDocument();
+    expect(within(stageCard()).getByText("同刻 2 / 2")).toBeInTheDocument();
+    expect(lane()).toHaveAttribute("aria-valuenow", "25");
+
+    // The pair is a stable round trip: back to 「before the first event」 and in
+    // again, without ever skipping the first card.
+    fireEvent.keyDown(root(), { key: "ArrowLeft" });
+    expect(within(stageCard()).getByText("第 1 / 3 条")).toBeInTheDocument();
+    fireEvent.keyDown(root(), { key: "ArrowLeft" });
+    expect(within(stageCard()).getByText("还没有事件")).toBeInTheDocument();
+    expect(lane()).toHaveAttribute("aria-valuenow", "0");
+    fireEvent.keyDown(root(), { key: "ArrowRight" });
+    expect(within(stageCard()).getByText("第 1 / 3 条")).toBeInTheDocument();
+    expect(lane()).toHaveAttribute("aria-valuenow", "25");
+  });
+
+  // Defect B (browser repro, /repo/demo): the last two events share the film's
+  // final timestamp, so 「previous」 by time kept re-landing on the same instant
+  // and 「同刻 1 / 2」 was unreachable.
+  it("walks back through events that share the film's final instant", () => {
+    render(
+      <ReplayView
+        parsed={parsedOf([
+          userRecord("u1", T0, "开始"),
+          assistantRecord("a1", T0 + 20_000, { text: "中间" }),
+          toolRecord("t1", T0 + 60_000, { command: "npm test", durationMs: 1000 }),
+          toolRecord("t2", T0 + 60_000, { command: "npm lint" })
+        ])}
+      />
+    );
+
+    fireEvent.keyDown(root(), { key: "End" });
+    expect(within(stageCard()).getByText("第 4 / 4 条")).toBeInTheDocument();
+    expect(within(stageCard()).getByText("同刻 2 / 2")).toBeInTheDocument();
+    expect(lane()).toHaveAttribute("aria-valuenow", "100");
+
+    fireEvent.keyDown(root(), { key: "ArrowLeft" });
+    expect(within(stageCard()).getByText("第 3 / 4 条")).toBeInTheDocument();
+    expect(within(stageCard()).getByText("同刻 1 / 2")).toBeInTheDocument();
+    // Same instant, so the head must not move while the card changes.
+    expect(lane()).toHaveAttribute("aria-valuenow", "100");
+
+    fireEvent.keyDown(root(), { key: "ArrowLeft" });
+    expect(within(stageCard()).getByText("第 2 / 4 条")).toBeInTheDocument();
+    expect(within(stageCard()).queryByText("同刻 1 / 2")).not.toBeInTheDocument();
+    expect(lane()).toHaveAttribute("aria-valuenow", "33");
+  });
+
+  it("steps by time while playing and by event index once paused", () => {
+    vi.useFakeTimers();
+    render(<ReplayView parsed={standardParsed()} />);
+
+    fireEvent.keyDown(root(), { key: " " });
+    act(() => {
+      vi.advanceTimersByTime(45_000);
+    });
+    expect(within(stageCard()).getByText("停顿 30 秒")).toBeInTheDocument();
+
+    // Mid-playback a step still follows the clock: it lands on the event that
+    // opened the pause, not on a remembered index.
+    fireEvent.keyDown(root(), { key: "ArrowLeft" });
+    expect(lane()).toHaveAttribute("aria-valuenow", "50");
+    expect(within(stageCard()).getByText("第 3 / 4 条")).toBeInTheDocument();
+
+    // The clock was not interrupted by the step.
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(lane()).toHaveAttribute("aria-valuenow", "67");
+
+    fireEvent.keyDown(root(), { key: " " });
+    expect(screen.getByRole("button", { name: "播放" })).toBeInTheDocument();
+    fireEvent.keyDown(root(), { key: "ArrowRight" });
+    expect(within(stageCard()).getByText("第 4 / 4 条")).toBeInTheDocument();
+    expect(lane()).toHaveAttribute("aria-valuenow", "100");
+  });
+
   it("nudges the head by 1% with Shift+←/→ on the lane", () => {
     render(<ReplayView parsed={standardParsed()} />);
 
