@@ -64,7 +64,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           # 刻意不用 npm 缓存（CI 的日常构建才用）：
           # release 产物要分发给用户，缓存是「投毒的缓存 → 带毒的产物」的
@@ -117,7 +117,7 @@ jobs:
           fi
 
       - name: 上传构建产物
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           # artifact 名用 dist 目录名（dist-arm64 / dist-intel / dist-windows），
           # 汇总 job 按 dist-* 通配下载
@@ -153,7 +153,7 @@ jobs:
           fetch-depth: 0
 
       - name: 下载全部构建产物
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: artifacts
           pattern: dist-*
