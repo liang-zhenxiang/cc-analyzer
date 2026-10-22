@@ -1,0 +1,387 @@
+/* 会话账单（Round BB）：一张卡 = 收据 + 按模型 + 缓存经济学 + 最贵五次。
+   卡内只有一个纵向滚动容器；颜色/间距/字号一律走既有令牌，零新增。 */
+
+/* 接管 Panel 的三段链（照 ChangedFilesView）：Panel 的 .body 没有
+   flex-grow，缺这条链内容会被 .panel{overflow:hidden} 静默剪掉。 */
+.root {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+.root > section {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.root > section > div {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+}
+.bodyWrap {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+}
+
+/* 滚动容器 + 贴底的静态渐隐提示。包装层只提供定位上下文：不占额外的
+   纵向空间，滚动视口的高度仍由 .scroll 决定。 */
+.scrollWrap {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+}
+
+/* 只在还能往下滚时渲染（见组件里的 scroll/ResizeObserver）。纯覆盖层：
+   不参与布局，因此不影响行高与右沿门禁；没有动画，也就没有
+   prefers-reduced-motion 分支。 */
+.fade {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: var(--sp-5);
+  /* 收在卡面本色上：Panel 的底是 --bg-subtle；--bg-elevated 在深色主题下
+     比卡面亮一档（#1a1d21 vs #14161a），会把这个提示显示成一条亮带。
+     不透明层压到只覆盖底部约 10px：上沿不压字，只在折线处化开。 */
+  background: linear-gradient(to bottom, transparent 0%, transparent 25%, var(--bg-subtle) 100%);
+  pointer-events: none;
+}
+
+/* 卡内唯一的纵向滚动容器。overscroll-behavior 必须 contain：滚到底不得把
+   滚动链传给页面，否则 960 窄窗会出现第二条竖轴。 */
+.scroll {
+  flex: 1 1 auto;
+  min-height: 120px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-faint) transparent;
+}
+.scroll::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+}
+.scroll::-webkit-scrollbar-thumb {
+  border-radius: var(--r-xs);
+  background: var(--text-faint);
+}
+.scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-inset);
+}
+
+/* 常驻脚注在滚动区外：滚到最贵五次时「估算，不是账单」仍在屏幕上。 */
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* ---------------- 收据 ---------------- */
+
+.receipt {
+  margin: 0;
+}
+
+.receiptTable {
+  width: 100%;
+  border-collapse: separate; /* 不是 collapse：折叠边界会吃掉半像素，行高 28.5/28 交替 */
+  border-spacing: 0;
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+}
+.receiptTable thead th {
+  padding: 0 0 var(--sp-1);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-weight: 400;
+  text-align: right;
+  white-space: nowrap;
+}
+.receiptTable thead th:first-child {
+  text-align: left;
+}
+.receiptTable th[scope="row"] {
+  width: 100%; /* 吸收余量，点线才有东西可填 */
+  padding: var(--sp-1) var(--sp-3) var(--sp-1) 0;
+  color: var(--text);
+  font-weight: 400;
+  text-align: left;
+  white-space: nowrap;
+}
+.receiptTable td {
+  padding: var(--sp-1) 0 var(--sp-1) var(--sp-3);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.receiptTable td.sum {
+  color: var(--text);
+}
+.receiptTable tfoot th,
+.receiptTable tfoot td {
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--border-strong);
+}
+.receiptTable tfoot th {
+  font-weight: 600;
+}
+.totalAmount {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: var(--lh-md);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.subjectFlex {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+  width: 100%;
+}
+.leader {
+  flex: 1 1 auto;
+  height: 0;
+  border-bottom: 1px dotted var(--text-faint);
+  transform: translateY(-0.28em);
+}
+
+/* 占比 = 数字 + 细条。这层 span 还负责把行高定死：6px 的 inline 条会按
+   vertical-align: middle 撑高行盒，同一张表会冒出两种行高。 */
+.shareFlex {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  height: var(--lh-base);
+}
+.bar {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--r-xs);
+  background: var(--border-strong);
+}
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-xs);
+  background: var(--chart-1);
+}
+/* 高对比度：轨道退到卡面内部色，边界交给 1px 环——否则填充对轨道只有 1.19 */
+:global([data-contrast="high"]) .bar {
+  background: var(--bg-inset);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+.shareText {
+  flex: 0 0 auto;
+  min-width: 44px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-align: right;
+}
+
+.ledgerEmpty {
+  margin: var(--sp-2) 0 0;
+  color: var(--text);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+}
+.unpriced {
+  margin: var(--sp-15) 0 0;
+  color: var(--warning);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* ---------------- 分区 ---------------- */
+
+.section {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border);
+}
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-2);
+}
+.sectionHead h3 {
+  margin: 0;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  line-height: var(--lh-base);
+}
+.sectionMeta {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.note {
+  margin: var(--sp-15) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* ---------------- 两张紧凑表 ---------------- */
+
+.grid {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+.grid thead th {
+  padding: 0 0 var(--sp-1);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-weight: 400;
+  text-align: right;
+  white-space: nowrap;
+}
+.grid thead th:first-child {
+  text-align: left;
+}
+.grid tbody th {
+  width: 100%;
+  padding: var(--sp-1) var(--sp-2) var(--sp-1) 0;
+  color: var(--text);
+  font-weight: 400;
+  text-align: left;
+  white-space: nowrap;
+}
+.grid td {
+  padding: var(--sp-1) 0 var(--sp-1) var(--sp-2);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.grid td.sum {
+  color: var(--text);
+}
+.grid td.sumUnknown {
+  color: var(--text-tertiary);
+}
+
+/* 模型名用 CSS 省略号封顶：10em 给的是上界，表宽与 id 长度无关。 */
+.modelName {
+  display: inline-block;
+  max-width: 10em;
+  overflow: hidden;
+  margin-right: var(--sp-2);
+  color: var(--text);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+.modelMeta {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 最贵五次：行内按钮 + ::after 覆盖层 = 整行可点，但表格语义不丢。 */
+.top tbody tr {
+  position: relative;
+}
+.top tbody tr:hover {
+  background: var(--bg-hover);
+}
+.top tbody tr {
+  transition: background-color var(--dur-hover) var(--ease-out);
+}
+.jump {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.jump::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.jump:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-inset);
+}
+.grid td.topModel {
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+}
+
+/* ---------------- 缓存经济学三格 ---------------- */
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3) var(--sp-5);
+  margin: 0;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-05);
+}
+.statName {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+.statValue {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: var(--lh-md);
+  font-variant-numeric: tabular-nums;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

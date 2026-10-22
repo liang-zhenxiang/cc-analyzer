@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-20T17:00:53.262Z",
-  "commit": "679b33f+dirty",
+  "generatedAt": "2026-10-22T18:17:41.778Z",
+  "commit": "1a28f2f+dirty",
   "dirty": true,
   "files": [
     "analyzer-empty-dark-webkit.png",
@@ -43,6 +43,10 @@
     "context-empty-light.png",
     "context-light-webkit.png",
     "context-light.png",
+    "cost-dark-webkit.png",
+    "cost-dark.png",
+    "cost-light-webkit.png",
+    "cost-light.png",
     "error-events-dark-webkit.png",
     "error-events-dark.png",
     "error-events-light-webkit.png",

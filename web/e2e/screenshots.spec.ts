@@ -7,6 +7,7 @@ import {
   APP_VERSION,
   toolCensusScenario,
   compactScenario,
+  costScenario,
   errorScenario,
   changedFilesScenario,
   calendarScenario,
@@ -151,6 +152,8 @@ const V_MONITOR_CONSOLE = declareView("monitor-console");
 const V_BLEED = declareView("bleed");
 // 重放（Round AA）
 const V_REPLAY = declareView("replay");
+// 会话账单（Round BB）
+const V_COST = declareView("cost");
 
 /** 主题在 ThemeProvider 初始化时读 localStorage，所以要在页面脚本之前埋好。 */
 async function useTheme(page: Page, theme: "light" | "dark") {
@@ -771,6 +774,43 @@ test.describe("截图归档 · 重放", () => {
 
       await settleImages(page);
       await page.screenshot({ path: path.join(OUT_DIR, `${V_REPLAY}-${theme}${suffix}.png`) });
+    });
+  }
+});
+
+
+// 会话账单（Round BB）：/repo/cost 夹具（3 个模型、四类科目全非零、$0.005
+// 的缓存读取小计与「另有 2 次调用未计入」）。截的是收据 + 按模型两段——
+// 账单页最常被看的就是这两块；最贵五次在卡内滚动之下，不强行拉进来。
+test.describe("截图归档 · 会话账单", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: costScenario() });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`账单 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+
+      await page.goto("/");
+      await page.getByPlaceholder("搜会话 ID 或目录…").fill("/repo/cost");
+      await sessionItems(page).first().click();
+      await expect(page.getByLabel("会话图状态")).toContainText("会话图已加载", { timeout: 15_000 });
+      await page.waitForTimeout(300);
+
+      await page.getByRole("tab", { name: "账单", exact: true }).click();
+      await expect(page.locator("[data-probe='cost-root']")).toBeVisible();
+      await expect(page.getByLabel("费用收据")).toContainText("230,000");
+      await expect(page.getByLabel("费用收据")).toContainText("$0.005");
+      await page.waitForTimeout(250);
+
+      await settleImages(page);
+      await page.screenshot({ path: path.join(OUT_DIR, `${V_COST}-${theme}${suffix}.png`) });
     });
   }
 });

@@ -53,12 +53,36 @@ tokens apart, and unknown pricing says so rather than reporting `$0.00`. Jump
 points are computed, not curated: first failure, costliest minute, longest
 pause, every compaction.
 
+![CC Analyzer's session cost ledger: a receipt table over four token classes with tokens, unit price (≈ marks a weighted average), share bars and subtotals, a total row reading $2.18, a line saying 2 calls were left out, a per-model breakdown whose unpriced model shows an em dash, cache economics with hit rate and estimated savings, and a persistent footer reading "估算，不是账单 · 定价快照 2026-10-01"](docs/screenshots/cost-light.png)
+
+Cost ledger — where the money went, split by token class. Input, output,
+cache-write and cache-read are priced an order of magnitude apart ($3, $15,
+$3.75 and $0.30 per million on Sonnet), so one "total tokens" figure times one
+average price gets both numbers wrong. The receipt prices each class, states
+its share, and refuses to print a unit price on the total row — summing four
+prices has no meaning. Money has its own format here: unknown is `—`, a real
+zero is `$0.00`, and `$0.0045` prints as `$0.005` instead of rounding away to
+`$0.00`.
+
 Every screen, in both light and dark themes, is archived in
 [`docs/screenshots/`](docs/screenshots).
 
 ## Features
 
-- **Session replay (new)** — time is the one dimension this app never turned
+- **Cost ledger (new)** — the app mentioned money in a dozen places but never
+  made it the subject. A session's spend is four counters whose prices differ
+  by an order of magnitude, so the ledger prices all four separately: input,
+  output, cache-write and cache-read, each with its share of the bill. A
+  weighted `≈` unit price appears only when the session spans model tiers, and
+  the total row prints an em dash where a unit price would go — four prices
+  averaged is a number that means nothing. Unknown pricing and a missing usage
+  reading are two different facts, and they get two different sentences. The
+  per-model block shows which model actually cost the money; cache economics
+  reports hit rate, read volume and the estimated saving, all computed over
+  priced calls only; the five most expensive calls jump straight back to their
+  log row. Zero new Tauri commands, zero new network requests, zero new
+  permissions, zero new colour tokens.
+- **Session replay** — time is the one dimension this app never turned
   into an axis: every other view flattens events into equal-height rows, so a
   two-minute pause and a batch call occupy the same space. Replay turns a
   session into a fixed 30 / 60 / 120 second film (60 by default). The
@@ -423,6 +447,10 @@ The roadmap tracks open issues; each item links to the issue that owns it.
   and jump points (first error, costliest minute, longest pause, every
   compaction) (merged; ships in v0.29.0)
   ([#246](https://github.com/liang-zhenxiang/cc-analyzer/issues/246))
+- [x] Session cost ledger — split one session's money by token class, model and
+  the five most expensive calls, with unit price three-state (single tier,
+  weighted `≈`, or none) and no fake zeros (ships in v0.30.0)
+  ([#251](https://github.com/liang-zhenxiang/cc-analyzer/issues/251))
 - [ ] Frontend upgrade to React 19, moving `@types/react` / `@types/react-dom`
   together
   ([#19](https://github.com/liang-zhenxiang/cc-analyzer/issues/19))
