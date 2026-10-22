@@ -44,10 +44,11 @@
   right: 0;
   bottom: 0;
   left: 0;
-  height: var(--sp-6);
+  height: var(--sp-5);
   /* 收在卡面本色上：Panel 的底是 --bg-subtle；--bg-elevated 在深色主题下
-     比卡面亮一档（#1a1d21 vs #14161a），会把这个提示显示成一条亮带。 */
-  background: linear-gradient(to bottom, transparent, var(--bg-subtle));
+     比卡面亮一档（#1a1d21 vs #14161a），会把这个提示显示成一条亮带。
+     不透明层压到只覆盖底部约 10px：上沿不压字，只在折线处化开。 */
+  background: linear-gradient(to bottom, transparent 0%, transparent 25%, var(--bg-subtle) 100%);
   pointer-events: none;
 }
 
