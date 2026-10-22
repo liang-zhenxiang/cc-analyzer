@@ -23,6 +23,7 @@ import { ContextView, type ContextRevealRequest } from "./ContextView";
 import { ChangedFilesView } from "./ChangedFilesView";
 import { BleedView } from "./BleedView";
 import { ReplayView } from "./ReplayView";
+import { CostLedgerView } from "./CostLedgerView";
 import { ParseCoverageChip } from "./ParseCoverageChip";
 import { emptyFilter, type RecordFilter, type TimeRange } from "./filters";
 import { parseJsonlTextAsync } from "./parseJsonl";
@@ -42,7 +43,7 @@ import { buildBleedReport } from "./bleedModel";
 import type { ParsedSession, ParsedSessionGraph, SessionRecord } from "./types";
 import styles from "./SessionAnalyzerPage.module.css";
 
-type AnalyzerView = "log" | "tree" | "context" | "changes" | "bleed" | "replay";
+type AnalyzerView = "log" | "tree" | "context" | "changes" | "bleed" | "replay" | "cost";
 
 const ANALYZER_VIEW_ITEMS: SegmentedItem<AnalyzerView>[] = [
   { value: "log", label: "日志视图" },
@@ -50,7 +51,8 @@ const ANALYZER_VIEW_ITEMS: SegmentedItem<AnalyzerView>[] = [
   { value: "context", label: "上下文" },
   { value: "changes", label: "改动" },
   { value: "bleed", label: "出血点" },
-  { value: "replay", label: "重放" }
+  { value: "replay", label: "重放" },
+  { value: "cost", label: "账单" }
 ];
 
 const VIEW_STORAGE_KEY = "cca-analyzer-view";
@@ -62,7 +64,8 @@ function readStoredView(): AnalyzerView {
       stored === "context" ||
       stored === "changes" ||
       stored === "bleed" ||
-      stored === "replay"
+      stored === "replay" ||
+      stored === "cost"
       ? stored
       : "log";
   } catch {
@@ -583,16 +586,18 @@ export function SessionAnalyzerPage({
               {tokenPanelOpen ? (
                 <TokenPanel records={parsed.records} isSubagent={parsed.isSubagent} />
               ) : null}
-              {/* 上下文 / 改动 / 出血点 / 重放标签页不渲染时间线与筛选：四者的口径都是
-                  会话级全量（压缩取证 =「压缩点之前全部消息 − 幸存清单」；改动清单 =
+              {/* 上下文 / 改动 / 出血点 / 重放 / 账单标签页不渲染时间线与筛选：五者的口径
+                  都是会话级全量（压缩取证 =「压缩点之前全部消息 − 幸存清单」；改动清单 =
                   「通过文件工具动过的文件」；出血点 =「每条消息在压缩时的 token 归属」；
-                  重放 =「整段会话按墙钟压成一条胶片」），记录级筛选会让口径漂移
-                  （context design §2.1/§9-5，changes 裁决 #2、bleed design §2 同款理由，
-                  replay design §1：时间线混入会让倍速读数失真）。 */}
+                  重放 =「整段会话按墙钟压成一条胶片」；账单 =「本次会话四类 token 的账」），
+                  记录级筛选会让口径漂移（context design §2.1/§9-5，changes 裁决 #2、
+                  bleed design §2 同款理由，replay design §1、cost design §2.1：账单只对
+                  整场会话求和，筛选后的金额不是这张收据的钱）。 */}
               {view === "context" ||
               view === "changes" ||
               view === "bleed" ||
-              view === "replay" ? null : (
+              view === "replay" ||
+              view === "cost" ? null : (
                 <>
                   <TimelineTrack
                     session={parsed}
@@ -662,6 +667,8 @@ export function SessionAnalyzerPage({
                   <BleedView parsed={parsed} />
                 ) : view === "replay" ? (
                   <ReplayView parsed={parsed} />
+                ) : view === "cost" ? (
+                  <CostLedgerView parsed={parsed} onLocateInLog={locateInLog} />
                 ) : (
                   <ContextView
                     parsed={parsed}

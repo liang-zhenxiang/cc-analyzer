@@ -585,6 +585,55 @@ test("重放标签页隐藏时间线与筛选，选择被持久化", async () =>
   expect(await screen.findByRole("application", { name: "时间轨道" })).toBeInTheDocument();
 });
 
+test("账单标签页隐藏时间线与筛选，选择被持久化", async () => {
+  window.localStorage.clear();
+  const user = userEvent.setup();
+  const first = render(
+    <BridgesProvider bridges={createBridges()}>
+      <NotificationProvider>
+        <SessionAnalyzerPage />
+      </NotificationProvider>
+    </BridgesProvider>
+  );
+
+  await user.click(await screen.findByRole("button", { name: /project-a/ }));
+  expect(await screen.findByRole("application", { name: "时间轨道" })).toBeInTheDocument();
+
+  // 第 7 个标签，排在「重放」之后。
+  const viewBar = screen.getByRole("tablist", { name: "视图切换" });
+  const tabs = within(viewBar).getAllByRole("tab");
+  expect(tabs).toHaveLength(7);
+  expect(tabs[6]).toHaveTextContent("账单");
+
+  await user.click(screen.getByRole("tab", { name: "账单" }));
+
+  // 默认桥接只有一条用户记录：没有带 usage 的助手记录，账单如实说没有可估的账。
+  expect(await screen.findByText("本会话没有模型调用")).toBeInTheDocument();
+  // 与 context/changes/bleed/replay 同款理由：账单只对整场会话求和，筛选会让金额漂移。
+  expect(screen.queryByRole("application", { name: "时间轨道" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "记录筛选" })).not.toBeInTheDocument();
+  expect(window.localStorage.getItem("cca-analyzer-view")).toBe("cost");
+
+  // 「刷新」：卸载后重新挂载，视图从 localStorage 恢复到账单。
+  first.unmount();
+  render(
+    <BridgesProvider bridges={createBridges()}>
+      <NotificationProvider>
+        <SessionAnalyzerPage />
+      </NotificationProvider>
+    </BridgesProvider>
+  );
+  await user.click(await screen.findByRole("button", { name: /project-a/ }));
+  expect(await screen.findByRole("tab", { name: "账单" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  );
+  expect(await screen.findByText("本会话没有模型调用")).toBeInTheDocument();
+
+  await user.click(screen.getByRole("tab", { name: "日志视图" }));
+  expect(await screen.findByRole("application", { name: "时间轨道" })).toBeInTheDocument();
+});
+
 test("enters a child session from the tree view", async () => {
   window.localStorage.clear();
   const user = userEvent.setup();
