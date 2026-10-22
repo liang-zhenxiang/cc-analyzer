@@ -431,3 +431,135 @@ export function buildCostLedger(records: readonly SessionRecord[]): CostLedger {
     pricingAsOf: PRICING_AS_OF
   };
 }
+
+// ---------------------------------------------------------------------------
+// 呈现层：金额格式与单价三态
+//
+// 这三件事**必须**和账单算在一起，不能留给界面自己判断（设计规格 §2.3 /
+// §2.4 / §15.1 第 2 步）。理由都是同一个：每一个「看起来像格式化」的分支，
+// 实际上都是一条关于「未知 / 真零 / 很小」的语义判断。散在组件里，同一个
+// 判断会被写两遍、并在第二遍漂移；写在这里，它只有一处、且可被单测钉死。
+// ---------------------------------------------------------------------------
+
+/**
+ * 账单专用金额。null 是「不知道」，0 是「真零」，两者绝不共用一种写法。
+ *
+ * 为什么不能用全站的 `formatUsd`：它把 `0 < x < 0.01` 印成 `$0.00`。缓存读取
+ * 单价是 $0.10~$1.50/百万，一次读 5,000 token 只花 $0.0015——在账单上会被印成
+ * 「免费」，而那正是这张卡要回答的问题。
+ *
+ * 六个分支**按顺序**判，顺序本身就是规格（§2.3）：
+ * 1. null / 非有限 → `—`：未知不是免费。
+ * 2. 恰好 0 → `$0.00`：真零允许出现（0 token 的科目）。
+ * 3. 三位小数会印成 `$0.000` → `<$0.001`：否则又是一次假零。
+ * 4. 三位小数仍 < $0.01 → `$` + 三位小数（`$0.004`）：收据的小计要能被手算
+ *    相加，`<$0.01` 是区间、加不出合计。
+ * 5. < $1000 → `$` + 两位小数：与全站金额同形。
+ * 6. ≥ $1000 → 千分位整数（`$1,234`）：与 `formatUsd` 的写法一致。
+ *
+ * 第 3/4 条判的是**四舍五入后的三位小数**，不是原始值。规格表里第 4 条写的是
+ * `x < 0.01`，但同一节的例子要求 `0.00999 → $0.01`（「先算 toFixed(3)=0.010，
+ * 不落第 4 条」）——按字面条件 `0.00999 < 0.01` 会落进第 4 条印出 `$0.010`，
+ * 与例子和「单调、不出现 $0.010」的目标都相反。这里以例子与目标为准：只要
+ * 三位小数的结果 ≥ 0.01，就交给第 5 条，保证 `$0.010` 这种写法永不出现。
+ */
+export function formatLedgerUsd(usd: number | null): string {
+  if (usd === null || !Number.isFinite(usd)) return "—";
+  if (usd === 0) return "$0.00";
+
+  // 负数不在契约内（账单里的每一条都是「花了多少」），这里不设分支：
+  // 一旦上游算出负数，应当带着 `$-0.50` 这种明显错误的字符串暴露出来。
+  if (usd > 0) {
+    const rounded3 = Number(usd.toFixed(3));
+    if (rounded3 === 0) return "<$0.001";
+    if (rounded3 < 0.01) return `$${usd.toFixed(3)}`;
+  }
+
+  if (usd < 1000) {
+    // 999.995 的两位小数是 1000.00：与下端 0.00999 同理，按**四舍五入后的
+    // 值**决定格式，免得同一个数量级出现 `$1000.00` 与 `$1,000` 两种写法。
+    if (Number(usd.toFixed(2)) < 1000) return `$${usd.toFixed(2)}`;
+  }
+  // 千分位只为可读性：金额单位是 USD，货币符号与分组由这里统一。
+  return `$${Math.round(usd).toLocaleString("en-US")}`;
+}
+
+/**
+ * 单价格：单档 = 价目，多档 = 加权均价（带 `≈` 前缀），无量 = `—`。
+ *
+ * `weighted` 由 `classUnitPrice` 决定，不由界面猜：读者看到干净的 `$15.00`
+ * 时，没有任何线索告诉他是「Opus 的价目」还是「一堆模型混出来的平均数」，
+ * 而这两个意思完全不同（§2.4）。
+ *
+ * 两位小数够用且安全：价目表最低 $0.10/百万、最高 $75/百万，任何加权均价都
+ * 落在 [0.10, 75]，所以这里**永远不会**印出带 `≈` 的 `$0.00`。
+ */
+export function formatLedgerRate(rate: number | null, weighted: boolean): string {
+  if (rate === null || !Number.isFinite(rate)) return "—";
+  return `${weighted ? "≈" : ""}$${rate.toFixed(2)}`;
+}
+
+/**
+ * 占比格：把「很小」与「没有」分开。
+ *
+ * `tokens > 0` 这个守卫必须有：没有它，`0 token / share 0` 会被印成
+ * `<0.1%`（「有一点点」），而真值是「没有」。反过来 `tokens > 0` 但占比
+ * 小到 0.049% 时，`0.0%` 会被读成「没有」，所以那一段换成 `<0.1%`。
+ *
+ * `share` 非有限时按 0 处理（上游已保证有限，这里只防 NaN 印在屏幕上）。
+ */
+export function formatSharePercent(share: number, tokens: number): string {
+  const percent = Number.isFinite(share) ? share * 100 : 0;
+  if (tokens > 0 && percent < 0.05) return "<0.1%";
+  return `${percent.toFixed(1)}%`;
+}
+
+/**
+ * 某科目的单价格三态（§2.4 的裁决收进纯函数，界面不许自己判断）。
+ *
+ * - `none`：该科目 0 token（本会话根本没用量），或一件可定价调用都没有。
+ *   界面渲染 `—`；`value` 为 null 让「不知道」无法被误用成 0。
+ * - `rate`：可定价且**只有一档**（一个 family）。此时 `usd / tokens × 1M`
+ *   精确等于价目表里那一档的单价，所以它不是近似值而是价目本身——这才敢
+ *   不加 `≈`。`value` 直接取 `classRate`（价目表原文），避免用累加除出来的
+ *   3.0000000000000004 去格式化；两者相等由测试断言。
+ * - `weighted`：跨档。`value = usd / tokens × 1M`，是「按实际用量加权」的
+ *   均价，界面必须带 `≈`。
+ *
+ * family 集合 `F` 由 `ledger.models` 算：`family !== null`（可定价）且该科目
+ * `tokens > 0`。未定价模型的 token 不进 `classes[].tokens`（口径 3），所以它
+ * 天然不参与加权，也不需要在这里再排一次。
+ */
+export type LedgerUnitPrice =
+  | { kind: "none"; value: null }
+  | { kind: "rate"; value: number; family: ModelFamily }
+  | { kind: "weighted"; value: number };
+
+export function classUnitPrice(ledger: CostLedger, key: LedgerClassKey): LedgerUnitPrice {
+  if (ledger.pricedCalls === 0) return { kind: "none", value: null };
+
+  const line = ledger.classes.find((item) => item.key === key);
+  const tokens = line ? line.tokens : 0;
+  // 没有量就没有单价：不是「$0.00」，是「无从谈起」。
+  if (tokens <= 0 || !line) return { kind: "none", value: null };
+
+  // 该科目真正有量的可定价档位（同一 family 的多个模型只算一档）。
+  const families = new Set<ModelFamily>();
+  for (const entry of ledger.models) {
+    if (!entry.family) continue;
+    if (entry.tokens[key] > 0) families.add(entry.family);
+  }
+
+  const value = (line.usd / tokens) * TOKENS_PER_PRICE_UNIT;
+
+  if (families.size === 1) {
+    const [family] = [...families];
+    // 单档时 `usd / tokens` 就是价目，取表里的原文而非除出来的浮点数。
+    return { kind: "rate", value: classRate(family, key), family };
+  }
+
+  // `families.size === 0` 只在「classes 有量、models 里却没有对应档位」时出现，
+  // 由 `buildCostLedger` 的不变量排除（classes 只累加可定价 token）。真发生了
+  // 也该给出可用的均价而不是把有量的行印成 `—`，所以并回 weighted。
+  return { kind: "weighted", value };
+}
