@@ -180,6 +180,30 @@ export function compactScenario(overrides: Partial<MockScenario> = {}): MockScen
   };
 }
 
+/**
+ * 默认场景 + 账单夹具会话（/repo/cost，Round BB）。
+ *
+ * 3 个模型（Sonnet 4.5 / Opus 4.1 / GPT-5 未定价）、8 笔可定价调用 + 2 次
+ * 未计入调用（GPT-5 一笔 + 一次缺 usage）、四类科目全非零，其中缓存读取
+ * 小计 $0.003 落在 (0, 0.01)——「假零」门禁 G4 靠它。
+ *
+ * **为什么不进 `SESSION_SEEDS`**：默认场景目前恰好 8 条会话，smoke /
+ * selector-probe 的计数与全部含侧栏的归档截图都按这个数写死；把账单夹具塞进
+ * 默认场景会让「会话数」从 8 变 9，牵动本轮之外的断言与基线。这里沿用
+ * `compactScenario` / `toolCensusScenario` 的既有做法：只在需要它的场景里
+ * 追加一份会话文件，默认场景的可见集合不变。
+ */
+export function costScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  const base = defaultScenario(overrides);
+  return {
+    ...base,
+    files: {
+      ...base.files,
+      [`${HOME}/.claude/projects/-repo-cost/cost-session.jsonl`]: fixture("cost-session.jsonl")
+    }
+  };
+}
+
 /** 工具统计夹具里最新的活动日（tool-census 的 2026-10-03）——平移锚点。 */
 const TOOL_CENSUS_NEWEST_DAY = Date.UTC(2026, 9, 3);
 

@@ -1714,6 +1714,190 @@ mod gui_probe {
   }
   facts.replay = replayFacts;
 
+
+  /* 「会话账单」（Round BB）：设计 §13.1 的锚点只收**事实**——收据四行 / 合计 /
+     按模型 / 缓存经济学 / 最贵五次 的文本与矩形，金额列的右沿，卡内与页面的
+     滚动几何，当前选中的分析器标签，以及跳回日志后高亮那一行的文本。阈值与
+     判定一律留在 scripts/gui-test.sh（同 facts.replay / 脉搏 / 里程碑）。 */
+  var costFacts = {
+    present: false,
+    root: null,
+    scroll: null,
+    receipt: null,
+    models: null,
+    cache: null,
+    top: null,
+    footer: null,
+    bars: null,
+    money_right: { receipt: [], models: [], top: [] },
+    active_tab: null,
+    highlight_text: null,
+    fade_visible: false,
+    documentBox: {
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+      scrollHeight: document.documentElement.scrollHeight,
+      clientHeight: document.documentElement.clientHeight
+    }
+  };
+  var costRoot = document.querySelector("[data-probe='cost-root']");
+  if (costRoot) {
+    costFacts.present = true;
+    costFacts.root = rectOf(costRoot);
+    var costScroll = costRoot.querySelector("[data-probe='cost-scroll']");
+    if (costScroll) {
+      costFacts.scroll = {
+        clientWidth: costScroll.clientWidth,
+        scrollWidth: costScroll.scrollWidth,
+        clientHeight: costScroll.clientHeight,
+        scrollHeight: costScroll.scrollHeight
+      };
+    }
+    var costReceipt = costRoot.querySelector("[data-probe='cost-receipt']");
+    if (costReceipt) {
+      var costRows = costReceipt.querySelectorAll("[data-probe='cost-receipt-row']");
+      var costReceiptRows = [];
+      for (var cri = 0; cri < costRows.length; cri++) {
+        var costCells = costRows[cri].querySelectorAll("td");
+        costReceiptRows.push({
+          cls: costRows[cri].getAttribute("data-class"),
+          tokens: costCells[0] ? costCells[0].textContent : "",
+          rate: costCells[1] ? costCells[1].textContent : "",
+          share: costCells[2] ? costCells[2].textContent : "",
+          sum: costCells[3] ? costCells[3].textContent : "",
+          height: costRows[cri].getBoundingClientRect().height
+        });
+      }
+      var costTotal = costReceipt.querySelector("[data-probe='cost-receipt-total']");
+      var costTotalFacts = null;
+      if (costTotal) {
+        var costTotalCell = costTotal.querySelector("[data-probe='cost-money']");
+        var costTotalStyle = getComputedStyle(costTotalCell || costTotal);
+        costTotalFacts = {
+          height: costTotal.getBoundingClientRect().height,
+          sum: costTotalCell ? costTotalCell.textContent : "",
+          border_top: costTotalStyle.borderTopWidth,
+          border_style: costTotalStyle.borderTopStyle
+        };
+      }
+      /* 未计入提示在 section 里、table 外（<p> 是收据的脚注），所以从根上找。 */
+      var costUnpriced = costRoot.querySelector("[data-probe='cost-unpriced']");
+      var costMoneyNodes = costReceipt.querySelectorAll("[data-probe='cost-money']");
+      for (var cmi = 0; cmi < costMoneyNodes.length; cmi++) {
+        costFacts.money_right.receipt.push(costMoneyNodes[cmi].getBoundingClientRect().right);
+      }
+      costFacts.receipt = {
+        rows: costReceiptRows,
+        total: costTotalFacts,
+        unpriced: costUnpriced ? costUnpriced.textContent.trim() : null
+      };
+    }
+    var costModels = costRoot.querySelector("[data-probe='cost-models']");
+    if (costModels) {
+      var costModelRows = costModels.querySelectorAll("[data-probe='cost-model-row']");
+      var costModelList = [];
+      for (var cmr = 0; cmr < costModelRows.length; cmr++) {
+        var costModelCells = costModelRows[cmr].querySelectorAll("td");
+        var costModelName = costModelRows[cmr].querySelector("th strong");
+        var costModelMeta = costModelRows[cmr].querySelector("th span");
+        var costModelSum = costModelRows[cmr].querySelector("[data-probe='cost-money']");
+        if (costModelSum) {
+          costFacts.money_right.models.push(costModelSum.getBoundingClientRect().right);
+        }
+        costModelList.push({
+          name: costModelName ? costModelName.textContent : "",
+          meta: costModelMeta ? costModelMeta.textContent : "",
+          tokens: costModelCells[0] ? costModelCells[0].textContent : "",
+          output: costModelCells[1] ? costModelCells[1].textContent : "",
+          cache_write: costModelCells[2] ? costModelCells[2].textContent : "",
+          cache_read: costModelCells[3] ? costModelCells[3].textContent : "",
+          sum: costModelSum ? costModelSum.textContent : "",
+          height: costModelRows[cmr].getBoundingClientRect().height
+        });
+      }
+      costFacts.models = costModelList;
+    }
+    var costCache = costRoot.querySelector("[data-probe='cost-cache']");
+    if (costCache) {
+      costFacts.cache = (costCache.innerText || "").replace(/\s+/g, " ").trim();
+    }
+    var costTop = costRoot.querySelector("[data-probe='cost-top']");
+    if (costTop) {
+      var costTopRows = costTop.querySelectorAll("[data-probe='cost-top-row']");
+      var costTopList = [];
+      for (var ctr = 0; ctr < costTopRows.length; ctr++) {
+        var costTopButton = costTopRows[ctr].querySelector("button");
+        var costTopSum = costTopRows[ctr].querySelector("[data-probe='cost-money']");
+        if (costTopSum) {
+          costFacts.money_right.top.push(costTopSum.getBoundingClientRect().right);
+        }
+        costTopList.push({
+          clock: costTopButton ? costTopButton.textContent.trim() : "",
+          sum: costTopSum ? costTopSum.textContent : "",
+          height: costTopRows[ctr].getBoundingClientRect().height
+        });
+      }
+      costFacts.top = { rows: costTopList };
+    }
+    var costFooter = costRoot.querySelector("[data-probe='cost-footnote']");
+    if (costFooter) {
+      var costFooterRect = costFooter.getBoundingClientRect();
+      costFacts.footer = {
+        text: (costFooter.textContent || "").trim(),
+        bottom: costFooterRect.bottom,
+        root_bottom: costRoot.getBoundingClientRect().bottom
+      };
+    }
+    var costBars = costRoot.querySelectorAll("[data-probe='cost-bar']");
+    var costBarList = [];
+    var costHiddenBars = 0;
+    for (var cb = 0; cb < costBars.length; cb++) {
+      var costBarRect = costBars[cb].getBoundingClientRect();
+      if (costBarRect.width <= 0 || costBarRect.height <= 0) costHiddenBars += 1;
+      costBarList.push({ width: costBarRect.width, height: costBarRect.height });
+    }
+    costFacts.bars = { count: costBars.length, hidden: costHiddenBars, items: costBarList };
+  }
+  /* 页面里有两个 tablist（顶栏「页面切换」与分析器「视图切换」），必须限定后一个，
+     否则第一个选中项永远是顶栏的「会话分析」。 */
+  costFacts.fade_visible = !!document.querySelector("[data-probe='cost-fade']");
+  var costActiveTab = document.querySelector(
+    "[role='tablist'][aria-label='视图切换'] [role='tab'][aria-selected='true']"
+  );
+  costFacts.active_tab = costActiveTab ? (costActiveTab.textContent || "").trim() : null;
+  var costHighlight = document.querySelector(
+    "[data-probe='record-table'] tr[class*='highlight']"
+  );
+  costFacts.highlight_text = costHighlight
+    ? (costHighlight.innerText || costHighlight.textContent || "").replace(/\s+/g, " ").trim()
+    : null;
+  /* 跳回日志之后的落点：日志表自己的矩形 + 每行首格（时刻）与行中心的视口 y。
+     高亮只亮 1.6s，而每步取图前要静置 3s——探针到场时高亮已经灭了，所以判
+     「停在那条记录上」只能靠**滚动后的位置**，不能靠高亮类名。 */
+  var costLogTable = document.querySelector("[data-probe='record-table']");
+  costFacts.log = null;
+  if (costLogTable) {
+    var costLogRows = costLogTable.querySelectorAll("tbody tr");
+    var costLogRowList = [];
+    for (var clr = 0; clr < costLogRows.length; clr++) {
+      var costLogCell = costLogRows[clr].querySelector("td, th");
+      var costLogRect = costLogRows[clr].getBoundingClientRect();
+      costLogRowList.push({
+        clock: costLogCell
+          ? (costLogCell.innerText || costLogCell.textContent || "")
+              .replace(/\s+/g, " ")
+              .trim()
+          : "",
+        center: (costLogRect.top + costLogRect.bottom) / 2
+      });
+    }
+    costFacts.log = {
+      rect: rectOf(costLogTable),
+      rows: costLogRowList
+    };
+  }
+  facts.cost = costFacts;
+
   return JSON.stringify(facts);
 })();"##;
 

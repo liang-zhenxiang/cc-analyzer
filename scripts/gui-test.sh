@@ -590,6 +590,12 @@ install_fixture "${FIXTURE_SRC}/changed-files-session.jsonl" "-repo-changed-demo
 # changed-files，其 Edit/Read/Write 与前两者重类不重名），榜单行数恒为
 # Top-6 + 折尾（8 类内置），榜首恒为 Bash（7 次并列时按名字稳定排序胜出）。
 install_fixture "${FIXTURE_SRC}/tool-census-session.jsonl" "-repo-census-demo" "tool-census-session"
+# 账单夹具（Round BB）：与 web/e2e 的 costScenario 共用 tests/fixtures/cost-session.jsonl。
+# **刻意不参与平移**：它的时间戳（2025-12-30）落在全部用量窗口之外，平移会把它
+# 拉进「近 7 天」，用量 / 归因 / 日历的既有期望就全变了；门禁只需要点开这个会话。
+COST_FIXTURE_DIR="${HOME_DIR}/.claude/projects/-repo-cost"
+mkdir -p "$COST_FIXTURE_DIR"
+cp "${FIXTURE_SRC}/cost-session.jsonl" "${COST_FIXTURE_DIR}/cost-session.jsonl"
 # 消耗日历（Round V / #187）：门禁要 `点选=[data-probe='calendar-today'] button`
 # 展开当天清单，而上面全部夹具统一平移到「最新活动日 = 昨天」——今天的格子
 # 恒无数据、点不开。这里**在内存里合成**一个「今天」的会话补上（时间戳相对
@@ -929,7 +935,7 @@ else
   # localStorage 漏给下一次运行（同「字号=100%」的清理逻辑）。这一步同时落在
   # 130% 字号 + 高对比度档下（两枚旋钮在前面的步骤里已切过去、末尾才恢复），
   # 所以「HC 轨道描边」的那条断言在这里量得到。
-  CAPTURE_TARGETS=("实时监控" "脉搏" "悬浮" "点选=[data-probe='pulse-float-exit']" "监控台" "脉搏" "会话分析" "字号=130%" "对比度=高" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "点选=[data-probe='calendar-today'] button" "点选=[data-probe='calendar-today'] button" "点选=[data-tool-census-row='Bash']" "点选=[data-probe='attribution-row']" "用量总览" "视图=里程碑" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "设置=开" "导出归档包…" "取消" "对比度=普通" "字号=100%" "点选=button[aria-label='设置']" "会话分析" "/repo/demo" "重放" "点选=button[aria-label^='最长停顿']")
+  CAPTURE_TARGETS=("实时监控" "脉搏" "悬浮" "点选=[data-probe='pulse-float-exit']" "监控台" "脉搏" "会话分析" "字号=130%" "对比度=高" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "点选=[data-probe='calendar-today'] button" "点选=[data-probe='calendar-today'] button" "点选=[data-tool-census-row='Bash']" "点选=[data-probe='attribution-row']" "用量总览" "视图=里程碑" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "设置=开" "导出归档包…" "取消" "对比度=普通" "字号=100%" "点选=button[aria-label='设置']" "会话分析" "/repo/demo" "重放" "点选=button[aria-label^='最长停顿']" "/repo/cost" "账单" "点选=[data-probe='cost-top-row'] button")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
@@ -1068,10 +1074,10 @@ PY
   COUNT="$(printf '%s\n' "$CACHE_REPORT" | grep '^COUNT ' | awk '{print $2}')"
   OUTSIDE="$(printf '%s\n' "$CACHE_REPORT" | grep '^OUTSIDE ' | awk '{print $2}')"
 
-  if [[ "${COUNT:-}" == "14" ]]; then
-    ok "缓存条目数 = 14（13 个夹具 + 1 个归档副本；含消耗日历的「今天」合成会话与 3 个脉搏夹具）"
+  if [[ "${COUNT:-}" == "15" ]]; then
+    ok "缓存条目数 = 15（14 个夹具 + 1 个归档副本；含消耗日历的「今天」合成会话、3 个脉搏夹具与账单夹具）"
   else
-    bad "缓存条目数 = ${COUNT:-解析失败}，期望 14"
+    bad "缓存条目数 = ${COUNT:-解析失败}，期望 15"
     printf '  %s  %s%s\n' "$C_YELLOW" "$CACHE_REPORT" "$C_RESET"
   fi
 
@@ -1307,6 +1313,16 @@ REPLAY_FILM_HEIGHT_MIN = 100
 REPLAY_FILM_HEIGHT_MAX = 130
 REPLAY_READS_HEIGHT_MIN = 60
 REPLAY_LANE_MIN_WIDTH = 400
+# 「会话账单」（Round BB / 设计 §13.2 的 G1–G12）。夹具 cost-session.jsonl 的账：
+# 3 个模型（Sonnet 4.5 / Opus 4.1 / GPT-5 未定价）、最贵 5 笔、四类小计里含一笔
+# $0.005 的缓存读取——假零断言靠它。金额列右沿差与行高都按 100% 字号量。
+COST_TAB_LABEL = "账单"
+COST_CLASS_ROWS = 4
+COST_MONEY_RIGHT_TOLERANCE = 1
+COST_ROW_HEIGHT_TOLERANCE = 1
+COST_UNPRICED_CALLS = 2
+COST_TOP_ROWS = 5
+COST_TOP_CLICK_LABEL = "点选=[data-probe='cost-top-row'] button"
 coverage = os.environ.get("COVERAGE") == "1"
 seen_gauge = 0
 seen_table = 0
@@ -1323,6 +1339,8 @@ seen_pulse = 0
 seen_monitor_console = 0
 seen_milestones = 0
 seen_replay = 0
+seen_cost = 0
+cost_top_clock = None
 seen_float_enter = 0
 seen_float_exit = 0
 calendar_clicks = 0
@@ -2135,7 +2153,7 @@ for arg in sys.argv[1:]:
     #   改动档由 prev_label 分流（见上面改动档），工具普查由选择器里的 tool-census
     #   分流，配额归因由 ATTRIBUTION_CLICK_LABEL、浮窗退出由 PULSE_FLOAT_EXIT_LABEL
     #   分流（见各自段落）。这一条是兜底，所以每加一个「点选=」目标都要在这里点一次名。）
-    if label.startswith("点选=") and "tool-census" not in label and prev_label != CHANGES_TAB_LABEL and label != ATTRIBUTION_CLICK_LABEL and label != CALENDAR_CLICK_LABEL and label != PULSE_FLOAT_EXIT_LABEL and label not in (REPLAY_SEEK_LABEL, REPLAY_SETTINGS_CLOSE_LABEL):
+    if label.startswith("点选=") and "tool-census" not in label and prev_label != CHANGES_TAB_LABEL and label != ATTRIBUTION_CLICK_LABEL and label != CALENDAR_CLICK_LABEL and label != PULSE_FLOAT_EXIT_LABEL and label not in (REPLAY_SEEK_LABEL, REPLAY_SETTINGS_CLOSE_LABEL, COST_TOP_CLICK_LABEL):
         ctx = data.get("context") or {}
         viewport = data.get("viewport") or {}
         card = ctx.get("forensicCard")
@@ -2705,6 +2723,157 @@ for arg in sys.argv[1:]:
                     f"走带 {transport['height']:.0f}px / {replay.get('play_label')} / {gap_switch.get('pressed')}"
                 )
 
+    # 「会话账单」（Round BB）：设计 §13.2 的 G1–G12。事实来自 facts.cost；夹具
+    # cost-session.jsonl（/repo/cost）的四类小计与最贵五次都是手算的确定值，这里
+    # 写死期望、不读回来当期望。真机窗口比 e2e 的 1440×900 略窄，所以只判与宽度
+    # 无关的不变量：行高、金额列右沿的类内差、卡内滚动、页面没有第二条竖轴。
+    if label == COST_TAB_LABEL:
+        cost = data.get("cost") or {}
+        if cost.get("present") is not True:
+            print(f"BAD|{label}：账单根节点不在场（data-probe='cost-root'）——标签页没切过去，或整块没渲染")
+        else:
+            problems = []
+            receipt = cost.get("receipt") or {}
+            rows = receipt.get("rows") or []
+            expected_classes = ["input", "output", "cacheWrite", "cacheRead"]
+            expected_tokens = ["230,000", "8,100", "15,000", "11,000"]
+            expected_sums = ["$1.65", "$0.40", "$0.13", "$0.005"]
+            if len(rows) != COST_CLASS_ROWS:
+                problems.append(f"收据 {len(rows)} 行，期望 {COST_CLASS_ROWS} 行")
+            else:
+                classes = [row.get("cls") for row in rows]
+                if classes != expected_classes:
+                    problems.append(f"收据科目顺序 {classes!r}，期望 {expected_classes!r}")
+                for index, row in enumerate(rows):
+                    if row.get("tokens") != expected_tokens[index]:
+                        problems.append(
+                            f"{expected_classes[index]} token {row.get('tokens')!r}，期望 {expected_tokens[index]!r}"
+                        )
+                    if row.get("sum") != expected_sums[index]:
+                        problems.append(
+                            f"{expected_classes[index]} 小计 {row.get('sum')!r}，期望 {expected_sums[index]!r}"
+                        )
+                    row_height = row.get("height")
+                    if not isinstance(row_height, (int, float)) or abs(row_height - 28) > COST_ROW_HEIGHT_TOLERANCE:
+                        problems.append(
+                            f"{expected_classes[index]} 行高 {row_height!r}px，期望 28±{COST_ROW_HEIGHT_TOLERANCE}"
+                        )
+            total = receipt.get("total") or {}
+            if total.get("sum") != "$2.18":
+                problems.append(f"合计 {total.get('sum')!r}，期望 '$2.18'")
+            if total.get("border_top") != "1px" or total.get("border_style") != "solid":
+                problems.append(
+                    f"合计分隔线 {total.get('border_top')!r} {total.get('border_style')!r}，期望 1px solid"
+                )
+            if not (receipt.get("unpriced") or "").startswith(f"另有 {COST_UNPRICED_CALLS} 次调用未计入"):
+                problems.append(f"未计入提示 {receipt.get('unpriced')!r}")
+            models = cost.get("models") or []
+            if len(models) != 3:
+                problems.append(f"按模型 {len(models)} 行，期望 3 行")
+            else:
+                names = [model.get("name") for model in models]
+                if names != ["Opus 4.1", "Sonnet 4.5", "gpt-5"]:
+                    problems.append(f"模型名 {names!r}，期望 ['Opus 4.1', 'Sonnet 4.5', 'gpt-5']")
+                if models[2].get("sum") != "—":
+                    problems.append(f"未定价模型小计 {models[2].get('sum')!r}，期望 '—'")
+                if "定价未知" not in (models[2].get("meta") or ""):
+                    problems.append(f"未定价模型脚注 {models[2].get('meta')!r}，期望含「定价未知」")
+            for group in ("receipt", "models", "top"):
+                rights = (cost.get("money_right") or {}).get(group) or []
+                if len(rights) < 2:
+                    problems.append(f"{group} 金额列右沿事实不足（{len(rights)} 个）")
+                    continue
+                spread = max(rights) - min(rights)
+                if spread > COST_MONEY_RIGHT_TOLERANCE:
+                    problems.append(
+                        f"{group} 金额列右沿差 {spread:.2f}px，超过 {COST_MONEY_RIGHT_TOLERANCE}px"
+                    )
+            top = (cost.get("top") or {}).get("rows") or []
+            if len(top) != COST_TOP_ROWS:
+                problems.append(f"最贵五次 {len(top)} 行，期望 {COST_TOP_ROWS} 行")
+            elif cost_top_clock is None:
+                cost_top_clock = top[0].get("clock")
+            footer = cost.get("footer") or {}
+            if "估算，不是账单" not in (footer.get("text") or ""):
+                problems.append(f"常驻脚注 {footer.get('text')!r}，期望含「估算，不是账单」")
+            if isinstance(footer.get("bottom"), (int, float)) and isinstance(footer.get("root_bottom"), (int, float)):
+                if footer["bottom"] > footer["root_bottom"] + 1:
+                    problems.append("脚注越出账单 pane 下沿")
+            bars = cost.get("bars") or {}
+            if bars.get("count", 0) < COST_CLASS_ROWS:
+                problems.append(f"占比条 {bars.get('count')} 根，期望至少 {COST_CLASS_ROWS}")
+            if bars.get("hidden", 0) != 0:
+                problems.append(f"有 {bars.get('hidden')} 根占比条不可见")
+            scroll = cost.get("scroll") or {}
+            if isinstance(scroll.get("scrollHeight"), int) and isinstance(scroll.get("clientHeight"), int):
+                if scroll["scrollHeight"] <= scroll["clientHeight"] + 1:
+                    problems.append("账单卡没有形成内部滚动（scrollHeight ≤ clientHeight）——G10 前提不成立")
+            else:
+                problems.append("账单卡滚动几何缺失")
+            doc_box = cost.get("documentBox") or {}
+            doc_sw, doc_cw = doc_box.get("scrollWidth"), doc_box.get("clientWidth")
+            doc_sh, doc_ch = doc_box.get("scrollHeight"), doc_box.get("clientHeight")
+            if isinstance(doc_sw, int) and isinstance(doc_cw, int) and doc_sw > doc_cw + 1:
+                problems.append(f"文档横向溢出（{doc_sw} > {doc_cw}）")
+            if isinstance(doc_sh, int) and isinstance(doc_ch, int) and doc_sh > doc_ch + 1:
+                problems.append(f"页面出现第二竖轴（{doc_sh} > {doc_ch}）")
+            if cost.get("active_tab") != COST_TAB_LABEL:
+                problems.append(f"选中标签 {cost.get('active_tab')!r}，期望 {COST_TAB_LABEL!r}")
+            # 真机窗口高度下账单内容必然溢出，进入时底缘的静态滚动提示必须在场。
+            if cost.get("fade_visible") is not True:
+                problems.append("底缘滚动提示（data-probe='cost-fade'）不在场——真机上内容必然溢出")
+            if problems:
+                for problem in problems:
+                    print(f"BAD|{label}：{problem}")
+            else:
+                seen_cost += 1
+                print(
+                    f"OK|{label}：收据 {COST_CLASS_ROWS} 行（"
+                    + " / ".join(row.get("sum") for row in rows)
+                    + f"）合计 {total.get('sum')}，未计入 {COST_UNPRICED_CALLS} 次，"
+                    f"模型 {len(models)} 行（未定价 {models[2].get('sum')}），"
+                    f"最贵 {len(top)} 行 / 首行 {cost_top_clock}，"
+                    f"金额右沿差 ≤{COST_MONEY_RIGHT_TOLERANCE}px，"
+                    f"卡内滚动 {scroll.get('scrollHeight')}>{scroll.get('clientHeight')}，"
+                    f"页面无第二竖轴，行高 28±{COST_ROW_HEIGHT_TOLERANCE}、脚注常驻、底缘提示在场"
+                )
+
+    if label == COST_TOP_CLICK_LABEL:
+        cost = data.get("cost") or {}
+        if cost.get("present"):
+            print(f"BAD|{label}：点最贵行之后仍停在账单视图")
+        elif cost.get("active_tab") != "日志视图":
+            print(f"BAD|{label}：点最贵行之后选中标签 {cost.get('active_tab')!r}，期望「日志视图」")
+        else:
+            log = cost.get("log") or {}
+            log_rows = log.get("rows") or []
+            matched = [
+                row for row in log_rows if cost_top_clock and cost_top_clock in (row.get("clock") or "")
+            ]
+            table = log.get("rect") or {}
+            if not matched:
+                print(f"BAD|{label}：日志表里找不到时刻 {cost_top_clock!r} 的行（渲染 {len(log_rows)} 行）")
+            else:
+                table_top = table.get("y", 0)
+                table_height = table.get("height", 0)
+                band_top = table_top + table_height * 0.2
+                band_bottom = table_top + table_height * 0.8
+                centers = [row.get("center") for row in matched]
+                if not any(
+                    isinstance(center, (int, float)) and band_top <= center <= band_bottom
+                    for center in centers
+                ):
+                    print(
+                        f"BAD|{label}：跳回日志后 {cost_top_clock!r} 不在表格可见带内"
+                        f"（center {centers!r}，带 {band_top:.0f}–{band_bottom:.0f}）"
+                    )
+                else:
+                    seen_cost += 1
+                    print(
+                        f"OK|{label}：点最贵行跳回「日志视图」，{cost_top_clock!r} 落在表格可见带内"
+                        f"（表高 {table_height:.0f}px，行中心 {centers[0]:.0f}px）"
+                    )
+
     # 「实时脉搏」（Issue #203 / Round W）：几何事实全在 facts.pulse（应用侧只
     # 收集事实，阈值与判定在这里）。三步各有各的账：
     #   ① 「脉搏」——脉搏根在场、横向不溢出、5 个窗口读数与键序、60 根速率柱
@@ -2944,6 +3113,8 @@ if coverage and seen_monitor_console == 0:
     print("BAD|视图覆盖：没有任何视图产出监控台的几何事实——「监控台」档没被覆盖")
 if coverage and seen_milestones == 0:
     print("BAD|视图覆盖：没有任何视图产出里程碑的几何事实——「里程碑」档没被覆盖")
+if coverage and seen_cost == 0:
+    print("BAD|视图覆盖：没有任何视图产出会话账单的几何事实——「账单」标签页没被覆盖")
 if coverage and seen_replay == 0:
     print("BAD|视图覆盖：没有任何视图产出重放的几何事实——「重放」标签页没被覆盖")
 if coverage and seen_float_enter == 0:
