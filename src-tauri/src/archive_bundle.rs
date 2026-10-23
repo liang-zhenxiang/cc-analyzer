@@ -242,9 +242,21 @@ mod logic {
     }
 
     /// 流式算哈希，避免把整个会话读进内存。
+    ///
+    /// sha2 0.11 起 `Sha256` 不再实现 `std::io::Write`，不能再用
+    /// `std::io::copy` 把读取直接接到哈希器上，这里显式做「读一块、喂一块」。
     pub(super) fn sha256_base64_reader<R: Read>(mut reader: R) -> std::io::Result<String> {
         let mut hasher = Sha256::new();
-        std::io::copy(&mut reader, &mut hasher)?;
+        let mut buf = [0u8; 64 * 1024];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) => break,
+                Ok(read) => hasher.update(&buf[..read]),
+                // `read` 允许返回 `Interrupted`，与 `std::io::copy` 一样重试而不是失败。
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(error) => return Err(error),
+            }
+        }
         Ok(BASE64_STANDARD.encode(hasher.finalize()))
     }
 
@@ -688,6 +700,42 @@ mod tests {
             assert_eq!(
                 fs::read(&file.staged_path).unwrap(),
                 fs::read(&entry.archive_path).unwrap()
+            );
+        }
+    }
+
+    /// 流式哈希不能依赖「一次读完」：分块喂入的结果必须与整块算出的结果一致。
+    ///
+    /// sha2 0.11 移除 `Sha256: std::io::Write` 后，这条路径改成了手写 `read` 循环，
+    /// 一旦循环写错（漏喂块、EOF 判断反了），只有「输入被切成多块」才暴露得出来。
+    #[test]
+    fn streaming_hash_matches_one_shot_hash_across_chunk_boundaries() {
+        struct Chunked<'a> {
+            remaining: &'a [u8],
+            chunk: usize,
+        }
+
+        impl std::io::Read for Chunked<'_> {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                let take = self.remaining.len().min(self.chunk).min(buf.len());
+                buf[..take].copy_from_slice(&self.remaining[..take]);
+                self.remaining = &self.remaining[take..];
+                Ok(take)
+            }
+        }
+
+        // 比单次读取的 64 KiB 缓冲区更大，且刻意取不成块大小的整数倍。
+        let payload: Vec<u8> = (0..(64 * 1024 + 123)).map(|i| (i % 251) as u8).collect();
+        for chunk in [1usize, 7, 4096] {
+            let streamed = logic::sha256_base64_reader(Chunked {
+                remaining: &payload,
+                chunk,
+            })
+            .expect("流式哈希");
+            assert_eq!(
+                streamed,
+                logic::sha256_base64(&payload),
+                "分块大小 {chunk} 的流式哈希应与一次性哈希一致"
             );
         }
     }
