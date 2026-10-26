@@ -2006,6 +2006,71 @@ mod gui_probe {
   }
   facts.cost = costFacts;
 
+  /* 「第二批十功能」（Round DD）：同 costFacts / replayFacts——只收矩形、文本、
+     aria 与计数，阈值与判定留在 scripts/gui-test.sh。 */
+  var roundddFacts = { present: false };
+  var ddRoot = document.querySelector("[data-probe='usage-page']");
+  if (ddRoot) {
+    roundddFacts.present = true;
+    var ddSummary = ddRoot.querySelector("[data-probe='compare-summary']");
+    roundddFacts.compare = {
+      selects: ddRoot.querySelectorAll("select[data-probe='compare-a'], select[data-probe='compare-b']").length,
+      summary: ddSummary ? ddSummary.textContent.trim() : null
+    };
+    var ddRadarSvg = ddRoot.querySelector("[data-probe='fingerprint'] svg");
+    roundddFacts.radar = ddRadarSvg
+      ? {
+          rect: rectOf(ddRadarSvg),
+          axes: ddRoot.querySelectorAll("[data-probe='fingerprint-axis']").length
+        }
+      : null;
+    var ddHabits = ddRoot.querySelector("[data-probe='work-habits']");
+    roundddFacts.habits = ddHabits
+      ? {
+          cells: ddHabits.children.length,
+          text: (ddHabits.innerText || "").replace(/\s+/g, " ").trim()
+        }
+      : null;
+    var ddGantt = ddRoot.querySelector("[data-probe='gantt']");
+    var ddGanttRows = ddRoot.querySelectorAll("[data-probe='gantt-row']");
+    roundddFacts.gantt = ddGantt
+      ? {
+          rect: rectOf(ddGantt),
+          rows: ddGanttRows.length,
+          first: ddGanttRows[0] ? ddGanttRows[0].getAttribute('aria-label') : null,
+          last: ddGanttRows[ddGanttRows.length - 1]
+            ? ddGanttRows[ddGanttRows.length - 1].getAttribute('aria-label')
+            : null
+        }
+      : null;
+    var ddSwap = ddRoot.querySelector("[data-probe='model-swap']");
+    roundddFacts.swap = ddSwap
+      ? {
+          rows: ddSwap.querySelectorAll("tbody tr").length,
+          text: (ddSwap.innerText || "").replace(/\s+/g, " ").trim()
+        }
+      : null;
+    var ddHealth = ddRoot.querySelector("[data-probe='tool-health']");
+    roundddFacts.health = ddHealth
+      ? {
+          rows: ddRoot.querySelectorAll("[data-probe='tool-health-row']").length,
+          text: (ddHealth.innerText || "").replace(/\s+/g, " ").trim()
+        }
+      : null;
+    var ddEquiv = ddRoot.querySelector("[data-probe='equivalents']");
+    var ddToggle = ddRoot.querySelector("button[aria-controls='kpi-equivalents']");
+    roundddFacts.equivalents = {
+      present: !!ddEquiv,
+      items: ddEquiv ? ddEquiv.children.length : 0,
+      expanded: ddToggle ? ddToggle.getAttribute('aria-expanded') : null
+    };
+    var ddGauge = ddRoot.querySelector("[data-probe='burn-gauge'] svg");
+    roundddFacts.gauge = ddGauge
+      ? { viewBox: ddGauge.getAttribute('viewBox'), rect: rectOf(ddGauge) }
+      : null;
+  }
+  facts.rounddd = roundddFacts;
+
   return JSON.stringify(facts);
 })();"##;
 

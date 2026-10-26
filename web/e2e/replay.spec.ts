@@ -167,9 +167,9 @@ test.describe("会话重放", () => {
     await page.keyboard.press("Space");
     await expect(page.getByRole("button", { name: "暂停", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "播放", exact: true })).toHaveCount(0);
-    await page.waitForTimeout(350);
-    const afterPlay = await laneValue(page);
-    expect(afterPlay).toBeGreaterThan(0);
+    // 真实时钟在 60s 片长下 350ms 只走约 0.6%，整机负载高时 rAF 可能还没
+    // 提交第一帧；用 poll 等它真的动起来（3 秒兜底），而不是赌固定延时。
+    await expect.poll(async () => laneValue(page), { timeout: 3_000 }).toBeGreaterThan(0);
 
     // 第二次 Space：暂停，且此后播放头不再动。
     await page.keyboard.press("Space");
