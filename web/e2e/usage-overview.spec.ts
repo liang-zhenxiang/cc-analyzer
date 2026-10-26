@@ -106,10 +106,11 @@ test.describe("用量总览", () => {
     await expect(page.getByText(/已分析/)).toHaveCount(0);
   });
 
-  test("1440×900 首屏有「按项目分布」，项目卡片一屏滚动内可达", async ({ page }) => {
-    // Round CC 起首屏多了周战报（KPI 之后）；「按项目分布」仍在首屏，
-    // 「项目卡片」整行紧跟其后。实测 1440×900 下项目卡片标题在首屏下沿约 150px，
-    // 因此这里断言「一屏滚动内可达 + 滚到后整块可见」，而不是「首屏完全可见」。
+  test("1440×900 首屏有周战报与会话对比，项目卡片滚动可达", async ({ page }) => {
+    // Round DD 起用量页在 KPI 之后插入了「周战报」与「会话对比」两行；实测
+    // 1440×900 首屏（main 高 852）完整可见的是这两块——「按项目分布」被推到
+    // 1012px、项目卡片 1249px，都要滚一次才可达，所以首屏断言改成这两块，
+    // 项目卡片仍断「滚到后整块可见」。
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
     await page.getByRole("tab", { name: DASHBOARD }).click();
@@ -119,7 +120,8 @@ test.describe("用量总览", () => {
     const main = page.locator("main");
     expect(await main.evaluate((element) => element.scrollTop)).toBe(0);
 
-    await expect(page.getByRole("heading", { name: "按项目分布" })).toBeInViewport({ ratio: 1 });
+    await expect(page.getByRole("heading", { name: "周战报" })).toBeInViewport({ ratio: 1 });
+    await expect(page.getByRole("heading", { name: "会话对比" })).toBeInViewport({ ratio: 1 });
 
     const cards = page.getByRole("heading", { name: "项目卡片" });
     await cards.scrollIntoViewIfNeeded();
@@ -127,7 +129,8 @@ test.describe("用量总览", () => {
       top: element.scrollTop,
       view: element.clientHeight
     }));
-    expect(scrolled.top).toBeLessThanOrEqual(scrolled.view);
+    expect(scrolled.top).toBeGreaterThan(0);
+    await expect(page.getByRole("heading", { name: "按项目分布" })).toBeInViewport({ ratio: 1 });
     await expect(cards).toBeInViewport({ ratio: 1 });
   });
 

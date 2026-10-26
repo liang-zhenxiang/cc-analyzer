@@ -455,6 +455,9 @@ The roadmap tracks open issues; each item links to the issue that owns it.
   activity clock, limit forecast, project cards, error clusters, pinned
   sessions, ⌘K command palette and kiosk mode (merged; ships in v0.31.0)
   ([#263](https://github.com/liang-zhenxiang/cc-analyzer/issues/263))
+- [ ] Second ten-feature pack — session compare, tool health, model-shift
+  pricing, fingerprint radar, developer poster, burn gauge, session gantt,
+  work habits, peak minute and token equivalents ([#271](https://github.com/liang-zhenxiang/cc-analyzer/issues/271))
 - [x] Frontend upgrade to React 19, moving `@types/react` / `@types/react-dom`
   together
   ([#19](https://github.com/liang-zhenxiang/cc-analyzer/issues/19))

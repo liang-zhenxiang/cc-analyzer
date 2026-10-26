@@ -319,3 +319,73 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* 工具健康（D2）：与调用次数视图共用一张卡，切换只换表。 */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.health {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.health th,
+.health td {
+  height: 30px;
+  padding: 0 0 0 var(--sp-3);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.health thead th {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
+
+.health thead th:first-child,
+.health tbody th {
+  padding-left: 0;
+  text-align: left;
+}
+
+.health tbody th {
+  overflow: hidden;
+  max-width: 14em;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  text-overflow: ellipsis;
+}
+
+.health tbody td {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
+.risky {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.healthNote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.srOnly {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

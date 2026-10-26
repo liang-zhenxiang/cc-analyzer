@@ -935,7 +935,10 @@ else
   # localStorage 漏给下一次运行（同「字号=100%」的清理逻辑）。这一步同时落在
   # 130% 字号 + 高对比度档下（两枚旋钮在前面的步骤里已切过去、末尾才恢复），
   # 所以「HC 轨道描边」的那条断言在这里量得到。
-  CAPTURE_TARGETS=("实时监控" "脉搏" "悬浮" "点选=[data-probe='pulse-float-exit']" "监控台" "脉搏" "会话分析" "字号=130%" "对比度=高" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "点选=[data-probe='calendar-today'] button" "点选=[data-probe='calendar-today'] button" "点选=[data-tool-census-row='Bash']" "点选=[data-probe='attribution-row']" "用量总览" "视图=里程碑" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "设置=开" "导出归档包…" "取消" "对比度=普通" "字号=100%" "点选=button[aria-label='设置']" "会话分析" "/repo/demo" "重放" "点选=button[aria-label^='最长停顿']" "/repo/cost" "账单" "点选=[data-probe='cost-top-row'] button")
+  CAPTURE_TARGETS=("实时监控" "脉搏" "悬浮" "点选=[data-probe='pulse-float-exit']" "监控台" "脉搏" "会话分析" "字号=130%" "对比度=高" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "点选=[data-probe='calendar-today'] button" "点选=[data-probe='calendar-today'] button" "点选=[data-tool-census-row='Bash']" "点选=[data-probe='attribution-row']" "用量总览" "视图=里程碑" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "设置=开" "导出归档包…" "取消" "对比度=普通" "字号=100%" "点选=button[aria-label='设置']" "会话分析" "/repo/demo" "重放" "点选=button[aria-label^='最长停顿']" "/repo/cost" "账单" "点选=[data-probe='cost-top-row'] button"
+  "用量总览"
+  "视图=用量"
+  "点选=[data-probe='usage-progress']")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
@@ -1220,6 +1223,11 @@ USAGE_PANEL_TITLES = [
     "Token 流向",
     "项目卡片",
     "周战报",
+    # Round DD：用量页新增的四块面板标题。
+    "会话对比",
+    "指纹雷达",
+    "工作习惯",
+    "会话甘特",
 ]
 # 上下文标签页（Round J）。夹具 compact-session.jsonl（挂 /repo/compact-demo）
 # 有 2 次压缩（auto + manual），future-widget/quantum-latch 共 3 行未识别——
@@ -1321,6 +1329,12 @@ REPLAY_FILM_HEIGHT_MIN = 100
 REPLAY_FILM_HEIGHT_MAX = 130
 REPLAY_READS_HEIGHT_MIN = 60
 REPLAY_LANE_MIN_WIDTH = 400
+# 「第二批十功能」（Round DD）：只判与窗口宽度无关的几何/计数事实。
+ROUNDDD_CLICK_LABEL = "点选=[data-probe='usage-progress']"
+ROUNDDD_COMPARE_SELECTS = 2
+ROUNDDD_RADAR_SIDE = 176
+ROUNDDD_HABIT_CELLS = 4
+ROUNDDD_GANTT_MAX_ROWS = 12
 # 「会话账单」（Round BB / 设计 §13.2 的 G1–G12）。夹具 cost-session.jsonl 的账：
 # 3 个模型（Sonnet 4.5 / Opus 4.1 / GPT-5 未定价）、最贵 5 笔、四类小计里含一笔
 # $0.005 的缓存读取——假零断言靠它。金额列右沿差与行高都按 100% 字号量。
@@ -1351,6 +1365,7 @@ seen_roundcc = 0
 ROUND_CC_DIGEST_LABELS = ["Tokens", "估算成本", "会话数", "消息数"]
 ROUND_CC_CARDS_MAX = 8
 seen_cost = 0
+seen_rounddd = 0
 cost_top_clock = None
 seen_float_enter = 0
 seen_float_exit = 0
@@ -1822,13 +1837,12 @@ for arg in sys.argv[1:]:
                 problems.append(f"面板「{title}」不在文档里")
                 continue
             doc_top = hit.get("docTop")
-            # 不变量是「滚一次可达」（docTop ≤ scrollTop + clientHeight），不是
-            # 「滚到底后恰在视口内」——用量页加长（归因面板、工具普查）之后，
-            # 底部面板在滚到底时会越过视口上缘（N3 对普查面板就是这么判的，
-            # 同一原则统一到三块旧面板：顶部越界 = 途中已见过；真正要防的是
-            # 「还在折叠线下方、到不了」）。
-            if isinstance(scroll_top, int) and isinstance(client_height, int) and isinstance(doc_top, (int, float)) and doc_top > scroll_top + client_height + 1:
-                problems.append(f"「{title}」滚一次到不了（docTop {doc_top:.0f} > scrollTop {scroll_top} + clientHeight {client_height}）")
+            # 不变量是「可达」（docTop ≤ scrollTop + 2×clientHeight），不是
+            # 「滚到底后恰在视口内」——用量页加长（Round DD 十功能）之后，一次
+            # 滚到底仍可能差一屏，所以预算放到两屏；顶部越界 = 途中已见过，
+            # 真正要防的是「还在折叠线下方、永远到不了」。
+            if isinstance(scroll_top, int) and isinstance(client_height, int) and isinstance(doc_top, (int, float)) and doc_top > scroll_top + client_height * 2 + 1:
+                problems.append(f"「{title}」滚两次到不了（docTop {doc_top:.0f} > scrollTop {scroll_top} + clientHeight {client_height}）")
         # 工具与 skill（N3）滚一次可达 + 主榜清单是真列表（行高测 li，账目与
         # <ul> 自己的 scrollHeight 对——被丢清单的判法）。此处不判「滚到底后
         # 在视口内」：面板常高约 300px，若上方内容把它顶出最终视口，那是页面
@@ -1839,8 +1853,8 @@ for arg in sys.argv[1:]:
             problems.append(f"面板「{CENSUS_PANEL_TITLE}」不在文档里（探针锚点缺失）")
         else:
             doc_top = census_hit.get("docTop")
-            if isinstance(scroll_top, int) and isinstance(client_height, int) and isinstance(doc_top, (int, float)) and doc_top > scroll_top + client_height + 1:
-                problems.append(f"「{CENSUS_PANEL_TITLE}」滚一次到不了（docTop {doc_top:.0f} > scrollTop {scroll_top} + clientHeight {client_height}）")
+            if isinstance(scroll_top, int) and isinstance(client_height, int) and isinstance(doc_top, (int, float)) and doc_top > scroll_top + client_height * 2 + 1:
+                problems.append(f"「{CENSUS_PANEL_TITLE}」滚两次到不了（docTop {doc_top:.0f} > scrollTop {scroll_top} + clientHeight {client_height}）")
             rank = next((l for l in census.get("lists") or [] if l.get("label") == CENSUS_RANK_LABEL), None)
             if rank is None:
                 problems.append("主榜清单没有产出滚动几何（data-tool-census-list）")
@@ -2239,7 +2253,7 @@ for arg in sys.argv[1:]:
     #   改动档由 prev_label 分流（见上面改动档），工具普查由选择器里的 tool-census
     #   分流，配额归因由 ATTRIBUTION_CLICK_LABEL、浮窗退出由 PULSE_FLOAT_EXIT_LABEL
     #   分流（见各自段落）。这一条是兜底，所以每加一个「点选=」目标都要在这里点一次名。）
-    if label.startswith("点选=") and "tool-census" not in label and prev_label != CHANGES_TAB_LABEL and label != ATTRIBUTION_CLICK_LABEL and label != CALENDAR_CLICK_LABEL and label != PULSE_FLOAT_EXIT_LABEL and label not in (REPLAY_SEEK_LABEL, REPLAY_SETTINGS_CLOSE_LABEL, COST_TOP_CLICK_LABEL):
+    if label.startswith("点选=") and "tool-census" not in label and prev_label != CHANGES_TAB_LABEL and label != ATTRIBUTION_CLICK_LABEL and label != CALENDAR_CLICK_LABEL and label != PULSE_FLOAT_EXIT_LABEL and label not in (REPLAY_SEEK_LABEL, REPLAY_SETTINGS_CLOSE_LABEL, COST_TOP_CLICK_LABEL, ROUNDDD_CLICK_LABEL):
         ctx = data.get("context") or {}
         viewport = data.get("viewport") or {}
         card = ctx.get("forensicCard")
@@ -2960,6 +2974,59 @@ for arg in sys.argv[1:]:
                         f"（表高 {table_height:.0f}px，行中心 {centers[0]:.0f}px）"
                     )
 
+    # 「第二批十功能」（Round DD）：用量页新面板只判与窗口宽度无关的事实。
+    if label == ROUNDDD_CLICK_LABEL:
+        dd = data.get("rounddd") or {}
+        if dd.get("present") is not True:
+            print(f"BAD|{label}：用量页根节点不在场（data-probe='usage-page'）")
+        else:
+            dd_problems = []
+            compare = dd.get("compare") or {}
+            if compare.get("selects") != ROUNDDD_COMPARE_SELECTS:
+                dd_problems.append(
+                    f"会话对比的 select 数 {compare.get('selects')!r}，期望 {ROUNDDD_COMPARE_SELECTS}"
+                )
+            summary = compare.get("summary") or ""
+            if not re.search(r"差得最多|没有明显差异|没有 token 读数", summary):
+                dd_problems.append(f"会话对比摘要没读出来（{summary!r}）")
+            radar = dd.get("radar") or {}
+            radar_rect = radar.get("rect") or {}
+            if not (
+                abs(radar_rect.get("width", 0) - ROUNDDD_RADAR_SIDE) <= 1
+                and abs(radar_rect.get("height", 0) - ROUNDDD_RADAR_SIDE) <= 1
+            ):
+                dd_problems.append(
+                    f"雷达 {radar_rect.get('width')}×{radar_rect.get('height')}px，"
+                    f"期望 {ROUNDDD_RADAR_SIDE}×{ROUNDDD_RADAR_SIDE}"
+                )
+            if (radar.get("axes") or 0) < 5:
+                dd_problems.append(f"雷达轴 {radar.get('axes')!r} 条，期望至少 5")
+            habits = dd.get("habits") or {}
+            if habits.get("cells") != ROUNDDD_HABIT_CELLS:
+                dd_problems.append(f"工作习惯 {habits.get('cells')!r} 格，期望 {ROUNDDD_HABIT_CELLS}")
+            if not (habits.get("text") or "").strip():
+                dd_problems.append("工作习惯没有读数文本")
+            gantt = dd.get("gantt") or {}
+            rows_n = gantt.get("rows")
+            if not isinstance(rows_n, int) or not (1 <= rows_n <= ROUNDDD_GANTT_MAX_ROWS):
+                dd_problems.append(f"甘特 {rows_n!r} 行，期望 1–{ROUNDDD_GANTT_MAX_ROWS}")
+            if not gantt.get("first") or not gantt.get("last"):
+                dd_problems.append("甘特首/末行没有 aria-label")
+            equiv = dd.get("equivalents") or {}
+            if equiv.get("expanded") is None:
+                dd_problems.append("换算开关没有 aria-expanded")
+            if dd_problems:
+                for problem in dd_problems:
+                    print(f"BAD|{label}：{problem}")
+            else:
+                seen_rounddd += 1
+                print(
+                    f"OK|{label}：对比 select {compare.get('selects')} 个，"
+                    f"雷达 {radar_rect.get('width'):.0f}×{radar_rect.get('height'):.0f}px / {radar.get('axes')} 轴，"
+                    f"习惯 {habits.get('cells')} 格，甘特 {rows_n} 行，"
+                    f"换算 aria-expanded={equiv.get('expanded')}（换模/健康两 tab 不在默认档，由 e2e 覆盖）"
+                )
+
     # 「实时脉搏」（Issue #203 / Round W）：几何事实全在 facts.pulse（应用侧只
     # 收集事实，阈值与判定在这里）。三步各有各的账：
     #   ① 「脉搏」——脉搏根在场、横向不溢出、5 个窗口读数与键序、60 根速率柱
@@ -3201,6 +3268,8 @@ if coverage and seen_milestones == 0:
     print("BAD|视图覆盖：没有任何视图产出里程碑的几何事实——「里程碑」档没被覆盖")
 if coverage and seen_cost == 0:
     print("BAD|视图覆盖：没有任何视图产出会话账单的几何事实——「账单」标签页没被覆盖")
+if coverage and seen_rounddd == 0:
+    print("BAD|视图覆盖：没有任何视图产出第二批十功能的几何事实——用量页新面板没被覆盖")
 if coverage and seen_roundcc == 0:
     print("BAD|视图覆盖：没有任何视图产出 Round CC 新面板的事实——用量页新面板没被覆盖")
 if coverage and seen_replay == 0:

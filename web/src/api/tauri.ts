@@ -50,6 +50,9 @@ export function installTauriBridges(): Bridges {
       writeText: async (path, contents) => {
         await invoke<void>("write_text", { path, contents });
       },
+      writeBinary: async (path, contentsBase64) => {
+        await invoke<void>("write_binary", { path, contentsBase64 });
+      },
       stat: (path) => invoke<StatInfo>("stat", { path }),
       homeDir: () => invoke<string>("home_dir"),
       appDataDir: () => invoke<string>("app_data_dir")

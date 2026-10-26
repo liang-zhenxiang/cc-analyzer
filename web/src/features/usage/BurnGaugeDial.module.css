@@ -1,0 +1,44 @@
+.gauge {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 24px;
+  overflow: visible;
+}
+
+.track {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-width: 6;
+}
+
+.fill {
+  fill: none;
+  stroke-width: 6;
+}
+
+/* 档位色是状态语义，不是类别色：安静/巡航/偏热/烧穿。 */
+.quiet {
+  stroke: var(--success);
+}
+
+.cruising {
+  stroke: var(--chart-1);
+}
+
+.warm {
+  stroke: var(--warning);
+}
+
+.hot {
+  stroke: var(--danger);
+}
+
+.needle {
+  stroke: var(--text);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.hub {
+  fill: var(--text);
+}

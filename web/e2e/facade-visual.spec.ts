@@ -70,11 +70,15 @@ test.describe("门面 · 用量总览表盘尺寸", () => {
     { width: 1440, height: 900 },
     { width: 1400, height: 872 }
   ]) {
-    test(`宽窗口下 KPI 读数行与趋势图落在首屏 @ ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    test(`宽窗口下 KPI 读数行落在首屏，趋势图滚动可达 @ ${viewport.width}x${viewport.height}`, async ({ page }) => {
+      // Round DD 在 KPI 与趋势图之间插入了周战报 / 会话对比等行，趋势图不再
+      // 落在首屏；首屏只保证 KPI 读数行，趋势图改成「滚一次可达」。
       await page.setViewportSize(viewport);
       await openUsage(page);
       await expect(page.getByText("Tokens 总量", { exact: true })).toBeInViewport();
-      await expect(page.getByRole("img", { name: "每日 Token 消耗趋势" })).toBeInViewport();
+      const trend = page.getByRole("img", { name: "每日 Token 消耗趋势" });
+      await trend.scrollIntoViewIfNeeded();
+      await expect(trend).toBeInViewport();
     });
   }
 });

@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { Panel } from "../../components/Panel";
-import { formatTokenCount, formatUsd } from "../../lib/format";
+import { formatShortStamp, formatTokenCount, formatUsd } from "../../lib/format";
 import type { UsageSessionInput } from "./usageAggregations";
 import { ProvenanceBadge } from "./ProvenanceBadge";
+import { peakMinute } from "./peakMinute";
 import {
   buildWeeklyDigest,
   isEmptyDigest,
@@ -75,6 +76,7 @@ export function WeeklyDigestPanel({
   now: number;
 }) {
   const digest = useMemo(() => buildWeeklyDigest(inputs, now), [inputs, now]);
+  const peak = useMemo(() => peakMinute(inputs), [inputs]);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
   const empty = isEmptyDigest(digest);
@@ -164,6 +166,19 @@ export function WeeklyDigestPanel({
               ) : null}
             </div>
           </>
+        )}
+        {/* 峰值时刻（D9）：一行、不占第二块。没有分钟级读数时整行不画。 */}
+        {peak.minuteStart === null ? null : (
+          <p className={styles.peak} data-probe="peak-minute">
+            <span className={styles.peakLabel}>峰值时刻</span>
+            <span className={styles.peakTime}>{formatShortStamp(peak.minuteStart)}</span>
+            <span className={styles.peakNote}>
+              {formatTokenCount(peak.tokens)} tok
+              {peak.runnerUp
+                ? ` · 次高 ${formatTokenCount(peak.runnerUp.tokens)} tok（${formatShortStamp(peak.runnerUp.minuteStart)}）`
+                : " · 窗口内只有这 1 分钟有消耗"}
+            </span>
+          </p>
         )}
         {/* 口径常显：读者要能把「周」对到自己的日历上，而不是猜这个 7 天从哪天起。 */}
         <p className={styles.footnote}>按本地自然周（周一起始）</p>

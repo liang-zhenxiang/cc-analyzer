@@ -119,6 +119,24 @@ async function openUsage(page: Page) {
   await expect(page.getByText(/纳入统计/)).toBeVisible({ timeout: 15_000 });
 }
 
+
+/** 擂台「峰值日」：按记录自己的本地日求和，取窗口内最大的一天（与
+ *  `projectArena.buildProjectDaily` 同一条规则）。夹具是相对 now 造的，
+ *  跨午夜时 &quot;峰值日&quot; 会从昨天挪到今天——从记录重算，别写死。 */
+function arenaPeak(cwd: string): number {
+  const byDay = new Map<number, number>();
+  for (const record of roundCCRecords()) {
+    if (record.cwd !== cwd) continue;
+    const usage = usageOf(record);
+    const ts = Date.parse(String(record.timestamp));
+    if (!usage || Number.isNaN(ts)) continue;
+    const day = new Date(ts);
+    day.setHours(0, 0, 0, 0);
+    byDay.set(day.getTime(), (byDay.get(day.getTime()) ?? 0) + usage.input + usage.output + usage.cacheCreation + usage.cacheRead);
+  }
+  return Math.max(0, ...byDay.values());
+}
+
 test.describe("Round CC · 用量页", () => {
   test("F3 周战报：四行读数与环比都按自然周手算", async ({ page }) => {
     await openUsage(page);
@@ -138,6 +156,15 @@ test.describe("Round CC · 用量页", () => {
     ];
     for (const [label, current, previous] of expected) {
       const row = rows.filter({ has: page.getByRole("rowheader", { name: label }) });
+      if (label === "估算成本") {
+        // 周界附近的会话归属会让「逐模型估算后求和」差一分钱（$0.09/$0.10
+        // 都出现过）：金额断到分，允许 ±$0.01 的取整差；其余三行仍逐字相等。
+        for (const [index, want] of [[0, current], [1, previous]] as const) {
+          const text = await row.getByRole("cell").nth(index).innerText();
+          expect(Math.abs(Number(text.replace("$", "")) - Number(want.replace("$", "")))).toBeLessThanOrEqual(0.011);
+        }
+        continue;
+      }
       await expect(row.getByRole("cell").nth(0)).toHaveText(current);
       await expect(row.getByRole("cell").nth(1)).toHaveText(previous);
       // 变化列一定是三选一：涨/跌/持平；涨跌走 aria-label，读屏能听到同一句。
@@ -213,12 +240,15 @@ test.describe("Round CC · 用量页", () => {
       "aria-label",
       "项目擂台：alpha 对 beta，按天对比 token 消耗"
     );
-    // 夹具里 alpha 53,900 / beta 6,900，30 天日均 1,797 / 230；峰值日 49,000 / 4,000。
+    // 夹具里 alpha 53,900 / beta 6,900，30 天日均 1,797 / 230；峰值日从记录
+    // 重算（跨午夜时昨天的 22,000 会落到今天，写死 49,000 会假红）。
+    const peakA = tokenText(arenaPeak("/repo/alpha"));
+    const peakB = tokenText(arenaPeak("/repo/beta"));
     await expect(page.locator("[data-probe='arena-side-a']")).toHaveText(
-      /alpha.*日均 token.*1,797.*峰值日 token.*49,000.*主力模型.*Sonnet 4\.5/
+      new RegExp(`alpha.*日均 token.*1,797.*峰值日 token.*${peakA}.*主力模型.*Sonnet 4\\.5`)
     );
     await expect(page.locator("[data-probe='arena-side-b']")).toHaveText(
-      /beta.*日均 token.*230.*峰值日 token.*4,000.*主力模型.*Sonnet 4\.5/
+      new RegExp(`beta.*日均 token.*230.*峰值日 token.*${peakB}.*主力模型.*Sonnet 4\\.5`)
     );
     await expect(page.locator("[data-probe='arena-bar']")).toHaveCount(60);
 

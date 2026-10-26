@@ -1,0 +1,109 @@
+.scope {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.chart {
+  min-width: 0;
+}
+
+.axis {
+  position: relative;
+  height: 16px;
+  margin-left: 168px;
+  border-bottom: 1px solid var(--border);
+}
+
+.axisLabel {
+  position: absolute;
+  top: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.body {
+  position: relative;
+  min-height: 0;
+}
+
+.tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+}
+
+/* 行本身是按钮：整行可点，焦点环走 inset 免得被卡面裁掉。 */
+.row {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr) 16px;
+  align-items: center;
+  width: 100%;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-inset);
+}
+
+.row:hover .bar {
+  filter: brightness(1.08);
+}
+
+.label {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.track {
+  position: relative;
+  height: 20px;
+  margin-right: var(--sp-1);
+}
+
+.bar {
+  position: absolute;
+  top: 6px;
+  height: 8px;
+  border-radius: 0 var(--r-xs) var(--r-xs) 0;
+  background: var(--chart-1);
+}
+
+.overlap {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.note {
+  margin: 0 0 var(--sp-1);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.empty {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+}

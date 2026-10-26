@@ -12,6 +12,8 @@ import { BarChart } from "./charts/BarChart";
 import type { QuotaAttribution, QuotaAttributionRow } from "./quotaAttribution";
 import type { BillingReadouts } from "./billingReadouts";
 import styles from "./BillingWindowCard.module.css";
+import { BurnGaugeDial, GAUGE_BAND_LABEL } from "./BurnGaugeDial";
+import { gaugeBand } from "./burnGauge";
 
 function formatCountdown(ms: number): string {
   if (ms <= 0) return "已关闭";
@@ -240,6 +242,12 @@ export function BillingWindowCard({
   // 它是 `null`，整行不渲染——没有分母就没有百分比。
   const forecast = buildLimitForecast(active, plan.limitTokens, now);
   const forecastHot = forecast !== null && isHotBurn(forecast, plan.limitTokens ?? 0);
+  // Two judgments, both labelled: `forecastHot` is about the current *rate*,
+  // `forecastWarning` adds "already at the cap". Neither implies the other.
+  const gaugeBandOfForecast =
+    forecast === null ? null : gaugeBand(forecast.burnPerHour, plan.limitTokens ?? 0);
+  const forecastWarning =
+    forecastHot || (forecast !== null && forecast.projectedPct >= 100 && forecast.hitTime !== null);
 
   const weeklyConsumed = totalsSum(week.consumed);
   const previousConsumed = totalsSum(week.previousConsumed);
@@ -326,17 +334,21 @@ export function BillingWindowCard({
           {/* 预报行（F5）：**必须**带「若保持此速率」——这是线性外推，不是事实。
               满额一小时烧完时整行切 warning，不另画图标：这一行是句子，
               颜色就是它的强调手段。 */}
-          {forecast === null ? null : (
+          {forecast === null || gaugeBandOfForecast === null ? null : (
             <p
-              className={`${styles.forecast} ${forecastHot ? styles.forecastHot : ""}`}
+              className={`${styles.forecast} ${forecastWarning ? styles.forecastHot : ""}`}
               data-probe="forecast-row"
             >
-              {`若保持此速率：预计用到限额的 ${Math.round(forecast.projectedPct)}%`}
-              {forecast.hitTime === null
-                ? ""
-                : forecast.hitTime <= now
-                  ? " · 已触顶"
-                  : ` · ${formatClock(forecast.hitTime)} 触顶`}
+              <BurnGaugeDial projectedPct={forecast.projectedPct} band={gaugeBandOfForecast} />
+              <span className={styles.forecastText}>
+                {`若保持此速率：预计用到限额的 ${Math.round(forecast.projectedPct)}%`}
+                {forecast.hitTime === null
+                  ? ""
+                  : forecast.hitTime <= now
+                    ? " · 已触顶"
+                    : ` · ${formatClock(forecast.hitTime)} 触顶`}
+                {` · ${GAUGE_BAND_LABEL[gaugeBandOfForecast]}`}
+              </span>
             </p>
           )}
         </div>

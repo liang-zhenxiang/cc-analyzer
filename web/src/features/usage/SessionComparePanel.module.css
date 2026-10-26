@@ -1,0 +1,98 @@
+.scope {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.pickers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.picker {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  /* The select may ellipsize; the flex item must be allowed to shrink first. */
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.pickerLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.select {
+  height: var(--control-h);
+  min-width: 0;
+  max-width: 320px;
+  flex: 1 1 auto;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  text-overflow: ellipsis;
+}
+
+.select:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.versus {
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+
+.pairs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  height: 22px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pairLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.pairValue {
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.summary {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
+.footnote {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.empty {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+}

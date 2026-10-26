@@ -9,6 +9,7 @@ import {
   costScenario,
   roundCCScenario,
   roundCCAlphaPath,
+  roundDDScenario,
   errorScenario,
   changedFilesScenario,
   calendarScenario,
@@ -166,6 +167,16 @@ const V_PALETTE = declareView("palette");
 const V_KIOSK = declareView("kiosk");
 // 会话账单（Round BB）
 const V_COST = declareView("cost");
+// 第二批十功能（Round DD）
+const V_COMPARE = declareView("compare");
+const V_HEALTH = declareView("health");
+const V_SWAP = declareView("swap");
+const V_RADAR = declareView("radar");
+const V_POSTER = declareView("poster");
+const V_GANTT = declareView("gantt");
+const V_HABITS = declareView("habits");
+const V_PEAK = declareView("peak");
+const V_EQUIVALENTS = declareView("equivalents");
 
 /** 主题在 ThemeProvider 初始化时读 localStorage，所以要在页面脚本之前埋好。 */
 async function useTheme(page: Page, theme: "light" | "dark") {
@@ -916,6 +927,86 @@ test.describe("截图归档 · Round CC 新面板", () => {
       await page.waitForTimeout(400);
       await shot(V_KIOSK);
       await page.keyboard.press("Escape");
+    });
+  }
+});
+
+
+// 第二批十功能（Round DD）：夹具是 `roundDDScenario()`——只装本轮的 13 份会话，
+// 不叠默认八份（否则甘特的前 12 行会被两个月前的旧夹具占满）。
+test.describe("截图归档 · Round DD 十功能", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: roundDDScenario() });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`Round DD · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+      const shot = async (view: string) => {
+        await settleImages(page);
+        await page.screenshot({ path: path.join(OUT_DIR, `${view}-${theme}${suffix}.png`) });
+      };
+      const center = (locator: ReturnType<Page["locator"]>) =>
+        locator.evaluate((element) => element.scrollIntoView({ block: "center" }));
+
+      await page.addInitScript(() => {
+        localStorage.setItem("cca-billing-plan", JSON.stringify({ id: "max5" }));
+      });
+
+      await page.goto("/");
+      await page.getByRole("tab", { name: "用量总览" }).click();
+      await expect(page.locator("[data-probe='usage-progress']")).toBeVisible({ timeout: 15_000 });
+      await page.waitForTimeout(300);
+
+      // D1 会话对比：两栏 + 摘要 + 两个原生 select。
+      await center(page.getByRole("region", { name: "会话对比" }));
+      await shot(V_COMPARE);
+
+      // D4 指纹雷达 + D8 工作习惯（同一排）。
+      await center(page.locator("[data-probe='fingerprint']"));
+      await shot(V_RADAR);
+      await center(page.locator("[data-probe='work-habits']"));
+      await shot(V_HABITS);
+
+      // D9 峰值时刻：周战报内的一行。
+      await page.locator("[data-probe='peak-minute']").evaluate((el) => el.scrollIntoView({ block: "center" }));
+      await shot(V_PEAK);
+
+      // D10 换算成日常事物：展开后的四条。
+      await page.getByRole("button", { name: /换算成日常事物/ }).click();
+      await center(page.locator("[data-probe='equivalents']"));
+      await page.waitForTimeout(200);
+      await shot(V_EQUIVALENTS);
+
+      // D7 会话甘特：12 行封顶。
+      await center(page.locator("[data-probe='gantt']"));
+      await shot(V_GANTT);
+
+      // D3 换模：按模型分布卡内的第二 tab。
+      await page.getByRole("tab", { name: "换模", exact: true }).click();
+      await center(page.locator("[data-probe='model-swap']"));
+      await page.waitForTimeout(200);
+      await shot(V_SWAP);
+
+      // D2 工具健康：工具普查卡内的第二 tab。
+      await page.getByRole("tab", { name: "健康", exact: true }).click();
+      await center(page.locator("[data-probe='tool-health']"));
+      await page.waitForTimeout(200);
+      await shot(V_HEALTH);
+
+      // D5 开发者海报：里程碑档尾，展开预览。
+      await page.getByRole("tab", { name: "里程碑", exact: true }).click();
+      await expect(page.locator("[data-probe='usage-progress']")).toBeVisible({ timeout: 15_000 });
+      await page.getByRole("button", { name: "预览", exact: true }).click();
+      await center(page.locator("[data-probe='poster-preview']"));
+      await page.waitForTimeout(300);
+      await shot(V_POSTER);
     });
   }
 });

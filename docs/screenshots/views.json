@@ -33,6 +33,15 @@
     "clusters",
     "pins",
     "palette",
-    "kiosk"
+    "kiosk",
+    "compare",
+    "health",
+    "swap",
+    "radar",
+    "poster",
+    "gantt",
+    "habits",
+    "peak",
+    "equivalents"
   ]
 }

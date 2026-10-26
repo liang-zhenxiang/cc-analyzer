@@ -1,0 +1,93 @@
+.wrap {
+  min-width: 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.table th,
+.table td {
+  padding: var(--sp-1) 0 var(--sp-1) var(--sp-3);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.table thead th {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
+
+.table thead th:first-child,
+.table tbody th {
+  padding-left: 0;
+  text-align: left;
+}
+
+.table tbody th {
+  width: 100%;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+
+.table tbody tr {
+  height: 24px;
+}
+
+.table tbody td {
+  font-size: var(--fs-sm);
+}
+
+.actualRow th {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.actualRow td {
+  font-weight: 600;
+}
+
+.money {
+  color: var(--text);
+}
+
+.ratio {
+  min-width: 48px;
+  color: var(--text-tertiary);
+}
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.source {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.empty {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+}
+
+.srOnly {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

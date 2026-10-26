@@ -7,6 +7,7 @@ fn main() {
                 "read_text",
                 "read_head",
                 "write_text",
+                "write_binary",
                 "run_lines",
                 "cancel_lines",
                 "exec_text",

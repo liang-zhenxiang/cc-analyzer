@@ -116,17 +116,17 @@ describe("焦点环的几何只走令牌", () => {
    * 所以消费了令牌的规则共 43 条（39 条 outline 规则 + 4 条纯竖条）；Round CC 的
    * 命令面板补 1 条（输入框，正偏移 1px，与全局搜索同款）。
    */
-  it("令牌被 43 条规则消费，环宽度 39 处、偏移 21 + 15 处、焦点竖条 7 处", () => {
+  it("令牌被 46 条规则消费，环宽度 42 处、偏移 23 + 16 处、焦点竖条 7 处", () => {
     const count = (pattern: RegExp) => ALL_SOURCE.match(pattern)?.length ?? 0;
     // 只数「消费」的规则：tokens.css 里那几块是**声明**（`--focus-ring-width: 2px;`），
     // 不含 `var(...)`，不能被算进消费方。
     const consumingRules = ALL_RULES.filter((rule) => /var\(--focus-ring-/.test(rule.body));
 
-    expect(count(/outline(?:-width)?:\s*var\(--focus-ring-width\)/g)).toBe(39);
-    expect(count(/outline-offset:\s*var\(--focus-ring-offset\)/g)).toBe(21);
-    expect(count(/outline-offset:\s*var\(--focus-ring-inset\)/g)).toBe(15);
+    expect(count(/outline(?:-width)?:\s*var\(--focus-ring-width\)/g)).toBe(42);
+    expect(count(/outline-offset:\s*var\(--focus-ring-offset\)/g)).toBe(23);
+    expect(count(/outline-offset:\s*var\(--focus-ring-inset\)/g)).toBe(16);
     expect(count(/inset\s+var\(--focus-ring-width\)\s+0\s+0\s+var\(--accent\)/g)).toBe(7);
-    expect(consumingRules.length).toBe(43);
+    expect(consumingRules.length).toBe(46);
   });
 });
 

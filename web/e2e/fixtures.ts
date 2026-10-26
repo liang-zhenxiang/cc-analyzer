@@ -465,6 +465,391 @@ export function roundCCScenario(overrides: Partial<MockScenario> = {}): MockScen
   };
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * Round DD「第二批十功能」动态夹具
+ *
+ * 十功能各有自己的数据前提，这份场景是它们的**共同最小公倍数**：
+ *   - D1 对比：至少 3 个会话，token 总量前两名差得开；
+ *   - D2 健康：Bash 3 次各带耗时、其中 1 次失败（33.3% > 20%），
+ *     Grep 只有 2 次（< MIN_FAILURE_SAMPLE=3 → 「样本不足（2 次）」）；
+ *   - D3 换模：Sonnet / Opus / Haiku + 未定价的 gpt-5 混合；
+ *   - D4 雷达：3 个项目（广度 3/6），最长会话 200 分钟（续航 83.3）；
+ *   - D5 海报：全历史聚合有数据即可；
+ *   - D6 微表：计划限额由用例用 `cca-billing-plan` 预置（场景本身不带）；
+ *   - D7 甘特：13 个会话（12 行上限 + 「另有 1 个会话未画出」），
+ *     A 09:00–12:20 与 B 09:30–11:00 相交（并行虚线带 + ∥）；
+ *   - D8 习惯：昨天到四天前连续有活动（连击 4 天），上午消息远多于晚间（早鸟）；
+ *   - D9 峰值：09:15 那一分钟 6 次调用共 1,230,000 tok，次高 209,000；
+ *   - D10 换算：窗口内四类计数器合计 2,089,000 tok（四条换算都 ≥1）。
+ *
+ * 时间锚点：构建时取一次 `Date.now()`，之后所有记录都由 `roundDDNow()` 派生的
+ * 本地日历（昨天 09:00 等）算出——用例不得再直接读 Date.now()，否则跨整点/
+ * 跨天会让「昨天」变成「今天」，连击与峰值分钟随之漂移。
+ *
+ * **为什么不进 `SESSION_SEEDS`**：默认场景的会话数（8）与全部含侧栏的归档截图
+ * 都按它写死；沿用 `costScenario` / `roundCCScenario` 的先例，只在需要它的
+ * 场景里追加文件，并把默认场景的旧夹具整体推到 30 天前（避免它们的用量落进
+ * 7 天窗，把「3 个项目」撑成第 4 个）。
+ * ────────────────────────────────────────────────────────────────────────── */
+
+const ROUND_DD_SONNET = "claude-sonnet-4-5-20250929";
+const ROUND_DD_OPUS = "claude-opus-4-1-20250805";
+const ROUND_DD_HAIKU = "claude-haiku-4-5-20251001";
+/** 未收录定价的模型：D3 的「倍数」与脚注的「未计入」都靠它。 */
+const ROUND_DD_UNPRICED = "gpt-5";
+
+type RoundDDUsage = {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens: number;
+  cache_read_input_tokens: number;
+};
+
+type RoundDDRecord = Record<string, unknown>;
+
+type RoundDDSessionSeed = { cwd: string; id: string; records: RoundDDRecord[] };
+
+/** 造一段会话的 JSONL；记录按时间戳升序输出。 */
+function roundDDJsonl(seed: RoundDDSessionSeed): string {
+  const sorted = [...seed.records].sort(
+    (a, b) => Date.parse(String(a.timestamp)) - Date.parse(String(b.timestamp))
+  );
+  return sorted.map((record) => JSON.stringify(record)).join("\n") + "\n";
+}
+
+function buildRoundDD(): { files: Record<string, string>; records: RoundDDRecord[]; now: number } {
+  const now = Date.now();
+
+  /** 本地日历：`daysAgo` 天前的 `hour:minute:second`（跨 DST 也按日历走）。 */
+  const at = (daysAgo: number, hour: number, minute: number, second = 0): number => {
+    const day = new Date(now);
+    day.setDate(day.getDate() - daysAgo);
+    day.setHours(hour, minute, second, 0);
+    return day.getTime();
+  };
+
+  let uuidSeed = 0;
+  const idOf = (slug: string) =>
+    `dd00ffee-0000-4000-8000-${slug.padEnd(12, "0").slice(0, 12)}`;
+
+  function make(
+    kind: "user" | "assistant",
+    sessionId: string,
+    cwd: string,
+    timestamp: number,
+    message: Record<string, unknown>,
+    extra: Record<string, unknown> = {}
+  ): RoundDDRecord {
+    uuidSeed += 1;
+    return {
+      type: kind,
+      sessionId,
+      cwd,
+      gitBranch: "main",
+      version: "2.1.0",
+      timestamp: new Date(timestamp).toISOString(),
+      uuid: `rounddd-${uuidSeed}`,
+      parentUuid: null,
+      isSidechain: false,
+      message,
+      ...extra
+    };
+  }
+
+  const user = (sessionId: string, cwd: string, timestamp: number, text: string) =>
+    make("user", sessionId, cwd, timestamp, { role: "user", content: text });
+
+  const assistant = (
+    sessionId: string,
+    cwd: string,
+    timestamp: number,
+    text: string,
+    model: string = ROUND_DD_SONNET,
+    usage?: RoundDDUsage
+  ) =>
+    make("assistant", sessionId, cwd, timestamp, {
+      id: `rounddd-msg-${uuidSeed + 1}`,
+      role: "assistant",
+      model,
+      content: [{ type: "text", text }],
+      ...(usage ? { usage } : {})
+    });
+
+  const toolUse = (
+    sessionId: string,
+    cwd: string,
+    timestamp: number,
+    toolId: string,
+    name: string,
+    input: Record<string, unknown>
+  ) =>
+    make("assistant", sessionId, cwd, timestamp, {
+      id: `rounddd-msg-${uuidSeed + 1}`,
+      role: "assistant",
+      model: ROUND_DD_SONNET,
+      content: [{ type: "tool_use", id: toolId, name, input }]
+    });
+
+  const toolResult = (
+    sessionId: string,
+    cwd: string,
+    timestamp: number,
+    toolId: string,
+    text: string,
+    isError = false
+  ) =>
+    make(
+      "user",
+      sessionId,
+      cwd,
+      timestamp,
+      {
+        role: "user",
+        content: [{ type: "tool_result", tool_use_id: toolId, content: text, ...(isError ? { is_error: true } : {}) }]
+      },
+      isError ? { toolUseResult: { type: "tool_use_result", stdout: "", stderr: text } } : {}
+    );
+
+  const usage = (
+    input: number,
+    output: number,
+    cacheCreation: number,
+    cacheRead: number
+  ): RoundDDUsage => ({
+    input_tokens: input,
+    output_tokens: output,
+    cache_creation_input_tokens: cacheCreation,
+    cache_read_input_tokens: cacheRead
+  });
+
+  const sessions: RoundDDSessionSeed[] = [];
+
+  // ── A：主会话（09:00–12:20），D9 峰值 + D2 工具画像 ──────────────────────
+  const aId = idOf("alpha-main");
+  const a: RoundDDRecord[] = [
+    user(aId, "/repo/dd-alpha", at(1, 9, 0), "dd：把今天的 alpha 账摊开"),
+    // 09:15 这一分钟 6 次调用 × 205,000 = 1,230,000 tok（D9 冠军分钟）
+    ...[0, 5, 10, 15, 20, 25].map((second) =>
+      assistant(
+        aId,
+        "/repo/dd-alpha",
+        at(1, 9, 15, second),
+        `峰值第 ${second / 5 + 1} 次回答`,
+        ROUND_DD_SONNET,
+        usage(120_000, 5_000, 20_000, 60_000)
+      )
+    ),
+    user(aId, "/repo/dd-alpha", at(1, 9, 35), "接着体检工具"),
+    toolUse(aId, "/repo/dd-alpha", at(1, 9, 40), "dd-bash-1", "Bash", { command: "cat missing.txt" }),
+    toolResult(
+      aId,
+      "/repo/dd-alpha",
+      at(1, 9, 40, 1) + 200,
+      "dd-bash-1",
+      "cat: missing.txt: No such file or directory",
+      true
+    ),
+    toolUse(aId, "/repo/dd-alpha", at(1, 9, 45), "dd-bash-2", "Bash", { command: "ls" }),
+    toolResult(aId, "/repo/dd-alpha", at(1, 9, 45, 2) + 400, "dd-bash-2", "app.ts"),
+    toolUse(aId, "/repo/dd-alpha", at(1, 9, 50), "dd-bash-3", "Bash", { command: "npm test" }),
+    toolResult(aId, "/repo/dd-alpha", at(1, 9, 50, 4) + 800, "dd-bash-3", "ok"),
+    toolUse(aId, "/repo/dd-alpha", at(1, 10, 0), "dd-grep-1", "Grep", { pattern: "TODO" }),
+    toolResult(aId, "/repo/dd-alpha", at(1, 10, 0, 0) + 800, "dd-grep-1", "2 matches"),
+    toolUse(aId, "/repo/dd-alpha", at(1, 10, 5), "dd-grep-2", "Grep", { pattern: "FIXME" }),
+    toolResult(aId, "/repo/dd-alpha", at(1, 10, 5, 1) + 600, "dd-grep-2", "0 matches"),
+    ...[0, 2, 4, 6].flatMap((second, index) => [
+      toolUse(aId, "/repo/dd-alpha", at(1, 10, 8, second), `dd-read-${index + 1}`, "Read", {
+        file_path: "/repo/dd-alpha/app.ts"
+      }),
+      toolResult(
+        aId,
+        "/repo/dd-alpha",
+        at(1, 10, 8, second) + 600,
+        `dd-read-${index + 1}`,
+        "export const ok = true;"
+      )
+    ]),
+    assistant(aId, "/repo/dd-alpha", at(1, 10, 10), "第一组小结", ROUND_DD_SONNET, usage(40_000, 3_000, 5_000, 20_000)),
+    user(aId, "/repo/dd-alpha", at(1, 10, 20), "继续"),
+    assistant(aId, "/repo/dd-alpha", at(1, 10, 40), "第二组小结", ROUND_DD_SONNET, usage(40_000, 3_000, 5_000, 20_000)),
+    user(aId, "/repo/dd-alpha", at(1, 11, 0), "再继续"),
+    assistant(aId, "/repo/dd-alpha", at(1, 11, 20), "第三组小结", ROUND_DD_SONNET, usage(40_000, 3_000, 5_000, 20_000)),
+    assistant(aId, "/repo/dd-alpha", at(1, 12, 20), "今天的账摊完了")
+  ];
+  sessions.push({ cwd: "/repo/dd-alpha", id: aId, records: a });
+
+  // ── B：与 A 时间相交的并行会话（D7 的 ∥），Opus 两次调用 ────────────────
+  const bId = idOf("beta-parallel");
+  sessions.push({
+    cwd: "/repo/dd-beta",
+    id: bId,
+    records: [
+      user(bId, "/repo/dd-beta", at(1, 9, 30), "dd：beta 并行跑一遍"),
+      assistant(bId, "/repo/dd-beta", at(1, 9, 35), "beta 第一段", ROUND_DD_OPUS, usage(60_000, 4_000, 8_000, 30_000)),
+      assistant(bId, "/repo/dd-beta", at(1, 9, 40), "beta 第二段", ROUND_DD_OPUS, usage(60_000, 4_000, 8_000, 30_000)),
+      user(bId, "/repo/dd-beta", at(1, 10, 50), "并行收尾"),
+      assistant(bId, "/repo/dd-beta", at(1, 11, 0), "beta 收尾")
+    ]
+  });
+
+  // ── C：前天（D8 连击的第 2 天），Haiku 三次调用 ─────────────────────────
+  const cId = idOf("alpha-day2");
+  sessions.push({
+    cwd: "/repo/dd-alpha",
+    id: cId,
+    records: [
+      user(cId, "/repo/dd-alpha", at(2, 9, 5), "dd：前天的 alpha"),
+      assistant(cId, "/repo/dd-alpha", at(2, 9, 10), "前天第一段", ROUND_DD_HAIKU, usage(30_000, 2_000, 4_000, 10_000)),
+      assistant(cId, "/repo/dd-alpha", at(2, 9, 20), "前天第二段", ROUND_DD_HAIKU, usage(30_000, 2_000, 4_000, 10_000)),
+      user(cId, "/repo/dd-alpha", at(2, 9, 50), "收尾"),
+      assistant(cId, "/repo/dd-alpha", at(2, 10, 5), "前天第三段", ROUND_DD_HAIKU, usage(30_000, 2_000, 4_000, 10_000))
+    ]
+  });
+
+  // ── D：大前天，gpt-5（未定价）两次调用 —— D3 的「未知价」与「未计入」 ────
+  const dId = idOf("gamma-unpriced");
+  sessions.push({
+    cwd: "/repo/dd-gamma",
+    id: dId,
+    records: [
+      user(dId, "/repo/dd-gamma", at(3, 9, 0), "dd：gamma 试一下未定价模型"),
+      assistant(dId, "/repo/dd-gamma", at(3, 9, 12), "gamma 第一段", ROUND_DD_UNPRICED, usage(200_000, 9_000, 0, 0)),
+      assistant(dId, "/repo/dd-gamma", at(3, 9, 30), "gamma 第二段", ROUND_DD_UNPRICED, usage(100_000, 4_000, 0, 0)),
+      assistant(dId, "/repo/dd-gamma", at(3, 9, 40), "gamma 结束")
+    ]
+  });
+
+  // ── 9 个单消息会话：凑满 13 行（12 行上限）并撑起四天连击 ────────────────
+  const fillers: Array<{ slug: string; cwd: string; daysAgo: number; hour: number; minute: number }> = [
+    { slug: "fill-1", cwd: "/repo/dd-alpha", daysAgo: 1, hour: 10, minute: 0 },
+    // 22:00 这条开始得最晚，是第 13 行、被上限截掉的那一个
+    { slug: "fill-2", cwd: "/repo/dd-alpha", daysAgo: 1, hour: 22, minute: 0 },
+    { slug: "fill-3", cwd: "/repo/dd-alpha", daysAgo: 2, hour: 10, minute: 0 },
+    { slug: "fill-4", cwd: "/repo/dd-alpha", daysAgo: 2, hour: 11, minute: 0 },
+    { slug: "fill-5", cwd: "/repo/dd-alpha", daysAgo: 3, hour: 10, minute: 0 },
+    { slug: "fill-6", cwd: "/repo/dd-alpha", daysAgo: 3, hour: 11, minute: 0 },
+    { slug: "fill-7", cwd: "/repo/dd-alpha", daysAgo: 3, hour: 12, minute: 0 },
+    { slug: "fill-8", cwd: "/repo/dd-alpha", daysAgo: 4, hour: 9, minute: 30 },
+    { slug: "fill-9", cwd: "/repo/dd-alpha", daysAgo: 4, hour: 10, minute: 30 }
+  ];
+  for (const filler of fillers) {
+    const id = idOf(filler.slug);
+    sessions.push({
+      cwd: filler.cwd,
+      id,
+      records: [user(id, filler.cwd, at(filler.daysAgo, filler.hour, filler.minute), `dd：${filler.slug}`)]
+    });
+  }
+
+  // **不装默认场景的八份**：它们的时间戳在两个月前，甘特按开始时间升序的
+  // 前 12 行会被它们占满，本轮的 A/B/C 被挤出画面，并行标记就看不见；
+  // 工具健康也会被旧夹具的 Bash 调用顶成 7 次。默认八份由别的场景覆盖。
+  const files: Record<string, string> = {};
+  for (const seed of sessions) {
+    files[`${HOME}/.claude/projects/${projectDir(seed.cwd)}/${seed.id}.jsonl`] = roundDDJsonl(seed);
+  }
+
+  return { files, records: sessions.flatMap((seed) => seed.records), now };
+}
+
+let roundDDCache: { files: Record<string, string>; records: RoundDDRecord[]; now: number } | null =
+  null;
+
+function roundDDBuilt(): { files: Record<string, string>; records: RoundDDRecord[]; now: number } {
+  // 同一进程里的多个用例共用一个时刻：跨整点/跨天后「昨天 09:00」不会漂。
+  if (roundDDCache === null) roundDDCache = buildRoundDD();
+  return roundDDCache;
+}
+
+/** Round DD 全量记录（时间戳为 ISO 字符串）——e2e 用它手算期望值。 */
+export function roundDDRecords(): RoundDDRecord[] {
+  return roundDDBuilt().records;
+}
+
+/** 夹具构建时的基准时刻；用例不得再直接读 `Date.now()`。 */
+export function roundDDNow(): number {
+  return roundDDBuilt().now;
+}
+
+/**
+ * Round DD 专用场景：**只装本轮的会话文件**，不叠默认的八份。
+ *
+ * 叠默认夹具会把工具健康（Bash 被旧夹具的调用顶到 7 次）与甘特（21 个会话，
+ * 开始时间最早的 12 个先占坑，把 A/B/C 挤出画面，并行标记也就看不见了）
+ * 一起带偏；默认八份已由别的场景覆盖，这里要的是能对账的干净数字。
+ */
+export function roundDDScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  return {
+    ...defaultScenario(overrides),
+    files: roundDDBuilt().files
+  };
+}
+
+/**
+ * 「单分钟 / 无计划」的最小场景：两轮请求都落在同一分钟里，且只有一段会话。
+ *
+ * 给 D9 的「单分钟」与 D6 的「没有计划限额」两个空态用：`peakMinute` 有读数
+ * 但没有次高（提示写「只有这一分钟有读数」），`buildLimitForecast` 因
+ * `limitTokens === null` 返回 null（`forecast-row` 整行不画）。
+ *
+ * 刻意**不带**默认的八个会话：带上就会混进别的分钟，D9 的「单分钟」前提消失。
+ */
+export function roundDDQuietScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  const now = roundDDNow();
+  const minute = Math.floor(now / 60_000) * 60_000 - 10 * 60_000;
+  const stamp = (offset: number) => new Date(minute + offset).toISOString();
+  const records = [
+    {
+      type: "user",
+      sessionId: "dd00ffee-0000-4000-8000-quiet-only-0",
+      cwd: "/repo/dd-quiet",
+      timestamp: stamp(0),
+      message: { role: "user", content: "这一分钟里只有两次请求。" }
+    },
+    {
+      type: "assistant",
+      sessionId: "dd00ffee-0000-4000-8000-quiet-only-0",
+      cwd: "/repo/dd-quiet",
+      timestamp: stamp(20_000),
+      message: {
+        role: "assistant",
+        model: "claude-sonnet-4-5",
+        content: [{ type: "text", text: "第一次。" }],
+        usage: {
+          input_tokens: 60,
+          output_tokens: 40,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0
+        }
+      }
+    },
+    {
+      type: "assistant",
+      sessionId: "dd00ffee-0000-4000-8000-quiet-only-0",
+      cwd: "/repo/dd-quiet",
+      timestamp: stamp(40_000),
+      message: {
+        role: "assistant",
+        model: "claude-sonnet-4-5",
+        content: [{ type: "text", text: "第二次。" }],
+        usage: {
+          input_tokens: 30,
+          output_tokens: 10,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0
+        }
+      }
+    }
+  ];
+  return {
+    ...defaultScenario(overrides),
+    files: {
+      [`${HOME}/.claude/projects/${projectDir("/repo/dd-quiet")}/quiet-dd.jsonl`]:
+        records.map((record) => JSON.stringify(record)).join("\n") + "\n"
+    }
+  };
+}
+
 /** 工具统计夹具里最新的活动日（tool-census 的 2026-10-03）——平移锚点。 */
 const TOOL_CENSUS_NEWEST_DAY = Date.UTC(2026, 9, 3);
 
