@@ -64,6 +64,22 @@ git fetch origin
 - 变量只对当前 shell 生效，用完 `unset https_proxy http_proxy all_proxy` 即可，
   不会影响本机直连的其他服务。
 
+### 本机跑 Playwright 的资源红线（曾把开发机拖到重启）
+
+在本地（尤其 24GB 内存的 MacBook）跑 Playwright 时：
+
+- **一律 `--workers=2`**。默认 worker 数 = CPU 核数的一半以上，webkit 引擎
+  逐 worker 起独立浏览器进程，全量套件并发跑会把机器压到卡死级负载——
+  实测出现过成片 `page.goto: Test timeout` 、preview server 被压垮
+  （curl 返回 000）、整机无响应最终被用户硬重启。
+- 一次只跑一个 project（`--project=chromium` 或 `--project=webkit`），
+  不要两个引擎串在一个命令里连续全量跑。
+- **跑完清理 preview 进程**：`pgrep -fl "vite preview"` 有残留就 kill。
+  Playwright 自起的 webServer 会自己收，手动 `vite preview` 的不会。
+- 判断「测试失败是资源还是代码」：如果失败信息是成片的
+  `page.goto: Test timeout` + `Tearing down "context" exceeded the test
+  timeout`，先怀疑资源耗尽（降低并发重跑），不要先改断言。
+
 ## 二、规划
 
 1. **建里程碑**：`gh api repos/liang-zhenxiang/cc-analyzer/milestones -f title="vX.Y.Z" -f state=open -f description="主题"`
