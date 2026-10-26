@@ -1,0 +1,5 @@
+{
+  "tauri": {"version": "2.13.0", "gtk": "^0.19"},
+  "muda": {"version": "0.22.0", "gtk": null},
+  "tao": {"version": "0.38.0", "gtk": "^0.19"}
+}
