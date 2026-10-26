@@ -144,6 +144,8 @@ GitHub Actions。每周一 06:00（Asia/Shanghai）检查，新版本发布满 7
 - `vite` 5 → 8，连带 `vitest` 2 → 5、`@vitejs/plugin-react` 4 → 6、
   jsdom 24 → 30（PR #13）
 - `typescript` 5 → 7，单独一个 PR（#15）
+- `react` / `react-dom` 18 → 19，连同 `@types/react` / `@types/react-dom`
+  成套升级（Issue #19）
 
 升级后至少跑：
 
@@ -158,11 +160,9 @@ cargo check --manifest-path src-tauri/Cargo.toml   # 版本号有改动时
 jsdom 30 的可访问名称）见
 [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md#依赖升级)。
 
-**当前显式豁免**：`react`、`react-dom`、`@types/react`、`@types/react-dom`
-的 major 更新在 `dependabot.yml` 里被 `ignore`。React 19 要求 `@types`
-成套更换并适配 cleanup 返回值、ref 处理等语义，与安全无关，适合单独一轮。
-真要升的时候先删掉那 4 条 `ignore`，再把四个包一起升——只升一半必然卡在
-peer 依赖上。
+**当前没有 React 豁免**：`dependabot.yml` 已不再忽略 `react` / `react-dom` /
+`@types/react` / `@types/react-dom` 的 major 更新。这四个包仍然必须成套升级
+——只升一半必然卡在 peer 依赖上。
 
 ## 仓库配置清单
 

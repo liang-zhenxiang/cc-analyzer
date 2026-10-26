@@ -27,7 +27,7 @@ export function ScrollArea({
   children
 }: {
   /** 调用方自己的滚动容器 ref（虚拟化需要读 scrollTop / 主动设置它）。 */
-  scrollerRef?: RefObject<HTMLDivElement>;
+  scrollerRef?: RefObject<HTMLDivElement | null>;
   /** 追加到滚动元素上的类（滚动容器自己的样式）。 */
   className?: string;
   onScroll?: (event: UIEvent<HTMLDivElement>) => void;
