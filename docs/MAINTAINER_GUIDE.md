@@ -164,6 +164,19 @@ jsdom 30 的可访问名称）见
 `@types/react` / `@types/react-dom` 的 major 更新。这四个包仍然必须成套升级
 ——只升一半必然卡在 peer 依赖上。
 
+**glib 安全告警（Issue #106）**：[GHSA-wrw7-89jp-8q8g](https://github.com/advisories/GHSA-wrw7-89jp-8q8g)
+的受影响范围是 `>=0.15.0,<0.20.0`，而 `tauri` / `muda` / `tao` 目前都要求
+`gtk ^0.18`（gtk 0.18 依赖 glib 0.18），所以依赖树暂时无法离开受影响范围。
+解除条件是上游改用 `gtk ^0.19` 或更高（gtk 0.19 依赖 glib ^0.22）。
+
+`.github/workflows/gtk-unblock-watch.yml` 每周一（UTC 03:17）读取 crates.io
+上这三个 crate 最新稳定版的 gtk 要求，**只在状态变化时**在 #106 留言——评论
+里的机器标记负责去重，状态不变不会重复刷屏。看到 `partial` / `unblocked` 时，
+按留言里的提示先对三个分发目标跑 `cargo tree -i glib --target ...` 复核
+（macOS ARM64 / Intel、Windows x64），确认 glib 不再进入这些目标的依赖树后
+再评估升级。阻塞期间的告警**不要 dismiss**：当前发布产物只有 macOS / Windows，
+用户不受影响，但 Linux 构建与依赖跟踪仍需要这条记录。
+
 ## 仓库配置清单
 
 以下配置不在代码里，重建仓库或换组织时需要重做。
