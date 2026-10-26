@@ -204,6 +204,267 @@ export function costScenario(overrides: Partial<MockScenario> = {}): MockScenari
   };
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * Round CC「用量页新面板」动态夹具
+ *
+ * 时间戳全部相对 `Date.now()` 现算：面板的时间窗（滚动 7 天 / 自然周 / 5h
+ * 计费块）都相对当前时刻，写死日期的夹具过几天就会整片落到窗外。自然周
+ * 用本地周一 00:00 起（与 `weeklyDigest.weekStartOf` 同一规则）。
+ *
+ * 三份会话 = 三个项目（/repo/alpha|beta|gamma），每个项目各喂给三个模型各
+ * 一次、四类计数器全非零——流向图的 3×3 拓扑靠它；alpha 量级约为 beta 的
+ * 9 倍，gamma 最小（擂台两列有可比的差）。
+ *
+ * 为什么不进 `SESSION_SEEDS`：默认场景的会话数（8）与全部含侧栏的归档截图
+ * 都按它写死，追加会牵动本轮之外的断言；沿用 `costScenario` 的先例，只在
+ * 需要它的场景里追加文件。默认场景的旧夹具整体平移到 30 天前，避免它们的
+ * 用量落进 7 天窗、把「3 个项目」变成 4 个。
+ * ────────────────────────────────────────────────────────────────────────── */
+
+const ROUND_CC_HOUR = 3_600_000;
+const ROUND_CC_DAY = 24 * ROUND_CC_HOUR;
+const ROUND_CC_SONNET = "claude-sonnet-4-5-20250929";
+const ROUND_CC_OPUS = "claude-opus-4-1-20250805";
+const ROUND_CC_HAIKU = "claude-haiku-4-5-20251001";
+
+type RoundCCUsage = {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens: number;
+  cache_read_input_tokens: number;
+};
+
+type RoundCCRecord = Record<string, unknown>;
+
+type RoundCCSessionSeed = { cwd: string; id: string; records: RoundCCRecord[] };
+
+/** 本地自然周起点（周一 00:00）——与 `weekStartOf` 同一条规则，只用于造数据。 */
+function roundCCWeekStart(ts: number): number {
+  const start = new Date(ts);
+  start.setHours(0, 0, 0, 0);
+  const offset = (start.getDay() + 6) % 7;
+  start.setDate(start.getDate() - offset);
+  return start.getTime();
+}
+
+/** 造一段会话的 JSONL；记录按时间戳升序输出（跨周记录也是上周在前）。 */
+function roundCCJsonl(seed: RoundCCSessionSeed): string {
+  const sorted = [...seed.records].sort(
+    (a, b) => Date.parse(String(a.timestamp)) - Date.parse(String(b.timestamp))
+  );
+  return sorted.map((record) => JSON.stringify(record)).join("\n") + "\n";
+}
+
+function buildRoundCC(): { files: Record<string, string>; records: RoundCCRecord[]; now: number } {
+  const now = Date.now();
+  const weekStart = roundCCWeekStart(now);
+  const sessions: RoundCCSessionSeed[] = [];
+  let uuidSeed = 0;
+
+  const idOf = (name: string) =>
+    `c0ffee00-0000-4000-8000-${name.padEnd(12, "0").slice(0, 12)}`;
+
+  function make(
+    kind: "user" | "assistant",
+    sessionId: string,
+    cwd: string,
+    at: number,
+    message: Record<string, unknown>,
+    extra: Record<string, unknown> = {}
+  ): RoundCCRecord {
+    uuidSeed += 1;
+    return {
+      type: kind,
+      sessionId,
+      cwd,
+      gitBranch: "main",
+      version: "2.1.0",
+      timestamp: new Date(at).toISOString(),
+      uuid: `roundcc-${uuidSeed}`,
+      parentUuid: null,
+      isSidechain: false,
+      message,
+      ...extra
+    };
+  }
+
+  function user(sessionId: string, cwd: string, at: number, text: string): RoundCCRecord {
+    return make("user", sessionId, cwd, at, { role: "user", content: text });
+  }
+
+  function assistant(
+    sessionId: string,
+    cwd: string,
+    at: number,
+    text: string,
+    model: string = ROUND_CC_SONNET,
+    usage?: RoundCCUsage
+  ): RoundCCRecord {
+    return make("assistant", sessionId, cwd, at, {
+      id: `roundcc-msg-${uuidSeed + 1}`,
+      role: "assistant",
+      model,
+      content: [{ type: "text", text }],
+      ...(usage ? { usage } : {})
+    });
+  }
+
+  const usage = (
+    input: number,
+    output: number,
+    cacheCreation: number,
+    cacheRead: number
+  ): RoundCCUsage => ({
+    input_tokens: input,
+    output_tokens: output,
+    cache_creation_input_tokens: cacheCreation,
+    cache_read_input_tokens: cacheRead
+  });
+
+  // ── alpha：本周（跨周对比的「本周」列）+ 三个模型的用量 ──────────────────
+  const alphaId = idOf("alpha");
+  const alpha2Id = idOf("alpha-week2");
+  const alphaRecords: RoundCCRecord[] = [];
+  const alphaAt = weekStart + 30 * 60_000;
+  alphaRecords.push(
+    user(alphaId, "/repo/alpha", alphaAt, "本周：把 alpha 的账摊开"),
+    user(alphaId, "/repo/alpha", alphaAt + 60_000, "本周：先看三个模型的消耗"),
+    user(alphaId, "/repo/alpha", alphaAt + 120_000, "本周：再对一遍缓存"),
+    assistant(alphaId, "/repo/alpha", alphaAt + 180_000, "本周回答一", ROUND_CC_SONNET, usage(1200, 900, 450, 450)),
+    assistant(alphaId, "/repo/alpha", alphaAt + 240_000, "本周回答二", ROUND_CC_SONNET, usage(1200, 900, 450, 450)),
+    assistant(alphaId, "/repo/alpha", alphaAt + 300_000, "本周回答三", ROUND_CC_SONNET, usage(1200, 900, 450, 450)),
+    // F1：alpha × 三个模型各一条（四类计数器全非零）
+    assistant(alphaId, "/repo/alpha", now - 26 * ROUND_CC_HOUR, "alpha 的 Sonnet 调用", ROUND_CC_SONNET, usage(600, 400, 200, 800)),
+    assistant(alphaId, "/repo/alpha", now - 50 * ROUND_CC_HOUR, "alpha 的 Opus 调用", ROUND_CC_OPUS, usage(600, 400, 200, 800)),
+    assistant(alphaId, "/repo/alpha", now - 74 * ROUND_CC_HOUR, "alpha 的 Haiku 调用", ROUND_CC_HAIKU, usage(300, 200, 100, 300)),
+    // F4：时钟需要更多不同本地小时（几小时差开，且都在 7 天窗内）
+    user(alphaId, "/repo/alpha", now - 30 * ROUND_CC_HOUR, "凌晨巡检一"),
+    assistant(alphaId, "/repo/alpha", now - 34 * ROUND_CC_HOUR, "凌晨巡检一完成"),
+    user(alphaId, "/repo/alpha", now - 38 * ROUND_CC_HOUR, "凌晨巡检二"),
+    // F5：现在-2h 的用量把当前 5h 计费块打开（块内只有它自己）
+    assistant(alphaId, "/repo/alpha", now - 2 * ROUND_CC_HOUR, "最近两小时的调用", ROUND_CC_SONNET, usage(8000, 6000, 4000, 22000))
+  );
+  sessions.push({ cwd: "/repo/alpha", id: alphaId, records: alphaRecords });
+
+  // 本周新开的第二个会话（同一项目）：让周战报的「会话数」两端不同。
+  sessions.push({
+    cwd: "/repo/alpha",
+    id: alpha2Id,
+    records: [user(alpha2Id, "/repo/alpha", weekStart + ROUND_CC_HOUR, "本周新开的会话")]
+  });
+
+  // ── beta：上周（跨周对比的「上周」列）+ 三个模型的用量 ───────────────────
+  const betaId = idOf("beta");
+  const lastWeekAt = weekStart - 3 * ROUND_CC_DAY + 12 * ROUND_CC_HOUR;
+  sessions.push({
+    cwd: "/repo/beta",
+    id: betaId,
+    records: [
+      user(betaId, "/repo/beta", lastWeekAt, "上周：先对齐口径"),
+      user(betaId, "/repo/beta", lastWeekAt + 60_000, "上周：再看目录结构"),
+      assistant(betaId, "/repo/beta", lastWeekAt + 120_000, "上周回答一", ROUND_CC_SONNET, usage(400, 300, 150, 150)),
+      assistant(betaId, "/repo/beta", lastWeekAt + 180_000, "上周回答二", ROUND_CC_SONNET, usage(400, 300, 150, 150)),
+      assistant(betaId, "/repo/beta", now - 26 * ROUND_CC_HOUR, "beta 的 Opus 调用", ROUND_CC_OPUS, usage(600, 400, 200, 800)),
+      assistant(betaId, "/repo/beta", now - 50 * ROUND_CC_HOUR, "beta 的 Haiku 调用", ROUND_CC_HAIKU, usage(300, 200, 100, 300)),
+      assistant(betaId, "/repo/beta", now - 74 * ROUND_CC_HOUR, "beta 的 Sonnet 调用", ROUND_CC_SONNET, usage(600, 400, 200, 800)),
+      user(betaId, "/repo/beta", now - 54 * ROUND_CC_HOUR, "beta 夜班"),
+      assistant(betaId, "/repo/beta", now - 58 * ROUND_CC_HOUR, "beta 夜班收尾"),
+      user(betaId, "/repo/beta", now - 62 * ROUND_CC_HOUR, "beta 第二处")
+    ]
+  });
+
+  // ── gamma：量级最小 + 两组工具错误（错误聚类） ───────────────────────────
+  const gammaId = idOf("gamma");
+  const toolUse = (at: number, toolId: string, name: string, input: Record<string, unknown>) =>
+    make("assistant", gammaId, "/repo/gamma", at, {
+      id: `roundcc-msg-${uuidSeed + 1}`,
+      role: "assistant",
+      model: ROUND_CC_SONNET,
+      content: [{ type: "tool_use", id: toolId, name, input }]
+    });
+  const toolError = (at: number, toolId: string, text: string) =>
+    make(
+      "user",
+      gammaId,
+      "/repo/gamma",
+      at,
+      {
+        role: "user",
+        content: [{ type: "tool_result", tool_use_id: toolId, content: text, is_error: true }]
+      },
+      { toolUseResult: { type: "tool_use_result", stdout: "", stderr: text } }
+    );
+
+  sessions.push({
+    cwd: "/repo/gamma",
+    id: gammaId,
+    records: [
+      assistant(gammaId, "/repo/gamma", now - 50 * ROUND_CC_HOUR, "gamma 的 Sonnet 调用", ROUND_CC_SONNET, usage(300, 200, 100, 300)),
+      assistant(gammaId, "/repo/gamma", now - 74 * ROUND_CC_HOUR, "gamma 的 Opus 调用", ROUND_CC_OPUS, usage(300, 200, 100, 300)),
+      assistant(gammaId, "/repo/gamma", now - 98 * ROUND_CC_HOUR, "gamma 的 Haiku 调用", ROUND_CC_HAIKU, usage(150, 100, 50, 150)),
+      user(gammaId, "/repo/gamma", now - 66 * ROUND_CC_HOUR, "gamma 翻日志"),
+      assistant(gammaId, "/repo/gamma", now - 70 * ROUND_CC_HOUR, "gamma 翻完日志"),
+      // 错误聚类：Bash ×2、Grep ×2，首行完全一致（聚类键 = 工具名 + 首行）
+      toolUse(now - 20 * ROUND_CC_HOUR, "roundcc-bash-1", "Bash", { command: "cat missing.txt" }),
+      toolError(now - 20 * ROUND_CC_HOUR + 30_000, "roundcc-bash-1", "Error: ENOENT: no such file or directory\n  at cat missing.txt"),
+      toolUse(now - 18 * ROUND_CC_HOUR, "roundcc-bash-2", "Bash", { command: "cat missing-two.txt" }),
+      toolError(now - 18 * ROUND_CC_HOUR + 30_000, "roundcc-bash-2", "Error: ENOENT: no such file or directory\n  at cat missing-two.txt"),
+      toolUse(now - 16 * ROUND_CC_HOUR, "roundcc-grep-1", "Grep", { pattern: "TODO" }),
+      toolError(now - 16 * ROUND_CC_HOUR + 30_000, "roundcc-grep-1", "Error: ripgrep exited with code 2\n  partial output"),
+      toolUse(now - 14 * ROUND_CC_HOUR, "roundcc-grep-2", "Grep", { pattern: "FIXME" }),
+      toolError(now - 14 * ROUND_CC_HOUR + 30_000, "roundcc-grep-2", "Error: ripgrep exited with code 2\n  no matches")
+    ]
+  });
+
+  // 默认场景的旧夹具整体推到 30 天前：它们的用量不能落进 7 天窗。
+  const staleDays = Math.ceil((Date.now() - NEWEST_FIXTURE_DAY) / ROUND_CC_DAY) + 30;
+  const base = defaultScenario();
+  const files: Record<string, string> = {};
+  for (const [path, content] of Object.entries(base.files)) {
+    files[path] = path.endsWith(".jsonl") ? shiftDays(content, -staleDays) : content;
+  }
+  for (const seed of sessions) {
+    files[`${HOME}/.claude/projects/${projectDir(seed.cwd)}/${seed.id}.jsonl`] = roundCCJsonl(seed);
+  }
+
+  return { files, records: sessions.flatMap((seed) => seed.records), now };
+}
+
+let roundCCCache: { files: Record<string, string>; records: RoundCCRecord[]; now: number } | null = null;
+
+function roundCCBuilt(): { files: Record<string, string>; records: RoundCCRecord[]; now: number } {
+  // 同一进程里的多个用例共用一个时刻，避免「场景 A 的 now」与「场景 B 的 now」
+  // 跨过整点后互相漂移。
+  if (roundCCCache === null) roundCCCache = buildRoundCC();
+  return roundCCCache;
+}
+
+/** Round CC 全量记录（时间戳为 ISO 字符串）——e2e 用它手算周战报的期望值。 */
+export function roundCCRecords(): RoundCCRecord[] {
+  return roundCCBuilt().records;
+}
+
+/** 构造夹具时的基准时刻——e2e 的手算与夹具用同一个 now，避免毫秒漂移。
+ *  从记录反推而不是另存一个变量：缓存后调用 `Date.now()` 会拿到「现在的现在」，
+ *  与夹具相对量（now-2h 等）已经错开。 */
+export function roundCCNow(): number {
+  const anchor = roundCCBuilt().now;
+  return anchor;
+}
+
+/** `/repo/alpha` 主会话在磁盘上的路径（置顶截图预置 localStorage 用）。 */
+export function roundCCAlphaPath(): string {
+  return `${HOME}/.claude/projects/-repo-alpha/c0ffee00-0000-4000-8000-alpha0000000.jsonl`;
+}
+
+/** 默认场景（旧夹具推到 30 天前）+ alpha / beta / gamma 三份 Round CC 会话。 */
+export function roundCCScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  return {
+    ...defaultScenario(overrides),
+    files: roundCCBuilt().files
+  };
+}
+
 /** 工具统计夹具里最新的活动日（tool-census 的 2026-10-03）——平移锚点。 */
 const TOOL_CENSUS_NEWEST_DAY = Date.UTC(2026, 9, 3);
 

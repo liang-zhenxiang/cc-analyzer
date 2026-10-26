@@ -532,3 +532,55 @@ describe("BillingWindowCard · 结构性守卫", () => {
     expect(specs).toContain("./billingReadouts");
   });
 });
+
+describe("BillingWindowCard · 限额预报（F5）", () => {
+  const HOUR_MS = 3_600_000;
+
+  function forecastRow(): HTMLElement | null {
+    return document.querySelector('[data-probe="forecast-row"]');
+  }
+
+  it("不渲染预报行：没有自设限额就没有分母", () => {
+    // `afterEach` 会把计划重置成 none，这里显式再确认一次这层口径。
+    const records = [record(T0)];
+    render(cardAt(inputsOf(records), T0 + 2 * HOUR_MS));
+    expect(forecastRow()).toBeNull();
+  });
+
+  it("窗口结束时预计用量：一句推测，带「若保持此速率」", () => {
+    setPlan({ id: "pro", limitTokens: 19_000, weeklyLimitTokens: null });
+    // 窗口从首条记录起（不是整点起）：T0 那条开窗，T0+2h 时已过 2 小时、烧了 9.5k
+    // → 4.75k/时；剩 3 小时再烧 14.25k → 23.75k，对 19k 是 125%。
+    const records = [record(T0, 9_500)];
+    render(cardAt(inputsOf(records), T0 + 2 * HOUR_MS));
+
+    const row = forecastRow();
+    expect(row).not.toBeNull();
+    expect(row!.textContent).toContain("若保持此速率");
+    expect(row!.textContent).toContain("预计用到限额的 125%");
+    // 还差 9.5k，按 4.75k/时 → 13:00，窗口 14:00 才关。
+    expect(row!.textContent).toContain("13:00 触顶");
+  });
+
+  it("触顶落在窗口关闭之后：只报百分比，不给时刻", () => {
+    setPlan({ id: "pro", limitTokens: 19_000, weeklyLimitTokens: null });
+    // 2 小时烧 1k → 500/时；还差 18k 要 36 小时，窗口只剩 3 小时。
+    const records = [record(T0, 1_000)];
+    render(cardAt(inputsOf(records), T0 + 2 * HOUR_MS));
+
+    const row = forecastRow();
+    expect(row!.textContent).toContain("预计用到限额的 13%");
+    expect(row!.textContent).not.toContain("触顶");
+  });
+
+  it("已经超了限额：写「已触顶」，速率满额一小时时整行换 warning", () => {
+    setPlan({ id: "pro", limitTokens: 19_000, weeklyLimitTokens: null });
+    // 2 小时烧 40k → 20k/时 ≥ 19k/时（满额一小时）。
+    const records = [record(T0, 40_000)];
+    render(cardAt(inputsOf(records), T0 + 2 * HOUR_MS));
+
+    const row = forecastRow()!;
+    expect(row.textContent).toContain("已触顶");
+    expect(row.className).toContain("forecastHot");
+  });
+});

@@ -17,6 +17,10 @@ import { CompactionStatsPanel } from "./CompactionStatsPanel";
 import { compactionStats } from "./compactionStats";
 import { mergeErrorStats } from "./errorStats";
 import { ErrorOverviewSection } from "./ErrorOverviewSection";
+import { ActivityClockPanel } from "./ActivityClockPanel";
+import { buildActivityClock } from "./activityClock";
+import { buildFlowDiagram } from "./flowDiagram";
+import { FlowDiagramPanel } from "./FlowDiagramPanel";
 import { MilestonesPanel } from "./MilestonesPanel";
 import { milestonesOf } from "./milestones";
 import { toolCensus } from "./toolCensus";
@@ -29,10 +33,12 @@ import {
   type UsageTotals
 } from "./usageAggregations";
 import { BarChart } from "./charts/BarChart";
-import { HBarChart } from "./charts/HBarChart";
 import { StackedBar } from "./charts/StackedBar";
 import { Heatmap } from "./charts/Heatmap";
 import { usageSnapshotFileName, usageSnapshotHtml } from "./usageSnapshot";
+import { WeeklyDigestPanel } from "./WeeklyDigestPanel";
+import { ProjectArenaPanel } from "./ProjectArenaPanel";
+import { ProjectCardsPanel } from "./ProjectCardsPanel";
 import styles from "./UsageOverviewPage.module.css";
 
 const RANGE_KEY = "cca-usage-range";
@@ -87,6 +93,28 @@ function readStoredView(): UsageView {
 }
 
 /**
+ * 活跃时段的两种画法（F4）：热力图是 7×24 的网格，时钟把同一份数据折成
+ * 24 个小时的极坐标。两者共用 `range.hourly`，切换不改变任何一个数字；
+ * 默认仍是热力图，旧会话的行为不变。
+ */
+const ACTIVITY_KEY = "cca-usage-activity";
+type ActivityView = "heatmap" | "clock";
+
+const ACTIVITY_ITEMS: SegmentedItem<ActivityView>[] = [
+  { value: "heatmap", label: "热力图" },
+  { value: "clock", label: "时钟" }
+];
+
+function readStoredActivityView(): ActivityView {
+  try {
+    return localStorage.getItem(ACTIVITY_KEY) === "clock" ? "clock" : "heatmap";
+  } catch {
+    // See readStoredRange: persistence is optional.
+    return "heatmap";
+  }
+}
+
+/**
  * The trend's token selector. "全部" is the four counters summed — the KPI
  * headline figure — while the other four isolate one counter, because a day
  * dominated by cache reads and a day dominated by output look identical under
@@ -123,6 +151,7 @@ export function UsageOverviewPage({
   const [days, setDays] = useState<UsageRange>(readStoredRange);
   const [tokenClass, setTokenClass] = useState<TokenClass>("total");
   const [view, setView] = useState<UsageView>(readStoredView);
+  const [activityView, setActivityView] = useState<ActivityView>(readStoredActivityView);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   // 里程碑 → 日历的下钻请求（Round Y #214）：与 `AppShell` 的 `revealRequest`
@@ -160,6 +189,14 @@ export function UsageOverviewPage({
       // See readStoredView: persistence is optional.
     }
   }, [view]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ACTIVITY_KEY, activityView);
+    } catch {
+      // See readStoredActivityView: persistence is optional.
+    }
+  }, [activityView]);
 
   useEffect(() => {
     let cancelled = false;
@@ -226,6 +263,12 @@ export function UsageOverviewPage({
     }
     return paths;
   }, [inputs]);
+
+  // F1：项目 × 模型 × 四类计数器的交叉表已经在 aggregateRange 的同一次窗口
+  // 遍历里建好，这里只做「折尾 + 排序 + 图」的纯计算，不新增 I/O。
+  const flow = useMemo(() => buildFlowDiagram(range, projectPaths), [range, projectPaths]);
+  // F4：与热力图吃同一份 `range.hourly`（7×24），折成 24 个小时合计；数字不变。
+  const clock = useMemo(() => buildActivityClock(range.hourly), [range.hourly]);
 
   const projectData = useMemo(
     () =>
@@ -488,6 +531,12 @@ export function UsageOverviewPage({
             </p>
           </div>
 
+          {/* F3 周战报（Round CC）：本周 vs 上周的四行读数住在 KPI 与两列网格
+              之间——KPI 是「这 N 天」的量级，战报是「这周比上周」的方向，
+              先量级后方向。自然周口径（周一起始）与下方计费卡的滚动 7 天
+              是两个问题，面板脚注各自声明。 */}
+          <WeeklyDigestPanel inputs={inputs} now={readouts.now} />
+
           {/* 两列网格：单列文档流下仪表盘比视口高 43%，「按项目分布」「按模型分布」
           「活跃时段」三块因此从来没进过首屏，也没进过任何一张归档截图。 */}
           <div className={styles.board}>
@@ -510,15 +559,21 @@ export function UsageOverviewPage({
               />
             </Panel>
 
-            <Panel title="按项目分布">
-              <HBarChart data={projectData} ariaLabel="按项目分布" emptyText="所选范围内暂无项目消耗" />
-            </Panel>
+            {/* F2 擂台（Round CC）：「按项目分布」升级为可切换面板——默认仍是
+                原来的横向条形图，点「对比」整块换成左右镜像的对垒视图。标题与
+                actions 是同一视觉单元，切换必须连标题一起换，所以整块面板由
+                ProjectArenaPanel 渲染。 */}
+            <ProjectArenaPanel inputs={inputs} days={days} data={projectData} projects={range.topProjects} />
 
-            {/* 消耗日历住满第二行整行（Issue #187）：53 列的网格不可能塞进半宽
-                列，插在「每日 Token 消耗 | 按项目分布」之后也让第一行不留半宽
-                空洞（compactionRow 的立身之本）。它是全应用最具传播力的一张图，
-                占住第二行整行、进首屏，位置本身是产品决策。聚合依赖只有
-                `inputs`——7/30/90 区间选择器与它正交（面板脚注声明）。 */}
+            {/* F6 项目卡片（Round CC）：一张卡一段读数 + 14 天走势，半宽列读不全；
+                整行插在分布与日历之间——「先看分布、再挑一个项目看细读数」。 */}
+            <div className={styles.compactionRow}>
+              <ProjectCardsPanel inputs={inputs} days={days} />
+            </div>
+
+            {/* 消耗日历（Issue #187）：53 列的网格不可能塞进半宽列。它是全应用
+                最具传播力的一张图，占住整行；聚合依赖只有 `inputs`——7/30/90
+                区间选择器与它正交（面板脚注声明）。 */}
             <div className={styles.compactionRow}>
               <UsageCalendarPanel
                 inputs={inputs}
@@ -552,8 +607,29 @@ export function UsageOverviewPage({
               ) : null}
             </Panel>
 
-            <Panel title="活跃时段（周 × 小时）">
-              <Heatmap counts={range.hourly} ariaLabel="活跃时段热力图" />
+            {/* F1 Token 流向（三层 Sankey）紧贴「按模型分布」：先看模型占比，再看
+                「哪个项目把 token 喂给了哪个模型、哪类计数器」。整行同
+                compactionRow 形态——三层图在单列里会挤扁，44px 的行容不下它。 */}
+            <div className={styles.compactionRow}>
+              <FlowDiagramPanel diagram={flow} />
+            </div>
+
+            <Panel
+              title="活跃时段（周 × 小时）"
+              actions={
+                <SegmentedControl
+                  items={ACTIVITY_ITEMS}
+                  value={activityView}
+                  onChange={setActivityView}
+                  ariaLabel="活跃时段视图"
+                />
+              }
+            >
+              {activityView === "clock" ? (
+                <ActivityClockPanel clock={clock} />
+              ) : (
+                <Heatmap counts={range.hourly} ariaLabel="活跃时段热力图" />
+              )}
             </Panel>
 
             {/* 工具与 skill（N3）住活跃时段之后、压缩统计之前（design 裁决 10）：

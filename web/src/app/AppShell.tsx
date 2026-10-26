@@ -1,5 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ThemeProvider, useTheme } from "./ThemeProvider";
+import { CommandPalette } from "./CommandPalette";
+import type { CommandAction } from "./commandRegistry";
+import { KioskRoot, getKiosk, setKiosk, useKiosk } from "./KioskMode";
+import { parseContrast, setContrast, useContrast } from "../features/settings/contrast";
 import { NotificationProvider, useNotifications } from "./NotificationProvider";
 import { SessionAnalyzerPage } from "../features/sessions/SessionAnalyzerPage";
 import { MonitorPage, type MonitorView } from "../features/monitor/MonitorPage";
@@ -58,6 +62,168 @@ function ThemeToggle() {
       <Icon name={theme === "light" ? "moon" : "sun"} size={16} />
     </IconButton>
   );
+}
+
+/**
+ * 命令面板的接线层：动作表在 App 层构造（这里才知道「有哪些能力」），
+ * `CommandPalette` 保持哑组件。
+ *
+ * 它必须是**子组件**：主题、对比度、大屏三个 hook 都要求 Provider 在场，
+ * 而 Provider 是在 `AppShell` 的 return 里才包上去的。
+ *
+ * 拿不到的动作（用量档内切档、导出快照、归档仓库）留在表里标 `disabled`：
+ * 面板如实说「不可用」，比把不存在的能力藏起来或假造一个入口都诚实。
+ */
+function CommandPaletteHost({
+  open,
+  onClose,
+  onNavigate,
+  onOpenSearch,
+  onOpenSettings
+}: {
+  open: boolean;
+  onClose: () => void;
+  onNavigate: (tab: WorkspaceTab) => void;
+  onOpenSearch: () => void;
+  onOpenSettings: () => void;
+}) {
+  const { theme, setTheme } = useTheme();
+  const contrast = useContrast();
+  const kiosk = useKiosk();
+
+  const actions = useMemo<CommandAction[]>(() => {
+    // 「跟随系统」在这里只能应用一次：ThemeProvider 的持久化只认 light / dark，
+    // 造一个 "system" 档会与它自己的存储格式打架，所以文案就说清楚是应用一次。
+    const followSystem = () =>
+      setTheme(
+        typeof window.matchMedia === "function" &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light"
+      );
+
+    return [
+      {
+        id: "nav-analyzer",
+        title: "会话分析",
+        group: "视图",
+        keywords: "session analyzer 会话",
+        run: () => onNavigate("analyzer")
+      },
+      {
+        id: "nav-usage",
+        title: "用量总览",
+        group: "视图",
+        keywords: "usage 用量 成本",
+        run: () => onNavigate("usage")
+      },
+      {
+        id: "nav-monitor",
+        title: "实时监控",
+        group: "视图",
+        keywords: "monitor pulse 监控 脉搏",
+        run: () => onNavigate("monitor")
+      },
+      {
+        id: "open-search",
+        title: "全局搜索",
+        group: "视图",
+        keywords: "search 搜索 查找",
+        detail: "搜索会话记录",
+        run: onOpenSearch
+      },
+      {
+        id: "nav-archive",
+        title: "归档仓库",
+        group: "视图",
+        keywords: "archive 归档",
+        disabled: true,
+        detail: "本轮未接入：归档入口在「设置 → 本地归档」"
+      },
+      {
+        id: "open-settings",
+        title: "设置",
+        group: "视图",
+        keywords: "settings preferences 偏好",
+        run: onOpenSettings
+      },
+      {
+        id: "usage-tab-usage",
+        title: "用量：切到用量档",
+        group: "用量",
+        keywords: "usage",
+        disabled: true,
+        detail: "需在「用量总览」内切换"
+      },
+      {
+        id: "usage-tab-milestones",
+        title: "用量：切到里程碑",
+        group: "用量",
+        keywords: "milestones 里程碑",
+        disabled: true,
+        detail: "需在「用量总览」内切换"
+      },
+      {
+        id: "usage-tab-errors",
+        title: "用量：切到错误",
+        group: "用量",
+        keywords: "errors 错误",
+        disabled: true,
+        detail: "需在「用量总览」内切换"
+      },
+      {
+        id: "theme-light",
+        title: "主题：浅色",
+        group: "外观",
+        keywords: "theme light",
+        detail: theme === "light" ? "当前" : undefined,
+        run: () => setTheme("light")
+      },
+      {
+        id: "theme-dark",
+        title: "主题：深色",
+        group: "外观",
+        keywords: "theme dark",
+        detail: theme === "dark" ? "当前" : undefined,
+        run: () => setTheme("dark")
+      },
+      {
+        id: "theme-system",
+        title: "主题：跟随系统",
+        group: "外观",
+        keywords: "theme system auto 自动",
+        detail: "按当前系统偏好应用一次",
+        run: followSystem
+      },
+      {
+        id: "toggle-contrast",
+        title: contrast === "high" ? "关闭高对比度" : "开启高对比度",
+        group: "外观",
+        keywords: "contrast 对比度 accessibility",
+        detail: `当前：${contrast === "high" ? "高对比度" : "普通"}`,
+        run: () => setContrast(parseContrast(contrast === "high" ? "normal" : "high"))
+      },
+      {
+        id: "toggle-kiosk",
+        title: kiosk ? "退出大屏模式" : "进入大屏模式",
+        group: "外观",
+        keywords: "kiosk fullscreen 大屏 全屏",
+        shortcut: kiosk ? "Esc" : undefined,
+        detail: kiosk ? "收起外壳并把字号提到 130%" : "收起顶栏，字号提到 130%",
+        run: () => setKiosk(!kiosk)
+      },
+      {
+        id: "export-usage",
+        title: "导出用量快照",
+        group: "动作",
+        keywords: "export snapshot html 导出",
+        disabled: true,
+        detail: "需在「用量总览」内导出"
+      }
+    ];
+  }, [theme, contrast, kiosk, onNavigate, onOpenSearch, onOpenSettings, setTheme]);
+
+  return <CommandPalette open={open} actions={actions} onClose={onClose} />;
 }
 
 /**
@@ -120,24 +286,58 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
   const floatTransitionPending = useRef(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [revealRequest, setRevealRequest] = useState<{
     path: string;
     recordId: string | null;
     nonce: number;
   } | null>(null);
 
-  // ⌘K / Ctrl+K 唤起全局搜索。监听挂在 window：快捷键在顶栏按钮之外
-  // 也要随处可用，且面板关闭时不拦截输入。
+  // ⌘K / Ctrl+K 唤起命令面板。监听挂在 window：这是**全局**快捷键，焦点在输入框、
+  // 下拉框里也要能开（R2 的硬约束），所以不做 target 过滤，只 preventDefault。
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        setSearchOpen((open) => !open);
+        setPaletteOpen((open) => !open);
+        // 命令行里的「全局搜索」是搜索面板的入口；两层浮层叠着没有意义。
+        setSearchOpen(false);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  /**
+   * 进入大屏时收起两层浮层。
+   *
+   * 不是为了好看：外壳（顶栏里唯一那个「设置」按钮）马上要被收起来，浮层留着
+   * 就出现「开着的面板挡在收起的界面上、却找不到按钮关」的死角；而且 Esc 的第一
+   * 下会先关浮层，退出大屏要多按一次。
+   */
+  const kioskOn = useKiosk();
+  useEffect(() => {
+    if (!kioskOn) return;
+    setSettingsOpen(false);
+    setSearchOpen(false);
+    setPaletteOpen(false);
+  }, [kioskOn]);
+
+  /**
+   * Esc 的归属：面板开着时归面板（它们各自处理），全都关着时才退大屏。
+   * 这个先后顺序就是「Esc 不被两个功能同时抢走」的全部实现。
+   */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (searchOpen || settingsOpen || paletteOpen) return;
+      if (!getKiosk()) return;
+      event.preventDefault();
+      setKiosk(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [searchOpen, settingsOpen, paletteOpen]);
 
   useEffect(() => {
     try {
@@ -200,96 +400,120 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
   // iframe 触发浮窗时（仪表盘档）保持现状。
   const floatPulse = floating && tab === "monitor" && monitorView === "pulse";
 
+  // 命令面板要的回调必须是稳定引用：动作表按它们记忆，每次渲染换个函数会让
+  // useMemo 每帧失效，键盘高亮跟着被重置。
+  const closePalette = useCallback(() => setPaletteOpen(false), []);
+  const openSearchFromPalette = useCallback(() => {
+    setPaletteOpen(false);
+    setSearchOpen(true);
+  }, []);
+  const openSettingsFromPalette = useCallback(() => {
+    setPaletteOpen(false);
+    setSettingsOpen(true);
+  }, []);
+
   return (
     <ThemeProvider>
       <BridgesProvider bridges={bridges}>
         <NotificationProvider>
           <StartupUpdateCheck bridges={bridges} />
           <TrayHost onNavigate={setTab} />
-          <div className={styles.shell}>
-            {floatPulse ? (
-              <PulseFloatHeader onExit={() => void exitFloatMode()} />
-            ) : (
-              <header className={styles.topbar}>
-                <span className={styles.brand}>
-                  <BrandMark size={18} />
-                  <strong>CC Analyzer</strong>
-                  {/* 版本徽章紧挨字标：升级是否生效，第一眼就能读到。 */}
-                  <VersionBadge />
-                </span>
-                <WorkspaceTabs value={tab} onChange={setTab} />
-                <div className={styles.topbarActions}>
-                  {canExitFloatMode ? (
-                    <Button type="button" variant="primary" onClick={() => void exitFloatMode()}>
-                      退出浮窗
-                    </Button>
-                  ) : null}
-                  <IconButton
-                    label="全局搜索"
-                    aria-expanded={searchOpen}
-                    onClick={() => setSearchOpen((open) => !open)}
-                  >
-                    <Icon name="search" size={16} />
-                  </IconButton>
-                  <IconButton
-                    label="设置"
-                    aria-expanded={settingsOpen}
-                    onClick={() => setSettingsOpen((open) => !open)}
-                  >
-                    <Icon name="settings" size={16} />
-                  </IconButton>
-                  <ThemeToggle />
-                </div>
-              </header>
-            )}
-            {settingsOpen ? <ThresholdsPanel onClose={() => setSettingsOpen(false)} /> : null}
-          <main className={styles.content}>
-            <ErrorBoundary>
-              {tab === "analyzer" ? (
-                <SessionAnalyzerPage
-                  revealRequest={revealRequest}
-                  onRevealHandled={() => setRevealRequest(null)}
-                />
-              ) : tab === "usage" ? (
-                <UsageOverviewPage
-                  // 压缩统计 top3 行的握手：切回会话分析并打开该会话
-                  // （recordId 为 null = 只落到会话，不定位记录）。
-                  onOpenSession={(session) => {
-                    setTab("analyzer");
-                    setRevealRequest({ path: session.path, recordId: null, nonce: Date.now() });
-                  }}
-                  // 错误事件行的握手（N1）：与全局搜索的 onReveal 同款——sidechain
-                  // 事件 recordId=null，reveal 的既有语义就是「只落到会话」。
-                  onRevealRecord={(path, recordId) => {
-                    setTab("analyzer");
-                    setRevealRequest({ path, recordId, nonce: Date.now() });
-                  }}
-                />
+          {/* 大屏容器：`data-kiosk` 的落点，也是真机探针的锚点。外壳的收起规则在
+              AppShell.module.css——只有那里选得到顶栏自己的类名。 */}
+          <KioskRoot>
+            <div className={styles.shell}>
+              {floatPulse ? (
+                <PulseFloatHeader onExit={() => void exitFloatMode()} />
               ) : (
-                <MonitorPage
-                  view={monitorView}
-                  onViewChange={setMonitorView}
-                  compact={floating}
-                  onEnterFloat={enterFloatMode}
-                  // 脉搏会话行的「打开会话」握手：与压缩统计 top3 行逐字同款。
-                  onOpenSession={(path) => {
-                    setTab("analyzer");
-                    setRevealRequest({ path, recordId: null, nonce: Date.now() });
-                  }}
-                />
+                <header className={styles.topbar}>
+                  <span className={styles.brand}>
+                    <BrandMark size={18} />
+                    <strong>CC Analyzer</strong>
+                    {/* 版本徽章紧挨字标：升级是否生效，第一眼就能读到。 */}
+                    <VersionBadge />
+                  </span>
+                  <WorkspaceTabs value={tab} onChange={setTab} />
+                  <div className={styles.topbarActions}>
+                    {canExitFloatMode ? (
+                      <Button type="button" variant="primary" onClick={() => void exitFloatMode()}>
+                        退出浮窗
+                      </Button>
+                    ) : null}
+                    <IconButton
+                      label="全局搜索"
+                      aria-expanded={searchOpen}
+                      onClick={() => setSearchOpen((open) => !open)}
+                    >
+                      <Icon name="search" size={16} />
+                    </IconButton>
+                    <IconButton
+                      label="设置"
+                      aria-expanded={settingsOpen}
+                      onClick={() => setSettingsOpen((open) => !open)}
+                    >
+                      <Icon name="settings" size={16} />
+                    </IconButton>
+                    <ThemeToggle />
+                  </div>
+                </header>
               )}
-            </ErrorBoundary>
-          </main>
-          {/* 浮层在 shell 之外顶层渲染；跳转先切回会话分析页再发请求。 */}
-          <SearchPalette
-            open={searchOpen}
-            onClose={() => setSearchOpen(false)}
-            onReveal={(path, recordId) => {
-              setTab("analyzer");
-              setRevealRequest({ path, recordId, nonce: Date.now() });
-            }}
-          />
-          </div>
+              {settingsOpen ? <ThresholdsPanel onClose={() => setSettingsOpen(false)} /> : null}
+              <main className={styles.content}>
+                <ErrorBoundary>
+                  {tab === "analyzer" ? (
+                    <SessionAnalyzerPage
+                      revealRequest={revealRequest}
+                      onRevealHandled={() => setRevealRequest(null)}
+                    />
+                  ) : tab === "usage" ? (
+                    <UsageOverviewPage
+                      // 压缩统计 top3 行的握手：切回会话分析并打开该会话
+                      // （recordId 为 null = 只落到会话，不定位记录）。
+                      onOpenSession={(session) => {
+                        setTab("analyzer");
+                        setRevealRequest({ path: session.path, recordId: null, nonce: Date.now() });
+                      }}
+                      // 错误事件行的握手（N1）：与全局搜索的 onReveal 同款——sidechain
+                      // 事件 recordId=null，reveal 的既有语义就是「只落到会话」。
+                      onRevealRecord={(path, recordId) => {
+                        setTab("analyzer");
+                        setRevealRequest({ path, recordId, nonce: Date.now() });
+                      }}
+                    />
+                  ) : (
+                    <MonitorPage
+                      view={monitorView}
+                      onViewChange={setMonitorView}
+                      compact={floating}
+                      onEnterFloat={enterFloatMode}
+                      // 脉搏会话行的「打开会话」握手：与压缩统计 top3 行逐字同款。
+                      onOpenSession={(path) => {
+                        setTab("analyzer");
+                        setRevealRequest({ path, recordId: null, nonce: Date.now() });
+                      }}
+                    />
+                  )}
+                </ErrorBoundary>
+              </main>
+              {/* 浮层在 shell 之外顶层渲染；跳转先切回会话分析页再发请求。 */}
+              <SearchPalette
+                open={searchOpen}
+                onClose={() => setSearchOpen(false)}
+                onReveal={(path, recordId) => {
+                  setTab("analyzer");
+                  setRevealRequest({ path, recordId, nonce: Date.now() });
+                }}
+              />
+              {/* 命令面板压在搜索之上：它会开搜索，反过来不会。 */}
+              <CommandPaletteHost
+                open={paletteOpen}
+                onClose={closePalette}
+                onNavigate={setTab}
+                onOpenSearch={openSearchFromPalette}
+                onOpenSettings={openSettingsFromPalette}
+              />
+            </div>
+          </KioskRoot>
         </NotificationProvider>
       </BridgesProvider>
     </ThemeProvider>

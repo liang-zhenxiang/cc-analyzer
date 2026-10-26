@@ -138,9 +138,11 @@ function chartByName(name: string): HTMLElement {
   return screen.getByRole("img", { name });
 }
 
-/** The KPI tile that owns this label — numeric readouts are scoped to it. */
+/** The KPI tile that owns this label — numeric readouts are scoped to it.
+ *  Round CC 起「周战报」的行头也叫「会话数 / 消息数」，限定 span（KPI 标签
+ *  是瓦片里的 span，战报行头是 th），两块面板不会互抢。 */
 function kpiTile(label: string): HTMLElement {
-  return screen.getByText(label).parentElement!;
+  return screen.getByText(label, { selector: "span" }).parentElement!;
 }
 
 afterEach(() => {
@@ -240,10 +242,47 @@ describe("UsageOverviewPage", () => {
     expect(projects.textContent).toContain("-repo-beta");
 
     // The stacked bar's legend prints the model family and version as readable
-    // text; the raw id stays in the tooltip so nothing is lost.
-    expect(screen.getByText("Sonnet 4.5")).toBeInTheDocument();
-    expect(screen.getByText("Haiku 4.5")).toBeInTheDocument();
+    // text; the raw id stays in the tooltip so nothing is lost. `span` scopes
+    // this to the legend: the F1 flow diagram prints the same model names as
+    // SVG text nodes (tspan), which are not part of this panel.
+    expect(screen.getByText("Sonnet 4.5", { selector: "span" })).toBeInTheDocument();
+    expect(screen.getByText("Haiku 4.5", { selector: "span" })).toBeInTheDocument();
     expect(screen.getByTitle("claude-sonnet-4-5-20250929")).toBeInTheDocument();
+  });
+
+  it("renders the F1 flow diagram with the project → model → counter layers", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 6 * 3_600_000),
+      [`${PROJECTS_ROOT}/-repo-beta/bbb.jsonl`]: sessionJsonl("b2", "claude-haiku-4-5-20251001", 5 * 3_600_000)
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+
+    expect(screen.getByRole("heading", { name: "Token 流向" })).toBeInTheDocument();
+    const flow = await screen.findByRole("img", { name: /^Token 从 2 个项目流向 2 个模型/ });
+    await waitFor(() => expect(flow.querySelectorAll("[data-flow-link]").length).toBeGreaterThan(0));
+  });
+
+  it("switches the activity panel between the heatmap and the clock", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 6 * 3_600_000),
+      [`${PROJECTS_ROOT}/-repo-beta/bbb.jsonl`]: sessionJsonl("b2", "claude-haiku-4-5-20251001", 5 * 3_600_000)
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+    await waitFor(() => expect(chartByName("活跃时段热力图")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("tab", { name: "时钟" }));
+    expect(screen.queryByRole("img", { name: "活跃时段热力图" })).toBeNull();
+    expect(screen.getByRole("img", { name: /活跃时段时钟/ })).toBeInTheDocument();
+    // Switching views keeps the same hourly source: the peak keeps its hour.
+    expect(screen.getByText("峰值")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("tab", { name: "热力图" }));
+    await waitFor(() => expect(chartByName("活跃时段热力图")).toBeInTheDocument());
+    expect(screen.queryByRole("img", { name: /活跃时段时钟/ })).toBeNull();
   });
 
   it("flags unknown models instead of pricing them at zero", async () => {

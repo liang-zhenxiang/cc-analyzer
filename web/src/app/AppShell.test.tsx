@@ -4,10 +4,15 @@ import { fileURLToPath } from "node:url";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppShell } from "./AppShell";
+import { resetKioskForTest } from "./KioskMode";
+import { resetFontScaleForTest } from "../features/settings/fontScale";
 import type { Bridges } from "../api/types";
 
 beforeEach(() => {
   window.localStorage.clear();
+  resetKioskForTest(false);
+  resetFontScaleForTest(1);
+  delete document.documentElement.dataset.kiosk;
 });
 
 const bridges = {
@@ -58,24 +63,61 @@ test("顶栏版本徽章显示真实版本并可点击复制", async () => {
   );
 });
 
-test("⌘K 唤起全局搜索面板，Esc 关闭；顶栏按钮亦可唤起", async () => {
+test("⌘K 唤起命令面板，Esc 关闭；顶栏按钮仍可直接打开全局搜索", async () => {
   const user = userEvent.setup();
   render(<AppShell bridges={bridges} />);
 
   // 快捷键打开：对话框出现且焦点在输入框。
   // jsdom 里 userEvent 的修饰键链路到不了 window 级监听，直接派发。
   fireEvent.keyDown(window, { key: "k", metaKey: true });
-  const dialog = screen.getByRole("dialog", { name: "全局搜索" });
+  const dialog = screen.getByRole("dialog", { name: "命令面板" });
   expect(dialog).toBeInTheDocument();
-  expect(screen.getByLabelText("搜索会话记录")).toHaveFocus();
+  expect(screen.getByLabelText("搜索命令")).toHaveFocus();
 
   // Esc 关闭
   await user.keyboard("{Escape}");
-  expect(screen.queryByRole("dialog", { name: "全局搜索" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("dialog", { name: "命令面板" })).not.toBeInTheDocument();
 
-  // 顶栏按钮同样可唤起
+  // 全局搜索自己的入口没有被拿走：顶栏按钮照旧直接开面板。
   await user.click(screen.getByRole("button", { name: "全局搜索" }));
   expect(screen.getByRole("dialog", { name: "全局搜索" })).toBeInTheDocument();
+});
+
+test("命令面板过滤后用 Enter 执行：直接切到用量总览", async () => {
+  const user = userEvent.setup();
+  render(<AppShell bridges={bridges} />);
+
+  fireEvent.keyDown(window, { key: "k", metaKey: true });
+  const input = screen.getByLabelText("搜索命令");
+  await user.type(input, "用量");
+  // 「用量总览」是前缀命中，排在「导出用量快照」之前。
+  expect(screen.getAllByRole("option")[0]).toHaveTextContent("用量总览");
+  await user.keyboard("{Enter}");
+  // 执行完就关：面板不该盖住它刚切过去的页面。
+  expect(screen.queryByRole("dialog", { name: "命令面板" })).not.toBeInTheDocument();
+  expect(localStorage.getItem("cca-workspace-tab")).toBe("usage");
+  expect(await screen.findByText("还没有可统计的会话")).toBeInTheDocument();
+});
+
+test("设置里开大屏模式：根容器带上 data-kiosk，Esc 退出", async () => {
+  const user = userEvent.setup();
+  render(<AppShell bridges={bridges} />);
+
+  await user.click(screen.getByRole("button", { name: "设置" }));
+  await user.click(screen.getByRole("checkbox", { name: "启用大屏模式" }));
+
+  const root = document.querySelector('[data-probe="kiosk-root"]');
+  expect(root).toHaveAttribute("data-kiosk", "on");
+  expect(document.documentElement.dataset.kiosk).toBe("on");
+  expect(localStorage.getItem("cca-kiosk")).toBe("on");
+
+  // 设置浮层随大屏一起收起：顶栏（连同唯一的「设置」按钮）已经藏了。
+  expect(screen.queryByLabelText("阈值设置")).not.toBeInTheDocument();
+
+  // 现在一次 Esc 就能退出，并把字号还回去。
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(root).not.toHaveAttribute("data-kiosk");
+  expect(document.documentElement.dataset.kiosk).toBeUndefined();
 });
 
 test("switches analyzer and monitor tabs", async () => {
@@ -362,7 +404,9 @@ test("错误档事件行跳回会话分析并定位记录", async () => {
   expect(within(errorView).getByText(/全部 7 条 · 时间倒序/)).toBeInTheDocument();
 
   // 点主链的 Edit 失败事件 → 跳会话分析、开图、定位到记录（详情面板出现）。
-  await user.click(screen.getByRole("button", { name: /String to replace not found/ }));
+  // 限定在「错误事件」面板内：错误聚类（F7）那一栏的行同样含这段文案。
+  const eventList = within(errorView).getByRole("region", { name: "错误事件" });
+  await user.click(within(eventList).getByRole("button", { name: /String to replace not found/ }));
   expect(screen.getByRole("tab", { name: /^会话分析$/ })).toHaveAttribute(
     "aria-selected",
     "true"

@@ -5,9 +5,10 @@ import {
   test,
   expect,
   APP_VERSION,
-  toolCensusScenario,
   compactScenario,
   costScenario,
+  roundCCScenario,
+  roundCCAlphaPath,
   errorScenario,
   changedFilesScenario,
   calendarScenario,
@@ -152,6 +153,17 @@ const V_MONITOR_CONSOLE = declareView("monitor-console");
 const V_BLEED = declareView("bleed");
 // 重放（Round AA）
 const V_REPLAY = declareView("replay");
+// Round CC：用量页六块新面板 + 命令面板 / 大屏 / 图钉
+const V_DIGEST = declareView("digest");
+const V_FLOW = declareView("flow");
+const V_ARENA = declareView("arena");
+const V_CLOCK = declareView("clock");
+const V_FORECAST = declareView("forecast");
+const V_CARDS = declareView("cards");
+const V_CLUSTERS = declareView("clusters");
+const V_PINS = declareView("pins");
+const V_PALETTE = declareView("palette");
+const V_KIOSK = declareView("kiosk");
 // 会话账单（Round BB）
 const V_COST = declareView("cost");
 
@@ -300,14 +312,14 @@ test.describe("截图归档", () => {
 
 // 用量总览需要「最近真的有活动」才有内容可截：仪表盘的时间窗相对
 // Date.now()，夹具的固定时间戳会随着日子过去掉出窗外，截出一排空图。
-// 场景用 toolCensusScenario（N3 起多一块「工具与 skill」面板）：默认场景的
-// usage 夹具没有任何 tool_use，继续用 recentActivityScenario 会让新面板
-// 在归档截图里永远是全空态。该场景窗内只有 census 夹具有工具调用，
-// 面板读数是确定值（见 tool-census.spec.ts 的账目）。
+// Round CC 起场景换成 roundCCScenario：用量页现在有周战报 / 流向图 / 擂台 /
+// 项目卡片 / 时钟 / 预报六块新面板，必须有「多项目、跨两周、有错误」的数据才
+// 不是一排空盒。旧 toolCensusScenario 里的工具普查演示因此不在这一档（census
+// 自身仍有 tool-census.spec.ts 与单测覆盖）。
 test.describe("截图归档 · 用量总览", () => {
   test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
 
-  test.use({ scenario: toolCensusScenario() });
+  test.use({ scenario: roundCCScenario() });
 
   test.beforeAll(() => {
     mkdirSync(OUT_DIR, { recursive: true });
@@ -327,14 +339,9 @@ test.describe("截图归档 · 用量总览", () => {
       await settleImages(page);
       await page.screenshot({ path: path.join(OUT_DIR, `${V_USAGE}-${theme}${suffix}.png`) });
 
-      // 下半屏：三块面板（按项目分布 / 按模型分布 / 活跃时段）的内容与热力图
-      // 整块在折叠线以下——视口截图从不滚动，它们因此从未进入归档、从未进入
-      // 任何一次视觉验收（评审 §2 的方法论缺口，本视图存在的理由）。
+      // 下半屏：项目卡片 / 消耗日历 / 流向图 / 活跃时段都住在折叠线以下——
+      // 视口截图从不滚动，它们因此从未进入归档、从未进入任何一次视觉验收。
       await scrollMainToBottom(page);
-      // 「工具与 skill」面板（N3）住活跃时段之后：截一张**下钻选中态**——
-      // 引导态不是这个面板的常态演示（同改动视图展开首文件的先例）。
-      await page.locator("[data-tool-census-row='Bash']").click();
-      await expect(page.locator("[data-tool-census-sessions]")).toBeVisible();
       await settleImages(page);
       await page.screenshot({ path: path.join(OUT_DIR, `${V_USAGE_BELOW}-${theme}${suffix}.png`) });
     });
@@ -811,6 +818,104 @@ test.describe("截图归档 · 会话账单", () => {
 
       await settleImages(page);
       await page.screenshot({ path: path.join(OUT_DIR, `${V_COST}-${theme}${suffix}.png`) });
+    });
+  }
+});
+
+
+// Round CC：用量页六块新面板 + 命令面板 / 大屏 / 图钉。全部走 roundCCScenario
+// （多项目、跨两周、有错误、正在烧的 5 小时块），截的是有数据的常态。
+test.describe("截图归档 · Round CC 新面板", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: roundCCScenario() });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`Round CC · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+      const shot = async (view: string) => {
+        await settleImages(page);
+        await page.screenshot({ path: path.join(OUT_DIR, `${view}-${theme}${suffix}.png`) });
+      };
+      // 面板比视口高时，scrollIntoViewIfNeeded 会把它贴在视口下沿、只露出上半截；
+      // 截图要的是整块面板的常态，所以显式居中。
+      const center = (locator: ReturnType<Page["locator"]>) =>
+        locator.evaluate((element) => element.scrollIntoView({ block: "center" }));
+
+      // 计费方案与置顶都要在页面脚本之前埋好（同 useTheme）。
+      await page.addInitScript(
+        (pinned) => {
+          localStorage.setItem("cca-billing-plan", JSON.stringify({ id: "max5" }));
+          localStorage.setItem("cca-pinned-sessions", JSON.stringify([pinned]));
+        },
+        roundCCAlphaPath()
+      );
+
+      await page.goto("/");
+      await page.getByRole("tab", { name: "用量总览" }).click();
+      await expect(page.getByText(/纳入统计/)).toBeVisible({ timeout: 15_000 });
+      await page.waitForTimeout(300);
+      // 周战报：KPI 行之后、两列网格之前。
+      await page.getByRole("heading", { name: "周战报" }).scrollIntoViewIfNeeded();
+      await shot(V_DIGEST);
+
+      // 项目擂台：按项目分布的对比态。
+      await page.getByRole("button", { name: "对比" }).click();
+      await center(page.locator("[data-probe='arena-root']"));
+      await page.waitForTimeout(250);
+      await shot(V_ARENA);
+      await page.getByRole("button", { name: "返回" }).click();
+
+      // 项目卡片：整行，紧接在按项目分布之后。
+      await center(page.locator("[data-probe='cards-root']"));
+      await shot(V_CARDS);
+
+      // Token 流向：按模型分布之后。
+      await center(page.locator("[data-probe='flow-root']"));
+      await shot(V_FLOW);
+
+      // 活跃时段 · 时钟档。
+      await page.getByRole("tablist", { name: "活跃时段视图" }).getByRole("tab", { name: "时钟" }).click();
+      await center(page.locator("[data-probe='clock-root']"));
+      await page.waitForTimeout(250);
+      await shot(V_CLOCK);
+
+      // 计费卡预报行：5 小时块里已经有 40,000 token。
+      await center(page.locator("[data-probe='forecast-row']"));
+      await shot(V_FORECAST);
+
+      // 错误档 · 错误聚类。
+      await page.getByRole("tab", { name: "错误", exact: true }).click();
+      await expect(page.getByText(/纳入统计/)).toBeVisible({ timeout: 15_000 });
+      await center(page.locator("[data-probe='clusters-root']"));
+      await shot(V_CLUSTERS);
+
+      // 会话列表 · 置顶组（alpha 在 init script 里已钉住）。
+      await page.getByRole("tab", { name: "会话分析", exact: true }).click();
+      await page.waitForTimeout(400);
+      await expect(page.getByText("置顶", { exact: true })).toBeVisible();
+      await shot(V_PINS);
+
+      // 命令面板。
+      await page.keyboard.press("Control+k");
+      await expect(page.locator("[data-probe='palette-root']")).toBeVisible();
+      await page.waitForTimeout(250);
+      await shot(V_PALETTE);
+      await page.keyboard.press("Escape");
+
+      // 大屏模式：设置页里的复选框 → 外壳收起。
+      await page.getByRole("button", { name: "设置" }).click();
+      await page.getByRole("checkbox", { name: "启用大屏模式" }).click({ force: true });
+      await expect(page.locator("html")).toHaveAttribute("data-kiosk", "on");
+      await page.waitForTimeout(400);
+      await shot(V_KIOSK);
+      await page.keyboard.press("Escape");
     });
   }
 });

@@ -23,6 +23,16 @@
     "usage-day",
     "bleed",
     "replay",
-    "cost"
+    "cost",
+    "digest",
+    "flow",
+    "arena",
+    "clock",
+    "forecast",
+    "cards",
+    "clusters",
+    "pins",
+    "palette",
+    "kiosk"
   ]
 }

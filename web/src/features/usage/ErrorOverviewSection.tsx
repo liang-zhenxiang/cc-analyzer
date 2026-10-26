@@ -12,6 +12,7 @@ import { ProvenanceBadge } from "./ProvenanceBadge";
 import { ErrorTrendChart } from "./ErrorTrendChart";
 import { ErrorRankList, type ErrorRankRow } from "./ErrorRankList";
 import { ErrorEventList } from "./ErrorEventList";
+import { ErrorClustersPanel } from "./ErrorClustersPanel";
 import pageStyles from "./UsageOverviewPage.module.css";
 import styles from "./ErrorOverviewSection.module.css";
 
@@ -273,6 +274,9 @@ export function ErrorOverviewSection({
             }}
             onClearFilter={clearFilter}
           />
+          {/* 聚类（F7）紧跟趋势图：先给量级，再给「在跟几个问题打架」的清单，
+              最后才是按工具 / 按项目的分布。 */}
+          <ErrorClustersPanel events={stats.events} onRevealRecord={onRevealRecord} />
           <div className={styles.twoCol}>
             <Panel
               title="按工具失败"

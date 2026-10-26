@@ -7,6 +7,13 @@ import { SegmentedControl, type SegmentedItem } from "../../components/Segmented
 import { Skeleton } from "../../components/Skeleton";
 import { TextInput } from "../../components/TextInput";
 import { sessionTitle, type SessionMeta } from "./metadataCache";
+import { PinButton } from "./PinButton";
+import {
+  PINNED_STORAGE_KEY,
+  parsePinnedPaths,
+  partitionPinned,
+  prunePinnedPaths
+} from "./pinSessions";
 import {
   dateBucketLabel,
   formatBytes,
@@ -67,6 +74,8 @@ function groupSessions(
 
 const VIEW_STORAGE_KEY = "cca-session-view";
 const COLLAPSED_STORAGE_KEY = "cca-session-collapsed";
+/** 置顶会话合成分组的键与标题；与真实分组名/`日期:` 键区分开。 */
+const PINNED_GROUP_KEY = "置顶";
 
 function readStoredView(): ViewMode {
   try {
@@ -85,6 +94,15 @@ function readStoredCollapsed(): Set<string> {
       ? new Set(parsed.filter((item): item is string => typeof item === "string"))
       : new Set();
   } catch {
+    return new Set();
+  }
+}
+
+function readStoredPinned(): Set<string> {
+  try {
+    return new Set(parsePinnedPaths(localStorage.getItem(PINNED_STORAGE_KEY)));
+  } catch {
+    // localStorage 不可用（隐私模式/配额）时置顶退回「本次会话为空」。
     return new Set();
   }
 }
@@ -135,6 +153,7 @@ export function SessionList({
   const [search, setSearch] = useState("");
   const [view, setView] = useState<ViewMode>(readStoredView);
   const [collapsed, setCollapsed] = useState<Set<string>>(readStoredCollapsed);
+  const [pinned, setPinned] = useState<Set<string>>(readStoredPinned);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(480);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -161,11 +180,28 @@ export function SessionList({
     }
   }, [collapsed]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(PINNED_STORAGE_KEY, JSON.stringify([...pinned]));
+    } catch {
+      // 置顶是便利功能：写不进存储也不影响本次会话的使用。
+    }
+  }, [pinned]);
+
   function toggleGroup(label: string) {
     setCollapsed((current) => {
       const next = new Set(current);
       if (next.has(label)) next.delete(label);
       else next.add(label);
+      return next;
+    });
+  }
+
+  function togglePin(path: string) {
+    setPinned((current) => {
+      const next = new Set(current);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
       return next;
     });
   }
@@ -184,15 +220,44 @@ export function SessionList({
       .sort(compareSessions);
   }, [sessions, search]);
 
+  // 置顶只是把已排序的结果稳定地提到最前；两种视图（时间线/项目）都先
+  // 在置顶组里出现，再从各自的剩余会话里分组。
+  const ordered = useMemo(
+    () => partitionPinned(filtered, (session) => pinned.has(session.path)),
+    [filtered, pinned]
+  );
+  const pinnedSessions = useMemo(
+    () => ordered.filter((session) => pinned.has(session.path)),
+    [ordered, pinned]
+  );
+  const unpinnedSessions = useMemo(
+    () => ordered.filter((session) => !pinned.has(session.path)),
+    [ordered, pinned]
+  );
+
   const grouped = useMemo(
-    () => groupSessions(filtered, (session) => session.cwd ?? session.projectLabel),
-    [filtered]
+    () => groupSessions(unpinnedSessions, (session) => session.cwd ?? session.projectLabel),
+    [unpinnedSessions]
   );
 
   const timelineGroups = useMemo(
-    () => groupSessions(filtered, (session) => dateBucketLabel(session.mtimeMs)),
-    [filtered]
+    () => groupSessions(unpinnedSessions, (session) => dateBucketLabel(session.mtimeMs)),
+    [unpinnedSessions]
   );
+
+  // 扫描结果里已经没有的会话（被删除/移动）不该永远占着置顶位。
+  const knownPaths = useMemo(
+    () => new Set(sessions.map((session) => session.path)),
+    [sessions]
+  );
+
+  useEffect(() => {
+    if (sessions.length === 0) return;
+    setPinned((current) => {
+      const next = prunePinnedPaths(current, knownPaths);
+      return next.size === current.size ? current : next;
+    });
+  }, [knownPaths, sessions.length]);
 
   // Collapse keys of groups that no longer exist (deleted projects, older date
   // buckets) would otherwise pile up in localStorage forever. Keys from both
@@ -203,8 +268,10 @@ export function SessionList({
       keys.add(session.cwd ?? session.projectLabel);
       keys.add(`日期:${dateBucketLabel(session.mtimeMs)}`);
     }
+    // 置顶组只在有置顶会话时存在；空组消失后折叠键也一并回收。
+    if (pinned.size > 0) keys.add(PINNED_GROUP_KEY);
     return keys;
-  }, [sessions]);
+  }, [sessions, pinned.size]);
 
   useEffect(() => {
     if (sessions.length === 0) return;
@@ -217,8 +284,21 @@ export function SessionList({
   // Collapsed groups drop their sessions entirely, so one flat row list can be
   // windowed without splitting groups across the scroll container.
   const rows = useMemo<ListRow[]>(() => {
-    const source = view === "timeline" ? timelineGroups : grouped;
     const list: ListRow[] = [];
+    if (pinnedSessions.length > 0) {
+      list.push({
+        kind: "group",
+        key: PINNED_GROUP_KEY,
+        label: PINNED_GROUP_KEY,
+        count: pinnedSessions.length
+      });
+      if (!collapsed.has(PINNED_GROUP_KEY)) {
+        for (const session of pinnedSessions) {
+          list.push({ kind: "session", key: session.path, session });
+        }
+      }
+    }
+    const source = view === "timeline" ? timelineGroups : grouped;
     for (const [label, groupSessions] of source) {
       const key = view === "timeline" ? `日期:${label}` : label;
       list.push({ kind: "group", key, label, count: groupSessions.length });
@@ -228,7 +308,7 @@ export function SessionList({
       }
     }
     return list;
-  }, [collapsed, grouped, timelineGroups, view]);
+  }, [collapsed, grouped, pinnedSessions, timelineGroups, view]);
 
   const virtualize = rows.length > logWindowRows;
   const offsets = useMemo(
@@ -340,6 +420,8 @@ export function SessionList({
                 session={row.session}
                 selected={selected?.path === row.session.path}
                 bleedCount={bleedCounts?.get(row.session.path)}
+                pinned={pinned.has(row.session.path)}
+                onTogglePin={togglePin}
                 onSelect={onSelect}
                 onOpenBleed={onOpenBleed}
               />
@@ -356,6 +438,8 @@ function SessionButton({
   session,
   selected,
   bleedCount,
+  pinned,
+  onTogglePin,
   onSelect,
   onOpenBleed
 }: {
@@ -363,6 +447,9 @@ function SessionButton({
   selected: boolean;
   /** 压缩次数；`undefined` 表示尚未算出或读取失败，两者都不渲染徽章。 */
   bleedCount: number | undefined;
+  /** 是否已置顶；决定图钉实心与 `aria-pressed`。 */
+  pinned: boolean;
+  onTogglePin: (path: string) => void;
   onSelect: (session: SessionMeta) => void;
   onOpenBleed?: (session: SessionMeta) => void;
 }) {
@@ -429,6 +516,9 @@ function SessionButton({
         {/* 项目名取会话真实 cwd 的末段；没有 cwd 时退回目录名（去掉编码用的前导 `-`）。 */}
         {formatProjectPath(session.projectLabel, session.cwd)}
       </span>
+      {/* 置顶开关绝对定位在行右上角，不参与 grid——多一个网格行会把 54px 的行高撑坏。
+          它和出血点徽章一样是真按钮，因此行本体保持 role="button" 的 div。 */}
+      <PinButton pinned={pinned} onToggle={() => onTogglePin(session.path)} />
     </div>
   );
 }

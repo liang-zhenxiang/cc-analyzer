@@ -80,11 +80,14 @@ export const SNAPSHOT_TITLE = "用量总览";
  * Round V（Issue #187）补上「消耗日历」：日历上线后这句若不跟着改，「不含」
  * 清单就成了漏报——读者会以为快照是整页仪表盘，而日历恰恰是页面新添的门面图。
  * 快照导出日历本身（SVG 化 / 打印矩阵）留待后续棒；这里的修改只是文案诚实性。
+ * Round CC（Issue #263）再补「周战报、Token 流向、项目卡片」：同一句诚实性
+ * 规则——页面长出新面板，快照的「不含」清单必须点名，否则读者会以为快照
+ * 是整页仪表盘。
  * e2e 的 usage-snapshot.spec.ts 有一份逐字契约常量（SCOPE_NOTE），两处只能有
  * 一个原文。
  */
 export const SNAPSHOT_SCOPE_NOTE =
-  "本快照包含用量总览的读数与图表；不含消耗日历、工具与 skill 普查、压缩统计、错误档。";
+  "本快照包含用量总览的读数与图表；不含消耗日历、工具与 skill 普查、压缩统计、错误档，也不含周战报、Token 流向与项目卡片。";
 
 /** 空态标题与正文（设计规格 §6.2）。`{days}` 由 `snapshotEmptyText` 填。 */
 export const SNAPSHOT_EMPTY_TITLE = "所选区间内没有会话记录";

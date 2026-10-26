@@ -57,3 +57,11 @@
 .workspaceTabs {
   justify-self: center;
 }
+
+/* 大屏模式（KioskMode.tsx）：收起应用外壳。工作区标签在顶栏中列、搜索/设置/主题
+   在右列，所以整条 `topbar` 一起收；页面内容与它自己的滚动一律不动——这是「挂在
+   第二块屏幕上看」，不是锁屏。「侧栏」在本应用里是页面内内容（会话列表等），
+   不属于外壳，因此不受这条规则影响。 */
+:global([data-kiosk="on"]) .topbar {
+  display: none;
+}

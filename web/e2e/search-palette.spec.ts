@@ -32,31 +32,30 @@ const tagsOtherThan = (page: Page, source: string) =>
 /**
  * 打开全局搜索面板。
  *
- * **不能 `goto` 完就按 ⌘K**：快捷键的监听挂在 `AppShell` 的 effect 里，而
- * `page.goto` 只等到 `load`——实测 WebKit 下偶发抢在挂载前按键，这一次按键就此
- * 丢失，用例只能等到超时（本地跑完整套件时复现过一次）。真人按不到这么快，所以
- * 这是测试的健壮性问题，不是产品缺陷。这里用 `toPass` 重试按键，把「可能丢一次键」
- * 变成确定通过。
+ * 走顶栏按钮而不是 ⌘K：Round CC 起 ⌘K 归**命令面板**（面板里也有「全局搜索」
+ * 一条命令）。档位很清楚——快捷键归全局层（`command-palette.spec.ts` 覆盖），
+ * 这里只测搜索面板自己，入口越直接越不容易把两件事的失败搅在一起。
  */
 async function openPalette(page: Page) {
   await page.goto("/");
+  await page.getByRole("button", { name: "全局搜索" }).click();
   const dialog = page.getByRole("dialog", { name: "全局搜索" });
-  await expect(async () => {
-    await page.keyboard.press("Meta+K");
-    await expect(dialog).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 10_000 });
+  await expect(dialog).toBeVisible();
   return dialog;
 }
 
 test.describe("全局搜索", () => {
-  test("⌘K 唤起与关闭；顶栏按钮亦可唤起", async ({ page }) => {
+  test("顶栏按钮唤起与关闭；⌘K 现在开的是命令面板", async ({ page }) => {
     const dialog = await openPalette(page);
     await expect(page.getByLabel("搜索会话记录")).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
 
-    await page.getByRole("button", { name: "全局搜索" }).click();
-    await expect(dialog).toBeVisible();
+    // 同一个快捷键不能再被两个面板抢：⌘K 只开命令面板，搜索面板不动。
+    await page.keyboard.press("Meta+K");
+    await expect(page.getByRole("dialog", { name: "命令面板" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "全局搜索" })).toBeHidden();
+    await page.keyboard.press("Escape");
   });
 
   test("搜索命中跨项目消息并按项目分组", async ({ page }) => {

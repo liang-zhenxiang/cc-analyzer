@@ -1,0 +1,93 @@
+/* F4「节奏时钟」：24 个小时的极坐标扇区，半径 = 该小时总量 / 峰值。
+   与热力图共用 --chart-1 一个色相，浓度四档；峰值格加描边并在圆心标时间。
+   SVG 不写死像素尺寸，容器变窄时整体缩放。 */
+
+.wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.chart {
+  display: block;
+  flex: 0 0 auto;
+  width: min(320px, 100%);
+  height: auto;
+  overflow: visible;
+}
+
+.wedge {
+  fill: var(--chart-1);
+  transition: fill-opacity var(--dur-hover) var(--ease-out);
+}
+
+.level1 {
+  fill-opacity: 0.24;
+}
+
+.level2 {
+  fill-opacity: 0.42;
+}
+
+.level3 {
+  fill-opacity: 0.62;
+}
+
+.level4 {
+  fill-opacity: 0.84;
+}
+
+/* 峰值：一圈正文色描边，色觉障碍下也能定位。 */
+.peak {
+  stroke: var(--text);
+  stroke-width: 1.2;
+}
+
+.hourLabel {
+  fill: var(--text-faint);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.peakLabel {
+  fill: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.peakHour {
+  fill: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.legend {
+  flex: 1 1 160px;
+  min-width: 140px;
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+}
+
+/* 高对比：四档浓度整体抬高，峰值描边加粗。 */
+:global([data-contrast="high"]) .level1 {
+  fill-opacity: 0.4;
+}
+
+:global([data-contrast="high"]) .level2 {
+  fill-opacity: 0.6;
+}
+
+:global([data-contrast="high"]) .level3 {
+  fill-opacity: 0.8;
+}
+
+:global([data-contrast="high"]) .level4 {
+  fill-opacity: 1;
+}
+
+:global([data-contrast="high"]) .peak {
+  stroke-width: 2;
+}

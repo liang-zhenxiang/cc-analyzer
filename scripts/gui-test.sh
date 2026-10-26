@@ -1212,7 +1212,15 @@ CONTRAST_HIGH_LABEL = "对比度=高"
 CONTRAST_NORMAL_LABEL = "对比度=普通"
 # 用量页下半屏的三块面板。「滚动=main」那一步（且上一步是用量总览）判定
 # 它们滚一次可达；「用量总览」那一步判定它们真的渲染了出来。
-USAGE_PANEL_TITLES = ["按项目分布", "按模型分布", "活跃时段（周 × 小时）"]
+USAGE_PANEL_TITLES = [
+    "按项目分布",
+    "按模型分布",
+    "活跃时段（周 × 小时）",
+    # Round CC：三块整行新面板也必须滚一次可达。
+    "Token 流向",
+    "项目卡片",
+    "周战报",
+]
 # 上下文标签页（Round J）。夹具 compact-session.jsonl（挂 /repo/compact-demo）
 # 有 2 次压缩（auto + manual），future-widget/quantum-latch 共 3 行未识别——
 # 「上下文」那一步据此判曲线命中区个数与覆盖率 chip 的在场。
@@ -1339,6 +1347,9 @@ seen_pulse = 0
 seen_monitor_console = 0
 seen_milestones = 0
 seen_replay = 0
+seen_roundcc = 0
+ROUND_CC_DIGEST_LABELS = ["Tokens", "估算成本", "会话数", "消息数"]
+ROUND_CC_CARDS_MAX = 8
 seen_cost = 0
 cost_top_clock = None
 seen_float_enter = 0
@@ -1497,6 +1508,81 @@ for arg in sys.argv[1:]:
             print(f"OK|{label}：表盘有界且含于卡片（{width:.0f}×{height:.0f}px ≤ {GAUGE_MAX_WIDTH}px，卡片内）")
         else:
             print(f"BAD|{label}：表盘失界（宽度 {width:.0f}px，阈值 {GAUGE_MAX_WIDTH}px，含于卡片={inside}）")
+
+    # Round CC：用量页新面板的事实（只判「在不在、形状对不对」，具体数值由
+    # e2e 用 roundCCScenario 对账）。真机 HOME 是隔离夹具，图钉 / 大屏 / 命令
+    # 面板的默认态都是「没开」，正好验证默认不打扰。
+    rc = data.get("roundcc") or {}
+    if label == "视图=用量" and rc.get("present") is True:
+        problems = []
+        digest_rows = rc.get("digest_rows") or []
+        labels = [row.get("label") for row in digest_rows if isinstance(row, dict)]
+        if labels != ROUND_CC_DIGEST_LABELS:
+            problems.append(f"周战报四行标签 {labels!r}，期望 {ROUND_CC_DIGEST_LABELS!r}")
+        for row in digest_rows:
+            if not isinstance(row, dict) or not row.get("now") or not row.get("prev"):
+                problems.append(f"周战报读数缺失：{row!r}")
+                continue
+            delta_text = row.get("delta") or ""
+            delta_aria = row.get("delta_aria") or ""
+            if (
+                not delta_text.isdigit()
+                and delta_text not in ("0%", "—")
+                and not re.search(r"^(▲|▼) \+?\d+%$", delta_text)
+                and not re.search(r"^较上周(增加|减少) \d+%$", delta_aria)
+            ):
+                problems.append(f"周战报环比形状不对：{delta_text!r} / {delta_aria!r}")
+        flow = rc.get("flow") or {}
+        if not flow.get("present"):
+            problems.append("Token 流向面板没有 data-probe='flow-root'")
+        else:
+            if not isinstance(flow.get("nodes"), int) or flow["nodes"] < 4:
+                problems.append(f"流向图节点 {flow.get('nodes')!r}，期望 ≥ 4")
+            if not isinstance(flow.get("links"), int) or flow["links"] < 4:
+                problems.append(f"流向图边 {flow.get('links')!r}，期望 ≥ 4")
+            if not str(flow.get("aria") or "").startswith("Token 从"):
+                problems.append(f"流向图 aria-label {flow.get('aria')!r}")
+        # 擂台是「对比」态的替换面板，默认不渲染；真机清单没有点「对比」的
+        # 动作，所以这里只核「若在场则柱数合理」，交互本身由 e2e F2 覆盖。
+        arena = rc.get("arena")
+        if isinstance(arena, dict) and (not isinstance(arena.get("bars"), int) or arena["bars"] < 2):
+            problems.append(f"擂台柱 {arena.get('bars')!r}，期望 ≥ 2")
+        cards = rc.get("cards") or {}
+        if not cards.get("present"):
+            problems.append("项目卡片没有 data-probe='cards-root'")
+        else:
+            count = cards.get("count")
+            if not isinstance(count, int) or not (1 <= count <= ROUND_CC_CARDS_MAX):
+                problems.append(f"项目卡片 {count!r} 张，期望 1–{ROUND_CC_CARDS_MAX}")
+            for label_text in cards.get("labels") or []:
+                if "个会话" not in label_text or "最近活跃" not in label_text:
+                    problems.append(f"项目卡片可访问名形状不对：{label_text!r}")
+        clock = rc.get("clock")
+        if isinstance(clock, dict):
+            sectors = clock.get("sectors")
+            if not isinstance(sectors, int) or not (1 <= sectors <= 24):
+                problems.append(f"时钟扇区 {sectors!r}，期望 1–24")
+        clusters = rc.get("clusters")
+        if isinstance(clusters, dict) and not isinstance(clusters.get("count"), int):
+            problems.append(f"错误聚类行数缺失：{clusters!r}")
+        pins = rc.get("pins") or {}
+        if pins.get("pinned") != 0 or pins.get("group") is not False:
+            problems.append(f"新 HOME 不该有图钉：{pins!r}")
+        if rc.get("kiosk") is not None:
+            problems.append(f"新 HOME 不该开大屏：data-kiosk={rc.get('kiosk')!r}")
+        if (rc.get("palette") or {}).get("present"):
+            problems.append("命令面板默认不该打开")
+        if problems:
+            for problem in problems:
+                print(f"BAD|{label}：{problem}")
+        else:
+            seen_roundcc += 1
+            print(
+                f"OK|{label}：周战报 4 行（{labels[0]} 本周 {digest_rows[0].get('now')}），"
+                f"流向图 {flow.get('nodes')} 节点/{flow.get('links')} 边，"
+                f"项目卡片 {cards.get('count')} 张，"
+                f"图钉 {pins.get('pinned')} / 大屏 {rc.get('kiosk')}"
+            )
 
     for tbl in data.get("tables") or []:
         seen_table += 1
@@ -3115,6 +3201,8 @@ if coverage and seen_milestones == 0:
     print("BAD|视图覆盖：没有任何视图产出里程碑的几何事实——「里程碑」档没被覆盖")
 if coverage and seen_cost == 0:
     print("BAD|视图覆盖：没有任何视图产出会话账单的几何事实——「账单」标签页没被覆盖")
+if coverage and seen_roundcc == 0:
+    print("BAD|视图覆盖：没有任何视图产出 Round CC 新面板的事实——用量页新面板没被覆盖")
 if coverage and seen_replay == 0:
     print("BAD|视图覆盖：没有任何视图产出重放的几何事实——「重放」标签页没被覆盖")
 if coverage and seen_float_enter == 0:

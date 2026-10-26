@@ -66,7 +66,12 @@ test.describe("错误档", () => {
   test("点主链事件跳回会话分析并定位到记录", async ({ page }) => {
     await openErrorView(page);
 
-    await page.getByRole("button", { name: /String to replace not found/ }).click();
+    // 用 data-row-index 收进日志行：Round CC 的错误聚类面板也会渲染同一条
+    // 错误的可点行（aria-label 以「在会话中定位：」开头），裸名字会命中两处。
+    await page
+      .locator("button[data-row-index]")
+      .filter({ hasText: "String to replace not found" })
+      .click();
 
     // 跳回会话分析、会话已开、定位的记录进详情面板——「只能看不能跳」在这里红。
     await expect(page.getByRole("tab", { name: "会话分析", exact: true })).toHaveAttribute(

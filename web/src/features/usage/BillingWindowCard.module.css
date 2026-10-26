@@ -30,6 +30,25 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+/* 限额预报行（F5）：横跨两个读数列，紧跟四格读数之后。
+   它是句子不是数字格，所以占满整行 —— 挤进 2 列网格会把「预计用到限额的 63% ·
+   14:20 触顶」折成两行，读起来像两件事。颜色是 tertiary：这一行是推测，
+   字重与饱和度都不该盖过上面那四格真值。 */
+.forecast {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 满额一小时烧完：整行换 warning。颜色只加在「速率异常」这一种情况下，
+   否则一行常态预警会训练用户忽略它。 */
+.forecastHot {
+  color: var(--warning);
+}
+
 /* 两层限额的层名：并排存在后，「窗口」单指 5 小时层、「滚动 7 天」指周层，
    两组读数不靠位置也能分清归属。 */
 .layerTitle {
