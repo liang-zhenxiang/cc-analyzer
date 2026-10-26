@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+
+## [0.32.0-beta.1] - 2026-10-27
+
+本轮主题：**第二批十功能**——会话对比、工具健康、换模计价、指纹雷达、开发者海报、烧钱仪表、会话甘特、工作习惯、峰值时刻与 token 等价物。十个读数仍然遵守同一套诚实性：算不出来就写明为什么（样本不足、定价未知、不是人群百分位），不硬印一个数；唯一的后端面变化是海报 PNG 导出需要的 `write_binary` 命令。
+
+
 ### Added
 
 - **会话对比**：用量总览新增第 4 块整行面板——从窗口里挑两个会话（默认 token 总量前两名）并排五读数：消息、记录数、时长、prompt、output。差值最大的一维自动成为摘要句（「A 比另一侧多 700%」），差值不染红——差 20% 不是错误。两个会话都是 0 token 时诚实写「没有 token 读数」。
@@ -24,6 +30,7 @@ All notable changes to this project will be documented in this file.
 ### Security
 
 - 新增 Tauri 命令 `write_binary(path, contents_base64)`：海报 PNG 导出的落盘通道。前端只交 base64（`Vec<u8>` 会被 Tauri 编成 JSON 数字数组，体积 3–4 倍）；与既有 `write_text` 同款目录自动创建与错误文案，注册进 capabilities；三条 Rust 单测覆盖正常写、目录自动创建、base64 非法时不落盘。
+
 
 ## [0.31.0-beta.1] - 2026-10-26
 
