@@ -182,7 +182,7 @@ function TreeRow({
   selectedNodeId: string | null;
   onSelectNode: (id: string) => void;
   highlightId: string | null;
-  highlightRef: RefObject<HTMLDivElement>;
+  highlightRef: RefObject<HTMLDivElement | null>;
   onSelect: (record: SessionRecord) => void;
   onAnalyze: (node: DurationNode) => void;
   onEnterChildSession: (session: ParsedSession) => void;

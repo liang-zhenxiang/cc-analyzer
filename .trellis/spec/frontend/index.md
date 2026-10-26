@@ -1,6 +1,6 @@
 # Frontend Development Guidelines
 
-> Conventions for `web/src/` in CC Analyzer (React 18 + TypeScript + Vite, Tauri 2 desktop shell).
+> Conventions for `web/src/` in CC Analyzer (React 19 + TypeScript + Vite, Tauri 2 desktop shell).
 
 ---
 
