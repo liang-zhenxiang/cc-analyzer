@@ -1,0 +1,101 @@
+.scope {
+  overflow: hidden;
+  max-width: 16em;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.body {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.radar {
+  flex: 0 0 auto;
+  width: 176px;
+  height: 176px;
+}
+
+.grid {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.spoke {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.shape {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.vertex {
+  fill: var(--bg-elevated);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.values {
+  flex: 1 1 auto;
+  min-width: 0;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.values th,
+.values td {
+  height: 20px;
+  padding: 0;
+  white-space: nowrap;
+}
+
+.values th {
+  overflow: hidden;
+  max-width: 10em;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+
+.values td {
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-align: right;
+}
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.empty {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+}
+
+.srOnly {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

@@ -36,6 +36,12 @@ export interface FsBridge {
   readText(path: string): Promise<string>;
   readHead(path: string, maxBytes: number): Promise<string>;
   writeText(path: string, contents: string): Promise<void>;
+  /**
+   * Writes base64-decoded bytes. Optional: the poster's PNG export is the only
+   * caller, and a bridge without it (older host, tests) must degrade to an SVG
+   * export instead of failing at call time.
+   */
+  writeBinary?(path: string, contentsBase64: string): Promise<void>;
   stat(path: string): Promise<StatInfo>;
   homeDir(): Promise<string>;
   appDataDir(): Promise<string>;

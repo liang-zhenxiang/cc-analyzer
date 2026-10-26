@@ -195,3 +195,19 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* D4|D8 半宽行（Round DD）：两列网格里各占一格，窄窗各自整行。 */
+.halfPanel {
+  min-width: 0;
+}
+
+/* D5 海报挂在里程碑档尾，与上一块的组间距对齐。 */
+.posterRow {
+  margin-top: var(--sp-3);
+}
+
+@media (max-width: 1080px) {
+  .halfPanel {
+    grid-column: 1 / -1;
+  }
+}

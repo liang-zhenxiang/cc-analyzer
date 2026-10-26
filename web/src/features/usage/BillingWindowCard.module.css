@@ -35,12 +35,20 @@
    14:20 触顶」折成两行，读起来像两件事。颜色是 tertiary：这一行是推测，
    字重与饱和度都不该盖过上面那四格真值。 */
 .forecast {
+  display: flex;
   grid-column: 1 / -1;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
   margin: 0;
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
   line-height: var(--lh-xs);
   font-variant-numeric: tabular-nums;
+}
+
+.forecastText {
+  min-width: 0;
 }
 
 /* 满额一小时烧完：整行换 warning。颜色只加在「速率异常」这一种情况下，

@@ -140,3 +140,29 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* 峰值时刻（D9）：一行三段的读数，不与四行表抢层级。 */
+.peak {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-2);
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.peakLabel {
+  white-space: nowrap;
+}
+
+.peakTime {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.peakNote {
+  min-width: 0;
+}

@@ -151,6 +151,21 @@ fn write_text(path: String, contents: String) -> Result<(), String> {
     std::fs::write(&path, contents).map_err(|e| io_error("写入文件失败", e))
 }
 
+/// Writes `contents_base64` decoded to bytes. The poster export is the only
+/// caller: a PNG cannot travel as a `String`, so the frontend hands over the
+/// base64 half of a data URL and Rust owns the decode + the write.
+#[tauri::command]
+fn write_binary(path: String, contents_base64: String) -> Result<(), String> {
+    use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
+    let bytes = BASE64_STANDARD
+        .decode(contents_base64.as_bytes())
+        .map_err(|error| format!("解码 base64 失败: {error}"))?;
+    if let Some(parent) = Path::new(&path).parent() {
+        std::fs::create_dir_all(parent).map_err(|e| io_error("创建目录失败", e))?;
+    }
+    std::fs::write(&path, bytes).map_err(|e| io_error("写入文件失败", e))
+}
+
 // Tauri command 的参数即前端 invoke 的调用签名；收拢成参数对象需要同步改动
 // 前端 API，不属于内部可自由重构的范围，故豁免参数数量检查。
 #[allow(clippy::too_many_arguments)]
@@ -3329,6 +3344,7 @@ pub fn run() {
             read_text,
             read_head,
             write_text,
+            write_binary,
             run_lines,
             cancel_lines,
             exec_text,
@@ -3384,7 +3400,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{home_dir_from, io_error, string_from_head};
+    use super::{home_dir_from, io_error, string_from_head, write_binary};
     use std::collections::BTreeSet;
     use std::ffi::OsString;
 
@@ -3597,5 +3613,57 @@ mod tests {
             home_dir_from(None, None),
             Err("无法获取用户主目录".to_string())
         );
+    }
+
+    // --- 海报导出：write_binary ---
+
+    /// A unique, empty-ish scratch directory. The tests write into it and leave
+    /// the cleanup to the OS: three tiny files are not worth a `tempfile` dep.
+    fn scratch_dir(tag: &str) -> std::path::PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock before the epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!("cc-analyzer-{tag}-{}-{nanos}", std::process::id()))
+    }
+
+    #[test]
+    fn write_binary_writes_the_decoded_bytes() {
+        let dir = scratch_dir("binary-plain");
+        std::fs::create_dir_all(&dir).expect("create scratch dir");
+        let path = dir.join("poster.png");
+        // "PNG!" — short, non-UTF-8-safe as text but valid base64 (`UE5HIQ==`).
+        write_binary(path.to_string_lossy().into_owned(), "UE5HIQ==".to_string())
+            .expect("write_binary should succeed");
+
+        assert_eq!(std::fs::read(&path).expect("read back"), b"PNG!");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn write_binary_creates_missing_parent_directories() {
+        let dir = scratch_dir("binary-nested");
+        let path = dir.join("a").join("b").join("poster.png");
+        write_binary(path.to_string_lossy().into_owned(), "UE5HIQ==".to_string())
+            .expect("write_binary should create the parents");
+
+        assert!(path.exists(), "nested file should exist");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn write_binary_rejects_invalid_base64() {
+        let dir = scratch_dir("binary-invalid");
+        std::fs::create_dir_all(&dir).expect("create scratch dir");
+        let path = dir.join("poster.png");
+        let error = write_binary(
+            path.to_string_lossy().into_owned(),
+            "not base64!!".to_string(),
+        )
+        .expect_err("invalid base64 must not be written");
+
+        assert!(error.starts_with("解码 base64 失败"), "unexpected: {error}");
+        assert!(!path.exists(), "a failed decode must not leave a file");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

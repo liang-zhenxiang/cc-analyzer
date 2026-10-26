@@ -14,6 +14,7 @@
     "allow-read-text",
     "allow-read-head",
     "allow-write-text",
+    "allow-write-binary",
     "allow-run-lines",
     "allow-cancel-lines",
     "allow-exec-text",

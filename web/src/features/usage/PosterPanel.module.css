@@ -1,0 +1,40 @@
+.hint {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.degraded {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.preview {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--sp-3);
+}
+
+.image {
+  display: block;
+  width: 208px;
+  height: 260px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  object-fit: contain;
+}
+
+.error {
+  margin: var(--sp-2) 0 0;
+  color: var(--danger);
+  font-size: var(--fs-xs);
+}

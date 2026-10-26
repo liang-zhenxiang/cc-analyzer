@@ -1,11 +1,14 @@
 import { useMemo, useState } from "react";
 import { Panel } from "../../components/Panel";
+import { SegmentedControl } from "../../components/SegmentedControl";
 import type { SessionMeta } from "../sessions/metadataCache";
 import { ProvenanceBadge } from "./ProvenanceBadge";
+import { toolHealth } from "./toolHealth";
 import {
   censusKeyId,
   type CensusBucket,
   type CensusSessionSlice,
+  type ToolCallFact,
   type ToolCensus
 } from "./toolCensus";
 import styles from "./ToolCensusPanel.module.css";
@@ -176,20 +179,33 @@ function buildColumns(census: ToolCensus): Column[] {
  * 量级差三个数量级，版式呈现差异而不是抹平（design §0）；桶身份只由栏头
  * 文字承载，数据墨水单色 --chart-1，零新增令牌、不消费 danger。
  */
+/** 健康表的工具名：桶身份去掉 `kind:` 前缀，全量键留在 title 里。 */
+function healthName(key: string): string {
+  const colon = key.indexOf(":");
+  return colon > 0 ? key.slice(colon + 1) : key;
+}
+
 export function ToolCensusPanel({
   census,
   days,
   sessionsInWindow,
+  toolFacts = [],
   onOpenSession
 }: {
   census: ToolCensus;
   days: number;
   /** 全空态事实行的「检查了 N 个会话」——与用量档 KPI 同源。 */
   sessionsInWindow: number;
+  /** 健康视图的输入（D2）。缺省 = 页面没给，健康表显示空态而不是崩。 */
+  toolFacts?: readonly ToolCallFact[];
   /** 下钻会话行的「打开会话」回调；缺省（单测直挂组件）时行仍列出，只是不可点。 */
   onOpenSession?: (session: SessionMeta) => void;
 }) {
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [mode, setMode] = useState<"calls" | "health">("calls");
+  const health = useMemo(() => toolHealth(toolFacts), [toolFacts]);
+  // 样本不足的调用不参与均值/p95，也不冒充「0 ms」。
+  const healthRows = health.worst.slice(0, TOP_N);
   const columns = useMemo(() => buildColumns(census), [census]);
 
   // 区间切换 / 渐进扫描后选中桶可能消失：解析不出就整段下钻区离场。
@@ -227,9 +243,72 @@ export function ToolCensusPanel({
       <Panel
         title="工具与 skill"
         ariaLabel="工具与 skill"
-        actions={<ProvenanceBadge provenance="logged" />}
+        actions={
+          <span className={styles.actions}>
+            <SegmentedControl
+              items={[
+                { value: "calls", label: "调用次数" },
+                { value: "health", label: "健康" }
+              ]}
+              value={mode}
+              onChange={setMode}
+              ariaLabel="工具普查视图"
+            />
+            <ProvenanceBadge provenance="logged" />
+          </span>
+        }
       >
-        {total.withSidechain === 0 ? (
+        {mode === "health" ? (
+          health.tools.length === 0 ? (
+            <p className={styles.zeroState}>本窗口没有工具调用记录</p>
+          ) : (
+            healthRows.length === 0 ? (
+              <p className={styles.zeroState}>
+                {`近 ${days} 天检查了 ${fmt(sessionsInWindow)} 个会话，没有工具调用记录`}
+              </p>
+            ) : (
+            <div data-probe="tool-health">
+              <table className={styles.health}>
+                <caption className={styles.srOnly}>
+                  工具健康：调用次数、失败率、平均耗时与 p95 耗时（最近 100 次观测）
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">工具</th>
+                    <th scope="col">调用</th>
+                    <th scope="col">失败率</th>
+                    <th scope="col" title="最近 100 次观测中已配对调用的均值">均值</th>
+                    <th scope="col" title="最近 100 次观测中已配对调用的 p95">p95</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {healthRows.map((entry) => {
+                    const risky = entry.failureRate !== null && entry.failureRate > 0.2;
+                    return (
+                      <tr key={entry.key} data-probe="tool-health-row">
+                        <th scope="row" title={entry.key}>
+                          {healthName(entry.key)}
+                        </th>
+                        <td>{entry.calls.toLocaleString("en-US")}</td>
+                        <td className={risky ? styles.risky : undefined}>
+                          {entry.failureRate === null
+                            ? `样本不足（${entry.calls} 次）`
+                            : `${(entry.failureRate * 100).toFixed(1)}%${risky ? " ▲" : ""}`}
+                        </td>
+                        <td>{entry.avgMs === null ? "—" : `${Math.round(entry.avgMs)} ms`}</td>
+                        <td>{entry.p95Ms === null ? "—" : `${Math.round(entry.p95Ms)} ms`}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <p className={styles.healthNote}>
+                未配对的调用不参与耗时统计；失败率只在有结果可判的调用上计算。
+              </p>
+            </div>
+            )
+          )
+        ) : total.withSidechain === 0 ? (
           <p className={styles.zeroState}>
             {`近 ${days} 天检查了 ${fmt(sessionsInWindow)} 个会话，没有工具调用记录`}
           </p>

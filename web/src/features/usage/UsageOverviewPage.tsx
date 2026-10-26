@@ -37,6 +37,13 @@ import { StackedBar } from "./charts/StackedBar";
 import { Heatmap } from "./charts/Heatmap";
 import { usageSnapshotFileName, usageSnapshotHtml } from "./usageSnapshot";
 import { WeeklyDigestPanel } from "./WeeklyDigestPanel";
+import { SessionComparePanel } from "./SessionComparePanel";
+import { EquivalentsToggle } from "./EquivalentsToggle";
+import { ModelSwapTable } from "./ModelSwapTable";
+import { FingerprintPanel } from "./FingerprintPanel";
+import { WorkHabitsPanel } from "./WorkHabitsPanel";
+import { SessionGanttPanel } from "./SessionGanttPanel";
+import { PosterPanel } from "./PosterPanel";
 import { ProjectArenaPanel } from "./ProjectArenaPanel";
 import { ProjectCardsPanel } from "./ProjectCardsPanel";
 import styles from "./UsageOverviewPage.module.css";
@@ -150,6 +157,7 @@ export function UsageOverviewPage({
   const { inputs, progress, scanning, error, skipped, refresh } = useUsageOverview();
   const [days, setDays] = useState<UsageRange>(readStoredRange);
   const [tokenClass, setTokenClass] = useState<TokenClass>("total");
+  const [modelView, setModelView] = useState<"share" | "swap">("share");
   const [view, setView] = useState<UsageView>(readStoredView);
   const [activityView, setActivityView] = useState<ActivityView>(readStoredActivityView);
   const [exporting, setExporting] = useState(false);
@@ -218,6 +226,10 @@ export function UsageOverviewPage({
   const errorStats = useMemo(() => mergeErrorStats(inputs, days), [inputs, days]);
   // 工具普查（N3）同位：窗口化口径与上两者一致，不进既有聚合桶。
   const census = useMemo(() => toolCensus(inputs, days), [inputs, days]);
+  const toolFacts = useMemo(
+    () => inputs.flatMap((input) => input.toolCalls ?? []),
+    [inputs]
+  );
   // 里程碑（Round Y #214）同位：吃同一份**全历史** inputs，一次遍历折成三层
   // 清单。它与 7/30/90 区间正交（全历史口径），所以不依赖 `days`；R9 要求只在
   // `inputs` 变化时重算，这里靠 memo 的依赖保证。
@@ -416,7 +428,7 @@ export function UsageOverviewPage({
   }
 
   return (
-    <section className={styles.page} aria-label="用量总览">
+    <section className={styles.page} aria-label="用量总览" data-probe="usage-page">
       <div className={styles.header}>
         {/* 视图分段放最左：视图身份先于时间范围（design §2.1）。区间控件与
             扫描进度行两档共用——不另造第二套窗口状态。 */}
@@ -487,11 +499,18 @@ export function UsageOverviewPage({
       ) : view === "milestones" ? (
         /* 里程碑（Round Y）：同一份全历史 inputs、同一次扫描，零新增 I/O。
            `onOpenSession` 缺省（单测直挂页面）时不传，入口退成静态行而不是空按钮。 */
-        <MilestonesPanel
-          report={milestoneReport}
-          onOpenSession={onOpenSession ? openSessionByPath : undefined}
-          onOpenDay={openDay}
-        />
+        <>
+          <MilestonesPanel
+            report={milestoneReport}
+            onOpenSession={onOpenSession ? openSessionByPath : undefined}
+            onOpenDay={openDay}
+          />
+          {/* D5 开发者海报（Round DD）：里程碑档尾——这一档是「回顾」，海报是
+              回顾的出口。只用全历史 inputs 的聚合数。 */}
+          <div className={styles.posterRow}>
+            <PosterPanel inputs={inputs} now={milestonesNow} />
+          </div>
+        </>
       ) : (
         <>
           {/* 归因行与压缩统计 top3 共用同一个「打开会话」握手，不新开跳转路径。 */}
@@ -527,7 +546,8 @@ export function UsageOverviewPage({
               不是账单。
               {cost.hasUnknown
                 ? ` 部分会话未知价 · 约 ${formatTokenCount(cost.unknownTokens)} tok 未计入`
-                : ""}
+                : ""}{" "}
+              <EquivalentsToggle tokens={range.kpi.tokens} />
             </p>
           </div>
 
@@ -536,6 +556,10 @@ export function UsageOverviewPage({
               先量级后方向。自然周口径（周一起始）与下方计费卡的滚动 7 天
               是两个问题，面板脚注各自声明。 */}
           <WeeklyDigestPanel inputs={inputs} now={readouts.now} />
+
+          {/* D1 会话对比（Round DD）：token 前两名的并排读数。整行、在周战报之后
+              ——它是「两段会话」的粒度，跟下面按天/按项目的网格不是同一层。 */}
+          <SessionComparePanel inputs={inputs} />
 
           {/* 两列网格：单列文档流下仪表盘比视口高 43%，「按项目分布」「按模型分布」
           「活跃时段」三块因此从来没进过首屏，也没进过任何一张归档截图。 */}
@@ -571,6 +595,15 @@ export function UsageOverviewPage({
               <ProjectCardsPanel inputs={inputs} days={days} />
             </div>
 
+            {/* D4 指纹雷达｜D8 工作习惯（Round DD）：两张半宽卡并排。
+                窄窗（<=1080px）各自整行——雷达 176px + 右侧读数在单列里放不下。 */}
+            <div className={styles.halfPanel}>
+              <FingerprintPanel inputs={inputs} />
+            </div>
+            <div className={styles.halfPanel}>
+              <WorkHabitsPanel inputs={inputs} now={readouts.now} />
+            </div>
+
             {/* 消耗日历（Issue #187）：53 列的网格不可能塞进半宽列。它是全应用
                 最具传播力的一张图，占住整行；聚合依赖只有 `inputs`——7/30/90
                 区间选择器与它正交（面板脚注声明）。 */}
@@ -584,7 +617,34 @@ export function UsageOverviewPage({
               />
             </div>
 
-            <Panel title="按模型分布">
+            {/* D7 会话甘特（Round DD）：一行一会话，重叠看得见。整行。 */}
+            <div className={styles.compactionRow}>
+              <SessionGanttPanel
+                inputs={inputs}
+                days={days}
+                now={readouts.now}
+                onOpenSession={onOpenSession}
+              />
+            </div>
+
+            <Panel
+              title="按模型分布"
+              actions={
+                <SegmentedControl
+                  items={[
+                    { value: "share", label: "占比" },
+                    { value: "swap", label: "换模" }
+                  ]}
+                  value={modelView}
+                  onChange={setModelView}
+                  ariaLabel="按模型分布视图"
+                />
+              }
+            >
+              {modelView === "swap" ? (
+                <ModelSwapTable sessions={inputs} />
+              ) : (
+                <>
               <StackedBar data={modelData} ariaLabel="按模型分布" emptyText="所选范围内暂无模型消耗" />
               {modelData.length > 0 ? (
                 <ul className={styles.modelLegend}>
@@ -605,6 +665,8 @@ export function UsageOverviewPage({
                   ))}
                 </ul>
               ) : null}
+                </>
+              )}
             </Panel>
 
             {/* F1 Token 流向（三层 Sankey）紧贴「按模型分布」：先看模型占比，再看
@@ -640,6 +702,7 @@ export function UsageOverviewPage({
                 census={census}
                 days={days}
                 sessionsInWindow={range.kpi.sessions}
+                toolFacts={toolFacts}
                 onOpenSession={onOpenSession}
               />
             </div>

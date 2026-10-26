@@ -239,3 +239,68 @@ describe("mergeTopSessions", () => {
     expect(mergeTopSessions([])).toEqual({ sessions: 0, top: [] });
   });
 });
+
+/** D2 健康视图：直接挂在既有面板上，事实带耗时与错误标记。 */
+describe("ToolCensusPanel 健康视图（D2）", () => {
+  function callOf(
+    toolName: string,
+    durationMs: number,
+    isError = false
+  ): ToolCallFact {
+    return {
+      key: { kind: "builtin", toolName },
+      timestamp: NOW,
+      sidechain: false,
+      durationMs,
+      isError
+    };
+  }
+
+  const FACTS: ToolCallFact[] = [
+    callOf("Bash", 100),
+    callOf("Bash", 300, true),
+    callOf("Bash", 200),
+    callOf("Read", 50)
+  ];
+
+  it("健康页按失败率排序，>20% 标 ▲，样本不足写明次数", async () => {
+    const user = userEvent.setup();
+    const session = metaOf("/health", "健康");
+    render(
+      <ToolCensusPanel
+        census={toolCensus([inputOf(session, FACTS)], 30, NOW)}
+        days={30}
+        sessionsInWindow={1}
+        toolFacts={FACTS}
+      />
+    );
+
+    await user.click(screen.getByRole("tab", { name: "健康" }));
+
+    const bashRow = screen.getByRole("row", { name: /^Bash/ });
+    expect(within(bashRow).getByRole("cell", { name: "3" })).toBeInTheDocument();
+    expect(within(bashRow).getByRole("cell", { name: /33\.3% ▲/ })).toBeInTheDocument();
+    expect(bashRow).toHaveTextContent("200 ms");
+
+    const readRow = screen.getByRole("row", { name: /^Read/ });
+    expect(readRow).toHaveTextContent("样本不足（1 次）");
+    expect(readRow).toHaveTextContent("50 ms");
+    expect(screen.getByText("未配对的调用不参与耗时统计；失败率只在有结果可判的调用上计算。")).toBeInTheDocument();
+  });
+
+  it("没有工具调用时，健康页也不画空表", async () => {
+    const user = userEvent.setup();
+    render(
+      <ToolCensusPanel
+        census={toolCensus([], 30, NOW)}
+        days={30}
+        sessionsInWindow={3}
+        toolFacts={[]}
+      />
+    );
+
+    await user.click(screen.getByRole("tab", { name: "健康" }));
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByText(/没有工具调用记录/)).toBeInTheDocument();
+  });
+});

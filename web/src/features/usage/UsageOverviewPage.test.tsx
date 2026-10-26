@@ -693,4 +693,36 @@ describe("UsageOverviewPage", () => {
       document.querySelector('[data-probe="calendar-day"][aria-expanded="true"]')
     ).not.toBeNull();
   });
+  it("Round DD：十块新内容都挂在用量档 / 里程碑档的正确位置上", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 6 * 3_600_000),
+      [`${PROJECTS_ROOT}/-repo-beta/bbb.jsonl`]: sessionJsonl("b2", "claude-opus-4-1-20250805", 5 * 3_600_000)
+    });
+    const user = userEvent.setup();
+    renderPage(bridges);
+
+    const dashboard = await screen.findByRole("region", { name: "用量总览" });
+    // D1 会话对比 / D4 指纹雷达 / D8 工作习惯 / D7 会话甘特 / F6 项目卡片。
+    expect(await within(dashboard).findByRole("region", { name: "会话对比" })).toBeInTheDocument();
+    expect(within(dashboard).getByRole("region", { name: "指纹雷达" })).toBeInTheDocument();
+    expect(within(dashboard).getByRole("region", { name: "工作习惯" })).toBeInTheDocument();
+    expect(within(dashboard).getByRole("region", { name: "会话甘特" })).toBeInTheDocument();
+    expect(within(dashboard).getByRole("region", { name: "项目卡片" })).toBeInTheDocument();
+    // D9 峰值时刻在周战报里、D10 换算按钮在 KPI 脚注里。
+    expect(document.querySelector('[data-probe="peak-minute"]')).not.toBeNull();
+    expect(screen.getByRole("button", { name: /换算成日常事物/ })).toBeEnabled();
+    // D6 微表只挂在 forecast 行里；该行要有限额才有，单测夹具没有配限额，
+    // 所以这里只保证没有把它误挂到别处（由 BurnGaugeDial.test 覆盖画法）。
+
+    // D3 换模是「按模型分布」的第二个视图，切换后表头换成实际/三族。
+    await user.click(screen.getByRole("tab", { name: "换模" }));
+    expect(await screen.findByText("实际（按各会话模型）")).toBeInTheDocument();
+    expect(screen.getByText("全部换成 Haiku")).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "占比" }));
+
+    // D5 海报挂在里程碑档尾。
+    await user.click(screen.getByRole("tab", { name: "里程碑" }));
+    expect(await screen.findByRole("region", { name: "开发者海报" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "导出 SVG" })).toBeEnabled();
+  });
 });

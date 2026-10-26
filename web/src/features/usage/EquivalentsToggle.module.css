@@ -1,0 +1,66 @@
+.wrap {
+  display: inline;
+}
+
+.toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  cursor: pointer;
+}
+
+.toggle:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
+.toggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* 展开区挂在脚注末尾，向右伸出一列的距离，避免把整行撑成长句。 */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  align-items: baseline;
+  height: 24px;
+}
+
+.count {
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-2);
+  min-width: 0;
+}
+
+.label {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
+.note {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
