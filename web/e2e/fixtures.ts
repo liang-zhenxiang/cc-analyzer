@@ -255,7 +255,7 @@ function roundCCJsonl(seed: RoundCCSessionSeed): string {
   return sorted.map((record) => JSON.stringify(record)).join("\n") + "\n";
 }
 
-function buildRoundCC(): { files: Record<string, string>; records: RoundCCRecord[] } {
+function buildRoundCC(): { files: Record<string, string>; records: RoundCCRecord[]; now: number } {
   const now = Date.now();
   const weekStart = roundCCWeekStart(now);
   const sessions: RoundCCSessionSeed[] = [];
@@ -427,12 +427,12 @@ function buildRoundCC(): { files: Record<string, string>; records: RoundCCRecord
     files[`${HOME}/.claude/projects/${projectDir(seed.cwd)}/${seed.id}.jsonl`] = roundCCJsonl(seed);
   }
 
-  return { files, records: sessions.flatMap((seed) => seed.records) };
+  return { files, records: sessions.flatMap((seed) => seed.records), now };
 }
 
-let roundCCCache: { files: Record<string, string>; records: RoundCCRecord[] } | null = null;
+let roundCCCache: { files: Record<string, string>; records: RoundCCRecord[]; now: number } | null = null;
 
-function roundCCBuilt(): { files: Record<string, string>; records: RoundCCRecord[] } {
+function roundCCBuilt(): { files: Record<string, string>; records: RoundCCRecord[]; now: number } {
   // 同一进程里的多个用例共用一个时刻，避免「场景 A 的 now」与「场景 B 的 now」
   // 跨过整点后互相漂移。
   if (roundCCCache === null) roundCCCache = buildRoundCC();
@@ -442,6 +442,14 @@ function roundCCBuilt(): { files: Record<string, string>; records: RoundCCRecord
 /** Round CC 全量记录（时间戳为 ISO 字符串）——e2e 用它手算周战报的期望值。 */
 export function roundCCRecords(): RoundCCRecord[] {
   return roundCCBuilt().records;
+}
+
+/** 构造夹具时的基准时刻——e2e 的手算与夹具用同一个 now，避免毫秒漂移。
+ *  从记录反推而不是另存一个变量：缓存后调用 `Date.now()` 会拿到「现在的现在」，
+ *  与夹具相对量（now-2h 等）已经错开。 */
+export function roundCCNow(): number {
+  const anchor = roundCCBuilt().now;
+  return anchor;
 }
 
 /** `/repo/alpha` 主会话在磁盘上的路径（置顶截图预置 localStorage 用）。 */

@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { test, expect, roundCCScenario, roundCCRecords } from "./fixtures";
+import { test, expect, roundCCScenario, roundCCRecords, roundCCNow } from "./fixtures";
 
 /**
  * Round CC「用量页新面板」的端到端验收。
@@ -253,10 +253,33 @@ test.describe("Round CC · 用量页", () => {
     await expect(forecast).toBeVisible();
     await expect(forecast).toHaveText(/^若保持此速率：预计用到限额的 \d+%/);
     const pct = Number((await forecast.innerText()).match(/限额的 (\d+)%/)![1]);
-    // 夹具在 now-2h 放了 40,000 token 打开当前块：按 2 小时速率外推约 114%。
-    // 取 100–130 的窄区间，避免把「块刚开始/块将结束」的边界写成恒真。
-    expect(pct).toBeGreaterThanOrEqual(100);
-    expect(pct).toBeLessThanOrEqual(130);
+    // 期望值不从界面读回来，从夹具按 `buildLimitForecast` 同一套口径手算。
+    // 当前块 = 覆盖 now 的最新块（`currentBlock`：最后一块即使过了 end 也算）。
+    // 常规时段块从 now-2h 那条记录开始（consumed 40k、elapsed 2h → 约 114%）；
+    // 周一 00:30–02:00 之间运行时，周战报锚在 weekStart+30min 的记录会把块
+    // 起点拉到周一 00:30（consumed 与 elapsed 同时变大，外推约 69%）——两种
+    // 起点都合法，断言跟着块实际起点走，不把某一时刻的数字写死。
+    const now = roundCCNow();
+    const stamps = roundCCRecords()
+      .map((record) => Date.parse(String(record.timestamp)))
+      .filter((at) => at <= now - 2 * HOUR + 60_000);
+    const blockStart = Math.max(...stamps);
+    const blockEnd = blockStart + 5 * HOUR;
+    const consumed = roundCCRecords().reduce((sum, record) => {
+      const at = Date.parse(String(record.timestamp));
+      if (!(at >= blockStart && at < blockEnd)) return sum;
+      const usage = usageOf(record);
+      if (!usage) return sum;
+      return sum + usage.input + usage.output + usage.cacheCreation + usage.cacheRead;
+    }, 0);
+    const elapsedH = Math.max(0, Math.min(now, blockEnd) - blockStart) / HOUR;
+    const remainingH = Math.max(0, blockEnd - now) / HOUR;
+    const burnPerHour = elapsedH > 0 ? consumed / elapsedH : 0;
+    const projected = consumed + burnPerHour * remainingH;
+    const expectedPct = (projected / 88_000) * 100;
+    // UI 渲染的 now 与夹具构造的 now 相差毫秒级，允许 ±5 个百分点的呼吸空间。
+    expect(Math.abs(pct - expectedPct)).toBeLessThanOrEqual(5);
+    expect(pct).toBeGreaterThan(0);
   });
 
   test("F5 未配置计费方案时，预报行整行不渲染", async ({ page }) => {
