@@ -10,7 +10,7 @@ Tauri 2 桌面壳 + React 单页 UI。生产形态下前端构建产物静态嵌
 Tauri 的 IPC 调用 Rust 命令层完成所有文件与进程操作。
 
 ```
-web/ (React 18 + TypeScript + Vite)
+web/ (React 19 + TypeScript + Vite)
   └── invoke() ──IPC──▶ src-tauri/ (Rust 命令层) ──▶ 文件系统 / 子进程
 ```
 

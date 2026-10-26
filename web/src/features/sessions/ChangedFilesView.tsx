@@ -265,7 +265,7 @@ function FileEntry({
   rowMeasure: (element: HTMLElement | null) => void;
   panelMeasure: (element: HTMLElement | null) => void;
   recordByFullId: Map<string, SessionRecord>;
-  recordsListRef: React.RefObject<HTMLUListElement>;
+  recordsListRef: React.RefObject<HTMLUListElement | null>;
   onLocateInLog: (recordId: string) => void;
 }) {
   const changes = file.edits + file.writes;
@@ -362,7 +362,7 @@ function ExpandedRecords({
 }: {
   file: FileActivity;
   records: SessionRecord[];
-  recordsListRef: React.RefObject<HTMLUListElement>;
+  recordsListRef: React.RefObject<HTMLUListElement | null>;
   /** Esc 收起（与文件列表的 Esc 同一个动作语义）。 */
   onCollapse: () => void;
   onLocateInLog: (recordId: string) => void;

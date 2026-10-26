@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **前端依赖 React 18 → 19**：`react` / `react-dom` 升到 19.3.1，`@types/react` / `@types/react-dom` 升到 19.3.0，四者成套升级；同时移除 `dependabot.yml` 中针对这四个包的 major 版本忽略。React 19 的 `useRef<T>(null)` 返回 `RefObject<T | null>`，因此把接收该类 ref 的 prop 类型相应放宽为可空——只是类型声明跟进，运行行为不变。
+
 ## [0.30.0-beta.1] - 2026-10-23
 
 本轮主题：**会话账单**——这个应用此前有十几处都在提「钱」，没有一处拿钱当主语。账单把一次会话的钱按四类 token、模型与最贵的调用拆开：单价按可定价调用给出，合计行拒绝印一个不存在的均价，金额不再把 $0.0045 印成 $0.00；两端由单元测试、15 条浏览器用例（Chromium + WebKit）、4 张截图基线与真机门禁守着。

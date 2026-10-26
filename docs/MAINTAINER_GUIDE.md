@@ -144,6 +144,8 @@ GitHub Actions。每周一 06:00（Asia/Shanghai）检查，新版本发布满 7
 - `vite` 5 → 8，连带 `vitest` 2 → 5、`@vitejs/plugin-react` 4 → 6、
   jsdom 24 → 30（PR #13）
 - `typescript` 5 → 7，单独一个 PR（#15）
+- `react` / `react-dom` 18 → 19，连同 `@types/react` / `@types/react-dom`
+  成套升级（Issue #19）
 
 升级后至少跑：
 
@@ -158,11 +160,22 @@ cargo check --manifest-path src-tauri/Cargo.toml   # 版本号有改动时
 jsdom 30 的可访问名称）见
 [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md#依赖升级)。
 
-**当前显式豁免**：`react`、`react-dom`、`@types/react`、`@types/react-dom`
-的 major 更新在 `dependabot.yml` 里被 `ignore`。React 19 要求 `@types`
-成套更换并适配 cleanup 返回值、ref 处理等语义，与安全无关，适合单独一轮。
-真要升的时候先删掉那 4 条 `ignore`，再把四个包一起升——只升一半必然卡在
-peer 依赖上。
+**当前没有 React 豁免**：`dependabot.yml` 已不再忽略 `react` / `react-dom` /
+`@types/react` / `@types/react-dom` 的 major 更新。这四个包仍然必须成套升级
+——只升一半必然卡在 peer 依赖上。
+
+**glib 安全告警（Issue #106）**：[GHSA-wrw7-89jp-8q8g](https://github.com/advisories/GHSA-wrw7-89jp-8q8g)
+的受影响范围是 `>=0.15.0,<0.20.0`，而 `tauri` / `muda` / `tao` 目前都要求
+`gtk ^0.18`（gtk 0.18 依赖 glib 0.18），所以依赖树暂时无法离开受影响范围。
+解除条件是上游改用 `gtk ^0.19` 或更高（gtk 0.19 依赖 glib ^0.22）。
+
+`.github/workflows/gtk-unblock-watch.yml` 每周一（UTC 03:17）读取 crates.io
+上这三个 crate 最新稳定版的 gtk 要求，**只在状态变化时**在 #106 留言——评论
+里的机器标记负责去重，状态不变不会重复刷屏。看到 `partial` / `unblocked` 时，
+按留言里的提示先对三个分发目标跑 `cargo tree -i glib --target ...` 复核
+（macOS ARM64 / Intel、Windows x64），确认 glib 不再进入这些目标的依赖树后
+再评估升级。阻塞期间的告警**不要 dismiss**：当前发布产物只有 macOS / Windows，
+用户不受影响，但 Linux 构建与依赖跟踪仍需要这条记录。
 
 ## 仓库配置清单
 

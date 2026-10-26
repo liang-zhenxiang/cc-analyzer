@@ -324,7 +324,7 @@ package.json   构建工具链（Tauri CLI）与打包入口
 - [x] **监控台** —— 把「实时监控」里那个依赖外部服务的外部仪表盘做成自带原生仪表盘：本窗口 / 今天读数、项目热度榜、24 小时活动带与跨会话事件流（已合并，随 v0.28.0-beta.1 发布）（[#225](https://github.com/liang-zhenxiang/cc-analyzer/issues/225)）
 - [x] **会话重放** —— 把一次会话压成固定片长的影片：可点击可拖动的胶片带、已播放部分的累计读数、上下文水位，以及一键跃点（首次失败 / 最烧一分钟 / 最长停顿 / 每次压缩）（已合并，随 v0.29.0 发布）（[#246](https://github.com/liang-zhenxiang/cc-analyzer/issues/246)）
 - [x] **会话账单** —— 把一次会话的钱按四类 token、模型与最贵的五次调用拆开，单价三态（单档价目 / ≈ 加权均价 / 无用量），且不再出现把 $0.0045 印成 $0.00 的假零（随 v0.30.0 发布）（[#251](https://github.com/liang-zhenxiang/cc-analyzer/issues/251)）
-- [ ] **前端升级到 React 19** —— 需与 `@types/react` / `@types/react-dom` 成套迁移（[#19](https://github.com/liang-zhenxiang/cc-analyzer/issues/19)）
+- [x] **前端升级到 React 19** —— 已与 `@types/react` / `@types/react-dom` 成套迁移（[#19](https://github.com/liang-zhenxiang/cc-analyzer/issues/19)）
 
 有想法？欢迎
 [提功能请求](https://github.com/liang-zhenxiang/cc-analyzer/issues/new/choose)。

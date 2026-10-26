@@ -1,0 +1,45 @@
+# 上游 gtk 要求监视 —— Issue #106（glib 告警 GHSA-wrw7-89jp-8q8g）的阻塞解除检查
+#
+# 为什么需要 issues:write：状态变化时脚本要用 `gh issue comment` 在 #106 留言。
+# 除此之外只读仓库（contents: read），不修改代码、不发布任何东西。
+#
+# 为什么每周一次：上游换个 gtk 要求不是分钟级事件，每周足够；而更频繁的轮询
+# 只会增加 crates.io 请求与噪音。
+#
+# 为什么只在状态变化时留言：状态每周都查，但大多数周结论不变。每周都发一条
+# 相同内容的评论会把 Issue 时间线刷成流水账，真正重要的那一条反而被埋掉。
+# 脚本用评论里的机器标记（verdict 与三个 gtk 要求）去重，标记不变就不留言。
+
+name: GTK unblock watch
+
+on:
+  schedule:
+    # 每周一 UTC 03:17（北京时间 11:17）。避开整点：GitHub 的定时任务在整点
+    # 前后极其拥挤，排队可能延迟很久。
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+# 同一时间只允许一次：手动触发与定时触发撞上时，排队而不是并发出两条评论。
+concurrency:
+  group: gtk-unblock-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: 检查上游 gtk 要求
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: 检查上游 gtk 要求
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/check-gtk-unblock.sh --comment
