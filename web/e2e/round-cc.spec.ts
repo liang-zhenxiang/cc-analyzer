@@ -254,16 +254,22 @@ test.describe("Round CC · 用量页", () => {
     await expect(forecast).toHaveText(/^若保持此速率：预计用到限额的 \d+%/);
     const pct = Number((await forecast.innerText()).match(/限额的 (\d+)%/)![1]);
     // 期望值不从界面读回来，从夹具按 `buildLimitForecast` 同一套口径手算。
-    // 当前块 = 覆盖 now 的最新块（`currentBlock`：最后一块即使过了 end 也算）。
-    // 常规时段块从 now-2h 那条记录开始（consumed 40k、elapsed 2h → 约 114%）；
-    // 周一 00:30–02:00 之间运行时，周战报锚在 weekStart+30min 的记录会把块
-    // 起点拉到周一 00:30（consumed 与 elapsed 同时变大，外推约 69%）——两种
-    // 起点都合法，断言跟着块实际起点走，不把某一时刻的数字写死。
+    // 当前块按 `clusterBillingBlocks` 的规则独立重算：第一条记录开块，落在
+    // [start, start+5h) 内的记录并入，第一条 >= start+5h 的记录开下一块；
+    // `currentBlock` 取最后一块，即使 now 已过它的 end。
+    // 不能只看「now-2h 附近那条记录」：周一凌晨运行时，块可能从周一 00:30
+    // 的周战报记录就开始了，块内用量与已用时长都与「now-2h」不同。
     const now = roundCCNow();
     const stamps = roundCCRecords()
       .map((record) => Date.parse(String(record.timestamp)))
-      .filter((at) => at <= now - 2 * HOUR + 60_000);
-    const blockStart = Math.max(...stamps);
+      .sort((a, b) => a - b);
+    let blockStart = stamps[0];
+    let activeStart = stamps[0];
+    for (const at of stamps) {
+      if (at >= blockStart + 5 * HOUR) blockStart = at;
+      if (blockStart <= now) activeStart = blockStart;
+    }
+    blockStart = activeStart;
     const blockEnd = blockStart + 5 * HOUR;
     const consumed = roundCCRecords().reduce((sum, record) => {
       const at = Date.parse(String(record.timestamp));
