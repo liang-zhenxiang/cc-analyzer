@@ -1,0 +1,78 @@
+/* F1「Token 流向」：三层 Sankey 的 SVG 画布。宽度自适应（viewBox 定死比例），
+   连线只承载一个量——四类计数器之和；颜色沿用 --chart-N 系列，不新造色。
+   悬停一条线时它经过的整条路径加粗、其余线条降到 0.07，保持上下文。
+   透明度放在 CSS 类里（不是内联 style），高对比模式下才能整体抬高。 */
+
+.chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.link {
+  stroke-opacity: 0.36;
+  transition:
+    stroke-opacity var(--dur-hover) var(--ease-out),
+    stroke-width var(--dur-hover) var(--ease-out);
+}
+
+.active {
+  stroke-opacity: 0.92;
+}
+
+.dim {
+  stroke-opacity: 0.07;
+}
+
+.hit {
+  cursor: pointer;
+}
+
+.bar {
+  fill: var(--chart-1);
+}
+
+.label {
+  fill: var(--text-secondary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  paint-order: stroke;
+  stroke: var(--bg-subtle);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.value {
+  fill: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.axis {
+  fill: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+
+.caption {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+}
+
+/* 高对比：连线整体抬亮，节点柱改用正文色——色觉障碍下也能分辨。 */
+:global([data-contrast="high"]) .link {
+  stroke-opacity: 0.6;
+}
+
+:global([data-contrast="high"]) .active {
+  stroke-opacity: 1;
+}
+
+:global([data-contrast="high"]) .dim {
+  stroke-opacity: 0.2;
+}
+
+:global([data-contrast="high"]) .bar {
+  fill: var(--text);
+}

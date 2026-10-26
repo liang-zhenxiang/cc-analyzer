@@ -451,6 +451,10 @@ The roadmap tracks open issues; each item links to the issue that owns it.
   the five most expensive calls, with unit price three-state (single tier,
   weighted `≈`, or none) and no fake zeros (ships in v0.30.0)
   ([#251](https://github.com/liang-zhenxiang/cc-analyzer/issues/251))
+- [x] Ten-feature pack — token flow diagram, project arena, weekly digest,
+  activity clock, limit forecast, project cards, error clusters, pinned
+  sessions, ⌘K command palette and kiosk mode (merged; ships in v0.31.0)
+  ([#263](https://github.com/liang-zhenxiang/cc-analyzer/issues/263))
 - [ ] Frontend upgrade to React 19, moving `@types/react` / `@types/react-dom`
   together
   ([#19](https://github.com/liang-zhenxiang/cc-analyzer/issues/19))

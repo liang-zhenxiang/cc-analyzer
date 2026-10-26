@@ -1714,6 +1714,99 @@ mod gui_probe {
   }
   facts.replay = replayFacts;
 
+  /* Round CC（用量页 10 个新功能）：只收事实——周战报四行读数、流向图节点/边、
+     擂台、项目卡片、时钟扇区、预报行文案、错误聚类行、图钉组、命令面板、大屏
+     属性。阈值与判定在 scripts/gui-test.sh；这里不写「应该是多少」。 */
+  var roundCC = {
+    present: false,
+    digest_rows: [],
+    digest_copy: !!document.querySelector("[data-probe='digest-copy']"),
+    flow: null,
+    arena: null,
+    cards: null,
+    clock: null,
+    forecast: null,
+    clusters: null,
+    pins: null,
+    palette: { present: !!document.querySelector("[data-probe='palette-root']") },
+    kiosk: document.documentElement.getAttribute('data-kiosk')
+  };
+  var digestRoot = document.querySelector("[data-probe='digest-root']");
+  if (digestRoot) {
+    roundCC.present = true;
+    var digestRows = digestRoot.querySelectorAll("[data-probe='digest-row']");
+    for (var dr = 0; dr < digestRows.length; dr++) {
+      var digestCells = digestRows[dr].querySelectorAll('th, td');
+      roundCC.digest_rows.push({
+        label: digestCells[0] ? digestCells[0].innerText.trim() : '',
+        now: digestCells[1] ? digestCells[1].innerText.trim() : '',
+        prev: digestCells[2] ? digestCells[2].innerText.trim() : '',
+        delta: digestCells[3] ? digestCells[3].innerText.trim() : '',
+        delta_aria: digestCells[3] ? digestCells[3].getAttribute('aria-label') : null
+      });
+    }
+  }
+  var flowRoot = document.querySelector("[data-probe='flow-root']");
+  if (flowRoot) {
+    var flowPanel = flowRoot.parentElement;
+    var flowImg = flowPanel ? flowPanel.querySelector("svg[role='img']") : null;
+    roundCC.flow = {
+      present: true,
+      nodes: flowRoot.querySelectorAll('[data-flow-node]').length,
+      links: flowRoot.querySelectorAll('[data-flow-link]').length,
+      aria: flowImg ? flowImg.getAttribute('aria-label') : null
+    };
+  }
+  var arenaRoot = document.querySelector("[data-probe='arena-root']");
+  if (arenaRoot) {
+    roundCC.arena = {
+      present: true,
+      bars: arenaRoot.querySelectorAll('[data-probe="arena-bar"]').length
+    };
+  }
+  var cardsRoot = document.querySelector("[data-probe='cards-root']");
+  if (cardsRoot) {
+    var cardNodes = cardsRoot.querySelectorAll("[data-probe='card-item']");
+    var cardLabels = [];
+    for (var ci = 0; ci < cardNodes.length && ci < 8; ci++) {
+      cardLabels.push(cardNodes[ci].getAttribute('aria-label') || '');
+    }
+    roundCC.cards = { present: true, count: cardNodes.length, labels: cardLabels };
+  }
+  var clockRoot = document.querySelector("[data-probe='clock-root']");
+  if (clockRoot) {
+    roundCC.clock = {
+      present: true,
+      sectors: clockRoot.querySelectorAll('[data-clock-hour]').length
+    };
+  }
+  var forecastRow = document.querySelector("[data-probe='forecast-row']");
+  if (forecastRow) {
+    roundCC.forecast = { present: true, text: forecastRow.innerText.trim() };
+  }
+  var clustersRoot = document.querySelector("[data-probe='clusters-root']");
+  if (clustersRoot) {
+    var clusterRows = clustersRoot.querySelectorAll("[data-probe='cluster-row']");
+    var clusterTexts = [];
+    for (var cr = 0; cr < clusterRows.length && cr < 8; cr++) {
+      clusterTexts.push(clusterRows[cr].innerText.trim());
+    }
+    roundCC.clusters = { present: true, count: clusterRows.length, rows: clusterTexts };
+  }
+  var pinnedToggles = document.querySelectorAll("[data-probe='pin-toggle'][aria-pressed='true']");
+  var pinnedGroup = false;
+  var sessionList = document.querySelector('[aria-label="会话列表"]');
+  if (sessionList) {
+    var groupNodes = sessionList.querySelectorAll('[role="button"]');
+    for (var gi = 0; gi < groupNodes.length; gi++) {
+      var groupText = (groupNodes[gi].innerText || '').trim();
+      if (groupText.indexOf('置顶') === 0) { pinnedGroup = true; break; }
+    }
+  }
+  roundCC.pins = { pinned: pinnedToggles.length, group: pinnedGroup };
+  facts.roundcc = roundCC;
+
+
 
   /* 「会话账单」（Round BB）：设计 §13.1 的锚点只收**事实**——收据四行 / 合计 /
      按模型 / 缓存经济学 / 最贵五次 的文本与矩形，金额列的右沿，卡内与页面的

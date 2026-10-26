@@ -1,0 +1,23 @@
+/* 大屏模式只碰两样东西：外壳（规则在 AppShell.module.css，那里才选得到顶栏）
+   与这里这个容器。字号走 fontScale 的既有档位，所以这里没有任何字号规则。 */
+
+.root {
+  /* 定高：内部 `.shell` 用 100dvh，容器必须给出同一个基准，
+     否则百分比高度与「吸收剩余高度」在容器这一层就断了。 */
+  height: 100dvh;
+  min-height: 0;
+}
+
+/* 大屏下没有任何控件可点，留一条退出线索。固定定位 + 不挡指针，
+   所以它既不参与布局，也不会盖住底部的可点区域。 */
+.hint {
+  position: fixed;
+  right: var(--sp-2);
+  bottom: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}

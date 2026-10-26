@@ -20,9 +20,14 @@ function trendBars(page: Page) {
     .locator("rect");
 }
 
-/** KPI 数值断言的作用域：裸数字会撞上热力图的时刻刻度，先圈进读数瓦片。 */
+/** KPI 数值断言的作用域：裸数字会撞上热力图的时刻刻度，先圈进读数瓦片；
+ * Round CC 起周战报表也有「消息数」等行标签，所以先收进 KPI 行再找瓦片。 */
 function kpiTile(page: Page, label: string) {
-  return page.getByLabel(DASHBOARD).getByText(label, { exact: true }).locator("..");
+  return page
+    .getByLabel(DASHBOARD)
+    .locator("div[class*='kpiRow']")
+    .getByText(label, { exact: true })
+    .locator("..");
 }
 
 test.describe("用量总览", () => {
@@ -41,9 +46,11 @@ test.describe("用量总览", () => {
     await expect(kpiTile(page, "会话数").getByText("2", { exact: true })).toBeVisible();
     // 计费窗口卡的「窗口开启」也标「读自日志」，按 KPI 行作用域数 3 枚。
     await expect(dashboard.locator("div[class*='kpiRow']").getByText("读自日志")).toHaveCount(3);
-    // 「按定价快照估算」两枚（Round V 起）：KPI 的估算成本瓦片一枚，消耗日历
-    // 的色深口径徽章一枚——色深是估算值，来源徽章说清口径。
-    await expect(dashboard.getByText("按定价快照估算")).toHaveCount(2);
+    // 「按定价快照估算」四枚：KPI 的估算成本瓦片、消耗日历的色深口径徽章，
+    // 加上 Round CC 的周战报与项目卡片两个面板头（整块面板共一枚，不是每行/每卡一枚）。
+    // exact 只数档位本身；周战报那枚的 detail 是另一段文字（「成本按定价快照估算」），
+    // 不该被算成第二枚徽章。
+    await expect(dashboard.getByText("按定价快照估算", { exact: true })).toHaveCount(4);
     await expect(dashboard.getByText(/快照日期 \d{4}-\d{2}-\d{2}/)).toBeVisible();
     // 金额读数：KPI 瓦片与（Round V3 起）一年洞察句都带 $ 金额，first() 恒落在
     // KPI 的那一枚（KPI 行在 DOM 中先于日历面板）。
@@ -99,21 +106,29 @@ test.describe("用量总览", () => {
     await expect(page.getByText(/已分析/)).toHaveCount(0);
   });
 
-  test("1440×900 不滚动时首屏有「按项目分布」与消耗日历", async ({ page }) => {
-    // 这条曾是「三块面板都在首屏」的硬约束（仪表盘曾比视口高 43%）。Round V 起
-    // 消耗日历作为整行面板插进第二行——它进首屏本身就是产品决策，代价是
-    // 「按模型分布」「活跃时段」下移一档，改由下一条用例断言滚一次可达。
+  test("1440×900 首屏有「按项目分布」，项目卡片一屏滚动内可达", async ({ page }) => {
+    // Round CC 起首屏多了周战报（KPI 之后）；「按项目分布」仍在首屏，
+    // 「项目卡片」整行紧跟其后。实测 1440×900 下项目卡片标题在首屏下沿约 150px，
+    // 因此这里断言「一屏滚动内可达 + 滚到后整块可见」，而不是「首屏完全可见」。
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
     await page.getByRole("tab", { name: DASHBOARD }).click();
     await expect(page.getByText(/纳入统计/)).toBeVisible({ timeout: 15_000 });
 
     // 「不滚动」要成立：主区必须还在顶端（内容区在自己的滚动容器里）。
-    expect(await page.locator("main").evaluate((element) => element.scrollTop)).toBe(0);
+    const main = page.locator("main");
+    expect(await main.evaluate((element) => element.scrollTop)).toBe(0);
 
-    for (const title of ["按项目分布", "消耗日历（近 12 个月）"]) {
-      await expect(page.getByRole("heading", { name: title })).toBeInViewport({ ratio: 1 });
-    }
+    await expect(page.getByRole("heading", { name: "按项目分布" })).toBeInViewport({ ratio: 1 });
+
+    const cards = page.getByRole("heading", { name: "项目卡片" });
+    await cards.scrollIntoViewIfNeeded();
+    const scrolled = await main.evaluate((element) => ({
+      top: element.scrollTop,
+      view: element.clientHeight
+    }));
+    expect(scrolled.top).toBeLessThanOrEqual(scrolled.view);
+    await expect(cards).toBeInViewport({ ratio: 1 });
   });
 
   test("滚到下半屏后各面板的标题仍然可达", async ({ page }) => {
@@ -139,8 +154,20 @@ test.describe("用量总览", () => {
     }));
     expect(settled.top + settled.view).toBeGreaterThanOrEqual(settled.height - 1);
 
-    for (const title of ["按模型分布", "活跃时段（周 × 小时）", "工具与 skill"]) {
-      await expect(page.getByRole("heading", { name: title })).toBeInViewport({ ratio: 1 });
+    // Round CC 加了三块整行面板：日历被项目卡片推到第二屏，流向图在模型分布之后，
+    // 周战报在页面顶部。这里逐个滚到它面前再断言整块可见——「滚一次可达」比
+    // 「滚到底时还在视口里」更贴合产品承诺，也不因页面变长而误红。
+    for (const title of [
+      "按模型分布",
+      "活跃时段（周 × 小时）",
+      "工具与 skill",
+      "消耗日历（近 12 个月）",
+      "Token 流向",
+      "周战报"
+    ]) {
+      const heading = page.getByRole("heading", { name: title });
+      await heading.scrollIntoViewIfNeeded();
+      await expect(heading).toBeInViewport({ ratio: 1 });
     }
   });
 

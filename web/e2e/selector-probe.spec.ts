@@ -143,7 +143,9 @@ appTest.describe("会话条目选择器的特异性", () => {
     expect(counts['[aria-label="会话列表"] [title]:has(strong)']).toBe(8);
     // 最宽的 `strong` 会多算（分组折叠按钮也含 <strong>）——证明不能按文本选。
     expect(counts['[aria-label="会话列表"] strong']).toBe(9);
-    // 工具栏 IconButton 恰好 1 个，它就是 `[title]` 那半挡掉的对象。
-    expect(counts['[aria-label="会话列表"] button[title]']).toBe(1);
+    // Round CC 起每行多了一枚图钉开关（`<button title>`），再加上工具栏
+    // IconButton 1 个：8 + 1 = 9。`[title]` 那半挡住的是这一类**真 button**
+    // 噪声；会话条目本身仍是 role=button，所以上面 8 条不受影响。
+    expect(counts['[aria-label="会话列表"] button[title]']).toBe(9);
   });
 });

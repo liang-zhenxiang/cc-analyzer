@@ -1,0 +1,176 @@
+/* 命令面板的浮层语言照抄全局搜索：固定遮罩 + 居中上半屏 + 发丝边框 + 大阴影。
+   z-index 比搜索面板高 20：命令面板会开搜索，反过来不会。 */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 12vh var(--sp-4) var(--sp-4);
+  background: var(--overlay);
+}
+
+.palette {
+  display: flex;
+  flex-direction: column;
+  /* 560 比搜索面板窄：命令是一行一行的动作，不需要 640 的信息宽度。 */
+  width: min(560px, 100%);
+  max-height: min(60vh, 520px);
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.fieldIcon {
+  display: inline-flex;
+  color: var(--text-tertiary);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: 500;
+  line-height: var(--lh-md);
+}
+
+.input::placeholder {
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+/* 输入框在浮层里是唯一的焦点驻留点：内嵌环不会越过浮层边被裁掉。 */
+.input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-inset);
+  border-radius: var(--r-xs);
+}
+
+.list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: var(--sp-1);
+  list-style: none;
+  overflow: auto;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "title shortcut"
+    "detail group";
+  column-gap: var(--sp-3);
+  row-gap: var(--sp-05);
+  align-items: baseline;
+  padding: var(--sp-15) var(--sp-2);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.item:hover {
+  background: var(--bg-hover);
+}
+
+/* 高亮不用左侧色条：那 7 道竖条是「选中态」的既定信号，且被守卫按名单锁死。
+   这里用底色 + 字重双通道，`aria-selected` 再给一层语义。 */
+.item[aria-selected="true"] {
+  background: var(--accent-soft);
+}
+
+.item[aria-disabled="true"] {
+  cursor: default;
+}
+
+.item[aria-disabled="true"]:hover {
+  background: transparent;
+}
+
+.title {
+  grid-area: title;
+  color: var(--text);
+  font-size: var(--fs-base);
+  font-weight: 500;
+  line-height: var(--lh-base);
+}
+
+.item[aria-selected="true"] .title {
+  font-weight: 600;
+}
+
+.item[aria-disabled="true"] .title {
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+.detail {
+  grid-area: detail;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  /* 说明最多一行：动作的标题才是这条命令的身份。 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group {
+  grid-area: group;
+  justify-self: end;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.key {
+  grid-area: shortcut;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  padding: 0 var(--sp-1);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--sp-5) var(--sp-3);
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-align: center;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: var(--sp-1) var(--sp-3);
+  border-top: 1px solid var(--border);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.count {
+  margin-left: auto;
+}

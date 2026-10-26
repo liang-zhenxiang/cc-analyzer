@@ -1,0 +1,114 @@
+/* 「错误聚类」（Round CC F7）：一行一个反复出现的问题。
+   版式是四列——工具 / 报错首行 / 次数 / 时间范围。首行吃掉所有富余宽度，
+   另外三列按内容定宽，这样每行的次数与时间才会上下成一条线。 */
+.root {
+  min-width: 0;
+}
+
+.list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  gap: 1px;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  width: 100%;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: var(--sp-3);
+  /* 行高与日志表同档：这一块是清单，不是仪表盘。 */
+  padding: var(--row-pad-y-tight) var(--sp-1);
+  border: none;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-hover) var(--ease-out);
+}
+
+.row:hover:not(:disabled) {
+  background: var(--bg-active);
+}
+
+/* 不可跳转的行（没有回调）保持可读但不可点：它不是按钮，别给它按钮的动作。 */
+.row:disabled {
+  cursor: default;
+}
+
+.tool {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+/* 通道色块：与 KPI 行同一套色（API = chart-4，工具 = chart-1），
+   CVD 双保险，aria-hidden。 */
+.chipApi,
+.chipTool {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-xs);
+}
+
+.chipApi {
+  background: var(--chart-4);
+}
+
+.chipTool {
+  background: var(--chart-1);
+}
+
+/* 报错首行是这一行唯一的富余宽度：单行省略，完整内容留在 title 里。
+   逻辑层已截到 80 码点，这里只处理列宽不够的情况。 */
+.message {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count,
+.times {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.caption {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.emptyFact {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+/* 窄窗口：时间范围折到第二行，报错首行仍占主列。 */
+@media (max-width: 720px) {
+  .row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .times {
+    grid-column: 2 / -1;
+  }
+}

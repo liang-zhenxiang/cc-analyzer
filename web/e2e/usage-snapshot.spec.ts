@@ -23,10 +23,11 @@ const SAVED = "/Users/e2e/usage-snapshot-out.html";
 const DASHBOARD = "用量总览";
 const EXPORT_BUTTON = "导出用量快照（单文件 HTML）";
 
-/** 快照的契约文案（Issue #149 评论里定死的原句；Round V / #187 补「消耗日历」）
+/** 快照的契约文案（Issue #149 评论里定死的原句；Round V / #187 补「消耗日历」；
+ * Round CC / #263 再补「周战报、Token 流向、项目卡片」）
  * ——写死在这里，改动必须显式，且与 usageSnapshot.ts 的 SNAPSHOT_SCOPE_NOTE 只有一个原文。 */
 const SCOPE_NOTE =
-  "本快照包含用量总览的读数与图表；不含消耗日历、工具与 skill 普查、压缩统计、错误档。";
+  "本快照包含用量总览的读数与图表；不含消耗日历、工具与 skill 普查、压缩统计、错误档，也不含周战报、Token 流向与项目卡片。";
 const EMPTY_TITLE = "所选区间内没有会话记录";
 
 function writtenFiles(page: Page) {
@@ -118,6 +119,11 @@ test.describe("用量快照 · 正常导出", () => {
     expect(html).not.toContain("/home/");
     expect(html).not.toContain(".jsonl");
     expect(html).not.toContain(".claude/projects");
+    // Round CC 新面板不进快照：按 `<h2>` 标题判（SCOPE_NOTE 里也会点名这三块，
+    // 直接 not.toContain(名字) 会在口径句更新后误红）。
+    for (const title of ["周战报", "Token 流向", "项目卡片"]) {
+      expect(html).not.toContain(`<h2>${title}`);
+    }
   });
 });
 

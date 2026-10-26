@@ -148,6 +148,8 @@
 .groups .sessionRow .sessionButton,
 .groups .sessionRowWithStatus .sessionButton {
   display: grid;
+  /* 置顶图钉绝对定位在本按钮上，不占网格行。 */
+  position: relative;
   width: 100%;
   gap: var(--sp-05);
   padding: 8px 10px;
@@ -201,6 +203,9 @@
   min-width: 0;
   align-items: center;
   gap: var(--sp-1);
+  /* 右上角的置顶图钉悬在标题行上：把图钉的宽度让出来，
+     否则长标题会钻到图钉底下被挡住。 */
+  padding-right: calc(var(--lh-base) + var(--sp-2));
 }
 
 .titleLine > strong {

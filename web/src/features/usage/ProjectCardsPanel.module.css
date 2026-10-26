@@ -1,0 +1,124 @@
+/* 项目卡片：Panel 体里只有网格 gap 这一层语言，卡片不再套第二层有底色的
+   容器——每格只用一条上发丝线与上一行分层，悬停时给整格一层 --bg-hover。
+   最小宽度 240px：960px 单列布局下仍是一行两张，130% 字号靠 auto-fill 折行。 */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--sp-2) var(--sp-4);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.card {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-1);
+  min-width: 0;
+  padding: var(--sp-2) var(--sp-2) var(--sp-15);
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.card:hover {
+  background: var(--bg-hover);
+}
+
+.card:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-inset);
+}
+
+.name {
+  display: block;
+  overflow: hidden;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 走势图跟着卡片宽度拉伸（viewBox + preserveAspectRatio="none"），高度固定
+   在 --lh-sm × 1.5 的量级：高度写 px 只是为了给 polyline 一个稳定画布，
+   不承载排版信息。 */
+.spark {
+  display: block;
+  width: 100%;
+  height: 26px;
+}
+
+.sparkLine {
+  fill: none;
+  stroke: var(--chart-1, var(--accent));
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1);
+  min-width: 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.tokens {
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: var(--lh-md);
+}
+
+.unit {
+  color: var(--text-tertiary);
+}
+
+.cost {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 未知价不是零：不落成 $0.00，用第三级文字色明说「定价未知」。 */
+.unknownCost {
+  margin-left: auto;
+  color: var(--text-tertiary);
+}
+
+.meta {
+  display: block;
+  overflow: hidden;
+  min-width: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}

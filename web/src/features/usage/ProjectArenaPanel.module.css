@@ -1,0 +1,156 @@
+/* 面板 actions 里的「对比 / 返回」是最小尺寸的次级按钮：它属于卡片自己的
+   一段标题行，不该跟页面级动作（导出快照）一样重。
+   用后代选择器而不是给 Button 传 size——Button 只有一种尺寸，为这一处加
+   prop 会把「一个按钮组件只有一套几何」的约定改掉。 */
+.actions > button {
+  min-height: var(--control-h-sm);
+  padding: 0 var(--sp-2);
+  font-size: var(--fs-xs);
+}
+
+.arena {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.pickers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
+  min-width: 0;
+}
+
+.picker {
+  display: flex;
+  flex: 1 1 200px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+  min-width: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.pickerLabel {
+  white-space: nowrap;
+}
+
+/* 原生 select：与 SegmentedControl / Button 同一套边框与高度令牌，不自造控件。 */
+.select {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  height: var(--control-h-sm);
+  padding: 0 var(--sp-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-subtle);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+
+.select:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* 左右两栏镜像：A 栏靠左、数值贴中缝；B 栏靠右、数值同样贴中缝。
+   两栏的「日均 / 峰值 / 主力」三行因此落在同一组基线上，数字可横向比对。 */
+.readouts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.side {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-05);
+  min-width: 0;
+}
+
+.sideRight {
+  text-align: right;
+}
+
+.sideName {
+  display: block;
+  overflow: hidden;
+  min-width: 0;
+  margin: 0 0 var(--sp-1);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--sp-1);
+  border-radius: var(--r-xs);
+  vertical-align: baseline;
+}
+
+.swatchA {
+  background: var(--chart-1, var(--accent));
+}
+
+.swatchB {
+  background: var(--chart-2, var(--accent));
+}
+
+.readout {
+  display: flex;
+  gap: var(--sp-2);
+  justify-content: space-between;
+  min-width: 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* B 栏镜像：标签贴中缝、数值靠外沿。 */
+.sideRight .readout {
+  flex-direction: row-reverse;
+}
+
+.readoutLabel {
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.readoutValue {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 胜方：只加粗、提亮，不换颜色——胜负是量级关系，不是状态色。 */
+.winner {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 与 HBarChart 同一画法：soft 填充 + 1px 实色收边，大面积实色留给悬停。 */
+.barA {
+  fill: var(--chart-1-soft, var(--accent-soft));
+  stroke: var(--chart-1, var(--accent));
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.barB {
+  fill: var(--chart-2-soft, var(--accent-soft));
+  stroke: var(--chart-2, var(--accent));
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}

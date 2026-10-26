@@ -3,6 +3,7 @@ import { formatClock, formatProjectPath, formatTokenCount } from "../../lib/form
 import type { SessionMeta } from "../sessions/metadataCache";
 import { totalsSum, type UsageSessionInput } from "./usageAggregations";
 import { burnRateOf, predictLimitReach } from "./billingWindow";
+import { buildLimitForecast, isHotBurn } from "./limitForecast";
 import { predictWeeklyLimitReach } from "./weeklyWindow";
 import { PLAN_LIMITS_AS_OF } from "./planLimits";
 import { ProvenanceBadge } from "./ProvenanceBadge";
@@ -234,6 +235,11 @@ export function BillingWindowCard({
     plan.limitTokens && plan.limitTokens > 0 ? consumed / plan.limitTokens : null;
   const prediction = predictLimitReach(active, plan.limitTokens, now);
   const rate = burnRateOf(active, now);
+  // 预报（F5）与上面那格「预计到达限额」是两件事：那格回答会不会触顶，
+  // 这行回答「按现在的速度，窗口关的时候会走到限额的百分之几」。没选计划时
+  // 它是 `null`，整行不渲染——没有分母就没有百分比。
+  const forecast = buildLimitForecast(active, plan.limitTokens, now);
+  const forecastHot = forecast !== null && isHotBurn(forecast, plan.limitTokens ?? 0);
 
   const weeklyConsumed = totalsSum(week.consumed);
   const previousConsumed = totalsSum(week.previousConsumed);
@@ -316,6 +322,23 @@ export function BillingWindowCard({
                     : "—"}
             </b>
           </span>
+
+          {/* 预报行（F5）：**必须**带「若保持此速率」——这是线性外推，不是事实。
+              满额一小时烧完时整行切 warning，不另画图标：这一行是句子，
+              颜色就是它的强调手段。 */}
+          {forecast === null ? null : (
+            <p
+              className={`${styles.forecast} ${forecastHot ? styles.forecastHot : ""}`}
+              data-probe="forecast-row"
+            >
+              {`若保持此速率：预计用到限额的 ${Math.round(forecast.projectedPct)}%`}
+              {forecast.hitTime === null
+                ? ""
+                : forecast.hitTime <= now
+                  ? " · 已触顶"
+                  : ` · ${formatClock(forecast.hitTime)} 触顶`}
+            </p>
+          )}
         </div>
         <section className={styles.weekly} aria-label="周用量（滚动 7 天）">
           <span className={styles.labelRow}>

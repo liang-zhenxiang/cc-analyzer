@@ -1,0 +1,60 @@
+/* F8 置顶按钮：会话行右上角的幽灵图钉。
+   绝对定位在行内，不参与网格：行高 54px 由虚拟滚动镜像，多一个 grid 子元素
+   会把它撑高。默认低透明度（不抢标题），悬停/聚焦/已置顶时回到完全不透明；
+   置顶态用实心图钉 + --accent，是颜色之外的第二信号。
+   不使用 Button/IconButton：它们的 --control-h-lg 会对 20px 的标题行过高。 */
+
+.pin {
+  position: absolute;
+  top: var(--sp-2);
+  right: var(--sp-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--lh-base);
+  height: var(--lh-base);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-tertiary);
+  opacity: 0.55;
+  cursor: pointer;
+  transition:
+    opacity var(--dur-hover) var(--ease-out),
+    color var(--dur-hover) var(--ease-out),
+    background-color var(--dur-hover) var(--ease-out);
+}
+
+.pin:hover {
+  background: var(--bg-hover);
+  opacity: 1;
+}
+
+/* 焦点环几何来自全局 :focus-visible 规则；这里只保证被聚焦时按钮可见。 */
+.pin:focus-visible {
+  opacity: 1;
+}
+
+.pin.pinned {
+  color: var(--accent);
+  opacity: 1;
+}
+
+.pin svg {
+  display: block;
+}
+
+.body {
+  fill: none;
+  stroke: currentColor;
+}
+
+.pin.pinned .body {
+  fill: currentColor;
+}
+
+.needle {
+  fill: none;
+  stroke: currentColor;
+}

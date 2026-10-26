@@ -1,7 +1,7 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SessionList } from "./SessionList";
 import type { SessionMeta } from "./metadataCache";
@@ -758,4 +758,85 @@ test("出血点徽章不被行内 span 通配规则染色", () => {
   expect(badgeRule?.[1]).toContain("height: var(--lh-xs)");
   // 颜色一律走令牌，不硬编码色值。
   expect(css).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+});
+
+function groupLabels(container: HTMLElement): Array<string | null> {
+  return [...container.querySelectorAll(`.${styles.groupToggle} strong`)].map(
+    (element) => element.textContent
+  );
+}
+
+function pinButtonOf(name: RegExp, label: string) {
+  return within(screen.getByRole("button", { name })).getByRole("button", { name: label });
+}
+
+test("置顶：把会话提到最前的「置顶」组，并记住路径", async () => {
+  const user = userEvent.setup();
+  const onSelect = vi.fn();
+  const { container } = renderList(onSelect);
+
+  await user.click(pinButtonOf(/project-b/, "置顶会话"));
+
+  // 置顶组合成在最前；顶部图钉没有顺带打开会话。
+  expect(groupLabels(container)).toEqual(["置顶", "更早"]);
+  expect(titles(container)).toEqual(["project-b", "project-a"]);
+  expect(onSelect).not.toHaveBeenCalled();
+
+  const pinnedRow = screen.getByRole("button", { name: /project-b/ });
+  expect(within(pinnedRow).getByRole("button", { name: "取消置顶" })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  await waitFor(() =>
+    expect(JSON.parse(window.localStorage.getItem("cca-pinned-sessions") ?? "[]")).toEqual([
+      "/repo/two.jsonl"
+    ])
+  );
+});
+
+test("置顶：取消后回到原来的日期组，存储里的路径也清空", async () => {
+  const user = userEvent.setup();
+  const { container } = renderList();
+
+  await user.click(pinButtonOf(/project-b/, "置顶会话"));
+  await user.click(pinButtonOf(/project-b/, "取消置顶"));
+
+  expect(groupLabels(container)).toEqual(["更早"]);
+  expect(titles(container)).toEqual(["project-b", "project-a"]);
+  await waitFor(() =>
+    expect(JSON.parse(window.localStorage.getItem("cca-pinned-sessions") ?? "[]")).toEqual([])
+  );
+});
+
+test("置顶：多条置顶按最近活跃降序排列，且不再出现在日期组里", async () => {
+  const user = userEvent.setup();
+  const { container } = renderList();
+
+  await user.click(pinButtonOf(/project-a/, "置顶会话"));
+  await user.click(pinButtonOf(/project-b/, "置顶会话"));
+
+  expect(groupLabels(container)).toEqual(["置顶"]);
+  expect(titles(container)).toEqual(["project-b", "project-a"]);
+  expect(container.querySelector(`.${styles.groupCount}`)?.textContent).toBe("2");
+});
+
+test("置顶：扫描结果里已不存在的路径会被清掉，置顶状态仍从存储恢复", async () => {
+  window.localStorage.setItem(
+    "cca-pinned-sessions",
+    JSON.stringify(["/repo/ghost.jsonl", "/repo/one.jsonl"])
+  );
+  const { container } = renderList();
+
+  expect(screen.getByText("置顶")).toBeInTheDocument();
+  expect(titles(container)).toEqual(["project-a", "project-b"]);
+  expect(
+    within(screen.getByRole("button", { name: /project-a/ })).getByRole("button", {
+      name: "取消置顶"
+    })
+  ).toHaveAttribute("aria-pressed", "true");
+  await waitFor(() =>
+    expect(JSON.parse(window.localStorage.getItem("cca-pinned-sessions") ?? "[]")).toEqual([
+      "/repo/one.jsonl"
+    ])
+  );
 });

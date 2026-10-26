@@ -14,6 +14,7 @@ import {
 } from "./thresholds";
 import { PLAN_PRESETS, setPlan, usePlan, type PlanId } from "../usage/planLimits";
 import { useArchiveBundleBridge, useBridges } from "../../api/bridges";
+import { setKiosk, useKiosk } from "../../app/KioskMode";
 import {
   CHANNEL_LABELS,
   loadAutoCheck,
@@ -463,6 +464,47 @@ function FontScaleSection() {
 }
 
 /**
+ * 「大屏模式」一节：挂在第二块屏幕上时收起应用外壳、把字号提到最高档。
+ *
+ * 紧挨「界面对比度」，与「界面字号」一起构成一组**观看偏好**——三节都在回答
+ * 「这块屏幕我要怎么看」。这里用复选框而不是分段控件：它只有开 / 关两态，
+ * 分段控件会为它凭空造出一个空的中间档。
+ *
+ * 开关本身不改任何样式：状态写进 `data-kiosk`，规则住在 `AppShell.module.css`
+ * （收起顶栏）与 `fontScale`（字号档），组件层一行 CSS 都不用动。
+ */
+function KioskSection() {
+  const kiosk = useKiosk();
+  const titleId = useId();
+  return (
+    <div className={styles.preferenceSection}>
+      <h3 className={styles.sectionTitle}>大屏模式</h3>
+      <p className={styles.note}>
+        收起顶栏并把界面字号提到 130%，适合把窗口挂在第二块屏幕上看；Esc 退出。
+      </p>
+      <div className={styles.grid} data-probe="kiosk-toggle">
+        <label className={styles.field}>
+          <span className={styles.label} id={titleId}>
+            启用大屏模式
+          </span>
+          <span className={styles.control}>
+            <input
+              type="checkbox"
+              aria-labelledby={titleId}
+              checked={kiosk}
+              onChange={(event) => setKiosk(event.target.checked)}
+            />
+          </span>
+          <span className={styles.hint}>
+            只收起应用外壳，页面照常滚动与交互；进入前的字号档位会在退出时还回去。
+          </span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+/**
  * 「界面对比度」一节：普通 / 高对比度两档，即时生效并持久化。
  *
  * 紧挨「界面字号」，两节构成一组「看得清」偏好：需要它的人不该先滚过几段读不清的
@@ -651,6 +693,7 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
       </p>
       <FontScaleSection />
       <ContrastSection />
+      <KioskSection />
       <div className={styles.grid}>
         {THRESHOLD_KEYS.map((key) => (
           <ThresholdField key={key} thresholdKey={key} />

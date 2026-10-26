@@ -100,6 +100,12 @@ describe("ErrorOverviewSection", () => {
     expect(footnote.textContent).toContain("该工具总调用次数");
     expect(footnote.textContent).toContain("该项目记录总数");
     expect(footnote.textContent).toContain("含子 agent 记录");
+
+    // 错误聚类（F7）：趋势图之后、分布之前，一行一个反复出现的问题。
+    const clusters = within(screen.getByRole("region", { name: "错误聚类" }));
+    expect(clusters.getByText(/同工具、同一条报错首行的失败合并为一行/)).toBeInTheDocument();
+    // 这一档没有传 onRevealRecord，行是无障碍名带「错误聚类：」前缀的惰性按钮。
+    expect(clusters.getAllByRole("button", { name: /^错误聚类：/ }).length).toBeGreaterThan(0);
   });
 
   it("按工具切面行过滤事件列表；再点一次取消，清除按钮可用", async () => {
@@ -108,7 +114,11 @@ describe("ErrorOverviewSection", () => {
 
     expect(screen.getByText(/全部 7 条 · 时间倒序/)).toBeInTheDocument();
 
-    const bashRow = screen.getByRole("button", { name: /^Bash/ });
+    // 限定在「按工具失败」面板内：错误聚类那一栏也有以 Bash 开头的行（F7）。
+    const bashRow = within(screen.getByRole("region", { name: "按工具失败" })).getByRole(
+      "button",
+      { name: /^Bash/ }
+    );
     await user.click(bashRow);
     expect(bashRow).toHaveAttribute("aria-pressed", "true");
     expect(filterDescription()).toBe("Bash · 3 条 · 时间倒序");
@@ -167,7 +177,11 @@ describe("ErrorOverviewSection", () => {
     renderSection(fixtureStats(), onRevealRecord);
 
     // 主链事件：preview 可寻（Edit 失败的固定文案头）。
-    await user.click(screen.getByRole("button", { name: /String to replace not found/ }));
+    // 限定在「错误事件」面板内：错误聚类那一栏同样含这段文案（F7）。
+    const eventList = screen.getByRole("region", { name: "错误事件" });
+    await user.click(
+      within(eventList).getByRole("button", { name: /String to replace not found/ })
+    );
     expect(onRevealRecord).toHaveBeenCalledWith(FIXTURE_PATH, "err-edit-1");
 
     // sidechain 事件：recordId=null 落到会话本身，行内带「子 agent」徽标
@@ -193,6 +207,8 @@ describe("ErrorOverviewSection", () => {
     expect(screen.getByText(/1 个会话的 0 条模型消息与 41 次工具调用/)).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "每日错误率" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "错误事件" })).not.toBeInTheDocument();
+    // 没有失败就没有聚类可画——这一栏与其它切面一起消失，不留空壳。
+    expect(screen.queryByRole("region", { name: "错误聚类" })).not.toBeInTheDocument();
   });
 
   it("趋势图键盘：→ 聚焦首日，Enter 过滤该日；0 错误日给出过滤的诚实结果", async () => {

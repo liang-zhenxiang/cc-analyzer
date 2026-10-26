@@ -91,6 +91,17 @@ export type DailyPoint = DayBucket & { dayStart: number };
 /** One slice of a Top-N distribution (`其他` folds the tail). */
 export type UsageSlice = { label: string; value: number };
 
+/**
+ * In-window tokens split by project label and then model id — the flow
+ * diagram's (F1) cross-tab. Every record carrying `usage` contributes, which
+ * is exactly the set `tokenTotalsOf` sums, so a project's cross sum equals its
+ * `projects` bucket total. Records without a model id land under
+ * `UNKNOWN_MODEL_LABEL`.
+ *
+ * Only `aggregateRange` fills it; hand-built ranges in tests may omit it.
+ */
+export type ProjectModelCross = Map<string, Map<string, UsageTotals>>;
+
 export type UsageKpi = {
   sessions: number;
   messages: number;
@@ -103,6 +114,11 @@ export type RangeAggregate = UsageAggregate & {
   topProjects: UsageSlice[];
   topModels: UsageSlice[];
   kpi: UsageKpi;
+  /**
+   * Project × model × four-counter split, built in the same windowed pass as
+   * the rest of the range. Additive only: no existing field changes meaning.
+   */
+  cross?: ProjectModelCross;
 };
 
 export const UNKNOWN_MODEL_LABEL = "未知模型";
@@ -344,10 +360,31 @@ export function aggregateRange(
   const startTs = addLocalDays(todayStart, -(windowDays - 1));
 
   const aggregate = emptyAggregate();
+  const cross: ProjectModelCross = new Map();
   for (const session of sessions) {
     const inWindow = session.records.filter((record) => record.timestamp >= startTs);
     if (inWindow.length === 0) continue;
     mergeInto(aggregate, aggregateSessionInput({ records: inWindow, projectLabel: session.projectLabel }));
+    // Same records, second split: project → model → four counters. Kept out of
+    // `aggregateSession` because the model split needs the project label, which
+    // only `aggregateRange` has; merging it separately leaves every existing
+    // field (and every existing merge path) untouched.
+    if (!session.projectLabel) continue;
+    let byModel = cross.get(session.projectLabel);
+    if (!byModel) {
+      byModel = new Map();
+      cross.set(session.projectLabel, byModel);
+    }
+    for (const record of inWindow) {
+      if (!record.usage) continue;
+      const model = record.model ?? UNKNOWN_MODEL_LABEL;
+      let bucket = byModel.get(model);
+      if (!bucket) {
+        bucket = emptyTotals();
+        byModel.set(model, bucket);
+      }
+      addUsage(bucket, record.usage);
+    }
   }
 
   return {
@@ -355,6 +392,7 @@ export function aggregateRange(
     dailySeries: buildDailySeries(aggregate.daily, startTs, todayStart),
     topProjects: topSlices(aggregate.projects, DEFAULT_TOP_N),
     topModels: topSlices(aggregate.models, DEFAULT_TOP_N),
+    cross,
     kpi: {
       sessions: aggregate.sessionCount,
       messages: aggregate.messages,
