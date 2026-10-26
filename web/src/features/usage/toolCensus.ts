@@ -69,6 +69,18 @@ export type ToolCallFact = {
    * 交叉验证：它应与 sidechain 事实数对得上）。缺省 = 无结构化回报。
    */
   agentToolUseCount?: number;
+  /**
+   * 工具结果配对后记录的真实耗时（parseJsonl 在校验 `tool_result` 时写入
+   * `record.durationMs`）。**未配对**的 tool_use（解析器只标 `unmatched`、
+   * 耗时恒 0）不写该字段——耗时未知不是 0，与「0 ms 也是测量值」是两回事，
+   * toolHealth 据此把未知样本排除在均值/p95 之外。
+   */
+  durationMs?: number;
+  /**
+   * 工具结果是否报错（`tool_result.is_error`）。未配对同样不写：没有结果
+   * 就没有「失败/成功」可判，不能按成功计入失败率的分母。
+   */
+  isError?: boolean;
 };
 
 /**
@@ -88,6 +100,12 @@ export function extractToolCalls(parsed: ParsedSession): ToolCallFact[] {
     const structured = record.structuredResult;
     if (structured && structured.toolName === "Agent" && structured.totalToolUseCount != null) {
       fact.agentToolUseCount = structured.totalToolUseCount;
+    }
+    // 只有配对了 tool_result 的调用才带耗时与错误观测；unmatched 的 tool_use
+    // 停留在「发起过」这一层（census 照旧计入，toolHealth 不把它当成功）。
+    if (record.unmatched !== true) {
+      fact.durationMs = record.durationMs;
+      fact.isError = record.isError;
     }
     facts.push(fact);
   };
