@@ -460,6 +460,10 @@ The roadmap tracks open issues; each item links to the issue that owns it.
   work habits, peak minute and token equivalents (merged; ships in
   v0.32.0-beta.1)
   ([#271](https://github.com/liang-zhenxiang/cc-analyzer/issues/271))
+- [x] Third ten-feature pack — trend channel, anomaly days, session timeline,
+  annual report, CSV export, model migration, context health score, shortcut
+  sheet, data freshness and KPI sparklines (merged; ships in v0.33.0-beta.1)
+  ([#275](https://github.com/liang-zhenxiang/cc-analyzer/issues/275))
 - [x] Frontend upgrade to React 19, moving `@types/react` / `@types/react-dom`
   together
   ([#19](https://github.com/liang-zhenxiang/cc-analyzer/issues/19))
