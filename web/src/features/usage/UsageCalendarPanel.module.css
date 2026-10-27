@@ -606,3 +606,19 @@
   font-size: var(--fs-xs);
   line-height: var(--lh-xs);
 }
+
+/* E2 异常日：右上角一枚 4px 实心圆点。与柱状图的 ▲ 是同一事实的第二个落点
+   ——形状与位置都不同，颜色不是唯一线索。 */
+.dayButton {
+  position: relative;
+}
+
+.anomalyDot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--warning);
+}

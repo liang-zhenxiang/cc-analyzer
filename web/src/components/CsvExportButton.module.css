@@ -1,0 +1,48 @@
+/* 面板 actions 槽里的次要动作：与旁边那个 SegmentedControl / 文字按钮同高，
+   不抢标题的视线——它是一次性的出口，不是这个面板的主要动作。 */
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.button {
+  height: var(--control-h-sm);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-hover) var(--ease-out),
+    color var(--dur-hover) var(--ease-out);
+}
+
+.button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.button:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
+/* 全宽控件之外的普通按钮：正偏移的环不会被裁，用全站默认那套。 */
+.button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* 失败就地报告：面板头可能因此长高一行，这是唯一允许它长高的时刻。 */
+.error {
+  max-width: 220px;
+  color: var(--danger);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}

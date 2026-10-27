@@ -1265,4 +1265,38 @@ describe("UsageCalendarPanel · 样式纪律（读 CSS 文件断言，同 Heatma
       expect(css).not.toContain(gone);
     }
   });
+
+  it("E2 异常日：右上角圆点 + aria-label 追加「异常」，其余日子逐字不变", () => {
+    render(
+      <UsageCalendarPanel
+        inputs={mixedInputs()}
+        now={NOW}
+        anomalyDays={
+          new Map([
+            [YESTERDAY, { date: "2026-10-11", tokens: 36_000, z: 2.6, kind: "spike" }]
+          ])
+        }
+      />
+    );
+
+    const dotted = document.querySelector<HTMLElement>(
+      '[data-probe="calendar-day"][aria-label$="，异常"]'
+    );
+    expect(dotted).not.toBeNull();
+    expect(dotted?.getAttribute("aria-label")).toBe(`${YESTERDAY_LABEL}，异常`);
+    expect(dotted?.getAttribute("title")).toContain("该日 36,000 tok，相对前 7 天 z=+2.6");
+    expect(dotted?.querySelector('[class*="anomalyDot"]')).not.toBeNull();
+    // 只有那一天有角标。
+    expect(
+      document.querySelectorAll('[data-probe="calendar-day"][aria-label$="，异常"]')
+    ).toHaveLength(1);
+    // 没有异常的日子，可访问名仍是原来的整句（不带后缀）。
+    expect(
+      document.querySelectorAll('[data-probe="calendar-day"][aria-label$="，异常"]')
+    ).toHaveLength(1);
+    const plain = document.querySelector<HTMLElement>(
+      `[data-probe="calendar-day"][aria-label^="2026年10月12日"]`
+    );
+    expect(plain?.getAttribute("aria-label")).not.toContain("异常");
+  });
 });

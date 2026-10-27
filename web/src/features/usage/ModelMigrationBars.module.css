@@ -1,0 +1,102 @@
+/* A model × date matrix: one row per model, one bar per span. Resident inside
+   the 「按模型分布」card's third tab — no card of its own, no legend (the row
+   label is the legend). */
+.wrap {
+  min-width: 0;
+}
+
+.chart {
+  --label-w: 104px;
+  position: relative;
+  min-width: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: var(--label-w) minmax(0, 1fr);
+  align-items: center;
+  height: 30px;
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-right: var(--sp-2);
+}
+
+.model {
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dates {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+.track {
+  position: relative;
+  height: 100%;
+  min-width: 0;
+}
+
+.bar {
+  position: absolute;
+  top: calc(50% - 3px);
+  height: 6px;
+  border-radius: var(--r-xs);
+}
+
+/* A model that left and came back: the absence itself is drawn, dashed,
+   because it is a fact about time rather than a usage we observed. */
+.gap {
+  position: absolute;
+  top: 50%;
+  height: 0;
+  border-top: 1px dashed var(--text-tertiary);
+}
+
+/* The instant one model took over from the previous one. */
+.overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: var(--label-w);
+  pointer-events: none;
+}
+
+.handover {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border-strong);
+}
+
+.axis {
+  display: flex;
+  justify-content: space-between;
+  padding-left: var(--label-w);
+  margin-top: var(--sp-1);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--sp-2) 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}

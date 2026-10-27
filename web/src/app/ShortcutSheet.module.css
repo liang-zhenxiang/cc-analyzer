@@ -1,0 +1,136 @@
+@import "../styles/animations.css";
+
+/* 浮层语言：遮罩 + 面板用 --shadow-md 与 --r-lg，与 SearchPalette / ExportDialog
+   是同一类东西——用户学一次就够。
+   层级 130：搜索 100 < 命令面板 120 < 速查卡 130。它能盖住命令面板，因为
+   「我在面板里想不起某个键」正是它会出现的时刻。 */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-5);
+  background: var(--overlay);
+}
+
+/* 高度上限取 84vh：900 高的窗口下是 756，七组键位放得下；
+   再小就交给内部滚动，而不是让卡片顶着上下边。 */
+.panel {
+  display: flex;
+  width: min(560px, 100%);
+  max-height: min(756px, 84vh);
+  flex-direction: column;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+  animation: cca-enter var(--dur-enter) var(--ease-out);
+}
+
+/* 卡片自身可聚焦（tabIndex={-1}）以便打开即接住焦点；它不需要焦点环。 */
+.panel:focus {
+  outline: none;
+}
+
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border);
+}
+
+/* 浮层标题 13px/600：与 ReportPanel / ExportDialog 同级。 */
+.header h2 {
+  margin: 0;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  line-height: var(--lh-base);
+}
+
+/* 唯一滚动容器。overflow-y 只在这里出现，卡片本身不滚。 */
+.scroller {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  overflow-y: auto;
+}
+
+.scroller:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-inset);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+/* 分组名是标签不是标题层级：11px 三级文字，不与卡片标题争大小。 */
+.groupTitle {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: var(--lh-xs);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-15);
+  margin: 0;
+}
+
+/* 两列：左列键帽固定 112px（最长的「Home」「End」并排也放得下），
+   右列说明占满剩余宽度。左列窄了键帽会换行，行高就不齐了。 */
+.row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+
+.keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+}
+
+.kbd {
+  min-width: 20px;
+  padding: 0 var(--sp-15);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-align: center;
+}
+
+.desc {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+/* 常驻脚注在两处：卡片底部一条，说明「没有的键就是没有」；
+   悬停某一行时 title 里有该行的代码出处。 */
+.footnote {
+  flex: none;
+  margin: 0;
+  padding: var(--sp-2) var(--sp-4) var(--sp-3);
+  border-top: 1px solid var(--border);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}

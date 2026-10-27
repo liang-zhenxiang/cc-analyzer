@@ -100,12 +100,24 @@
 
 /* 数值是主角：15px（读数档）在四列并排时和标签差不开级。 */
 .kpiValue {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   grid-column: 1 / -1;
+  padding: 0;
   color: var(--text);
   font-size: var(--fs-lg);
   font-weight: 600;
   line-height: var(--lh-lg);
   font-variant-numeric: tabular-nums;
+}
+
+/* E10：走势贴右端、与数字基线居中对齐——数字是主语，线是它的形状。
+   14px 的高在 28px 的数值行内不改变 KPI 的 76px 卡高。 */
+.kpiSpark {
+  display: inline-flex;
+  margin-left: auto;
+  align-items: center;
 }
 
 .kpiFootnote {

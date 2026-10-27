@@ -1,0 +1,33 @@
+/* Meta-information, not a reading: one small line, no fill, no border. The dot
+   is the only colour and the words carry the same meaning without it. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+.dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  transition: background-color var(--dur-state) var(--ease-out);
+}
+
+.badge[data-state="fresh"] .dot {
+  background: var(--success);
+}
+
+.badge[data-state="stale"] .dot {
+  background: var(--warning);
+}
+
+.badge[data-state="old"] .dot {
+  background: var(--danger);
+}

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { CsvExportButton } from "../../components/CsvExportButton";
 import { EmptyState } from "../../components/EmptyState";
 import { Panel } from "../../components/Panel";
+import { csvFileName } from "../usage/csvExport";
 import { ProvenanceBadge } from "../usage/ProvenanceBadge";
 import { formatClock, formatModelId, formatTokenCount } from "../../lib/format";
 import {
@@ -142,16 +144,40 @@ function LedgerCard({
   const hitRate = ledger.cache.hitRate;
   const savedText = hasReceipt ? formatLedgerUsd(ledger.cache.savedUsd) : "—";
 
+  // E5：「最贵的五次调用」表的 CSV。只导可定价调用——与表里能看到的行一一对应，
+  // 未定价调用在收据脚注里已经说过「另有 N 次未计入」，导出里不再混一条空行。
+  const topCallRows = useMemo(
+    () =>
+      topCalls.map((call) => [
+        formatClock(call.timestamp, true),
+        formatModelId(call.model),
+        call.tokens.input,
+        call.tokens.output,
+        call.tokens.cacheWrite,
+        call.tokens.cacheRead,
+        call.usd
+      ]),
+    [topCalls]
+  );
+
   return (
     <div className={styles.root} data-probe="cost-root">
       <Panel
         title="会话账单"
         ariaLabel="会话账单"
         actions={
-          <ProvenanceBadge
-            provenance="estimated"
-            detail={`快照日期 ${ledger.pricingAsOf}`}
-          />
+          <>
+            <CsvExportButton
+              filename={csvFileName("top-calls", Date.now())}
+              headers={["时刻", "模型", "输入", "输出", "缓存写入", "缓存读取", "小计（美元）"]}
+              rows={topCallRows}
+              probe="csv-export-top-calls"
+            />
+            <ProvenanceBadge
+              provenance="estimated"
+              detail={`快照日期 ${ledger.pricingAsOf}`}
+            />
+          </>
         }
       >
         <div className={styles.bodyWrap}>
