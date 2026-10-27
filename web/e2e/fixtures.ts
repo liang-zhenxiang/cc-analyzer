@@ -2039,6 +2039,198 @@ export function monitorConsoleScenario(overrides: Partial<MockScenario> = {}): M
   return { ...emptyScenario(), files, fileMtimes, ...overrides };
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * Round EE「第三批十功能」夹具
+ *
+ * 数据形状（每条都有对应断言）：
+ *   - 18 个自然日各一段会话（day-18 … day-1），满足 E1 的 7 天均线与
+ *     14 天外推；日量在 9,000 / 11,000 之间交替，让异常判定的标准差非零；
+ *   - day-13 是 60,000 tok 的异常日（约为邻近日的 6 倍，z ≥ 2，日历上也
+ *     会点亮角标）；
+ *   - Sonnet 只在 day-18 与 day-2 使用（间隔 16 天 > 14 天）→ E6 的回归段；
+ *     其余日子用 Opus，两种模型各有一条起止条；
+ *   - 今天一段 5 次调用的时间轴会话（上下文 20k→100k）→ E3 的水位与手柄、
+ *     E7 的健康分（平均水位 60%，压缩 0 次、出血 0 处 → 40 分「紧张」）；
+ *   - 最后一条记录在 now−2 分钟，E9 的「N 分钟前」有真实读数可读。
+ *
+ * 时间锚点：构建时取一次 `Date.now()`，之后全部由 `at(daysAgo, h, m)` 派生；
+ * 同一进程内多条用例共用一个 now（见 roundEECache），跨整点时「今天」不漂。
+ *
+ * **为什么不进 `SESSION_SEEDS`**：默认场景的 8 份会话与全部含侧栏的归档截图
+ * 都按它写死，追加会让「会话数」类断言与截图基线整体漂移；沿用 `costScenario`
+ * / `roundCCScenario` / `roundDDScenario` 的先例，只在需要它的场景里装文件。
+ * ────────────────────────────────────────────────────────────────────────── */
+
+const ROUND_EE_SONNET = "claude-sonnet-4-5-20250929";
+const ROUND_EE_OPUS = "claude-opus-4-1-20250805";
+
+type RoundEEUsage = {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens: number;
+  cache_read_input_tokens: number;
+};
+
+type RoundEERecord = Record<string, unknown>;
+
+type RoundEESessionSeed = { cwd: string; id: string; records: RoundEERecord[] };
+
+function roundEEJsonl(seed: RoundEESessionSeed): string {
+  const sorted = [...seed.records].sort(
+    (a, b) => Date.parse(String(a.timestamp)) - Date.parse(String(b.timestamp))
+  );
+  return sorted.map((record) => JSON.stringify(record)).join("\n") + "\n";
+}
+
+function buildRoundEE(): { files: Record<string, string>; records: RoundEERecord[]; now: number } {
+  const now = Date.now();
+
+  /** 本地日历：`daysAgo` 天前的 `hour:minute:second`。 */
+  const at = (daysAgo: number, hour: number, minute: number, second = 0): number => {
+    const day = new Date(now);
+    day.setDate(day.getDate() - daysAgo);
+    day.setHours(hour, minute, second, 0);
+    return day.getTime();
+  };
+
+  let uuidSeed = 0;
+  const idOf = (slug: string) =>
+    `ee00ffee-0000-4000-8000-${slug.padEnd(12, "0").slice(0, 12)}`;
+
+  const make = (
+    kind: "user" | "assistant",
+    sessionId: string,
+    cwd: string,
+    timestamp: number,
+    message: Record<string, unknown>
+  ): RoundEERecord => {
+    uuidSeed += 1;
+    return {
+      type: kind,
+      sessionId,
+      cwd,
+      gitBranch: "main",
+      version: "2.1.0",
+      timestamp: new Date(timestamp).toISOString(),
+      uuid: `roundee-${uuidSeed}`,
+      parentUuid: null,
+      isSidechain: false,
+      message
+    };
+  };
+
+  const user = (sessionId: string, cwd: string, timestamp: number, text: string) =>
+    make("user", sessionId, cwd, timestamp, { role: "user", content: text });
+
+  const assistant = (
+    sessionId: string,
+    cwd: string,
+    timestamp: number,
+    text: string,
+    model: string,
+    usage?: RoundEEUsage
+  ) =>
+    make("assistant", sessionId, cwd, timestamp, {
+      id: `roundee-msg-${uuidSeed + 1}`,
+      role: "assistant",
+      model,
+      content: [{ type: "text", text }],
+      ...(usage ? { usage } : {})
+    });
+
+  const usage = (
+    input: number,
+    output: number,
+    cacheCreation: number,
+    cacheRead: number
+  ): RoundEEUsage => ({
+    input_tokens: input,
+    output_tokens: output,
+    cache_creation_input_tokens: cacheCreation,
+    cache_read_input_tokens: cacheRead
+  });
+
+  const cwd = "/repo/ee";
+  const sessions: RoundEESessionSeed[] = [];
+
+  // ── 18 个自然日：E1 的均线/外推、E2 的异常日、E6 的回归段 ──────────────
+  for (let day = 18; day >= 1; day -= 1) {
+    const id = idOf(`day-${day}`);
+    const total = day === 13 ? 60_000 : day % 2 === 0 ? 9_900 : 10_100;
+    const model = day === 18 || day === 2 ? ROUND_EE_SONNET : ROUND_EE_OPUS;
+    const input = Math.round(total * 0.6);
+    sessions.push({
+      cwd,
+      id,
+      records: [
+        user(id, cwd, at(day, 10, 0), `ee：第 ${day} 天`),
+        assistant(id, cwd, at(day, 10, 2), `第 ${day} 天的回答`, model, usage(input, total - input, 0, 0))
+      ]
+    });
+  }
+
+  // ── 今天：E3 时间轴 / E7 健康分 / E9 新鲜度 ───────────────────────────
+  const timelineId = idOf("timeline");
+  const timelineRecords: RoundEERecord[] = [];
+  const contexts = [20_000, 40_000, 60_000, 80_000, 100_000];
+  const start = now - 10 * 60_000;
+  contexts.forEach((context, index) => {
+    const stamp = start + index * 2 * 60_000;
+    timelineRecords.push(user(timelineId, cwd, stamp, `ee：时间轴第 ${index + 1} 段`));
+    timelineRecords.push(
+      assistant(
+        timelineId,
+        cwd,
+        stamp + 15_000,
+        `第 ${index + 1} 段回答`,
+        ROUND_EE_SONNET,
+        usage(1_000, 500, 0, context - 1_000)
+      )
+    );
+  });
+  sessions.push({ cwd, id: timelineId, records: timelineRecords });
+
+  const files: Record<string, string> = {};
+  for (const seed of sessions) {
+    files[`${HOME}/.claude/projects/${projectDir(seed.cwd)}/${seed.id}.jsonl`] = roundEEJsonl(seed);
+  }
+
+  return { files, records: sessions.flatMap((seed) => seed.records), now };
+}
+
+let roundEECache: { files: Record<string, string>; records: RoundEERecord[]; now: number } | null =
+  null;
+
+function roundEEBuilt(): { files: Record<string, string>; records: RoundEERecord[]; now: number } {
+  if (roundEECache === null) roundEECache = buildRoundEE();
+  return roundEECache;
+}
+
+/** Round EE 全量记录（时间戳为 ISO 字符串）——e2e 用它手算期望值。 */
+export function roundEERecords(): RoundEERecord[] {
+  return roundEEBuilt().records;
+}
+
+/** 夹具构建时的基准时刻；用例不得再直接读 `Date.now()`。 */
+export function roundEENow(): number {
+  return roundEEBuilt().now;
+}
+
+/**
+ * Round EE 专用场景：只装本轮会话，不叠默认八份（理由见上方长注释）。
+ *
+ * `savePath` 缺省给一个虚拟路径，让 E5 的 CSV 导出走完「保存框 → write_text」；
+ * 需要「用户取消」分支的场景显式传 `savePath: null`。
+ */
+export function roundEEScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  return {
+    ...defaultScenario(overrides),
+    files: roundEEBuilt().files,
+    savePath: "/Users/e2e/Documents/export.csv",
+    ...overrides
+  };
+}
+
 type Fixtures = { scenario: MockScenario };
 
 export const test = base.extend<Fixtures>({

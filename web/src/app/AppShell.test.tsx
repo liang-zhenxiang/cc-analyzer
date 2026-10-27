@@ -418,3 +418,38 @@ test("错误档事件行跳回会话分析并定位记录", async () => {
     expect(screen.getByRole("complementary", { name: "记录详情" })).toBeInTheDocument()
   );
 });
+
+test("? 唤起键盘速查卡，Esc 关闭，且不抢输入框里的问号", async () => {
+  const user = userEvent.setup();
+  render(<AppShell bridges={bridges} />);
+
+  fireEvent.keyDown(window, { key: "?" });
+  const sheet = screen.getByRole("dialog", { name: "键盘速查卡" });
+  expect(sheet.getAttribute("aria-modal")).toBe("true");
+  // 打开即接住焦点：键盘用户不该还要自己找入口。
+  expect(document.activeElement).toBe(sheet);
+
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("dialog", { name: "键盘速查卡" })).not.toBeInTheDocument();
+
+  // 输入框里打字不触发：命令面板的搜索框里按 `?` 是在输入问号，不是开卡。
+  fireEvent.keyDown(window, { key: "k", metaKey: true });
+  const input = screen.getByLabelText("搜索命令");
+  fireEvent.keyDown(input, { key: "?" });
+  expect(screen.queryByRole("dialog", { name: "键盘速查卡" })).not.toBeInTheDocument();
+});
+
+test("命令面板里能搜到「快捷键速查」并执行它", async () => {
+  const user = userEvent.setup();
+  render(<AppShell bridges={bridges} />);
+
+  fireEvent.keyDown(window, { key: "k", metaKey: true });
+  await user.type(screen.getByLabelText("搜索命令"), "速查");
+  const first = screen.getAllByRole("option")[0];
+  expect(first).toHaveTextContent("快捷键速查");
+  await user.keyboard("{Enter}");
+
+  // 面板先关、卡再开：两层浮层不该同时立在那儿。
+  expect(screen.queryByRole("dialog", { name: "命令面板" })).not.toBeInTheDocument();
+  expect(screen.getByRole("dialog", { name: "键盘速查卡" })).toBeInTheDocument();
+});

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useBridges } from "../../api/bridges";
 import { useNotifications } from "../../app/NotificationProvider";
 import { Button } from "../../components/Button";
+import { CsvExportButton } from "../../components/CsvExportButton";
 import { EmptyState } from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
 import { Panel } from "../../components/Panel";
@@ -10,6 +11,7 @@ import { formatModelId, formatProjectPath, formatTokenCount, formatUsd } from ".
 import type { SessionMeta } from "../sessions/metadataCache";
 import { useBillingReadouts } from "./billingReadouts";
 import { PRICING_AS_OF, estimateCost } from "./pricingSnapshot";
+import { csvFileName } from "./csvExport";
 import { ProvenanceBadge } from "./ProvenanceBadge";
 import { useUsageOverview } from "./useUsageOverview";
 import { BillingWindowCard } from "./BillingWindowCard";
@@ -22,17 +24,23 @@ import { buildActivityClock } from "./activityClock";
 import { buildFlowDiagram } from "./flowDiagram";
 import { FlowDiagramPanel } from "./FlowDiagramPanel";
 import { MilestonesPanel } from "./MilestonesPanel";
+import { AnnualReportPanel } from "./AnnualReportPanel";
 import { milestonesOf } from "./milestones";
 import { toolCensus } from "./toolCensus";
 import { ToolCensusPanel } from "./ToolCensusPanel";
 import { UsageCalendarPanel } from "./UsageCalendarPanel";
 import {
+  addLocalDays,
   aggregateRange,
+  dayStartOf,
   formatDayLabel,
   totalsSum,
   type UsageTotals
 } from "./usageAggregations";
-import { BarChart } from "./charts/BarChart";
+import { buildAnomalyDays } from "./anomalyDays";
+import { buildTrendChannel } from "./trendChannel";
+import { modelTimeline } from "./modelTimeline";
+import { DailyTrendChart } from "./DailyTrendChart";
 import { StackedBar } from "./charts/StackedBar";
 import { Heatmap } from "./charts/Heatmap";
 import { usageSnapshotFileName, usageSnapshotHtml } from "./usageSnapshot";
@@ -40,6 +48,9 @@ import { WeeklyDigestPanel } from "./WeeklyDigestPanel";
 import { SessionComparePanel } from "./SessionComparePanel";
 import { EquivalentsToggle } from "./EquivalentsToggle";
 import { ModelSwapTable } from "./ModelSwapTable";
+import { ModelMigrationBars } from "./ModelMigrationBars";
+import { FreshnessBadge } from "./FreshnessBadge";
+import { Sparkline } from "./Sparkline";
 import { FingerprintPanel } from "./FingerprintPanel";
 import { WorkHabitsPanel } from "./WorkHabitsPanel";
 import { SessionGanttPanel } from "./SessionGanttPanel";
@@ -54,15 +65,19 @@ type UsageRange = (typeof RANGE_OPTIONS)[number];
 
 /**
  * 页内子视图（N1 / Round Y）：缺省仍是「用量」——错误分析与里程碑都是显式选择，
- * 首屏不被垄断。三档共用同一次扫描（里程碑吃同一份全历史 `inputs`，零新增 I/O）。
+ * 首屏不被垄断。四档共用同一次扫描（里程碑与年报都吃同一份全历史 `inputs`，
+ * 零新增 I/O）。
  */
 const VIEW_KEY = "cca-usage-view";
-type UsageView = "usage" | "milestones" | "errors";
+type UsageView = "usage" | "milestones" | "errors" | "annual";
 
 const VIEW_ITEMS: SegmentedItem<UsageView>[] = [
   { value: "usage", label: "用量" },
   { value: "milestones", label: "里程碑" },
-  { value: "errors", label: "错误" }
+  { value: "errors", label: "错误" },
+  // 年报排最后：前两档都是「这一年/这一窗口的读数」，年报是「回看整段」，
+  // 它需要一个年度的上下文才读得懂，所以不插在中间。
+  { value: "annual", label: "年报" }
 ];
 
 const RANGE_ITEMS: SegmentedItem<string>[] = RANGE_OPTIONS.map((option) => ({
@@ -93,6 +108,7 @@ function readStoredView(): UsageView {
     const stored = localStorage.getItem(VIEW_KEY);
     if (stored === "errors") return "errors";
     if (stored === "milestones") return "milestones";
+    if (stored === "annual") return "annual";
   } catch {
     // See readStoredRange: persistence is optional.
   }
@@ -145,6 +161,14 @@ function tokenClassValue(totals: UsageTotals, tokenClass: TokenClass): number {
   return tokenClass === "total" ? totalsSum(totals) : totals[tokenClass];
 }
 
+/** 本地日历日 `YYYY-MM-DD`：趋势模型按「天」解析日期，不接受 `M/D` 短标签。 */
+function isoDayOf(ms: number): string {
+  const date = new Date(ms);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate()
+  ).padStart(2, "0")}`;
+}
+
 export function UsageOverviewPage({
   onOpenSession,
   onRevealRecord
@@ -154,10 +178,10 @@ export function UsageOverviewPage({
   /** 错误事件行的「跳回会话分析定位」回调（N1，与全局搜索的 onReveal 同款）。 */
   onRevealRecord?: (path: string, recordId: string | null) => void;
 } = {}) {
-  const { inputs, progress, scanning, error, skipped, refresh } = useUsageOverview();
+  const { inputs, progress, scanning, error, skipped, refresh, scannedAt } = useUsageOverview();
   const [days, setDays] = useState<UsageRange>(readStoredRange);
   const [tokenClass, setTokenClass] = useState<TokenClass>("total");
-  const [modelView, setModelView] = useState<"share" | "swap">("share");
+  const [modelView, setModelView] = useState<"share" | "swap" | "migration">("share");
   const [view, setView] = useState<UsageView>(readStoredView);
   const [activityView, setActivityView] = useState<ActivityView>(readStoredActivityView);
   const [exporting, setExporting] = useState(false);
@@ -263,6 +287,76 @@ export function UsageOverviewPage({
     [range, tokenClass]
   );
 
+  // E1/E2 (Round EE)：趋势与异常共用同一份「按天」序列——就是这张图正在画
+  // 的那一列（tokenClass 切换时两者一起换口径）。补零由 aggregateRange 的
+  // dailySeries 保证，模型层只做 MA / 斜率 / z 分数。
+  const trendDays = useMemo(
+    () =>
+      range.dailySeries.map((point) => ({
+        date: isoDayOf(point.dayStart),
+        tokens: tokenClassValue(point, tokenClass)
+      })),
+    [range, tokenClass]
+  );
+  const trend = useMemo(() => buildTrendChannel(trendDays), [trendDays]);
+  const anomalyDays = useMemo(() => buildAnomalyDays(trendDays), [trendDays]);
+  // 图按位置对齐（与 trendData 同长），日历按 dayStart 查表。
+  const anomalyByIndex = useMemo(
+    () => anomalyDays.map((day) => (day.kind === "-" && day.z === null ? null : day)),
+    [anomalyDays]
+  );
+  const anomalyByDay = useMemo(() => {
+    const map = new Map<number, (typeof anomalyDays)[number]>();
+    range.dailySeries.forEach((point, index) => {
+      const day = anomalyByIndex[index];
+      if (day) map.set(point.dayStart, day);
+    });
+    return map;
+  }, [range.dailySeries, anomalyByIndex]);
+
+  // E10 (Round EE)：KPI 卡里的走势只画最后 7 天。只有「按天有序列」的两张卡
+  // 能画——会话数与成本没有按天的模型输出，宁可留白也不编一条线。
+  const sparkTokens = useMemo(
+    () => range.dailySeries.slice(-7).map((point) => totalsSum(point)),
+    [range.dailySeries]
+  );
+  const sparkMessages = useMemo(
+    () => range.dailySeries.slice(-7).map((point) => point.messages),
+    [range.dailySeries]
+  );
+
+  // 新鲜度只关心「最后一条记录」与「最后一次扫描」两个时刻；相对时间由
+  // `readouts.now`（30 秒 tick）驱动，不用 `Date.now()`——否则同一屏里两个
+  // 「N 分钟前」会各说各的。
+  const lastRecordAt = useMemo(() => {
+    let latest = Number.NEGATIVE_INFINITY;
+    for (const input of inputs) {
+      for (const record of input.records) {
+        if (record.timestamp > latest) latest = record.timestamp;
+      }
+    }
+    return Number.isFinite(latest) ? latest : null;
+  }, [inputs]);
+
+  // E6：迁移只画所选窗口。模型层按会话收口、不认 days，所以这里做一次
+  // 「时间戳筛选」——不重算任何聚合，只把窗口外的记录挡在输入之外。
+  const migration = useMemo(() => {
+    const windowStart = addLocalDays(dayStartOf(readouts.now), -(days - 1));
+    const windowEnd = addLocalDays(dayStartOf(readouts.now), 1);
+    const windowed = inputs.map((input) => ({
+      ...input,
+      records: input.records.filter(
+        (record) => record.timestamp >= windowStart && record.timestamp < windowEnd
+      )
+    }));
+    return { ...modelTimeline(windowed), start: windowStart, end: windowEnd };
+  }, [inputs, days, readouts.now]);
+  // 与占比图共用同一个索引：图例第 N 个模型在这里也是 --chart-N。
+  const modelColors = useMemo(
+    () => new Map(range.topModels.map((slice, index) => [slice.label, (index % 6) + 1])),
+    [range.topModels]
+  );
+
   // Buckets are keyed by the encoded project directory name; the sessions'
   // real paths come from the scan. First path wins — a project bucket can hold
   // sessions from several archive roots, and any of them names it truthfully.
@@ -306,6 +400,17 @@ export function UsageOverviewPage({
       })),
     [range.topModels]
   );
+
+  // E5「按模型分布」的 CSV：与图例同一份 `modelData`，不另算一遍份额。
+  // 份额分母为 0 时整列留空，不写 0%——「没有消耗」和「占 0%」不是一件事。
+  const modelCsvRows = useMemo(() => {
+    const total = modelData.reduce((sum, slice) => sum + slice.value, 0);
+    return modelData.map((slice) => [
+      slice.label,
+      slice.value,
+      total > 0 ? `${((slice.value / total) * 100).toFixed(1)}%` : null
+    ]);
+  }, [modelData]);
 
   // 里程碑的会话入口交回的是 **path**（纯逻辑层手上只有 path）；页面把它换回
   // 完整的 `SessionMeta` 再走既有的「打开会话」握手——与压缩 top3 / 日历同一路。
@@ -439,9 +544,9 @@ export function UsageOverviewPage({
             onChange={setView}
             ariaLabel="总览视图"
           />
-          {/* 里程碑的口径是**全历史**（R2），「近 N 天」对它没有任何作用；摆一个
-              不起作用的控件比缺一个控件更坏——用户会以为数字受它影响。 */}
-          {view !== "milestones" ? (
+          {/* 里程碑（R2）与年报（E4）的口径都是**全历史**，「近 N 天」对它们没有
+              任何作用；摆一个不起作用的控件比缺一个控件更坏——用户会以为数字受它影响。 */}
+          {view !== "milestones" && view !== "annual" ? (
             <SegmentedControl
               items={RANGE_ITEMS}
               value={String(days)}
@@ -454,6 +559,12 @@ export function UsageOverviewPage({
             按钮的右边缘固定不动。快照描述的就是「用量」这个视图，所以按钮
             只在用量档渲染。 */}
         <div className={styles.headerActions}>
+          <FreshnessBadge
+            lastRecordAt={lastRecordAt}
+            lastScanAt={scannedAt}
+            scanning={scanning}
+            now={readouts.now}
+          />
           <span
             className={styles.progress}
             data-probe="usage-progress"
@@ -463,7 +574,9 @@ export function UsageOverviewPage({
               ? `已分析 ${progress.done} / ${progress.total} 个会话`
               : view === "milestones"
                 ? `全部 ${milestoneReport.facts.sessionCount} 个已扫描会话纳入统计`
-                : `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计`}
+                : view === "annual"
+                  ? `全部 ${milestoneReport.facts.sessionCount} 个已扫描会话纳入年度统计`
+                  : `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计`}
             {skipped > 0 ? ` · ${skipped} 个会话读取失败已跳过` : ""}
           </span>
           {view === "usage" ? (
@@ -496,6 +609,11 @@ export function UsageOverviewPage({
           projectPaths={projectPaths}
           onRevealRecord={onRevealRecord}
         />
+      ) : view === "annual" ? (
+        /* 用量年报（E4）：吃同一份全历史 inputs、同一次扫描，零新增 I/O。
+           窗口控件在这一档隐藏——年报的窗口是「那一年」，页头的「近 N 天」
+           对它不生效，摆一个不起作用的控件比缺一个控件更坏。 */
+        <AnnualReportPanel inputs={inputs} />
       ) : view === "milestones" ? (
         /* 里程碑（Round Y）：同一份全历史 inputs、同一次扫描，零新增 I/O。
            `onOpenSession` 缺省（单测直挂页面）时不传，入口退成静态行而不是空按钮。 */
@@ -521,7 +639,12 @@ export function UsageOverviewPage({
             右端），数值独占第二行——瓦片里先看到数字，再看标签与出处。 */}
             <div className={styles.kpi}>
               <span className={styles.kpiLabel}>Tokens 总量</span>
-              <span className={styles.kpiValue}>{formatTokenCount(range.kpi.tokens)}</span>
+              <span className={styles.kpiValue}>
+                {formatTokenCount(range.kpi.tokens)}
+                <span className={styles.kpiSpark} aria-hidden="true">
+                  <Sparkline values={sparkTokens} />
+                </span>
+              </span>
               <ProvenanceBadge provenance="logged" />
             </div>
             <div className={styles.kpi}>
@@ -531,7 +654,12 @@ export function UsageOverviewPage({
             </div>
             <div className={styles.kpi}>
               <span className={styles.kpiLabel}>消息数</span>
-              <span className={styles.kpiValue}>{range.kpi.messages.toLocaleString("en-US")}</span>
+              <span className={styles.kpiValue}>
+                {range.kpi.messages.toLocaleString("en-US")}
+                <span className={styles.kpiSpark} aria-hidden="true">
+                  <Sparkline values={sparkMessages} />
+                </span>
+              </span>
               <ProvenanceBadge provenance="logged" />
             </div>
             <div className={styles.kpi}>
@@ -575,10 +703,11 @@ export function UsageOverviewPage({
                 />
               }
             >
-              <BarChart
+              <DailyTrendChart
                 data={trendData}
+                trend={trend}
+                anomalies={anomalyByIndex}
                 ariaLabel="每日 Token 消耗趋势"
-                emptyText="所选范围内暂无消耗"
                 height={170}
               />
             </Panel>
@@ -611,6 +740,7 @@ export function UsageOverviewPage({
               <UsageCalendarPanel
                 inputs={inputs}
                 now={calendarNow}
+                anomalyDays={anomalyByDay}
                 onOpenSession={onOpenSession}
                 drillRequest={dayDrill}
                 onDrillHandled={() => setDayDrill(null)}
@@ -630,18 +760,35 @@ export function UsageOverviewPage({
             <Panel
               title="按模型分布"
               actions={
-                <SegmentedControl
-                  items={[
-                    { value: "share", label: "占比" },
-                    { value: "swap", label: "换模" }
-                  ]}
-                  value={modelView}
-                  onChange={setModelView}
-                  ariaLabel="按模型分布视图"
-                />
+                <>
+                  <SegmentedControl
+                    items={[
+                      { value: "share", label: "占比" },
+                      { value: "swap", label: "换模" },
+                      { value: "migration", label: "迁移" }
+                    ]}
+                    value={modelView}
+                    onChange={setModelView}
+                    ariaLabel="按模型分布视图"
+                  />
+                  <CsvExportButton
+                    filename={csvFileName("models", Date.now())}
+                    headers={["模型", "token", "占比"]}
+                    rows={modelCsvRows}
+                    probe="csv-export-models"
+                  />
+                </>
               }
             >
-              {modelView === "swap" ? (
+              {modelView === "migration" ? (
+                <ModelMigrationBars
+                  entries={migration.entries}
+                  gapFlags={migration.gapFlags}
+                  colors={modelColors}
+                  start={migration.start}
+                  end={migration.end}
+                />
+              ) : modelView === "swap" ? (
                 <ModelSwapTable sessions={inputs} />
               ) : (
                 <>

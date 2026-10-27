@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ThemeProvider, useTheme } from "./ThemeProvider";
 import { CommandPalette } from "./CommandPalette";
+import { ShortcutSheet } from "./ShortcutSheet";
 import type { CommandAction } from "./commandRegistry";
 import { KioskRoot, getKiosk, setKiosk, useKiosk } from "./KioskMode";
 import { parseContrast, setContrast, useContrast } from "../features/settings/contrast";
@@ -79,13 +80,15 @@ function CommandPaletteHost({
   onClose,
   onNavigate,
   onOpenSearch,
-  onOpenSettings
+  onOpenSettings,
+  onOpenShortcuts
 }: {
   open: boolean;
   onClose: () => void;
   onNavigate: (tab: WorkspaceTab) => void;
   onOpenSearch: () => void;
   onOpenSettings: () => void;
+  onOpenShortcuts: () => void;
 }) {
   const { theme, setTheme } = useTheme();
   const contrast = useContrast();
@@ -213,6 +216,15 @@ function CommandPaletteHost({
         run: () => setKiosk(!kiosk)
       },
       {
+        id: "shortcut-sheet",
+        title: "快捷键速查",
+        group: "动作",
+        keywords: "shortcut keymap keys 键位 键盘 速查",
+        shortcut: "?",
+        detail: "打开键盘导航地图",
+        run: onOpenShortcuts
+      },
+      {
         id: "export-usage",
         title: "导出用量快照",
         group: "动作",
@@ -221,7 +233,7 @@ function CommandPaletteHost({
         detail: "需在「用量总览」内导出"
       }
     ];
-  }, [theme, contrast, kiosk, onNavigate, onOpenSearch, onOpenSettings, setTheme]);
+  }, [theme, contrast, kiosk, onNavigate, onOpenSearch, onOpenSettings, onOpenShortcuts, setTheme]);
 
   return <CommandPalette open={open} actions={actions} onClose={onClose} />;
 }
@@ -287,6 +299,7 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [revealRequest, setRevealRequest] = useState<{
     path: string;
     recordId: string | null;
@@ -309,6 +322,35 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
   }, []);
 
   /**
+   * `?`（Shift+/）唤起键盘速查卡。
+   *
+   * 三条边界：输入框 / 下拉框 / 可编辑区里不抢键（否则打不出问号）；任何一层
+   * 浮层开着时也不抢（那时 `?` 属于那个浮层的输入框）；已经开着就关掉——
+   * 同一个键进来出去，比「再按一次没反应」好。
+   */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "?") return;
+      // 另一层浮层开着时不抢：那时 `?` 是那个浮层的事（多数情况下正落在它的输入框里，
+      // 但焦点也可能不在输入框上——两种都要挡住，否则速查卡会盖在设置面板上面）。
+      if (searchOpen || settingsOpen || paletteOpen) return;
+      // `event.target` 可能是 `window`（脚本派发的键盘事件）或文档本身，
+      // 那种情况下没有 `closest`——只对真正的元素做「是否在输入框里」判断。
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        target.closest("input, textarea, select, [contenteditable='true']")
+      ) {
+        return;
+      }
+      event.preventDefault();
+      setSheetOpen((open) => !open);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [paletteOpen, searchOpen, settingsOpen]);
+
+  /**
    * 进入大屏时收起两层浮层。
    *
    * 不是为了好看：外壳（顶栏里唯一那个「设置」按钮）马上要被收起来，浮层留着
@@ -321,6 +363,7 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
     setSettingsOpen(false);
     setSearchOpen(false);
     setPaletteOpen(false);
+    setSheetOpen(false);
   }, [kioskOn]);
 
   /**
@@ -330,14 +373,14 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      if (searchOpen || settingsOpen || paletteOpen) return;
+      if (searchOpen || settingsOpen || paletteOpen || sheetOpen) return;
       if (!getKiosk()) return;
       event.preventDefault();
       setKiosk(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [searchOpen, settingsOpen, paletteOpen]);
+  }, [searchOpen, settingsOpen, paletteOpen, sheetOpen]);
 
   useEffect(() => {
     try {
@@ -410,6 +453,10 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
   const openSettingsFromPalette = useCallback(() => {
     setPaletteOpen(false);
     setSettingsOpen(true);
+  }, []);
+  const openShortcutsFromPalette = useCallback(() => {
+    setPaletteOpen(false);
+    setSheetOpen(true);
   }, []);
 
   return (
@@ -511,7 +558,10 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
                 onNavigate={setTab}
                 onOpenSearch={openSearchFromPalette}
                 onOpenSettings={openSettingsFromPalette}
+                onOpenShortcuts={openShortcutsFromPalette}
               />
+              {/* 速查卡压在命令面板之上（130）：在面板里想不起某个键时正是它登场的时候。 */}
+              <ShortcutSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
             </div>
           </KioskRoot>
         </NotificationProvider>

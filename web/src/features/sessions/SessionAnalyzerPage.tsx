@@ -23,6 +23,7 @@ import { ContextView, type ContextRevealRequest } from "./ContextView";
 import { ChangedFilesView } from "./ChangedFilesView";
 import { BleedView } from "./BleedView";
 import { ReplayView } from "./ReplayView";
+import { TimelineView } from "./TimelineView";
 import { CostLedgerView } from "./CostLedgerView";
 import { ParseCoverageChip } from "./ParseCoverageChip";
 import { emptyFilter, type RecordFilter, type TimeRange } from "./filters";
@@ -43,7 +44,15 @@ import { buildBleedReport } from "./bleedModel";
 import type { ParsedSession, ParsedSessionGraph, SessionRecord } from "./types";
 import styles from "./SessionAnalyzerPage.module.css";
 
-type AnalyzerView = "log" | "tree" | "context" | "changes" | "bleed" | "replay" | "cost";
+type AnalyzerView =
+  | "log"
+  | "tree"
+  | "context"
+  | "changes"
+  | "bleed"
+  | "replay"
+  | "timeline"
+  | "cost";
 
 const ANALYZER_VIEW_ITEMS: SegmentedItem<AnalyzerView>[] = [
   { value: "log", label: "日志视图" },
@@ -52,6 +61,9 @@ const ANALYZER_VIEW_ITEMS: SegmentedItem<AnalyzerView>[] = [
   { value: "changes", label: "改动" },
   { value: "bleed", label: "出血点" },
   { value: "replay", label: "重放" },
+  // 时间轴排在重放之后：两根时间轴相邻，正好让人看到它们是两个问题
+  // （「看一遍」与「跳到那儿看」），而不是同一件事的两个入口。
+  { value: "timeline", label: "时间轴" },
   { value: "cost", label: "账单" }
 ];
 
@@ -65,6 +77,7 @@ function readStoredView(): AnalyzerView {
       stored === "changes" ||
       stored === "bleed" ||
       stored === "replay" ||
+      stored === "timeline" ||
       stored === "cost"
       ? stored
       : "log";
@@ -597,6 +610,7 @@ export function SessionAnalyzerPage({
               view === "changes" ||
               view === "bleed" ||
               view === "replay" ||
+              view === "timeline" ||
               view === "cost" ? null : (
                 <>
                   <TimelineTrack
@@ -667,6 +681,8 @@ export function SessionAnalyzerPage({
                   <BleedView parsed={parsed} />
                 ) : view === "replay" ? (
                   <ReplayView parsed={parsed} />
+                ) : view === "timeline" ? (
+                  <TimelineView parsed={parsed} onLocateInLog={locateInLog} />
                 ) : view === "cost" ? (
                   <CostLedgerView parsed={parsed} onLocateInLog={locateInLog} />
                 ) : (

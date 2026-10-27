@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { Button } from "../../components/Button";
+import { CsvExportButton } from "../../components/CsvExportButton";
 import { Panel } from "../../components/Panel";
 import { formatModelId, formatProjectPath, formatTokenCount } from "../../lib/format";
 import { HBarChart } from "./charts/HBarChart";
+import { csvFileName } from "./csvExport";
 import primitives from "./charts/chartPrimitives.module.css";
 import { arenaSideOf, buildProjectDaily, mainModelOf } from "./projectArena";
 import { formatDayLabel, OTHER_LABEL } from "./usageAggregations";
@@ -119,8 +121,24 @@ export function ProjectArenaPanel({
   const modelWinsA = modelA.model !== null && modelA.tokens > modelB.tokens;
   const modelWinsB = modelB.model !== null && modelB.tokens > modelA.tokens;
 
+  // E5：按项目分布的 CSV。与 HBarChart 吃同一个 `data`——图里看得见的行
+  // 就是文件里的行，不做第二套聚合。
+  const projectCsvRows = useMemo(
+    () => data.map((slice) => [slice.label, slice.value]),
+    [data]
+  );
+  const csvExport = (
+    <CsvExportButton
+      filename={csvFileName("projects", Date.now())}
+      headers={["项目", "token"]}
+      rows={projectCsvRows}
+      probe="csv-export-projects"
+    />
+  );
+
   const backButton = (
     <div className={styles.actions}>
+      {csvExport}
       <Button type="button" variant="secondary" onClick={() => setComparing(false)}>
         返回
       </Button>
@@ -293,6 +311,7 @@ export function ProjectArenaPanel({
 
   const compareButton = (
     <div className={styles.actions}>
+      {csvExport}
       <Button
         type="button"
         variant="secondary"

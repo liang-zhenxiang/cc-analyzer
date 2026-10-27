@@ -211,12 +211,12 @@ function luminance(rgb: [number, number, number]): number {
 test.describe("会话账单", () => {
   test.use({ scenario: costScenario() });
 
-  test("G1 收据进入第 7 个标签，且刷新后仍停在「账单」", async ({ page }) => {
+  test("G1 收据进入第 8 个标签（第三批新增「时间轴」后），且刷新后仍停在「账单」", async ({ page }) => {
     await openCost(page);
 
     const viewBar = page.getByRole("tablist", { name: "视图切换" });
     const tabs = viewBar.getByRole("tab");
-    await expect(tabs).toHaveCount(7);
+    await expect(tabs).toHaveCount(8);
     await expect(tabs.last()).toHaveText("账单");
     await expect(page.getByRole("tab", { name: "账单", exact: true })).toHaveAttribute(
       "aria-selected",
@@ -500,7 +500,7 @@ test.describe("会话账单", () => {
     await page.waitForTimeout(250);
 
     const tabs = page.getByRole("tablist", { name: "视图切换" }).getByRole("tab");
-    await expect(tabs).toHaveCount(7);
+    await expect(tabs).toHaveCount(8);
     for (const tab of await tabs.all()) {
       expect(await tab.evaluate((node) => (node as HTMLElement).scrollWidth)).toBeLessThanOrEqual(
         await tab.evaluate((node) => (node as HTMLElement).clientWidth + 1)

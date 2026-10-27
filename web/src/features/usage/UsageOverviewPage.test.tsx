@@ -565,7 +565,7 @@ describe("UsageOverviewPage", () => {
     expect(pageSource).not.toMatch(/\battributeQuota\s*\(/);
   });
 
-  it("分段项是「用量 | 里程碑 | 错误」；里程碑档吃同一份扫描、且不渲染时间范围控件", async () => {
+  it("分段项是「用量 | 里程碑 | 错误 | 年报」；里程碑档吃同一份扫描、且不渲染时间范围控件", async () => {
     const bridges = createUsageBridges({
       [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 6 * 3_600_000),
       [`${PROJECTS_ROOT}/-repo-alpha/bbb.jsonl`]: sessionJsonl("b2", "claude-sonnet-4-5-20250929", 5 * 3_600_000)
@@ -576,7 +576,7 @@ describe("UsageOverviewPage", () => {
 
     // 顺序即契约（R1）：视图身份在前，三档并列。
     const viewTabs = within(screen.getByRole("tablist", { name: "总览视图" })).getAllByRole("tab");
-    expect(viewTabs.map((tab) => tab.textContent)).toEqual(["用量", "里程碑", "错误"]);
+    expect(viewTabs.map((tab) => tab.textContent)).toEqual(["用量", "里程碑", "错误", "年报"]);
     // 区间控件与扫描进度行两档共用；里程碑档把它撤掉（摆一个不起作用的控件更坏）。
     expect(screen.getByRole("tablist", { name: "时间范围" })).toBeInTheDocument();
 
@@ -589,6 +589,36 @@ describe("UsageOverviewPage", () => {
     expect(screen.queryByRole("tablist", { name: "时间范围" })).toBeNull();
     // 进度行按档分叉（右簇位置不动）。
     expect(screen.getByText("全部 2 个已扫描会话纳入统计")).toBeInTheDocument();
+  });
+
+  it("年报档（E4）：第 4 档渲染整年卡片、隐藏时间范围控件、不新增 I/O", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 3_600_000)
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+    const readDir = vi.mocked(bridges.fs.readDir);
+    await waitFor(() => expect(readDir).toHaveBeenCalled());
+    const before = readDir.mock.calls.length;
+
+    await userEvent.click(screen.getByRole("tab", { name: "年报" }));
+
+    // 年度探针 = 整档的落点；六张卡在场（数据来自同一份全历史 inputs）。
+    const report = await waitFor(() => {
+      const node = document.querySelector('[data-probe="year-report"]');
+      if (node === null) throw new Error("年报还没渲染");
+      return node as HTMLElement;
+    });
+    expect(within(report).getAllByRole("region")).toHaveLength(6);
+    // 「近 N 天」对年报不生效——控件撤掉，而不是摆着不管用。
+    expect(screen.queryByRole("tablist", { name: "时间范围" })).toBeNull();
+    // 进度行按档分叉，说清是全历史口径。
+    expect(screen.getByText("全部 1 个已扫描会话纳入年度统计")).toBeInTheDocument();
+    // 年报不导出（规格 §10.3）：快照按钮只在用量档。
+    expect(screen.queryByRole("button", { name: /导出用量快照/ })).toBeNull();
+    // 切档不触发重扫（R1）。
+    expect(readDir.mock.calls.length).toBe(before);
   });
 
   it("里程碑档不新增 I/O：切档前后扫描次数不变（R1）", async () => {
@@ -708,8 +738,11 @@ describe("UsageOverviewPage", () => {
     expect(within(dashboard).getByRole("region", { name: "工作习惯" })).toBeInTheDocument();
     expect(within(dashboard).getByRole("region", { name: "会话甘特" })).toBeInTheDocument();
     expect(within(dashboard).getByRole("region", { name: "项目卡片" })).toBeInTheDocument();
-    // D9 峰值时刻在周战报里、D10 换算按钮在 KPI 脚注里。
-    expect(document.querySelector('[data-probe="peak-minute"]')).not.toBeNull();
+    // D9 峰值时刻在周战报里、D10 换算按钮在 KPI 脚注里。峰值行随扫描完成出现，
+    // 在扫描态下断言会变成「谁先跑完」的竞态——等它到场再断言。
+    await waitFor(() =>
+      expect(document.querySelector('[data-probe="peak-minute"]')).not.toBeNull()
+    );
     expect(screen.getByRole("button", { name: /换算成日常事物/ })).toBeEnabled();
     // D6 微表只挂在 forecast 行里；该行要有限额才有，单测夹具没有配限额，
     // 所以这里只保证没有把它误挂到别处（由 BurnGaugeDial.test 覆盖画法）。
@@ -724,5 +757,73 @@ describe("UsageOverviewPage", () => {
     await user.click(screen.getByRole("tab", { name: "里程碑" }));
     expect(await screen.findByRole("region", { name: "开发者海报" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "导出 SVG" })).toBeEnabled();
+  });
+
+  it("Round EE：趋势叠层、异常角标、新鲜度、迁移 tab 与 KPI sparkline 都在位", async () => {
+    // 8 天各有一次会话，第 6 天再加三次 → 那一天是明确的突增（z 远大于 2）。
+    // 两个模型交替出现，迁移图因此有两行。
+    const DAY = 24 * 3_600_000;
+    const files: Record<string, string> = {};
+    for (let index = 1; index <= 8; index += 1) {
+      const model =
+        index % 2 === 0 ? "claude-sonnet-4-5-20250929" : "claude-opus-4-1-20250805";
+      files[`${PROJECTS_ROOT}/-repo-alpha/day-${index}.jsonl`] = sessionJsonl(
+        `e${index}`,
+        model,
+        index * DAY
+      );
+    }
+    for (let extra = 0; extra < 3; extra += 1) {
+      files[`${PROJECTS_ROOT}/-repo-alpha/spike-${extra}.jsonl`] = sessionJsonl(
+        `spike-${extra}`,
+        "claude-sonnet-4-5-20250929",
+        6 * DAY + 6_000 + extra * 1_000
+      );
+    }
+
+    const user = userEvent.setup();
+    renderPage(createUsageBridges(files));
+
+    const dashboard = await screen.findByRole("region", { name: "用量总览" });
+    expect(await within(dashboard).findByText("每日 Token 消耗")).toBeInTheDocument();
+
+    // E9 新鲜度：页头右侧，说的是「最近一条记录有多旧」，不编造扫描时刻。
+    const freshness = document.querySelector('[data-probe="data-freshness"]');
+    expect(freshness).not.toBeNull();
+    // 扫描期间徽章写「刷新中…（上次 HH:MM）」；扫描结束才报「数据截至」。
+    // waitFor 内部重试到扫描落定，两种文案都合法终态。
+    await waitFor(() =>
+      expect(freshness?.textContent).toMatch(
+        /^(数据截至 \d{2}:\d{2}（\d+ 分钟前）|刷新中…（上次 \d{2}:\d{2}）|暂无数据)$/
+      )
+    );
+
+    // E1 叠层：默认 30 天窗口 → 均线与外推都够数据（判定按窗口天数，
+    // 与 aggregateRange 补零后的序列一致）。
+    await waitFor(() =>
+      expect(document.querySelector('[data-probe="trend-ma"]')).not.toBeNull()
+    );
+    expect(document.querySelector('[data-probe="trend-forecast"]')).not.toBeNull();
+    expect(screen.getByText(/实线＝7 天移动平均/)).toBeInTheDocument();
+    expect(screen.getByText(/虚线＝按最近 14 天外推/)).toBeInTheDocument();
+
+    // E2 异常：图上的 ▲ 与日历角标是同一个判定。
+    const marks = document.querySelectorAll('[data-probe="anomaly-marks"] > span');
+    expect(marks.length).toBeGreaterThanOrEqual(1);
+    const dotted = document.querySelectorAll('[data-probe="calendar-day"][aria-label$="，异常"]');
+    expect(dotted.length).toBeGreaterThanOrEqual(1);
+
+    // E10：只有 token 与消息两张卡有按天序列，所以恰好两条 sparkline。
+    expect(document.querySelectorAll('[data-probe="kpi-sparkline"]')).toHaveLength(2);
+    // 数值行用 flex 把线贴到右端；14px 的线不改变 28px 数值行/76px 卡高。
+    expect(cssRuleBody(".kpiValue")).toContain("display: flex");
+    expect(cssRuleBody(".kpiSpark")).toContain("margin-left: auto");
+
+    // E6 迁移：两个模型 → 两行起止条。
+    await user.click(screen.getByRole("tab", { name: "迁移" }));
+    expect(await screen.findByText("Sonnet 4.5")).toBeInTheDocument();
+    expect(screen.getByText("Opus 4.1")).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-probe="migration-bar"]')).toHaveLength(2);
+    expect(document.querySelector('[data-probe="model-migration"]')).not.toBeNull();
   });
 });

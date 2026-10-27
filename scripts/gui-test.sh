@@ -938,7 +938,17 @@ else
   CAPTURE_TARGETS=("实时监控" "脉搏" "悬浮" "点选=[data-probe='pulse-float-exit']" "监控台" "脉搏" "会话分析" "字号=130%" "对比度=高" "/repo/demo" "日志视图" "/repo/ansi" "日志视图" "导出" "关闭导出窗口" "/repo/compact-demo" "上下文" "点选=[data-probe='compact-event-2']" "/repo/changed-demo" "改动" "点选=[data-changes-file='src/web/foo.ts'] button" "用量总览" "视图=用量" "滚动=main" "点选=[data-probe='calendar-today'] button" "点选=[data-probe='calendar-today'] button" "点选=[data-tool-census-row='Bash']" "点选=[data-probe='attribution-row']" "用量总览" "视图=里程碑" "视图=用量" "滚动=main" "近 7 天" "错误" "滚动=main" "全局搜索" "全局搜索" "设置=开" "导出归档包…" "取消" "对比度=普通" "字号=100%" "点选=button[aria-label='设置']" "会话分析" "/repo/demo" "重放" "点选=button[aria-label^='最长停顿']" "/repo/cost" "账单" "点选=[data-probe='cost-top-row'] button"
   "用量总览"
   "视图=用量"
-  "点选=[data-probe='usage-progress']")
+  "点选=[data-probe='usage-progress']"
+  # Round EE：年报档（六卡）、时间轴滑块。各连点两次：第一张可能落在
+  # React 提交前的空帧上，第二张才是渲染后的形态（判定只认「事实在场」的那张）。
+  "用量总览"
+  "视图=用量"
+  "年报"
+  "年报"
+  "会话分析"
+  "/repo/demo"
+  "时间轴"
+  "时间轴")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
@@ -1345,6 +1355,12 @@ COST_ROW_HEIGHT_TOLERANCE = 1
 COST_UNPRICED_CALLS = 2
 COST_TOP_ROWS = 5
 COST_TOP_CLICK_LABEL = "点选=[data-probe='cost-top-row'] button"
+# 「第三批十功能」（Round EE / 设计 §13.3）：年报 6 卡、火花线 ≥2、时间轴滑块。
+ROUND_EE_YEAR_LABEL = "年报"
+ROUND_EE_TIMELINE_LABEL = "时间轴"
+ROUND_EE_YEAR_REGIONS = 6
+ROUND_EE_MIN_SPARKLINES = 2
+ROUND_EE_TIMELINE_MIN_WIDTH = 400
 coverage = os.environ.get("COVERAGE") == "1"
 seen_gauge = 0
 seen_table = 0
@@ -1361,6 +1377,9 @@ seen_pulse = 0
 seen_monitor_console = 0
 seen_milestones = 0
 seen_replay = 0
+seen_roundee_usage = 0
+seen_roundee_year = 0
+seen_roundee_timeline = 0
 seen_roundcc = 0
 ROUND_CC_DIGEST_LABELS = ["Tokens", "估算成本", "会话数", "消息数"]
 ROUND_CC_CARDS_MAX = 8
@@ -2975,6 +2994,93 @@ for arg in sys.argv[1:]:
                     )
 
     # 「第二批十功能」（Round DD）：用量页新面板只判与窗口宽度无关的事实。
+    if label in ("用量总览", ROUND_EE_YEAR_LABEL, ROUND_EE_TIMELINE_LABEL):
+        ee = data.get("roundee") or {}
+        problems = []
+        if label == "用量总览" and not ee.get("present"):
+            pass
+        elif label == "用量总览":
+            trend = ee.get("trend") or {}
+            if not isinstance(trend, dict):
+                problems.append("趋势叠层不在场（data-probe='trend-overlay'）")
+            else:
+                # 真机夹具可能只有 7 天：此时图例如实写「缺历史」，均线/外推可以
+                # 为 0——不能把「数据不足」当成「叠层没画」。
+                legend = trend.get("legend") or ""
+                if not legend:
+                    problems.append("趋势图例为空")
+                elif "▲＝异常日" not in legend:
+                    problems.append(f"趋势图例缺异常日说明（实测 {legend!r}）")
+                if trend.get("ma") == 1 and "7 天移动平均" not in legend:
+                    problems.append(f"画了均线但图例没说明（实测 {legend!r}）")
+                if trend.get("forecast") == 1 and "按最近 14 天外推" not in legend:
+                    problems.append(f"画了外推但图例没说明（实测 {legend!r}）")
+                if trend.get("ma") != 1 and "均线需要" not in legend and "没有消耗" not in legend:
+                    problems.append(f"均线缺失且图例没说明原因（实测 {legend!r}）")
+            if (ee.get("sparklines") or 0) < ROUND_EE_MIN_SPARKLINES:
+                problems.append(f"火花线 {ee.get('sparklines')!r} 条，期望 ≥{ROUND_EE_MIN_SPARKLINES}")
+            fresh = ee.get("freshness") or {}
+            if not re.match(r"^数据截至 \d{2}:\d{2}（(刚刚|\d+ 分钟前)）$", fresh.get("text") or ""):
+                problems.append(f"新鲜度文案 {fresh.get('text')!r}，期望「数据截至 HH:MM（N 分钟前）」")
+            if not fresh.get("state"):
+                problems.append("新鲜度没有 data-state")
+            csv = ee.get("csv") or {}
+            if csv.get("projects") != "导出 CSV" or csv.get("models") != "导出 CSV":
+                problems.append(f"CSV 入口 {csv!r}，期望两枚「导出 CSV」")
+            if not problems:
+                seen_roundee_usage += 1
+        elif label == ROUND_EE_YEAR_LABEL and not ee.get("annual"):
+            pass
+        elif label == ROUND_EE_YEAR_LABEL:
+            annual = ee.get("annual") or {}
+            if not isinstance(annual, dict):
+                problems.append("年报根节点不在场（data-probe='year-report'）")
+            else:
+                if annual.get("regions") != ROUND_EE_YEAR_REGIONS:
+                    problems.append(
+                        f"年报 region {annual.get('regions')!r} 块，期望 {ROUND_EE_YEAR_REGIONS}"
+                    )
+                names = annual.get("region_names") or []
+                if not any("总量" in str(n) for n in names):
+                    problems.append(f"年报六卡里没有总量卡（实测 {names!r}）")
+                if annual.get("range_tablist"):
+                    problems.append("年报档不该有「时间范围」tablist")
+                if annual.get("export_snapshot"):
+                    problems.append("年报档不该有「导出用量快照」按钮")
+                if "全部" not in (annual.get("text") or ""):
+                    problems.append(f"年报文本没有扫描进度（实测 {(annual.get('text') or '')[:60]!r}）")
+                if not problems:
+                    seen_roundee_year += 1
+        elif not ee.get("timeline"):
+            pass
+        else:
+            timeline = ee.get("timeline") or {}
+            rect = timeline.get("rect") or {}
+            if not isinstance(rect, dict) or not isinstance(rect.get("width"), (int, float)):
+                problems.append("时间轴滑块不在场（data-probe='timeline-track'）")
+            else:
+                if rect["width"] < ROUND_EE_TIMELINE_MIN_WIDTH:
+                    problems.append(f"时间轴宽 {rect['width']:.0f}px，低于 {ROUND_EE_TIMELINE_MIN_WIDTH}px")
+                if not (24 <= rect.get("height", 0) <= 400):
+                    problems.append(f"时间轴高 {rect.get('height')!r}px，期望 24–400")
+                if timeline.get("min") != "0" or timeline.get("max") != "100":
+                    problems.append(f"时间轴 aria 范围 {timeline.get('min')!r}–{timeline.get('max')!r}")
+                try:
+                    timeline_value = int(timeline.get("now"))
+                except (TypeError, ValueError):
+                    timeline_value = None
+                if timeline_value is None or not (0 <= timeline_value <= 100):
+                    problems.append(f"时间轴 aria-valuenow {timeline.get('now')!r}，期望 0–100")
+                if "条记录" not in (timeline.get("text") or ""):
+                    problems.append(f"时间轴读数 {timeline.get('text')!r} 里没有「条记录」")
+                if not problems:
+                    seen_roundee_timeline += 1
+        if problems:
+            for problem in problems:
+                print(f"BAD|{label}：{problem}")
+        else:
+            print(f"OK|{label}：Round EE 读数与几何成立")
+
     if label == ROUNDDD_CLICK_LABEL:
         dd = data.get("rounddd") or {}
         if dd.get("present") is not True:
@@ -3272,6 +3378,12 @@ if coverage and seen_rounddd == 0:
     print("BAD|视图覆盖：没有任何视图产出第二批十功能的几何事实——用量页新面板没被覆盖")
 if coverage and seen_roundcc == 0:
     print("BAD|视图覆盖：没有任何视图产出 Round CC 新面板的事实——用量页新面板没被覆盖")
+if coverage and seen_roundee_usage == 0:
+    print("BAD|视图覆盖：没有任何视图产出 Round EE 的用量页事实——趋势叠层没被覆盖")
+if coverage and seen_roundee_year == 0:
+    print("BAD|视图覆盖：没有任何视图产出年报事实——「年报」档没被覆盖")
+if coverage and seen_roundee_timeline == 0:
+    print("BAD|视图覆盖：没有任何视图产出时间轴事实——「时间轴」档没被覆盖")
 if coverage and seen_replay == 0:
     print("BAD|视图覆盖：没有任何视图产出重放的几何事实——「重放」标签页没被覆盖")
 if coverage and seen_float_enter == 0:

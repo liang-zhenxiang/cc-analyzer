@@ -5,12 +5,25 @@ import { sessionTitle, type SessionMeta } from "./metadataCache";
 import type { ParsedSession } from "./types";
 import type { ClipboardService } from "../../api/types";
 import { tokenTotalsOf } from "./tokenTotals";
+import { contextSeriesOf } from "./contextSeries";
+import { buildBleedReport } from "./bleedModel";
+import { buildContextHealth, type ContextHealth } from "../usage/contextHealth";
 import { sessionHealth, sessionHealthText } from "./sessionHealth";
 import { resumeCommand } from "./resumeCommand";
 import { useNotifications } from "../../app/NotificationProvider";
 import { Button } from "../../components/Button";
 import { SkeletonBar } from "../../components/Skeleton";
+import { FreshnessBadge } from "../usage/FreshnessBadge";
 import styles from "./SessionHeader.module.css";
+
+/** 四档色带（规格 §2.7）：分数越低越靠近警示，缺失态不发颜色。 */
+function healthTone(score: number | null): "none" | "healthy" | "tight" | "risky" | "bad" {
+  if (score === null || !Number.isFinite(score)) return "none";
+  if (score >= 75) return "healthy";
+  if (score >= 50) return "tight";
+  if (score >= 25) return "risky";
+  return "bad";
+}
 
 /**
  * The session's instrument readouts. The numbers a user opens this app to
@@ -43,7 +56,34 @@ export function SessionHeader({
   const total = parsed ? Math.max(0, parsed.endedAt - parsed.startedAt) : null;
   const totals = useMemo(() => (parsed ? tokenTotalsOf(parsed.records) : null), [parsed]);
   const health = useMemo(() => (parsed ? sessionHealth(parsed.records) : "idle"), [parsed]);
+  /**
+   * 上下文健康分（E7，规格 §2.7 / §6）。
+   *
+   * 三个分项各有出处，一个都不猜：
+   * - 平均水位与峰值来自 `contextSeriesOf`（每条带 usage 的 assistant 记录的
+   *   输入 + 缓存读 + 缓存写，不含输出——上下文里没有「输出」这一格）。
+   * - 压缩次数取 `parsed.compactEvents`，与出血点页的 `compactionCount` 同源。
+   * - 出血点取 `buildBleedReport` 里**非压缩**的那些：压缩已经单独计过一次罚，
+   *   再把压缩条目算进出血，等于同一份证据罚两次。
+   */
+  const contextHealth = useMemo<ContextHealth | null>(() => {
+    if (!parsed) return null;
+    const samples = contextSeriesOf(parsed.records);
+    const report = buildBleedReport(parsed);
+    const bleedCount = report.items.filter((item) => item.kind !== "compaction").length;
+    return buildContextHealth(samples, parsed.compactEvents?.length ?? 0, bleedCount);
+  }, [parsed]);
   const command = useMemo(() => resumeCommand(session), [session]);
+  // E9（Round EE）：最后一条记录的本地时刻。会话页没有「扫描」这一步，所以
+  // lastScanAt 传 null——徽章据「记录本身有多旧」说话，不编一个扫描时刻。
+  const lastRecordAt = useMemo(() => {
+    if (!parsed) return null;
+    let latest = Number.NEGATIVE_INFINITY;
+    for (const record of parsed.records) {
+      if (record.timestamp > latest) latest = record.timestamp;
+    }
+    return Number.isFinite(latest) ? latest : null;
+  }, [parsed]);
 
   /**
    * 反馈沿用 `runAction(...)` 的语言：成功只弹一条 toast；失败既弹 error toast，
@@ -87,6 +127,9 @@ export function SessionHeader({
           </span>
         ) : null}
         <span className={styles.chip}>{formatRelativeTime(session.mtimeMs)}</span>
+        {lastRecordAt !== null ? (
+          <FreshnessBadge lastRecordAt={lastRecordAt} lastScanAt={null} />
+        ) : null}
         <div className={styles.actions}>
           <Button
             type="button"
@@ -122,6 +165,32 @@ export function SessionHeader({
           ) : null}
           {resumeHint ? <span className={styles.hint}>{resumeHint}</span> : null}
         </div>
+        {contextHealth ? (
+          // 数字优先、色带辅助（§2.7）：颜色只上左侧 3px 竖条，数字本身用
+          // --text，保证在任何档位下都是最高对比。分数算不出时印「—」，
+          // 不印 0——0 分是一个断言，缺失不是。
+          <div
+            className={styles.health}
+            data-probe="health-score"
+            data-tone={healthTone(contextHealth.score)}
+            role="group"
+            aria-label={
+              contextHealth.score === null
+                ? "健康分不可用"
+                : `健康分 ${contextHealth.score}`
+            }
+          >
+            <span className={styles.healthBar} aria-hidden="true" />
+            <span className={styles.healthValue} aria-hidden="true">
+              {contextHealth.score === null ? "—" : contextHealth.score}
+            </span>
+            <span className={styles.healthNote}>
+              {contextHealth.score === null
+                ? `不可用 · ${contextHealth.summary}`
+                : contextHealth.summary}
+            </span>
+          </div>
+        ) : null}
       </div>
       {actionError ? <div role="alert">{actionError}</div> : null}
       <button

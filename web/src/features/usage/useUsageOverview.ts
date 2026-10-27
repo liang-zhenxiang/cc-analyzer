@@ -46,6 +46,9 @@ export function useUsageOverview() {
   const [progress, setProgress] = useState<UsageScanProgress>({ done: 0, total: 0 });
   const [scanning, setScanning] = useState(true);
   const [skipped, setSkipped] = useState(0);
+  // E9：最后一次**完成**扫描的本地时刻。新鲜度徽章要区分「记录旧」与
+  // 「刚扫过、目录没变」，没有这个时刻就只能猜。
+  const [scannedAt, setScannedAt] = useState<number | null>(null);
   const scanIdRef = useRef(0);
 
   // `loading` gates the target to the final list: metadata batches replace the
@@ -134,7 +137,10 @@ export function useUsageOverview() {
         publish();
         setSkipped(failed);
       } finally {
-        if (scanIdRef.current === scanId) setScanning(false);
+        if (scanIdRef.current === scanId) {
+          setScanning(false);
+          setScannedAt(Date.now());
+        }
       }
     };
 
@@ -143,5 +149,5 @@ export function useUsageOverview() {
 
   // `refresh` 透出去只为一件事：错误态上的「重试」。不重试的错误提示
   // 等于让用户自己去找刷新会话列表的按钮，而那个按钮在另一个标签里。
-  return { inputs, aggregate, progress, scanning, error, skipped, refresh };
+  return { inputs, aggregate, progress, scanning, error, skipped, refresh, scannedAt };
 }

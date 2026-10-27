@@ -5,6 +5,17 @@ import primitiveStyles from "./chartPrimitives.module.css";
 import styles from "./BarChart.module.css";
 
 /**
+ * The plot box, exported so overlays (the trend channel's moving average and
+ * forecast) can share the *same* scale as the bars instead of re-deriving it.
+ * Changing these values moves every overlay with the chart.
+ */
+export const BAR_WIDTH = 720;
+export const BAR_PAD_LEFT = 56;
+export const BAR_PAD_RIGHT = 10;
+export const BAR_PAD_TOP = 8;
+export const BAR_PAD_BOTTOM = 22;
+
+/**
  * Column chart for the daily trend and the billing-window history.
  *
  * Two deliberate choices about scale: a day with no activity still draws a
@@ -33,11 +44,11 @@ export function BarChart({
     return <EmptyState size="panel" title={emptyText} />;
   }
 
-  const width = 720;
-  const padLeft = 56;
-  const padRight = 10;
-  const padTop = 8;
-  const padBottom = 22;
+  const width = BAR_WIDTH;
+  const padLeft = BAR_PAD_LEFT;
+  const padRight = BAR_PAD_RIGHT;
+  const padTop = BAR_PAD_TOP;
+  const padBottom = BAR_PAD_BOTTOM;
   const plotWidth = width - padLeft - padRight;
   const plotHeight = height - padTop - padBottom;
   const maxValue = niceAxisMax(Math.max(...data.map((point) => point.value)));

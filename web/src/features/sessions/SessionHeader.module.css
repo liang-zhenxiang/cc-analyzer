@@ -164,3 +164,69 @@
   /* 会话间切换时读数不能左右跳动。 */
   font-variant-numeric: tabular-nums;
 }
+
+/* ── 上下文健康分（E7，规格 §2.7）───────────────────────────────
+   页头高度不变量：这一块排在标题行**行尾**，且数字行高取 --lh-md 而不是
+   --lh-lg——20px 的字若用 28px 行高，标题行会比按钮高 2px，页头整体长高，
+   下方表格的「内部滚动」不变量就断了。这 2px 是刻意的取舍，不是笔误。 */
+.health {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-15);
+  padding: var(--sp-05) 0;
+}
+
+/* 3px 竖条是**唯一**的颜色通道：分数本身永远是 --text（17.79:1），
+   色弱、高对比、灰度打印下读数都不受影响。 */
+.healthBar {
+  width: 3px;
+  height: 24px;
+  flex: none;
+  border-radius: 1px;
+  background: var(--text-faint);
+}
+
+.health[data-tone="healthy"] .healthBar {
+  background: var(--success);
+}
+
+.health[data-tone="tight"] .healthBar {
+  background: var(--chart-1);
+}
+
+.health[data-tone="risky"] .healthBar {
+  background: var(--warning);
+}
+
+.health[data-tone="bad"] .healthBar {
+  background: var(--danger);
+}
+
+.healthValue {
+  color: var(--text);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  line-height: var(--lh-md);
+  /* 会话间切换时分数不能左右跳动。 */
+  font-variant-numeric: tabular-nums;
+}
+
+/* 一句人话：不换行、超宽截断。完整句子在 role="group" 的 aria 里，
+   也在 title 上——截断的是版式，不是信息。 */
+.healthNote {
+  overflow: hidden;
+  max-width: 200px;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 窄窗（含 960 的三栏布局）先舍这一句：数字与色带留住，页头不长高。 */
+@media (max-width: 1280px) {
+  .healthNote {
+    display: none;
+  }
+}

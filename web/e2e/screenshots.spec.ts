@@ -10,6 +10,7 @@ import {
   roundCCScenario,
   roundCCAlphaPath,
   roundDDScenario,
+  roundEEScenario,
   errorScenario,
   changedFilesScenario,
   calendarScenario,
@@ -177,6 +178,13 @@ const V_GANTT = declareView("gantt");
 const V_HABITS = declareView("habits");
 const V_PEAK = declareView("peak");
 const V_EQUIVALENTS = declareView("equivalents");
+// 第三批十功能（Round EE）
+const V_TREND = declareView("trend");
+const V_ANNUAL = declareView("annual");
+const V_TIMELINE = declareView("timeline");
+const V_SESSION_HEALTH = declareView("session-health");
+const V_SHORTCUTS = declareView("shortcuts");
+const V_MIGRATION = declareView("migration");
 
 /** 主题在 ThemeProvider 初始化时读 localStorage，所以要在页面脚本之前埋好。 */
 async function useTheme(page: Page, theme: "light" | "dark") {
@@ -1047,4 +1055,76 @@ test.describe("截图视图清单对齐", () => {
 
     expect(declaredViews.length).toBe(ALL_VIEWS.length);
   });
+});
+
+// 第三批十功能（Round EE）：夹具 `roundEEScenario()` 只装本轮的 19 个会话，
+// 18 个自然日（10/14 一次 60,000 的尖峰）+ 今天一条 5 次调用的会话。趋势图
+// 的均线/外推/异常 ▲、年报六卡、时间轴、健康分、速查卡与模型迁移各截一张。
+test.describe("截图归档 · Round EE 十功能", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: roundEEScenario() });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`Round EE · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+      const shot = async (view: string) => {
+        await settleImages(page);
+        await page.screenshot({ path: path.join(OUT_DIR, `${view}-${theme}${suffix}.png`) });
+      };
+      const center = (locator: ReturnType<Page["locator"]>) =>
+        locator.evaluate((element) => element.scrollIntoView({ block: "center" }));
+
+      await page.goto("/");
+      await page.getByRole("tab", { name: "用量总览" }).click();
+      await expect(page.locator("[data-probe='usage-progress']")).toBeVisible({ timeout: 15_000 });
+      await page.waitForTimeout(400);
+
+      // E1/E2：趋势叠层 + 异常 ▲。
+      await center(page.locator("[data-probe='trend-overlay']"));
+      await shot(V_TREND);
+
+      // E6：模型迁移。
+      await page
+        .getByRole("tablist", { name: "按模型分布视图" })
+        .getByRole("tab", { name: "迁移", exact: true })
+        .click();
+      await center(page.locator("[data-probe='model-migration']"));
+      await page.waitForTimeout(200);
+      await shot(V_MIGRATION);
+
+      // E4：年报六卡（年中起点）。
+      await page.getByRole("tab", { name: "年报", exact: true }).click();
+      await expect(page.locator("[data-probe='year-report']")).toBeVisible();
+      await shot(V_ANNUAL);
+
+      // E3/E7：时间轴 + 健康分。
+      await page.getByRole("tab", { name: "会话分析", exact: true }).click();
+      await page.getByPlaceholder("搜会话 ID 或目录…").fill("/repo/ee");
+      await page
+        .locator("[role='button'][title]:has(strong)")
+        .filter({ hasText: "时间轴第 1 段" })
+        .first()
+        .click();
+      await expect(page.getByLabel("会话图状态")).toContainText("会话图已加载", { timeout: 15_000 });
+      await page.getByRole("tab", { name: "时间轴", exact: true }).click();
+      await page.waitForTimeout(300);
+      await shot(V_TIMELINE);
+      await center(page.locator("[aria-label='健康分 70']"));
+      await shot(V_SESSION_HEALTH);
+
+      // E8：? 打开速查卡。
+      await page.locator("body").click({ position: { x: 8, y: 8 } });
+      await page.keyboard.press("?");
+      await expect(page.locator("[data-probe='shortcut-sheet']")).toBeVisible();
+      await page.waitForTimeout(200);
+      await shot(V_SHORTCUTS);
+    });
+  }
 });

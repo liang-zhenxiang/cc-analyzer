@@ -8,6 +8,7 @@ import {
   formatTokenCount,
   formatUsd
 } from "../../lib/format";
+import type { AnomalyDay } from "./anomalyDays";
 import type { SessionMeta } from "../sessions/metadataCache";
 import {
   clockAt,
@@ -329,7 +330,8 @@ export function UsageCalendarPanel({
   now,
   onOpenSession,
   drillRequest,
-  onDrillHandled
+  onDrillHandled,
+  anomalyDays
 }: {
   inputs: readonly UsageSessionInput[];
   /** 窗口终点（今天）的时钟，由调用方注入。 */
@@ -344,6 +346,11 @@ export function UsageCalendarPanel({
   drillRequest?: { dayStart: number; nonce: number } | null;
   /** 请求已消费的信号（页面据此把 `drillRequest` 置回 null）。 */
   onDrillHandled?: () => void;
+  /**
+   * E2 异常日（Round EE）：dayStart → AnomalyDay。缺省时与从前逐字一致
+   * （没有角标、没有 aria 后缀），既有调用方与测试不用改。
+   */
+  anomalyDays?: ReadonlyMap<number, AnomalyDay>;
 }) {
   const calendar = useMemo(() => buildUsageCalendar(inputs, now), [inputs, now]);
   const todayStart = useMemo(() => dayStartOf(now), [now]);
@@ -724,7 +731,14 @@ export function UsageCalendarPanel({
                     }
                     const isToday = cell.dayStart === todayStart;
                     const isSelected = selected === cell.dayStart;
+                    const anomaly = anomalyDays?.get(cell.dayStart) ?? null;
                     const label = cellLabelOf(cell);
+                    const spoken = anomaly ? `${label}，异常` : label;
+                    const anomalyTitle = anomaly
+                      ? `该日 ${formatTokenCount(anomaly.tokens)} tok，相对前 7 天 z=${
+                          anomaly.z !== null && anomaly.z > 0 ? "+" : ""
+                        }${anomaly.z === null ? "—" : anomaly.z.toFixed(1)}`
+                      : null;
                     return (
                       <td
                         key={week}
@@ -748,8 +762,8 @@ export function UsageCalendarPanel({
                           data-probe="calendar-day"
                           data-cal-level={cell.level}
                           data-sessions={cell.sessions}
-                          title={label}
-                          aria-label={label}
+                          title={anomalyTitle ? `${label} · ${anomalyTitle}` : label}
+                          aria-label={spoken}
                           {...(cell.sessions > 0
                             ? { "aria-expanded": isSelected }
                             : {})}
@@ -758,6 +772,13 @@ export function UsageCalendarPanel({
                           onKeyDown={(event) => onGridKeyDown(event, cell.dayStart)}
                         >
                           <span className={styles.daySwatch} aria-hidden="true" />
+                          {anomaly ? (
+                            <span
+                              className={styles.anomalyDot}
+                              title={anomalyTitle ?? undefined}
+                              aria-hidden="true"
+                            />
+                          ) : null}
                         </button>
                       </td>
                     );

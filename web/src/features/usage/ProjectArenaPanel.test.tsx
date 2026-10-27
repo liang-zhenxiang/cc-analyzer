@@ -1,6 +1,10 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import type { ReactNode } from "react";
+import { describe, expect, it, vi } from "vitest";
+import { BridgesProvider } from "../../api/bridges";
+import type { Bridges } from "../../api/types";
+import { NotificationProvider } from "../../app/NotificationProvider";
 import type { SessionRecord, SessionUsage } from "../sessions/types";
 import { ProjectArenaPanel } from "./ProjectArenaPanel";
 import type { UsageSessionInput, UsageSlice } from "./usageAggregations";
@@ -97,6 +101,20 @@ const PROJECTS: UsageSlice[] = [
   { label: GAMMA, value: 50_000 }
 ];
 
+/**
+ * 卡头从 Round EE 起有「导出 CSV」按钮（E5），渲染期就要取 bridges 与 toast：
+ * 这里补一个只有 `dialog.saveText` 的最小桥，本文件其余断言与它无关。
+ */
+const csvBridges = {
+  dialog: { saveText: vi.fn(async () => "/tmp/projects.csv") }
+} as unknown as Bridges;
+
+const wrapper = ({ children }: { children: ReactNode }) => (
+  <NotificationProvider>
+    <BridgesProvider bridges={csvBridges}>{children}</BridgesProvider>
+  </NotificationProvider>
+);
+
 function renderPanel(
   overrides: Partial<{
     inputs: UsageSessionInput[];
@@ -111,7 +129,8 @@ function renderPanel(
       data={overrides.data ?? DATA}
       projects={overrides.projects ?? PROJECTS}
       now={NOW}
-    />
+    />,
+    { wrapper }
   );
 }
 

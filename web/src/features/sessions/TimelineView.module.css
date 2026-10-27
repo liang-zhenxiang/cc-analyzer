@@ -1,0 +1,240 @@
+/* 会话内时间轴（E3）。几何与 §3.2 一一对应：
+   168 = 12(上距) + 96(水位) + 8 + 16(刻度) + 12(下距) + 24(底部读数行)。
+
+   与重放的区隔是硬规则（规格 §3.3 / R4）：
+   - 只用 --chart-1（水位）与 --text-tertiary / --text-faint（刻度、轴）；
+     不用类别色——类型编码留给重放，两根轴不抢同一个通道。
+   - 手柄是 14×6 圆角矩形骑在 3px 竖线上（重放是 4px 圆点 + 2px 线）。
+   - 底部读数行的类名与重放的计数行完全不共用。
+   .film / .lane / .playhead 是重放的类名，这里一个都不许出现。 */
+
+.view {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  gap: var(--sp-2);
+}
+
+/* ── 主体：当时的记录 ───────────────────────────────────────── */
+
+.records {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--sp-1);
+  overflow: auto;
+}
+
+.recordsTitle {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: var(--lh-xs);
+}
+
+.recordsEmpty {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.recordsList {
+  display: flex;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  flex-direction: column;
+  gap: var(--sp-05);
+  list-style: none;
+}
+
+/* 行是按钮：点一条就跳到日志视图的那一行。版式上是密集读数，
+   所以描边只在 hover/focus 时出现（与页头读数行同一套「台阶」语言）。 */
+.recordRow {
+  display: grid;
+  min-width: 0;
+  width: 100%;
+  align-items: baseline;
+  gap: var(--sp-2);
+  grid-template-columns: 64px minmax(64px, 120px) minmax(0, 1fr);
+  padding: var(--sp-05) var(--sp-1);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-hover) var(--ease-in-out),
+    background-color var(--dur-hover) var(--ease-in-out);
+}
+
+.recordRow:hover:not(:disabled),
+.recordRow:focus-visible {
+  border-color: var(--border);
+  background: var(--bg-hover);
+}
+
+.recordRow:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
+.recordRow:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-inset);
+}
+
+.recordTime {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.recordLabel {
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recordSummary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 轴：168px，固定贴底 ───────────────────────────────────── */
+
+.ruler {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  /* 12(上距) + 96 + 8 + 16 + 12 + 24 = 168 */
+  height: 168px;
+  padding: var(--sp-3) 0 0;
+  border-top: 1px solid var(--border);
+  box-sizing: border-box;
+}
+
+.track {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  touch-action: none;
+  /* 手柄可能在两端，留出半只手柄的横向余量，避免贴边时被裁掉一半。 */
+  padding: 0 var(--sp-15);
+  cursor: pointer;
+}
+
+.track:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-inset);
+}
+
+.waterline {
+  position: relative;
+  height: 96px;
+  margin: 0 calc(-1 * var(--sp-15));
+}
+
+.waterChart {
+  display: block;
+  width: 100%;
+  height: 96px;
+}
+
+.waterLine {
+  fill: none;
+  stroke: var(--chart-1);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  /* 容器是 100 单位宽拉伸到全宽，线宽不跟着拉横：非缩放的 1.5px。 */
+  vector-effect: non-scaling-stroke;
+}
+
+/* 3px 竖线：手柄的位置刻度。比重放的 2px 线粗一档，形状语义也跟着不同。 */
+.stem {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  transform: translateX(-50%);
+  background: var(--text-faint);
+  pointer-events: none;
+}
+
+/* 14×6 圆角矩形（--r-xs）：骑在竖线上，不是圆点。 */
+.handle {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 6px;
+  transform: translate(-50%, -50%);
+  border-radius: var(--r-xs);
+  background: var(--chart-1);
+  box-shadow: 0 0 0 1px var(--bg-subtle);
+  pointer-events: none;
+}
+
+/* 刻度行：起 / 中 / 末三点，16px 高。 */
+.ticks {
+  display: flex;
+  justify-content: space-between;
+  height: 16px;
+  margin: var(--sp-2) calc(-1 * var(--sp-15)) 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 没有采样点时替水位折线说一句实话。 */
+.waterNote {
+  display: flex;
+  height: 96px;
+  margin: 0;
+  align-items: center;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+/* 底部读数行：`14:32:07 · 第 37 条记录 · 上下文 78,412 / 100,000`。
+   只在时间轴存在，与重放的「片长 60 秒 · 约 63×」不共用 class。 */
+.snapshot {
+  display: flex;
+  height: 24px;
+  margin: var(--sp-3) 0 0;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--text-tertiary);
+  /* 规格 §3.3 第 3 条指定 --fs-base：这一行是「读数」不是「说明」，
+     放大半档才配得上它承载的三个事实（时刻 / 条数 / 水位）。 */
+  font-size: var(--fs-base);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.dot {
+  color: var(--text-faint);
+}
+
+/* 零跨度：整块退化为一行诚实文案（§6 的空态）。 */
+.rulerNote {
+  flex: none;
+  margin: 0;
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--border);
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}

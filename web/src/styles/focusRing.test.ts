@@ -106,27 +106,25 @@ describe("焦点环的几何只走令牌", () => {
    *   Round Y 的里程碑补 1 条：首次 / 记录类的证据行（整行按钮，全宽控件，负偏移）；
    *   Round Z 的监控台补 1 条：项目行与事件行共用一个 `:focus-visible` 规则
    *   （同一套全宽控件画法，负偏移）；
-   * - `outline-offset: var(--focus-ring-offset)` 18 条 = 上面 30 条里偏移为 1px 的那些；
-   * - `outline-offset: var(--focus-ring-inset)` 10 条 = SearchPalette 输入框、
-   *   ChangedFilesView 三条、ErrorEventList 行、时间线整行按钮（全宽控件，正偏移
-   *   的环会被行区的 overflow 裁掉）、脉搏活跃会话行（同上）、Round X 的会话行本体（同上）、
-   *   Round Y 的里程碑证据行（同上）、Round Z 的监控台项目行 / 事件行（同上）、
-   *   Round AA 的重放视图（舞台/胶片带整行控件，全宽，负偏移）；
+   * - `outline-offset: var(--focus-ring-offset)` 24 条；
+   * - `outline-offset: var(--focus-ring-inset)` 19 条（Round EE 的时间轴手柄与
+   *   轨道、CSV 导出按钮、键盘速查卡的滚动区都在这批里）；
    * - 焦点竖条 7 条 = 4 条纯竖条 + 3 条与环并存的竖条。
-   * 所以消费了令牌的规则共 43 条（39 条 outline 规则 + 4 条纯竖条）；Round CC 的
-   * 命令面板补 1 条（输入框，正偏移 1px，与全局搜索同款）。
+   * Round EE 合入后统一重数（工作区并行改动全部落定）：环宽度 46、偏移 24 + 19、
+   * 消费规则 50。注：`grep -ro ... | wc -l` 会把多规则文件按行累计出 48/25/20，
+   * 那是行数不是规则数——重数以本测试的口径（注释剥离后的规则体匹配）为准。
    */
-  it("令牌被 46 条规则消费，环宽度 42 处、偏移 23 + 16 处、焦点竖条 7 处", () => {
+  it("令牌被 50 条规则消费，环宽度 46 处、偏移 24 + 19 处、焦点竖条 7 处", () => {
     const count = (pattern: RegExp) => ALL_SOURCE.match(pattern)?.length ?? 0;
     // 只数「消费」的规则：tokens.css 里那几块是**声明**（`--focus-ring-width: 2px;`），
     // 不含 `var(...)`，不能被算进消费方。
     const consumingRules = ALL_RULES.filter((rule) => /var\(--focus-ring-/.test(rule.body));
 
-    expect(count(/outline(?:-width)?:\s*var\(--focus-ring-width\)/g)).toBe(42);
-    expect(count(/outline-offset:\s*var\(--focus-ring-offset\)/g)).toBe(23);
-    expect(count(/outline-offset:\s*var\(--focus-ring-inset\)/g)).toBe(16);
-    expect(count(/inset\s+var\(--focus-ring-width\)\s+0\s+0\s+var\(--accent\)/g)).toBe(7);
-    expect(consumingRules.length).toBe(46);
+    expect(count(/outline(?:-width)?:\s*var\(--focus-ring-width\)/g)).toBe(46);
+    expect(count(/outline-offset:\s*var\(--focus-ring-offset\)/g)).toBe(24);
+    expect(count(/outline-offset:\s*var\(--focus-ring-inset\)/g)).toBe(19);
+    expect(count(/inset\s+var\(--focus-ring-width\)\s+0\s+0\s*var\(--accent\)/g)).toBe(7);
+    expect(consumingRules.length).toBe(50);
   });
 });
 

@@ -1,6 +1,10 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { BridgesProvider } from "../../api/bridges";
+import type { Bridges } from "../../api/types";
+import { NotificationProvider } from "../../app/NotificationProvider";
 import type { ParsedSession, SessionRecord, SessionUsage } from "./types";
 import { CostLedgerView } from "./CostLedgerView";
 
@@ -88,9 +92,24 @@ function mixedRecords(): SessionRecord[] {
   ];
 }
 
+/**
+ * 卡头从 Round EE 起有「导出 CSV」按钮（E5），它渲染期就要取 bridges 与 toast：
+ * 这里补一个只有 `dialog.saveText` 的最小桥，其余接口不参与本文件任何断言。
+ */
+const csvBridges = {
+  dialog: { saveText: vi.fn(async () => "/tmp/ledger.csv") }
+} as unknown as Bridges;
+
+const wrapper = ({ children }: { children: ReactNode }) => (
+  <NotificationProvider>
+    <BridgesProvider bridges={csvBridges}>{children}</BridgesProvider>
+  </NotificationProvider>
+);
+
 function renderView(records: SessionRecord[], onLocateInLog = vi.fn()) {
   const utils = render(
-    <CostLedgerView parsed={parsedOf(records)} onLocateInLog={onLocateInLog} />
+    <CostLedgerView parsed={parsedOf(records)} onLocateInLog={onLocateInLog} />,
+    { wrapper }
   );
   return { ...utils, onLocateInLog };
 }
