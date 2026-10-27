@@ -2071,6 +2071,92 @@ mod gui_probe {
   }
   facts.rounddd = roundddFacts;
 
+  /* 「第三批十功能」（Round EE）：只收事实——趋势叠层与异常 ▲、年报卡、时间轴
+     滑块、健康分、新鲜度、火花线与 CSV 入口的矩形/文本/aria，阈值留在脚本。 */
+  var roundeeFacts = {
+    present: false,
+    trend: null,
+    migration: null,
+    annual: null,
+    timeline: null,
+    health: null,
+    freshness: null,
+    sparklines: 0,
+    csv: null
+  };
+  var roundeeRoot = document.querySelector("[data-probe='trend-overlay']");
+  if (roundeeRoot) {
+    roundeeFacts.present = true;
+    roundeeFacts.trend = {
+      ma: document.querySelectorAll("[data-probe='trend-ma']").length,
+      forecast: document.querySelectorAll("[data-probe='trend-forecast']").length,
+      marks: document.querySelectorAll("[data-probe='anomaly-marks'] > span").length,
+      mark_titles: Array.prototype.map.call(
+        document.querySelectorAll("[data-probe='anomaly-marks'] > span"),
+        function (node) { return node.getAttribute('title') || ''; }
+      ),
+      legend: (document.querySelector("[data-probe='trend-overlay']").parentElement.parentElement.querySelector('p') || {}).textContent || ''
+    };
+  }
+  var migrationRoot = document.querySelector("[data-probe='model-migration']");
+  if (migrationRoot) {
+    roundeeFacts.migration = {
+      bars: migrationRoot.querySelectorAll("[data-probe='migration-bar']").length,
+      gaps: migrationRoot.querySelectorAll("[data-probe='migration-gap']").length,
+      aria: (migrationRoot.querySelector("[role='img']") || {}).getAttribute
+        ? migrationRoot.querySelector("[role='img']").getAttribute('aria-label')
+        : null
+    };
+  }
+  var annualRoot = document.querySelector("[data-probe='year-report']");
+  if (annualRoot) {
+    roundeeFacts.annual = {
+      regions: annualRoot.querySelectorAll("section[aria-label]").length,
+      region_names: Array.prototype.map.call(
+        annualRoot.querySelectorAll("section[aria-label]"),
+        function (node) { return node.getAttribute('aria-label') || ''; }
+      ),
+      text: (annualRoot.textContent || '').slice(0, 120),
+      range_tablist: !!document.querySelector("[role='tablist'][aria-label='时间范围']"),
+      export_snapshot: !!document.querySelector("[title*='导出用量快照']")
+    };
+  }
+  var timelineRoot = document.querySelector("[data-probe='timeline-track']");
+  if (timelineRoot) {
+    var timelineRect = rectOf(timelineRoot);
+    roundeeFacts.timeline = {
+      rect: timelineRect,
+      now: timelineRoot.getAttribute('aria-valuenow'),
+      min: timelineRoot.getAttribute('aria-valuemin'),
+      max: timelineRoot.getAttribute('aria-valuemax'),
+      text: timelineRoot.getAttribute('aria-valuetext')
+    };
+  }
+  var healthRoot = document.querySelector("[aria-label^='健康分']");
+  if (healthRoot) {
+    roundeeFacts.health = {
+      aria: healthRoot.getAttribute('aria-label'),
+      text: (healthRoot.textContent || '').slice(0, 80)
+    };
+  }
+  var freshnessRoot = document.querySelector("[data-probe='data-freshness']");
+  if (freshnessRoot) {
+    roundeeFacts.freshness = {
+      text: (freshnessRoot.textContent || '').trim(),
+      state: freshnessRoot.getAttribute('data-state')
+    };
+  }
+  roundeeFacts.sparklines = document.querySelectorAll("[data-probe='kpi-sparkline']").length;
+  var csvProjects = document.querySelector("[data-probe='csv-export-projects'] button");
+  var csvModels = document.querySelector("[data-probe='csv-export-models'] button");
+  if (csvProjects || csvModels) {
+    roundeeFacts.csv = {
+      projects: csvProjects ? csvProjects.textContent : null,
+      models: csvModels ? csvModels.textContent : null
+    };
+  }
+  facts.roundee = roundeeFacts;
+
   return JSON.stringify(facts);
 })();"##;
 

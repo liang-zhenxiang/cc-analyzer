@@ -565,7 +565,7 @@ describe("UsageOverviewPage", () => {
     expect(pageSource).not.toMatch(/\battributeQuota\s*\(/);
   });
 
-  it("分段项是「用量 | 里程碑 | 错误」；里程碑档吃同一份扫描、且不渲染时间范围控件", async () => {
+  it("分段项是「用量 | 里程碑 | 错误 | 年报」；里程碑档吃同一份扫描、且不渲染时间范围控件", async () => {
     const bridges = createUsageBridges({
       [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 6 * 3_600_000),
       [`${PROJECTS_ROOT}/-repo-alpha/bbb.jsonl`]: sessionJsonl("b2", "claude-sonnet-4-5-20250929", 5 * 3_600_000)
@@ -576,7 +576,7 @@ describe("UsageOverviewPage", () => {
 
     // 顺序即契约（R1）：视图身份在前，三档并列。
     const viewTabs = within(screen.getByRole("tablist", { name: "总览视图" })).getAllByRole("tab");
-    expect(viewTabs.map((tab) => tab.textContent)).toEqual(["用量", "里程碑", "错误"]);
+    expect(viewTabs.map((tab) => tab.textContent)).toEqual(["用量", "里程碑", "错误", "年报"]);
     // 区间控件与扫描进度行两档共用；里程碑档把它撤掉（摆一个不起作用的控件更坏）。
     expect(screen.getByRole("tablist", { name: "时间范围" })).toBeInTheDocument();
 
@@ -589,6 +589,36 @@ describe("UsageOverviewPage", () => {
     expect(screen.queryByRole("tablist", { name: "时间范围" })).toBeNull();
     // 进度行按档分叉（右簇位置不动）。
     expect(screen.getByText("全部 2 个已扫描会话纳入统计")).toBeInTheDocument();
+  });
+
+  it("年报档（E4）：第 4 档渲染整年卡片、隐藏时间范围控件、不新增 I/O", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 3_600_000)
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+    const readDir = vi.mocked(bridges.fs.readDir);
+    await waitFor(() => expect(readDir).toHaveBeenCalled());
+    const before = readDir.mock.calls.length;
+
+    await userEvent.click(screen.getByRole("tab", { name: "年报" }));
+
+    // 年度探针 = 整档的落点；六张卡在场（数据来自同一份全历史 inputs）。
+    const report = await waitFor(() => {
+      const node = document.querySelector('[data-probe="year-report"]');
+      if (node === null) throw new Error("年报还没渲染");
+      return node as HTMLElement;
+    });
+    expect(within(report).getAllByRole("region")).toHaveLength(6);
+    // 「近 N 天」对年报不生效——控件撤掉，而不是摆着不管用。
+    expect(screen.queryByRole("tablist", { name: "时间范围" })).toBeNull();
+    // 进度行按档分叉，说清是全历史口径。
+    expect(screen.getByText("全部 1 个已扫描会话纳入年度统计")).toBeInTheDocument();
+    // 年报不导出（规格 §10.3）：快照按钮只在用量档。
+    expect(screen.queryByRole("button", { name: /导出用量快照/ })).toBeNull();
+    // 切档不触发重扫（R1）。
+    expect(readDir.mock.calls.length).toBe(before);
   });
 
   it("里程碑档不新增 I/O：切档前后扫描次数不变（R1）", async () => {

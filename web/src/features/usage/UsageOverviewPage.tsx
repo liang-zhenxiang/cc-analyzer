@@ -24,6 +24,7 @@ import { buildActivityClock } from "./activityClock";
 import { buildFlowDiagram } from "./flowDiagram";
 import { FlowDiagramPanel } from "./FlowDiagramPanel";
 import { MilestonesPanel } from "./MilestonesPanel";
+import { AnnualReportPanel } from "./AnnualReportPanel";
 import { milestonesOf } from "./milestones";
 import { toolCensus } from "./toolCensus";
 import { ToolCensusPanel } from "./ToolCensusPanel";
@@ -64,15 +65,19 @@ type UsageRange = (typeof RANGE_OPTIONS)[number];
 
 /**
  * 页内子视图（N1 / Round Y）：缺省仍是「用量」——错误分析与里程碑都是显式选择，
- * 首屏不被垄断。三档共用同一次扫描（里程碑吃同一份全历史 `inputs`，零新增 I/O）。
+ * 首屏不被垄断。四档共用同一次扫描（里程碑与年报都吃同一份全历史 `inputs`，
+ * 零新增 I/O）。
  */
 const VIEW_KEY = "cca-usage-view";
-type UsageView = "usage" | "milestones" | "errors";
+type UsageView = "usage" | "milestones" | "errors" | "annual";
 
 const VIEW_ITEMS: SegmentedItem<UsageView>[] = [
   { value: "usage", label: "用量" },
   { value: "milestones", label: "里程碑" },
-  { value: "errors", label: "错误" }
+  { value: "errors", label: "错误" },
+  // 年报排最后：前两档都是「这一年/这一窗口的读数」，年报是「回看整段」，
+  // 它需要一个年度的上下文才读得懂，所以不插在中间。
+  { value: "annual", label: "年报" }
 ];
 
 const RANGE_ITEMS: SegmentedItem<string>[] = RANGE_OPTIONS.map((option) => ({
@@ -103,6 +108,7 @@ function readStoredView(): UsageView {
     const stored = localStorage.getItem(VIEW_KEY);
     if (stored === "errors") return "errors";
     if (stored === "milestones") return "milestones";
+    if (stored === "annual") return "annual";
   } catch {
     // See readStoredRange: persistence is optional.
   }
@@ -538,9 +544,9 @@ export function UsageOverviewPage({
             onChange={setView}
             ariaLabel="总览视图"
           />
-          {/* 里程碑的口径是**全历史**（R2），「近 N 天」对它没有任何作用；摆一个
-              不起作用的控件比缺一个控件更坏——用户会以为数字受它影响。 */}
-          {view !== "milestones" ? (
+          {/* 里程碑（R2）与年报（E4）的口径都是**全历史**，「近 N 天」对它们没有
+              任何作用；摆一个不起作用的控件比缺一个控件更坏——用户会以为数字受它影响。 */}
+          {view !== "milestones" && view !== "annual" ? (
             <SegmentedControl
               items={RANGE_ITEMS}
               value={String(days)}
@@ -568,7 +574,9 @@ export function UsageOverviewPage({
               ? `已分析 ${progress.done} / ${progress.total} 个会话`
               : view === "milestones"
                 ? `全部 ${milestoneReport.facts.sessionCount} 个已扫描会话纳入统计`
-                : `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计`}
+                : view === "annual"
+                  ? `全部 ${milestoneReport.facts.sessionCount} 个已扫描会话纳入年度统计`
+                  : `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计`}
             {skipped > 0 ? ` · ${skipped} 个会话读取失败已跳过` : ""}
           </span>
           {view === "usage" ? (
@@ -601,6 +609,11 @@ export function UsageOverviewPage({
           projectPaths={projectPaths}
           onRevealRecord={onRevealRecord}
         />
+      ) : view === "annual" ? (
+        /* 用量年报（E4）：吃同一份全历史 inputs、同一次扫描，零新增 I/O。
+           窗口控件在这一档隐藏——年报的窗口是「那一年」，页头的「近 N 天」
+           对它不生效，摆一个不起作用的控件比缺一个控件更坏。 */
+        <AnnualReportPanel inputs={inputs} />
       ) : view === "milestones" ? (
         /* 里程碑（Round Y）：同一份全历史 inputs、同一次扫描，零新增 I/O。
            `onOpenSession` 缺省（单测直挂页面）时不传，入口退成静态行而不是空按钮。 */
