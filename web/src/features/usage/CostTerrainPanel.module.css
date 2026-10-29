@@ -1,0 +1,99 @@
+/* F2「成本地形」：720×300 的 7×24 热力格。色阶只借 --cal-1..4 + --bg-inset；
+   结构线走 --border / --border-strong，等高线是「承载数据的线」但仍属结构
+   （它切的是同一格数据，不是另一个系列），因此用 --border-strong。 */
+
+.scope {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* 格间 2px 缝由几何留出（见 costTerrain.ts），这里只负责悬停描边与过渡。
+   普通档不描边：168 格都描边会把色块阵列变成表格。 */
+.cell {
+  stroke: transparent;
+  stroke-width: 1px;
+  transition: stroke var(--dur-hover) var(--ease-out);
+}
+
+.cellHovered {
+  stroke: var(--text-secondary);
+}
+
+.contour {
+  stroke: var(--border-strong);
+  stroke-width: 1px;
+}
+
+.contourLabel {
+  fill: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  paint-order: stroke;
+  stroke: var(--bg-subtle);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.peak {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.5px;
+}
+
+.peakLabel {
+  fill: var(--text);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  paint-order: stroke;
+  stroke: var(--bg-subtle);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.hourLabel,
+.weekdayLabel,
+.legendText {
+  fill: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.legendEmpty {
+  fill: var(--bg-inset);
+  stroke: var(--border-strong);
+  stroke-width: 1px;
+}
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 高对比度：每格 1px 实线描边（纯白/纯黑上相邻档会塌缩），等高线提到正文色。 */
+:global([data-contrast="high"]) .cell {
+  stroke: var(--border);
+}
+
+:global([data-contrast="high"]) .cellHovered {
+  stroke: var(--text);
+}
+
+:global([data-contrast="high"]) .contour {
+  stroke: var(--text);
+}

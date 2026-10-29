@@ -11,6 +11,7 @@ import {
   roundCCAlphaPath,
   roundDDScenario,
   roundEEScenario,
+  roundFFScenario,
   errorScenario,
   changedFilesScenario,
   calendarScenario,
@@ -185,6 +186,17 @@ const V_TIMELINE = declareView("timeline");
 const V_SESSION_HEALTH = declareView("session-health");
 const V_SHORTCUTS = declareView("shortcuts");
 const V_MIGRATION = declareView("migration");
+// 第四批十功能（Round FF）· 数据实验室：十张卡各出一张
+const V_LAB_GALAXY = declareView("lab-galaxy");
+const V_LAB_TERRAIN = declareView("lab-terrain");
+const V_LAB_HALL = declareView("lab-hall");
+const V_LAB_FLAME = declareView("lab-flame");
+const V_LAB_SANDBOX = declareView("lab-sandbox");
+const V_LAB_NETWORK = declareView("lab-network");
+const V_LAB_FOOTPRINT = declareView("lab-footprint");
+const V_LAB_HEARTBEAT = declareView("lab-heartbeat");
+const V_LAB_RUNWAY = declareView("lab-runway");
+const V_LAB_SCATTER = declareView("lab-scatter");
 
 /** 主题在 ThemeProvider 初始化时读 localStorage，所以要在页面脚本之前埋好。 */
 async function useTheme(page: Page, theme: "light" | "dark") {
@@ -1125,6 +1137,72 @@ test.describe("截图归档 · Round EE 十功能", () => {
       await expect(page.locator("[data-probe='shortcut-sheet']")).toBeVisible();
       await page.waitForTimeout(200);
       await shot(V_SHORTCUTS);
+    });
+  }
+});
+
+// 第四批十功能（Round FF）· 数据实验室：十张卡逐卡出图。
+//
+// 实验室是第 5 个子视图，十张卡吃同一份 `roundFFScenario()`（5 个项目、24 个
+// 会话、三种已定价模型 + 一个未定价模型、六种工具、两个共享路径）。这里按
+// `data-lab-card` 逐卡取**元素截图**：卡高差异很大（星系 300 viewBox、心跳
+// 140），整页截图只会把每张卡压成一条；逐卡取图才能让归档里每张图都读得清。
+// 预算必须埋在 init script 里，否则跑道截图只有「未设周预算」的空态。
+test.describe("截图归档 · 实验室", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: roundFFScenario() });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  const LAB_SHOTS: ReadonlyArray<readonly [string, string]> = [
+    ["galaxy", V_LAB_GALAXY],
+    ["terrain", V_LAB_TERRAIN],
+    ["hall", V_LAB_HALL],
+    ["flame", V_LAB_FLAME],
+    ["sandbox", V_LAB_SANDBOX],
+    ["network", V_LAB_NETWORK],
+    ["footprint", V_LAB_FOOTPRINT],
+    ["heartbeat", V_LAB_HEARTBEAT],
+    ["runway", V_LAB_RUNWAY],
+    ["scatter", V_LAB_SCATTER]
+  ];
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`实验室 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+
+      await page.addInitScript(() => {
+        localStorage.setItem(
+          "cca-billing-plan",
+          JSON.stringify({
+            id: "max5",
+            customLimitTokens: 88_000,
+            customWeeklyLimitTokens: 500_000
+          })
+        );
+      });
+
+      await page.goto("/");
+      await page.getByRole("tab", { name: "用量总览", exact: true }).click();
+      await expect(page.locator("[data-probe='usage-progress']")).toBeVisible({ timeout: 15_000 });
+      await page.getByRole("tab", { name: "实验室", exact: true }).click();
+      await expect(page.getByText(/纳入统计 · 10 个视角/)).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("[data-lab-card]")).toHaveCount(10);
+
+      for (const [card, view] of LAB_SHOTS) {
+        const locator = page.locator(`[data-lab-card="${card}"]`);
+        // 元素截图会让 Playwright 自己滚动到可见；等一拍让布局与 SVG 稳定。
+        await locator.evaluate((element) => element.scrollIntoView({ block: "center" }));
+        await page.waitForTimeout(250);
+        await locator.screenshot({
+          path: path.join(OUT_DIR, `${view}-${theme}${suffix}.png`)
+        });
+      }
     });
   }
 });

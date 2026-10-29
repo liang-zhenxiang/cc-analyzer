@@ -1,0 +1,138 @@
+/* 项目文件足迹（F7）。
+   节点类型靠形状 + 列位置 + 颜色三重区分；两类节点不共用图表系列色。
+   边是承载数据的线：--text-tertiary（≥3:1），不是结构用的 --border。 */
+
+.root {
+  min-width: 0;
+}
+
+.scope {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.edge {
+  stroke: var(--text-tertiary);
+  stroke-opacity: 0.7;
+  transition: stroke-opacity var(--dur-hover) var(--ease-out);
+}
+
+.edgeDim {
+  stroke-opacity: 0.12;
+}
+
+.projectNode {
+  cursor: default;
+}
+
+.projectCircle {
+  fill: var(--chart-1);
+  stroke: var(--bg-subtle);
+  stroke-width: 1;
+}
+
+.projectLabel {
+  fill: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.fileNode {
+  cursor: default;
+}
+
+.fileSquare {
+  fill: var(--bg-inset);
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+
+.fileLabel {
+  fill: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.nodeDim {
+  opacity: 0.35;
+}
+
+.listTitle {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: var(--lh-xs);
+}
+
+.shared {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-05);
+  margin: var(--sp-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sharedRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.sharedPath {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sharedCount {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.emptyNote {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 高对比度：方块描边加粗、边实色；项目圆加一圈底色外环，避免与边糊在一起。 */
+:global([data-contrast="high"]) .fileSquare {
+  stroke-width: 2;
+}
+
+:global([data-contrast="high"]) .edge {
+  stroke: var(--text-secondary);
+  stroke-opacity: 1;
+}
+
+:global([data-contrast="high"]) .edgeDim {
+  stroke-opacity: 0.3;
+}
+
+:global([data-contrast="high"]) .projectCircle {
+  stroke: var(--bg);
+  stroke-width: 2;
+}
+
+:global([data-contrast="high"]) .nodeDim {
+  opacity: 0.55;
+}

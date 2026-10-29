@@ -565,7 +565,7 @@ describe("UsageOverviewPage", () => {
     expect(pageSource).not.toMatch(/\battributeQuota\s*\(/);
   });
 
-  it("分段项是「用量 | 里程碑 | 错误 | 年报」；里程碑档吃同一份扫描、且不渲染时间范围控件", async () => {
+  it("分段项是「用量 | 里程碑 | 错误 | 年报 | 实验室」；里程碑档吃同一份扫描、且不渲染时间范围控件", async () => {
     const bridges = createUsageBridges({
       [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 6 * 3_600_000),
       [`${PROJECTS_ROOT}/-repo-alpha/bbb.jsonl`]: sessionJsonl("b2", "claude-sonnet-4-5-20250929", 5 * 3_600_000)
@@ -574,9 +574,15 @@ describe("UsageOverviewPage", () => {
     renderPage(bridges);
     await screen.findByRole("region", { name: "用量总览" });
 
-    // 顺序即契约（R1）：视图身份在前，三档并列。
+    // 顺序即契约（R1）：视图身份在前，四档并列；实验室是「读法的集合」，排最后。
     const viewTabs = within(screen.getByRole("tablist", { name: "总览视图" })).getAllByRole("tab");
-    expect(viewTabs.map((tab) => tab.textContent)).toEqual(["用量", "里程碑", "错误", "年报"]);
+    expect(viewTabs.map((tab) => tab.textContent)).toEqual([
+      "用量",
+      "里程碑",
+      "错误",
+      "年报",
+      "实验室"
+    ]);
     // 区间控件与扫描进度行两档共用；里程碑档把它撤掉（摆一个不起作用的控件更坏）。
     expect(screen.getByRole("tablist", { name: "时间范围" })).toBeInTheDocument();
 
@@ -619,6 +625,42 @@ describe("UsageOverviewPage", () => {
     expect(screen.queryByRole("button", { name: /导出用量快照/ })).toBeNull();
     // 切档不触发重扫（R1）。
     expect(readDir.mock.calls.length).toBe(before);
+  });
+
+  it("实验室档（Round FF）：十张卡都在、区间控件保留、进度行写明 10 个视角", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 3_600_000)
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+
+    await userEvent.click(screen.getByRole("tab", { name: "实验室" }));
+
+    // 第 5 档、排最后；实验室自己承担页头（h2 + 口径），十张卡各带截图定位属性。
+    expect(await screen.findByRole("region", { name: "数据实验室" })).toBeInTheDocument();
+    expect(document.querySelectorAll("[data-lab-card]")).toHaveLength(10);
+    // 9 张卡吃「近 N 天」，所以区间控件必须留着（不是里程碑那种全历史档）。
+    expect(screen.getByRole("tablist", { name: "时间范围" })).toBeInTheDocument();
+    expect(screen.getByText(/纳入统计 · 10 个视角/)).toBeInTheDocument();
+    // 快照只描述「用量」那一档，实验室不导出。
+    expect(screen.queryByRole("button", { name: /导出用量快照/ })).toBeNull();
+    expect(localStorage.getItem("cca-usage-view")).toBe("lab");
+  });
+
+  it("readStoredView 认得 lab：刷新后仍停在实验室档", async () => {
+    window.localStorage.setItem("cca-usage-view", "lab");
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 3_600_000)
+    });
+
+    renderPage(bridges);
+
+    expect(await screen.findByRole("region", { name: "数据实验室" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "实验室" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
   });
 
   it("里程碑档不新增 I/O：切档前后扫描次数不变（R1）", async () => {
@@ -792,10 +834,14 @@ describe("UsageOverviewPage", () => {
     expect(freshness).not.toBeNull();
     // 扫描期间徽章写「刷新中…（上次 HH:MM）」；扫描结束才报「数据截至」。
     // waitFor 内部重试到扫描落定，两种文案都合法终态。
-    await waitFor(() =>
-      expect(freshness?.textContent).toMatch(
-        /^(数据截至 \d{2}:\d{2}（\d+ 分钟前）|刷新中…（上次 \d{2}:\d{2}）|暂无数据)$/
-      )
+    // 全量并行跑单测时，11 个会话的渐进扫描可能超过 waitFor 的默认 1 秒；
+    // 这里明确等到扫描落定，避免把 CPU 争用误报成「文案不对」。
+    await waitFor(
+      () =>
+        expect(freshness?.textContent).toMatch(
+          /^(数据截至 \d{2}:\d{2}（\d+ 分钟前）|刷新中…（上次 \d{2}:\d{2}）|暂无数据)$/
+        ),
+      { timeout: 5_000 }
     );
 
     // E1 叠层：默认 30 天窗口 → 均线与外推都够数据（判定按窗口天数，

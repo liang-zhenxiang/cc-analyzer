@@ -1,0 +1,132 @@
+/* 成本沙盘（F4）：三根推杆 + 五柱瀑布。
+   颜色只区分「实测 vs 假设」——现状柱中性、推演柱单一色相；不引入「省钱绿」。 */
+
+.root {
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.readoutItem {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+}
+
+.readoutLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.readoutValue {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: var(--lh-md);
+}
+
+.arrow {
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+}
+
+/* 假设标签必须常显：只看颜色分不清哪根是读数、哪根是推演。 */
+.assumptionTag {
+  margin-left: auto;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+.sliders {
+  display: flex;
+  flex-direction: column;
+}
+
+.sliderRow {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 56px;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 44px;
+}
+
+/* 130%：文字变大，控件行跟着加高；滑杆本身不缩。 */
+.comfortable .sliderRow {
+  height: 52px;
+}
+
+.sliderLabel {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.range {
+  width: 100%;
+  margin: 0;
+}
+
+.sliderValue {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-sm);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* 现状 = 读出来的数：中性面 + 边框。 */
+.baselineBar {
+  fill: var(--bg-inset);
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+
+/* 推演 = 单一色相，不按好/坏上色。 */
+.hypotheticalBar {
+  fill: var(--chart-1-soft);
+  stroke: var(--chart-1);
+  stroke-width: 1;
+}
+
+.valueText {
+  fill: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-xs);
+}
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 高对比度：把「面」换成「边界」——现状柱 2px 边框，推演柱 2px 描边。 */
+:global([data-contrast="high"]) .baselineBar {
+  stroke-width: 2;
+}
+
+:global([data-contrast="high"]) .hypotheticalBar {
+  stroke-width: 2;
+}

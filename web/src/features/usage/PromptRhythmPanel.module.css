@@ -1,0 +1,153 @@
+/* F10 提示词节奏：间隔 × 字数的对数散点。
+   项目是本卡内部的系列，颜色只来自 --chart-1..6；第 7 名及以后用中性
+   --text-faint（不参与色板循环——两个项目撞色会被读成同一个项目）。
+   中位十字是「读数线」，用 --text-tertiary；结构网格走 --border。 */
+
+.scope {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.point {
+  fill-opacity: 0.85;
+}
+
+.series1 {
+  fill: var(--chart-1);
+}
+
+.series2 {
+  fill: var(--chart-2);
+}
+
+.series3 {
+  fill: var(--chart-3);
+}
+
+.series4 {
+  fill: var(--chart-4);
+}
+
+.series5 {
+  fill: var(--chart-5);
+}
+
+.series6 {
+  fill: var(--chart-6);
+}
+
+.other {
+  fill: var(--text-faint);
+}
+
+.medianLine {
+  stroke: var(--text-tertiary);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.medianLabel {
+  fill: var(--text-secondary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: var(--control-h-sm);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+
+.legendItem[aria-pressed="false"] {
+  opacity: 0.45;
+}
+
+.legendItem:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.legendCount {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.swatch {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* 图例色块是圆点（与散点同形），用背景色画，不用 fill。 */
+.series1.swatch {
+  background: var(--chart-1);
+}
+
+.series2.swatch {
+  background: var(--chart-2);
+}
+
+.series3.swatch {
+  background: var(--chart-3);
+}
+
+.series4.swatch {
+  background: var(--chart-4);
+}
+
+.series5.swatch {
+  background: var(--chart-5);
+}
+
+.series6.swatch {
+  background: var(--chart-6);
+}
+
+.other.swatch {
+  background: var(--text-faint);
+}
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.reason {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 高对比度：中位线提到 --text-secondary，点加一圈底色描边，避免与网格糊在一起。 */
+:global([data-contrast="high"]) .medianLine {
+  stroke: var(--text-secondary);
+}
+
+:global([data-contrast="high"]) .point {
+  stroke: var(--bg);
+  stroke-width: 0.6;
+  fill-opacity: 1;
+}

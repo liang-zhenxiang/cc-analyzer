@@ -1,0 +1,128 @@
+/* 每周预算跑道（F9）。
+   单色相：实际 = --chart-1（大面积只用 -soft），预算 = --ink，预测 = 虚线
+   --text-secondary。超预算不着红——--danger 的语义是「确定的错误」。 */
+
+.root {
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.chip {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+.area {
+  fill: var(--chart-1-soft);
+}
+
+.actualLine {
+  fill: none;
+  stroke: var(--chart-1);
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
+.budgetLine {
+  stroke: var(--ink);
+  stroke-width: 1;
+}
+
+.budgetLabel {
+  fill: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 虚线 = 推算，与趋势外推同一语汇。 */
+.prediction {
+  fill: none;
+  stroke: var(--text-secondary);
+  stroke-dasharray: 4 3;
+  stroke-width: 1.5;
+}
+
+.predictionEnd {
+  fill: none;
+  stroke: var(--text-secondary);
+  stroke-width: 1.5;
+}
+
+.speedMarker {
+  fill: var(--text-secondary);
+}
+
+.speedLabel {
+  fill: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.readouts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+/* 130%：四格折成 2×2，数字不缩。 */
+.comfortable {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.readout {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-05);
+}
+
+.readoutLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.readoutValue {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: var(--lh-md);
+}
+
+.status {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 高对比度：三条线全部加粗；实际线仍用实色。 */
+:global([data-contrast="high"]) .budgetLine {
+  stroke-width: 2;
+}
+
+:global([data-contrast="high"]) .prediction {
+  stroke-width: 2;
+}
+
+:global([data-contrast="high"]) .actualLine {
+  stroke-width: 2;
+}

@@ -48,6 +48,16 @@
     "timeline",
     "shortcuts",
     "migration",
-    "session-health"
+    "session-health",
+    "lab-galaxy",
+    "lab-terrain",
+    "lab-hall",
+    "lab-flame",
+    "lab-sandbox",
+    "lab-network",
+    "lab-footprint",
+    "lab-heartbeat",
+    "lab-runway",
+    "lab-scatter"
   ]
 }

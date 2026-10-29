@@ -3,6 +3,7 @@ import type { SessionMeta } from "../sessions/metadataCache";
 import { tokenTotalsOf } from "../sessions/tokenTotals";
 import type { ErrorSessionFacts } from "./errorStats";
 import type { ToolCallFact } from "./toolCensus";
+import type { FileFact } from "./projectFootprint";
 
 /**
  * Pure aggregation over parsed sessions: the usage dashboard's whole data
@@ -77,6 +78,14 @@ export type UsageSessionInput = {
    * sidechain 行，只吃 records 的聚合会低估近一半).
    */
   toolCalls?: readonly ToolCallFact[];
+  /**
+   * File touch facts (F7) with sidechain merged in — same precedent as
+   * `toolCalls`: this aggregate ignores them; the windowed `projectFootprint`
+   * reads them separately. 提取走 `extractFileActivities`（与「改动文件」同一
+   * 口径），而不是从 `records` 重新推导——否则两处会对「这个项目动过哪些
+   * 文件」给出不同答案。
+   */
+  fileFacts?: readonly FileFact[];
   /**
    * The scan's `SessionMeta` for this session, when the input came from a real
    * scan (hand-built fakes in tests omit it). The compaction panel's top-3 rows

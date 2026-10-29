@@ -1,0 +1,178 @@
+/* 工具生态网络（F6）。
+   线的分工：承载数据的边用 --text-tertiary（≥3:1），不是 --border-strong——
+   后者 14% 半透明在深色下读不出来。节点单色相，不用 --cat-* 标工具类型。 */
+
+.root {
+  min-width: 0;
+}
+
+.scope {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.edge {
+  stroke: var(--text-tertiary);
+  stroke-opacity: 0.55;
+  transition:
+    stroke-opacity var(--dur-hover) var(--ease-out),
+    stroke-width var(--dur-hover) var(--ease-out);
+}
+
+.edgeActive {
+  stroke-opacity: 1;
+}
+
+.edgeDim {
+  stroke-opacity: 0.08;
+}
+
+.node {
+  cursor: pointer;
+}
+
+.nodeCircle {
+  fill: var(--chart-1-soft);
+  stroke: var(--chart-1);
+  stroke-width: 1.5;
+  transition: opacity var(--dur-hover) var(--ease-out);
+}
+
+/* 调用最多的枢纽：描边加粗，不换颜色。 */
+.hub .nodeCircle {
+  stroke-width: 2;
+}
+
+.nodeActive .nodeCircle,
+.nodeSelected .nodeCircle {
+  stroke: var(--ink);
+  stroke-width: 2.5;
+}
+
+.nodeDim {
+  opacity: 0.35;
+}
+
+.nodeNeighbor .nodeLabel {
+  font-weight: 600;
+}
+
+.nodeLabel {
+  fill: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.listHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.listTitle {
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: var(--lh-xs);
+}
+
+.filterHint {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.filterStatus {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.clear {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.clear:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.pairs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-05);
+  margin: var(--sp-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pair {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.pairTools {
+  overflow: hidden;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pairCount {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.emptyNote {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 高对比度：边改实色 --text-secondary、opacity 1；节点与标签加边。 */
+:global([data-contrast="high"]) .edge {
+  stroke: var(--text-secondary);
+  stroke-opacity: 1;
+}
+
+:global([data-contrast="high"]) .edgeDim {
+  stroke-opacity: 0.25;
+}
+
+:global([data-contrast="high"]) .nodeCircle {
+  stroke-width: 2;
+}
+
+:global([data-contrast="high"]) .nodeLabel {
+  fill: var(--text);
+}
+
+:global([data-contrast="high"]) .nodeDim {
+  opacity: 0.55;
+}

@@ -246,6 +246,47 @@ describe("useUsageOverview", () => {
     expect(second.result.current.inputs[0]?.toolCalls).toHaveLength(1);
   });
 
+  it("mounts fileFacts on every input, including cache-served mounts", async () => {
+    // 文件足迹（F7）同一条规则：提取在扫描循环里做（不进解析缓存），缓存命中
+    // 的会话也必须携带 fileFacts——否则第二次挂载的足迹图静默变空。
+    const path = `${PROJECTS_ROOT}/-repo-footprint-mount/kkk.jsonl`;
+    const toolUseLine = JSON.stringify({
+      type: "assistant",
+      timestamp: "2026-05-01T10:00:10.000Z",
+      uuid: "k3",
+      message: {
+        id: "msg-k3",
+        role: "assistant",
+        model: "claude-sonnet-4-5-20250929",
+        content: [
+          {
+            type: "tool_use",
+            id: "k-tool-1",
+            name: "Read",
+            input: { file_path: "/home/tester/repo/src/a.ts" }
+          }
+        ],
+        usage: { input_tokens: 100, output_tokens: 10 }
+      }
+    });
+    const bridges = createUsageBridges({
+      [path]:
+        userLine("k1", "2026-05-01T10:00:00.000Z") + "\n" + assistantLine("k2", "2026-05-01T10:00:05.000Z") + "\n" + toolUseLine
+    });
+
+    const first = renderUsageHook(bridges);
+    await waitFor(() => expect(first.result.current.scanning).toBe(false));
+    const facts = first.result.current.inputs[0]?.fileFacts;
+    expect(facts).toHaveLength(1);
+    expect(facts?.[0]?.path).toBe("/home/tester/repo/src/a.ts");
+    expect(facts?.[0]?.touchTimestamps).toHaveLength(1);
+    first.unmount();
+
+    const second = renderUsageHook(bridges);
+    await waitFor(() => expect(second.result.current.scanning).toBe(false));
+    expect(second.result.current.inputs[0]?.fileFacts).toHaveLength(1);
+  });
+
   it("drops a superseded scan when the session list changes mid-flight", async () => {
     const goodPath = `${PROJECTS_ROOT}/-repo-race/ggg.jsonl`;
     const extraPath = `${PROJECTS_ROOT}/-repo-race/hhh.jsonl`;

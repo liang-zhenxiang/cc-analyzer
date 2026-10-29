@@ -1,0 +1,194 @@
+/* F5「最贵时刻名人堂」：纯 DOM 的领奖台 + 榜单。柱面只用 --chart-1-soft +
+   顶部 2px --chart-1（单一色相 = 「同一套估算」），名次、标题、金额靠字号与
+   字重分层，不靠金银铜——色板里没有秩次语义。 */
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.scope {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+/* 领奖台：DOM 顺序是 1→2→3，视觉顺序 2→1→3。grid-area 只改位置，
+   读屏顺序与数据顺序保持一致。 */
+.podium {
+  display: grid;
+  align-items: end;
+  grid-template-areas: "second first third";
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.first {
+  grid-area: first;
+}
+
+.second {
+  grid-area: second;
+}
+
+.third {
+  grid-area: third;
+}
+
+.podiumColumn {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.podiumColumn:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-inset);
+}
+
+.podiumColumn:disabled {
+  cursor: default;
+}
+
+.podiumCost {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.podiumRank {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.podiumTitle {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.podiumMeta {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 柱面：高度由组件按名次给（形，不随 --font-scale 缩放）。 */
+.pedestal {
+  width: 100%;
+  margin-top: var(--sp-1);
+  border-top: 2px solid var(--chart-1);
+  border-radius: 0 0 var(--r-xs) var(--r-xs);
+  background: var(--chart-1-soft);
+}
+
+/* 榜单：行高 24（与数据表的 --row-h 节奏近似），整行是按钮。 */
+.list {
+  display: grid;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  width: 100%;
+  height: var(--control-h-sm);
+  align-items: center;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-1);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-hover) var(--ease-out);
+}
+
+.row:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-inset);
+}
+
+.row:disabled {
+  cursor: default;
+}
+
+.rank {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cost {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.note {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 高对比度：名次是这张卡的主语之一，提到正文色。 */
+:global([data-contrast="high"]) .podiumRank,
+:global([data-contrast="high"]) .rank {
+  color: var(--text);
+}

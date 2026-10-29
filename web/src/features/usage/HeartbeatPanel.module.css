@@ -1,0 +1,97 @@
+/* F8 对话心跳：三条分钟通道叠在一天的时间轴上。
+   颜色只来自 --cat-user / --cat-compute / --cat-direct（记录类别语义），
+   基线是结构线，走 --border；静默标注是 --text-tertiary。
+   这里没有循环动画——「心跳」是曲线形状，不是扫线。 */
+
+.baseline {
+  stroke: var(--border);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.channelLabel {
+  fill: var(--text-secondary);
+  font-size: var(--fs-xs);
+}
+
+.bar {
+  transition: stroke-width var(--dur-hover) var(--ease-out);
+}
+
+/* hover 的加粗用描边实现：宽度属性是数据几何，不能在 CSS 里改。 */
+.bar:hover {
+  stroke-width: 0.4px;
+}
+
+.barUser {
+  fill: var(--cat-user);
+  stroke: var(--cat-user);
+}
+
+.barAssistant {
+  fill: var(--cat-compute);
+  stroke: var(--cat-compute);
+}
+
+.barTool {
+  fill: var(--cat-direct);
+  stroke: var(--cat-direct);
+}
+
+.silenceLabel {
+  fill: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
+.readoutValue {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.picker {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
+.select {
+  height: var(--control-h-sm);
+  padding: 0 var(--sp-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-subtle);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 高对比度：基线改成不透明实色，通道名提到正文色。 */
+:global([data-contrast="high"]) .baseline {
+  stroke: var(--border-strong);
+}
+
+:global([data-contrast="high"]) .channelLabel {
+  fill: var(--text);
+}
