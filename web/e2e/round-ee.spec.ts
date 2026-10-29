@@ -182,6 +182,134 @@ test.describe("Round EE · 会话时间轴与健康分", () => {
   });
 });
 
+/**
+ * 年报里的年份 / 月份 / 周起点都从夹具现算。
+ *
+ * 夹具相对 `Date.now()` 生成，把这些日历值写成字面量的话，跨天、跨月、跨年
+ * 都会让 CI 假红（2026-10-29 已经踩过一次）。这里按年报的同一组口径独立手算：
+ * 目标年 = 最新记录的本地年；月份 / 自然周按 token 求和，并列取更早；
+ * 连击按本地自然日逐日判。
+ */
+type AnnualFixtureRecord = {
+  type?: string;
+  timestamp?: string;
+  isSidechain?: boolean;
+  isMeta?: boolean;
+  message?: {
+    usage?: {
+      input_tokens?: number;
+      output_tokens?: number;
+      cache_creation_input_tokens?: number;
+      cache_read_input_tokens?: number;
+    };
+  };
+};
+
+function startOfLocalDay(ts: number): number {
+  const day = new Date(ts);
+  day.setHours(0, 0, 0, 0);
+  return day.getTime();
+}
+
+function addLocalDays(ts: number, days: number): number {
+  const next = new Date(ts);
+  next.setDate(next.getDate() + days);
+  next.setHours(0, 0, 0, 0);
+  return next.getTime();
+}
+
+function startOfLocalWeek(ts: number): number {
+  const day = startOfLocalDay(ts);
+  const weekday = new Date(day).getDay();
+  return addLocalDays(day, -((weekday + 6) % 7));
+}
+
+function dayMonthLabel(ts: number): string {
+  const day = new Date(ts);
+  return `${day.getMonth() + 1}/${day.getDate()}`;
+}
+
+function annualLabels(): {
+  year: number;
+  topMonthLabel: string;
+  costliestWeekLabel: string;
+  longestStreakDays: number;
+} {
+  const records: AnnualFixtureRecord[] = [];
+  for (const [path, content] of Object.entries(roundEEScenario().files)) {
+    if (!path.endsWith(".jsonl")) continue;
+    for (const line of content.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        records.push(JSON.parse(line) as AnnualFixtureRecord);
+      } catch {
+        // 夹具行都是 JSON；万一不是，跳过而不是让整条用例失败。
+      }
+    }
+  }
+  const usable = records.filter(
+    (record) => record.timestamp && record.isSidechain !== true && record.isMeta !== true
+  );
+  const year = new Date(Math.max(...usable.map((record) => Date.parse(record.timestamp!)))).getFullYear();
+  const inYear = usable.filter(
+    (record) => new Date(record.timestamp!).getFullYear() === year
+  );
+  const byMonth = new Map<number, number>();
+  const byWeek = new Map<number, number>();
+  const days = new Set<number>();
+  for (const record of inYear) {
+    const at = Date.parse(record.timestamp!);
+    days.add(startOfLocalDay(at));
+    const usage = record.message?.usage;
+    if (!usage) continue;
+    const tokens =
+      (usage.input_tokens ?? 0) +
+      (usage.output_tokens ?? 0) +
+      (usage.cache_creation_input_tokens ?? 0) +
+      (usage.cache_read_input_tokens ?? 0);
+    if (tokens <= 0) continue;
+    const month = new Date(at).getMonth() + 1;
+    byMonth.set(month, (byMonth.get(month) ?? 0) + tokens);
+    const week = startOfLocalWeek(at);
+    byWeek.set(week, (byWeek.get(week) ?? 0) + tokens);
+  }
+  let topMonth: [number, number] | null = null;
+  for (const entry of byMonth) {
+    if (
+      topMonth === null ||
+      entry[1] > topMonth[1] ||
+      (entry[1] === topMonth[1] && entry[0] < topMonth[0])
+    ) {
+      topMonth = entry;
+    }
+  }
+  let topWeek: [number, number] | null = null;
+  for (const entry of byWeek) {
+    if (
+      topWeek === null ||
+      entry[1] > topWeek[1] ||
+      (entry[1] === topWeek[1] && entry[0] < topWeek[0])
+    ) {
+      topWeek = entry;
+    }
+  }
+  const sortedDays = [...days].sort((left, right) => left - right);
+  let longestStreakDays = 0;
+  let run = 0;
+  let previous: number | null = null;
+  for (const day of sortedDays) {
+    run = previous !== null && addLocalDays(previous, 1) === day ? run + 1 : 1;
+    previous = day;
+    longestStreakDays = Math.max(longestStreakDays, run);
+  }
+  return {
+    year,
+    topMonthLabel: topMonth === null ? "" : `${topMonth[0]} 月`,
+    costliestWeekLabel: topWeek === null ? "" : dayMonthLabel(topWeek[0]),
+    longestStreakDays
+  };
+}
+
 test.describe("Round EE · 年报", () => {
   test("E4 年报六卡：年中起点、读数与无时间范围控件", async ({ page }) => {
     await openUsage(page);
@@ -194,16 +322,17 @@ test.describe("Round EE · 年报", () => {
     const report = page.locator("[data-probe='year-report']");
     await expect(report).toBeVisible();
     await expect(report.getByRole("region")).toHaveCount(6);
+    const labels = annualLabels();
     const names = await report
       .getByRole("region")
       .evaluateAll((nodes) => nodes.map((n) => n.getAttribute("aria-label") ?? ""));
     expect(names).toEqual([
-      "第 2026 年总量",
-      "第 2026 年消息数",
-      "第 2026 年最活跃的月份",
-      "第 2026 年主力模型",
-      "第 2026 年最长连击",
-      "第 2026 年最贵的一周"
+      `第 ${labels.year} 年总量`,
+      `第 ${labels.year} 年消息数`,
+      `第 ${labels.year} 年最活跃的月份`,
+      `第 ${labels.year} 年主力模型`,
+      `第 ${labels.year} 年最长连击`,
+      `第 ${labels.year} 年最贵的一周`
     ]);
 
     // 夹具相对 `Date.now()` 生成，起点日期与天数**不能写死**（2026-10-29 的
@@ -229,13 +358,14 @@ test.describe("Round EE · 年报", () => {
     expect(Number(activeDays)).toBeLessThanOrEqual(20);
     await expect(report).toContainText("522,500");
     await expect(report).toContainText("44");
-    await expect(report).toContainText("10 月");
+    await expect(report).toContainText(labels.topMonthLabel);
     await expect(report).toContainText("100.0%");
     await expect(report).toContainText("Sonnet 4.5");
     await expect(report).toContainText("322,300");
     await expect(report).toContainText("61.7%");
-    await expect(report).toContainText("10天");
+    await expect(report).toContainText(`${labels.longestStreakDays}天`);
     await expect(report).toContainText("332,600");
+    await expect(report).toContainText(`${labels.costliestWeekLabel} 起的一周`);
 
     await expect(page.getByText(/全部 \d+ 个已扫描会话纳入年度统计/)).toBeVisible();
     await expect(page.getByRole("tablist", { name: "时间范围" })).toHaveCount(0);
