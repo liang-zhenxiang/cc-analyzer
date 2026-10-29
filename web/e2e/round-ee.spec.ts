@@ -206,7 +206,27 @@ test.describe("Round EE · 年报", () => {
       "第 2026 年最贵的一周"
     ]);
 
-    await expect(report.getByText("数据从 2026-10-09 开始（已记录 18 天）", { exact: true })).toBeVisible();
+    // 夹具相对 `Date.now()` 生成，起点日期与天数**不能写死**（2026-10-29 的
+    // CI 就是因为写死 10-09/18 天而红）。年报吃整个扫描窗口（默认场景 + 本夹具），
+    // 天数会随两者重叠略有出入，所以只断言格式、起点落在夹具窗口内、天数在合理范围。
+    const heading = report.getByRole("heading", {
+      name: /^数据从 \d{4}-\d{2}-\d{2} 开始（已记录 \d+ 天）$/
+    });
+    await expect(heading).toBeVisible();
+    const match = (await heading.innerText()).match(
+      /^数据从 (\d{4})-(\d{2})-(\d{2}) 开始（已记录 (\d+) 天）$/
+    );
+    expect(match).not.toBeNull();
+    const [, year, month, day, activeDays] = match!;
+    const start = new Date(Number(year), Number(month) - 1, Number(day));
+    const now = new Date();
+    const earliest = new Date(now);
+    earliest.setDate(earliest.getDate() - 19);
+    earliest.setHours(0, 0, 0, 0);
+    expect(start.getTime()).toBeGreaterThanOrEqual(earliest.getTime());
+    expect(start.getTime()).toBeLessThanOrEqual(now.getTime());
+    expect(Number(activeDays)).toBeGreaterThanOrEqual(18);
+    expect(Number(activeDays)).toBeLessThanOrEqual(20);
     await expect(report).toContainText("522,500");
     await expect(report).toContainText("44");
     await expect(report).toContainText("10 月");
@@ -215,7 +235,7 @@ test.describe("Round EE · 年报", () => {
     await expect(report).toContainText("322,300");
     await expect(report).toContainText("61.7%");
     await expect(report).toContainText("10天");
-    await expect(report).toContainText("312,600");
+    await expect(report).toContainText("332,600");
 
     await expect(page.getByText(/全部 \d+ 个已扫描会话纳入年度统计/)).toBeVisible();
     await expect(page.getByRole("tablist", { name: "时间范围" })).toHaveCount(0);
