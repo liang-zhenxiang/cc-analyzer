@@ -52,6 +52,8 @@ import { ModelMigrationBars } from "./ModelMigrationBars";
 import { FreshnessBadge } from "./FreshnessBadge";
 import { Sparkline } from "./Sparkline";
 import { FingerprintPanel } from "./FingerprintPanel";
+import { LabView } from "./LabView";
+import { usePlan } from "./planLimits";
 import { WorkHabitsPanel } from "./WorkHabitsPanel";
 import { SessionGanttPanel } from "./SessionGanttPanel";
 import { PosterPanel } from "./PosterPanel";
@@ -69,7 +71,7 @@ type UsageRange = (typeof RANGE_OPTIONS)[number];
  * 零新增 I/O）。
  */
 const VIEW_KEY = "cca-usage-view";
-type UsageView = "usage" | "milestones" | "errors" | "annual";
+type UsageView = "usage" | "milestones" | "errors" | "annual" | "lab";
 
 const VIEW_ITEMS: SegmentedItem<UsageView>[] = [
   { value: "usage", label: "用量" },
@@ -77,7 +79,10 @@ const VIEW_ITEMS: SegmentedItem<UsageView>[] = [
   { value: "errors", label: "错误" },
   // 年报排最后：前两档都是「这一年/这一窗口的读数」，年报是「回看整段」，
   // 它需要一个年度的上下文才读得懂，所以不插在中间。
-  { value: "annual", label: "年报" }
+  { value: "annual", label: "年报" },
+  // 实验室（Round FF）排在最末：前四档是「一种读法」，实验室是「十种读法
+  // 的集合」——它是读法的容器，理应最后。
+  { value: "lab", label: "实验室" }
 ];
 
 const RANGE_ITEMS: SegmentedItem<string>[] = RANGE_OPTIONS.map((option) => ({
@@ -109,6 +114,7 @@ function readStoredView(): UsageView {
     if (stored === "errors") return "errors";
     if (stored === "milestones") return "milestones";
     if (stored === "annual") return "annual";
+    if (stored === "lab") return "lab";
   } catch {
     // See readStoredRange: persistence is optional.
   }
@@ -205,6 +211,12 @@ export function UsageOverviewPage({
   // 里程碑的 `now`（Round Y §5）：与 calendarNow 同一条取舍——取挂载那一刻并
   // 保持稳定。报告里的每条事实都是历史的，它只盖 `generatedAt`。
   const [milestonesNow] = useState(() => Date.now());
+  // 实验室的 `now`（Round FF §0.3）：十张卡共用挂载时刻并保持稳定，否则每 30
+  // 秒 tick 一次会让十张图同时重算；与 calendarNow / milestonesNow 同一取舍。
+  const [labNow] = useState(() => Date.now());
+  // 周预算取自设置里的自设数字（不自己解析 localStorage）；没有预算的跑道
+  // 只画实际线与预测线，不给不存在的百分比。
+  const plan = usePlan();
 
   useEffect(() => {
     try {
@@ -509,9 +521,15 @@ export function UsageOverviewPage({
     );
   }
 
-  // 里程碑档自己承担空态（§4.1 第 3 条 / §7）：那句「还没有可统计的会话」是
-  // 用量档的语言，让位一行即可——不改文案，免得连带改掉两档的既有截图与断言。
-  if (!scanning && inputs.length === 0 && progress.total === 0 && view !== "milestones") {
+  // 里程碑与实验室各自承担空态（§4.1 第 3 条 / §7）：那句「还没有可统计的会话」
+  // 是用量档的语言；实验室的十张卡各有自己的空态说明，不能被整页空态盖掉。
+  if (
+    !scanning &&
+    inputs.length === 0 &&
+    progress.total === 0 &&
+    view !== "milestones" &&
+    view !== "lab"
+  ) {
     return (
       <div className={`${styles.page} ${styles.stage}`}>
         <EmptyState
@@ -576,7 +594,9 @@ export function UsageOverviewPage({
                 ? `全部 ${milestoneReport.facts.sessionCount} 个已扫描会话纳入统计`
                 : view === "annual"
                   ? `全部 ${milestoneReport.facts.sessionCount} 个已扫描会话纳入年度统计`
-                  : `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计`}
+                  : view === "lab"
+                    ? `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计 · 10 个视角`
+                    : `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计`}
             {skipped > 0 ? ` · ${skipped} 个会话读取失败已跳过` : ""}
           </span>
           {view === "usage" ? (
@@ -614,6 +634,17 @@ export function UsageOverviewPage({
            窗口控件在这一档隐藏——年报的窗口是「那一年」，页头的「近 N 天」
            对它不生效，摆一个不起作用的控件比缺一个控件更坏。 */
         <AnnualReportPanel inputs={inputs} />
+      ) : view === "lab" ? (
+        /* 数据实验室（Round FF）：同一份窗口化 inputs 的十种看法。区间控件在这
+           一档保留（9 张卡吃「近 N 天」，跑道在卡内声明自然周口径）；导出按钮
+           仍只在用量档出现——本轮不为实验室做快照。 */
+        <LabView
+          inputs={inputs}
+          days={days}
+          now={labNow}
+          plan={plan}
+          onOpenSession={onOpenSession}
+        />
       ) : view === "milestones" ? (
         /* 里程碑（Round Y）：同一份全历史 inputs、同一次扫描，零新增 I/O。
            `onOpenSession` 缺省（单测直挂页面）时不传，入口退成静态行而不是空按钮。 */

@@ -279,4 +279,29 @@ describe("usageAggregations", () => {
     expect(aggregate.models.get("claude-opus-4-1-20250805")).toMatchObject({ input: 500, output: 100 });
     expect(aggregate.models.get("claude-haiku-4-5-20251001")).toMatchObject({ input: 2000, output: 400, cacheCreation: 0 });
   });
+
+  it("carries fileFacts alongside records without letting them change the aggregate", () => {
+    // 文件足迹（F7）与 toolCalls 同一模式：字段随输入同行，聚合本身不读它。
+    // 这条测试锁住「新增字段不改变既有口径」——加字段不该让任何 token/会话数漂移。
+    const day = new Date(2026, 8, 28, 10, 0);
+    const withFacts = aggregateSessionInput({
+      records: [record(day, { usage: usage(100, 20, 30, 400) })],
+      projectLabel: "p",
+      fileFacts: [
+        {
+          path: "/repo/p/src/a.ts",
+          relPath: "src/a.ts",
+          touchTimestamps: [day.getTime()],
+          sidechainCount: 0
+        }
+      ]
+    });
+    const withoutFacts = aggregateSessionInput({
+      records: [record(day, { usage: usage(100, 20, 30, 400) })],
+      projectLabel: "p"
+    });
+
+    expect(withFacts).toEqual(withoutFacts);
+    expect(withFacts.totals).toEqual({ input: 100, output: 20, cacheCreation: 30, cacheRead: 400 });
+  });
 });

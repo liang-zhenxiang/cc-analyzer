@@ -15,6 +15,7 @@ import {
 } from "./usageAggregations";
 import { extractErrorEvents } from "./errorStats";
 import { extractToolCalls } from "./toolCensus";
+import { extractFileFacts } from "./projectFootprint";
 
 // 解析缓存与全局搜索共享同一单例（见 sessionParseCache.ts 的注释）：
 // 一个文件只解析一次，消费方再多也不重复付费。
@@ -118,6 +119,9 @@ export function useUsageOverview() {
                 errorExtract: extractErrorEvents(parsed, session),
                 // 工具普查（N3）同趟提取（含 sidechain 行），同上不进解析缓存。
                 toolCalls: extractToolCalls(parsed),
+                // 文件足迹（F7）复用「改动文件」的提取口径，同样在扫描里做，
+                // 缓存命中的会话也照样携带。
+                fileFacts: extractFileFacts(parsed),
                 session
               };
               collected.push(input);

@@ -1,0 +1,111 @@
+/* 数据实验室（Round FF）：12 列仪器带。
+ *
+ * 页面本身就是纵向文档流（`.content` 整体滚动），这里只负责「哪张卡占多宽」；
+ * 卡内不出现第二根滚动条，同排卡片不强行等高（`align-items: start`，卡高由
+ * 内容决定）。跨度用语义类而不是内联 style：一张卡换位置时只改一行。 */
+
+.lab {
+  display: flex;
+  min-width: 0;
+  flex: 1 0 auto;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* 页头第二行：标题 + 一句说明在左、口径声明在右。窗口选择器只有第一行那一份，
+   这里的「近 N 天」是文本口径（同 AnnualReportPanel 的 scope），不是控件。 */
+.intro {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+
+.introText {
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: var(--lh-md);
+}
+
+.description {
+  margin: var(--sp-05) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.scope {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--sp-3);
+  align-items: start;
+}
+
+.card {
+  min-width: 0;
+}
+
+/* 行 A：全景独享整行。 */
+.galaxy {
+  grid-column: span 12;
+}
+
+/* 行 B：形态（地形 7）→ 极值（名人堂 5）。 */
+.terrain {
+  grid-column: span 7;
+}
+
+.hall {
+  grid-column: span 5;
+}
+
+/* 行 C：观察（火焰 7）→ 假设（沙盘 5）。 */
+.flame {
+  grid-column: span 7;
+}
+
+.sandbox {
+  grid-column: span 5;
+}
+
+/* 行 D：结构一（工具生态 6）｜结构二（文件足迹 6）。 */
+.network,
+.footprint {
+  grid-column: span 6;
+}
+
+/* 行 E：一条横向节奏带，独占整行。 */
+.heartbeat {
+  grid-column: span 12;
+}
+
+/* 行 F：前瞻（跑道 5）→ 个人节律（散点 7）。 */
+.runway {
+  grid-column: span 5;
+}
+
+.scatter {
+  grid-column: span 7;
+}
+
+/* 与页面既有 `.halfPanel` 同一个断点：≤1080px 全部塌成单列。
+   不为实验室另造 1120/1040 这类新断点。 */
+@media (max-width: 1080px) {
+  .grid > * {
+    grid-column: 1 / -1;
+  }
+}

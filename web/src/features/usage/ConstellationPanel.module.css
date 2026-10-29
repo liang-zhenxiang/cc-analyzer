@@ -1,0 +1,210 @@
+/* F1「会话星系」：960×300 的散点画布，宽度自适应。颜色只来自 --chart-1..6
+   （实心星）与 --text-faint（空心环），另加 --border / --border-strong 的
+   结构线——没有第二套色板。重叠星靠卡片底 1px 描边分隔，不做抖动。 */
+
+.scope {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* 泳道分隔线：普通档透明，高对比度才显形——普通档多十条横线会抢走星点。 */
+.laneRule {
+  stroke: transparent;
+  stroke-width: 1px;
+}
+
+:global([data-contrast="high"]) .laneRule {
+  stroke: var(--border);
+}
+
+.laneLabel {
+  fill: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.tickLine {
+  stroke: var(--border);
+  stroke-width: 1px;
+}
+
+.tickLabel {
+  fill: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.link {
+  stroke: var(--border-strong);
+  stroke-width: 1px;
+}
+
+/* 描边过渡只作用于颜色；r+1 是几何变化，不做 transition（避免「呼吸」感）。
+   默认填充是中性 --text-faint：第 7 名以后的模型与未知模型不进色板循环，
+   但仍是一颗有 token 的星（不是空心）。 */
+.star {
+  fill: var(--text-faint);
+  stroke: var(--bg-subtle);
+  stroke-width: 1px;
+  transition: stroke var(--dur-hover) var(--ease-out);
+}
+
+.hollow {
+  fill: none;
+  stroke: var(--text-faint);
+  stroke-width: 1.2px;
+}
+
+.hovered {
+  stroke: var(--ink);
+  stroke-width: 1.2px;
+}
+
+.note {
+  margin: 0 0 var(--sp-1);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 图例：模型是系列，图例必须在同一张卡内定义颜色身份。 */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  list-style: none;
+}
+
+.legendItem {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.swatch {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.swatchFaint {
+  border: 1px solid var(--text-faint);
+  background: transparent;
+}
+
+.heaviest {
+  margin: var(--sp-3) 0 0;
+}
+
+.listTitle {
+  margin: 0 0 var(--sp-1);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 整行按钮：焦点环走 inset，免得被卡片裁掉。禁用态（无元数据）不进 Tab。 */
+.row {
+  display: grid;
+  width: 100%;
+  height: calc(var(--row-pad-y-tight) * 2 + var(--lh-sm));
+  align-items: center;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-1);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-hover) var(--ease-out);
+}
+
+.row:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-inset);
+}
+
+.row:disabled {
+  cursor: default;
+}
+
+.rowProject {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rowTitle {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rowValue {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 高对比度：最小半径靠 scale 放大（r 是数据，不重算），空心环提到正文色。 */
+:global([data-contrast="high"]) .star {
+  transform: scale(1.2);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+:global([data-contrast="high"]) .hollow {
+  stroke: var(--text);
+  stroke-width: 1.5px;
+}
+
+/* 悬停态在高对比度下仍要压过 .hollow（否则空心环悬停没有反馈）。 */
+:global([data-contrast="high"]) .hovered {
+  stroke: var(--ink);
+  stroke-width: 1.5px;
+}

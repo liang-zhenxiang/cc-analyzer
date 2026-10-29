@@ -2231,6 +2231,458 @@ export function roundEEScenario(overrides: Partial<MockScenario> = {}): MockScen
   };
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * Round FF「第四批十功能 · 数据实验室」夹具
+ *
+ * 十张卡要同时有内容，数据形状因此比前几轮更宽（每条都对应一张卡的断言）：
+ *   - 5 个项目 × 24 个会话，散布在最近 20 天 + 今天 + 昨天 + 本周；
+ *   - 三个已定价模型（sonnet / opus / haiku）+ 一个未定价模型（`gpt-4o`），
+ *     后者让成本地形 / 名人堂报出「未参与」计数；
+ *   - 今天一场跨三条通道的会话，中间留一段长停顿（心跳的静默标注）；
+ *   - 至少一个只有用户消息、没有 usage 的会话（星系的空心环）；
+ *   - Read / Edit / Write / Grep / Glob / Bash 都有配对结果，耗时各不相同；
+ *     一条失败调用（火焰 / 错误的真实形态）、一条未配对调用（?N 计数）；
+ *   - `/repo/shared/CONTRIBUTING.md` 与 `/repo/shared/scripts/lint.sh` 被多个
+ *     项目触碰（足迹图的共享文件；绝对路径不常显，只进 title）；
+ *   - 用户提示词长度（2–900 字）与间隔（10 秒 / 90 秒 / 12 分 / 45 分）跨度大
+ *     （散点的分布形状）；今天与本周都有记录（跑道）。
+ *
+ * 时间一律相对 `Date.now()` 生成；「本周」按本地自然周（周一起）算，而不是
+ * 「今天减 N 天」——否则周一跑截图时，减 3 天会掉到上一周。
+ * 同一进程内多条用例共用一个 now（见 roundFFCache），跨整点时「今天」不漂。
+ *
+ * **为什么不进 `SESSION_SEEDS`**：默认八份会话是全部既有归档截图的基线，
+ * 追加会让「会话数」类断言整体漂移；沿用 roundCC / DD / EE 的先例，只在需要
+ * 它的场景里装文件。
+ * ────────────────────────────────────────────────────────────────────────── */
+
+const ROUND_FF_SONNET = "claude-sonnet-4-5-20250929";
+const ROUND_FF_OPUS = "claude-opus-4-1-20250805";
+const ROUND_FF_HAIKU = "claude-haiku-4-5-20251001";
+/** 定价快照里没有这个前缀——成本地形与名人堂必须把它报成「未参与」。 */
+const ROUND_FF_UNPRICED = "gpt-4o";
+const ROUND_FF_HOUR = 3_600_000;
+
+type RoundFFUsage = {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens: number;
+  cache_read_input_tokens: number;
+};
+
+type RoundFFRecord = Record<string, unknown>;
+
+type RoundFFSessionSeed = { cwd: string; id: string; records: RoundFFRecord[] };
+
+function roundFFJsonl(seed: RoundFFSessionSeed): string {
+  const sorted = [...seed.records].sort(
+    (a, b) => Date.parse(String(a.timestamp)) - Date.parse(String(b.timestamp))
+  );
+  return sorted.map((record) => JSON.stringify(record)).join("\n") + "\n";
+}
+
+/** 本地自然周的周一零点（Natural week, Monday start）。 */
+function roundFFWeekStart(now: number): number {
+  const date = new Date(now);
+  date.setHours(0, 0, 0, 0);
+  // getDay(): 0 = Sunday；折成「周一 = 0」。
+  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  return date.getTime();
+}
+
+function buildRoundFF(): {
+  files: Record<string, string>;
+  records: RoundFFRecord[];
+  now: number;
+} {
+  const now = Date.now();
+  const weekStart = roundFFWeekStart(now);
+  const sessions: RoundFFSessionSeed[] = [];
+  let uuidSeed = 0;
+
+  /** 本地日历：`daysAgo` 天前的 `hour:minute`。 */
+  const at = (daysAgo: number, hour: number, minute: number): number => {
+    const day = new Date(now);
+    day.setDate(day.getDate() - daysAgo);
+    day.setHours(hour, minute, 0, 0);
+    return day.getTime();
+  };
+
+  const idOf = (value: number) =>
+    `ff00ffee-0000-4000-8000-${String(value).padStart(12, "0")}`;
+
+  const make = (
+    kind: "user" | "assistant",
+    sessionId: string,
+    cwd: string,
+    timestamp: number,
+    message: Record<string, unknown>
+  ): RoundFFRecord => {
+    uuidSeed += 1;
+    return {
+      type: kind,
+      sessionId,
+      cwd,
+      gitBranch: "main",
+      version: "2.1.0",
+      timestamp: new Date(timestamp).toISOString(),
+      uuid: `roundff-${uuidSeed}`,
+      parentUuid: null,
+      isSidechain: false,
+      message
+    };
+  };
+
+  const user = (sessionId: string, cwd: string, timestamp: number, text: string) =>
+    make("user", sessionId, cwd, timestamp, { role: "user", content: text });
+
+  const assistant = (
+    sessionId: string,
+    cwd: string,
+    timestamp: number,
+    text: string,
+    model: string,
+    usage?: RoundFFUsage
+  ) =>
+    make("assistant", sessionId, cwd, timestamp, {
+      id: `roundff-msg-${uuidSeed + 1}`,
+      role: "assistant",
+      model,
+      content: [{ type: "text", text }],
+      ...(usage ? { usage } : {})
+    });
+
+  const toolUse = (
+    sessionId: string,
+    cwd: string,
+    timestamp: number,
+    toolId: string,
+    name: string,
+    input: Record<string, unknown>,
+    model: string
+  ) =>
+    make("assistant", sessionId, cwd, timestamp, {
+      id: `roundff-tool-msg-${toolId}`,
+      role: "assistant",
+      model,
+      content: [{ type: "tool_use", id: toolId, name, input }],
+      // 真实日志里 tool_use 也属于一次带 usage 的 assistant 消息；给上小用量，
+      // 让「每条 assistant 都有 usage」这条夹具事实成立。
+      usage: usage(500, 200, 0, 1_500)
+    });
+
+  const toolResult = (
+    sessionId: string,
+    cwd: string,
+    timestamp: number,
+    toolId: string,
+    text = "ok",
+    isError = false
+  ) =>
+    make("user", sessionId, cwd, timestamp, {
+      role: "user",
+      content: [{ type: "tool_result", tool_use_id: toolId, content: text, is_error: isError }]
+    });
+
+  const usage = (
+    input: number,
+    output: number,
+    cacheCreation: number,
+    cacheRead: number
+  ): RoundFFUsage => ({
+    input_tokens: input,
+    output_tokens: output,
+    cache_creation_input_tokens: cacheCreation,
+    cache_read_input_tokens: cacheRead
+  });
+
+  const PROJECTS = [
+    { cwd: "/repo/ff-alpha", name: "ff-alpha" },
+    { cwd: "/repo/ff-beta", name: "ff-beta" },
+    { cwd: "/repo/ff-gamma", name: "ff-gamma" },
+    { cwd: "/repo/ff-delta", name: "ff-delta" },
+    { cwd: "/repo/ff-epsilon", name: "ff-epsilon" }
+  ];
+  const MODELS = [ROUND_FF_SONNET, ROUND_FF_OPUS, ROUND_FF_HAIKU, ROUND_FF_UNPRICED];
+  const TOOL_NAMES = ["Read", "Edit", "Write", "Grep", "Glob", "Bash"];
+  /** 同一工具在不同会话的耗时差：火焰图才有「哪段最长」可读。 */
+  const TOOL_DELAYS = [1_200, 4_500, 30_000, 95_000];
+  /** 用户消息之间的间隔：10 秒 → 45 分，散点横轴的形状靠它。 */
+  const PROMPT_GAPS = [10_000, 90_000, 12 * 60_000, 45 * 60_000];
+  const SHARED_CONTRIBUTING = "/repo/shared/CONTRIBUTING.md";
+  const SHARED_LINT = "/repo/shared/scripts/lint.sh";
+
+  const toolInput = (
+    name: string,
+    path: string,
+    index: number
+  ): Record<string, unknown> => {
+    if (name === "Read" || name === "Edit" || name === "Write") {
+      return { file_path: path };
+    }
+    if (name === "Grep") return { pattern: index % 2 === 0 ? "TODO" : "FIXME" };
+    if (name === "Glob") return { pattern: index % 2 === 0 ? "**/*.ts" : "**/*.md" };
+    return { command: index % 2 === 0 ? "npm test" : "git status --short" };
+  };
+
+  // ── 最近 20 天：每天一段会话，轮换项目 / 模型 / 小时 / 星期 ──────────────
+  for (let index = 0; index < 20; index += 1) {
+    const project = PROJECTS[index % PROJECTS.length];
+    const model = MODELS[index % MODELS.length];
+    const sessionId = idOf(index + 1);
+    const base = at(index + 1, 7 + ((index * 3) % 14), (index * 11) % 50);
+    const records: RoundFFRecord[] = [];
+
+    // 两条用户消息：长度与间隔都在变（散点需要两个维度都有方差）。
+    records.push(
+      user(
+        sessionId,
+        project.cwd,
+        base,
+        `${project.name} 第 ${index + 1} 段：${"背景与约束 ".repeat(1 + (index % 5))}`
+      )
+    );
+    records.push(
+      user(
+        sessionId,
+        project.cwd,
+        base + PROMPT_GAPS[index % PROMPT_GAPS.length],
+        index % 3 === 0
+          ? "继续"
+          : `补充 ${index + 1}：${"把这一步的取舍与证据写清楚 ".repeat(8 + (index % 9))}`
+      )
+    );
+
+    const total = 12_000 + index * 3_700;
+    records.push(
+      assistant(
+        sessionId,
+        project.cwd,
+        base + 120_000,
+        `第 ${index + 1} 段的回答`,
+        model,
+        usage(total, Math.round(total * 0.4), Math.round(total * 0.2), total * 2)
+      )
+    );
+
+    for (let slot = 0; slot < 3; slot += 1) {
+      const name = TOOL_NAMES[(index + slot) % TOOL_NAMES.length];
+      const toolId = `ff-tool-${index}-${slot}`;
+      const useAt = base + 180_000 + slot * 10_000;
+      // 前两槽是项目内文件；之后按 (index + slot) 的路数穿插两个共享绝对路径。
+      let path = `${project.cwd}/src/module-${index}-${slot}.ts`;
+      if (slot > 0 && (index + slot) % 3 === 0) path = SHARED_CONTRIBUTING;
+      else if (slot > 0 && (index + slot) % 5 === 0) path = SHARED_LINT;
+
+      records.push(toolUse(sessionId, project.cwd, useAt, toolId, name, toolInput(name, path, index), model));
+      records.push(
+        toolResult(
+          sessionId,
+          project.cwd,
+          useAt + TOOL_DELAYS[(index + slot) % TOOL_DELAYS.length],
+          toolId,
+          // 一例失败调用：火焰的失败事实与错误聚类的真实形态。
+          index === 4 && slot === 2 ? "Error: exit code 1" : "ok",
+          index === 4 && slot === 2
+        )
+      );
+    }
+
+    // 一条未配对调用：耗时未知（火焰右列的 ?N），不是 0。
+    if (index === 6) {
+      records.push(
+        toolUse(
+          sessionId,
+          project.cwd,
+          base + 420_000,
+          `ff-unmatched-${index}`,
+          "Glob",
+          { pattern: "**/*.md" },
+          model
+        )
+      );
+    }
+
+    sessions.push({ cwd: project.cwd, id: sessionId, records });
+  }
+
+  // ── 今天：三条通道 + 一段长停顿（心跳），并埋一次最贵调用（名人堂）──────
+  const todayId = idOf(101);
+  const todayCwd = PROJECTS[0].cwd;
+  const todayStart = (() => {
+    const date = new Date(now);
+    date.setHours(0, 0, 0, 0);
+    return date.getTime();
+  })();
+  // 让今天的事件全部落在当日且早于 now：正常时段从 now-6h 起；
+  // 凌晨启动时退化到零点，宁可把节奏带压短，也不生成未来时间戳。
+  const todayCandidate = Math.max(todayStart + 60_000, now - 6 * ROUND_FF_HOUR);
+  const todayAnchor = todayCandidate <= now - 60_000 ? todayCandidate : todayStart;
+  const todaySpan = Math.max(1_000, now - todayAnchor - 30_000);
+  const todayAt = (fraction: number) => todayAnchor + Math.floor(todaySpan * fraction);
+
+  const todayRecords: RoundFFRecord[] = [
+    user(todayId, todayCwd, todayAt(0), "今天：把 ff-alpha 的十种看法都跑一遍"),
+    assistant(
+      todayId,
+      todayCwd,
+      todayAt(0.02),
+      "先跑星系与地形。",
+      ROUND_FF_SONNET,
+      usage(2_400, 900, 1_200, 8_000)
+    ),
+    toolUse(todayId, todayCwd, todayAt(0.04), "ff-today-read", "Read", {
+      file_path: SHARED_CONTRIBUTING
+    }, ROUND_FF_SONNET),
+    toolResult(todayId, todayCwd, todayAt(0.04) + 2_000, "ff-today-read"),
+    toolUse(todayId, todayCwd, todayAt(0.08), "ff-today-bash", "Bash", {
+      command: "npm --prefix web test"
+    }, ROUND_FF_SONNET),
+    toolResult(todayId, todayCwd, todayAt(0.08) + 65_000, "ff-today-bash"),
+    // 中间空出约半个 span：心跳的「静默 N 小时」读数。
+    user(
+      todayId,
+      todayCwd,
+      todayAt(0.62),
+      `隔了很久再问：${"这一段请按会话分组，并说明为什么有些调用没有结果。".repeat(6)}`
+    ),
+    // 高成本调用：Opus 的 12k 输入 + 90k 输出，明显高于其余每条。
+    assistant(
+      todayId,
+      todayCwd,
+      todayAt(0.66),
+      "最贵的一次推演。",
+      ROUND_FF_OPUS,
+      usage(12_000, 90_000, 40_000, 300_000)
+    ),
+    toolUse(todayId, todayCwd, todayAt(0.74), "ff-today-edit", "Edit", {
+      file_path: SHARED_LINT
+    }, ROUND_FF_OPUS),
+    toolResult(todayId, todayCwd, todayAt(0.74) + 6_500, "ff-today-edit"),
+    // 未定价模型：成本地形与名人堂都要报「未参与」。
+    assistant(
+      todayId,
+      todayCwd,
+      todayAt(0.9),
+      "这一段用了未收录定价的模型。",
+      ROUND_FF_UNPRICED,
+      usage(5_000, 2_000, 0, 12_000)
+    )
+  ];
+  sessions.push({ cwd: todayCwd, id: todayId, records: todayRecords });
+
+  // ── 空心星：只有对话、没有任何 usage ─────────────────────────────────────
+  const hollowId = idOf(102);
+  const hollowCwd = PROJECTS[1].cwd;
+  sessions.push({
+    cwd: hollowCwd,
+    id: hollowId,
+    records: [
+      user(hollowId, hollowCwd, now - 3 * ROUND_FF_HOUR, "只记个待办，没有模型消耗。"),
+      user(
+        hollowId,
+        hollowCwd,
+        now - 3 * ROUND_FF_HOUR + 30 * 60_000,
+        "补充：这个会话全程只在本地记笔记。"
+      )
+    ]
+  });
+
+  // ── 本周（自然周，周一起）：跑道的「已用」不依赖今天是否周一 ─────────────
+  const thisWeekId = idOf(103);
+  const thisWeekCwd = PROJECTS[3].cwd;
+  const thisWeekAt = Math.max(
+    weekStart,
+    Math.min(weekStart + 2 * ROUND_FF_HOUR, now - 120_000)
+  );
+  sessions.push({
+    cwd: thisWeekCwd,
+    id: thisWeekId,
+    records: [
+      user(thisWeekId, thisWeekCwd, thisWeekAt, "本周：先跑一遍预算跑道"),
+      assistant(
+        thisWeekId,
+        thisWeekCwd,
+        thisWeekAt + 45_000,
+        "本周的第一段回答。",
+        ROUND_FF_HAIKU,
+        usage(3_000, 1_200, 600, 5_000)
+      ),
+      toolUse(thisWeekId, thisWeekCwd, thisWeekAt + 60_000, "ff-week-grep", "Grep", {
+        pattern: "createBudgetRunway"
+      }, ROUND_FF_HAIKU),
+      toolResult(thisWeekId, thisWeekCwd, thisWeekAt + 60_000 + 3_200, "ff-week-grep")
+    ]
+  });
+
+  // ── 昨天（若今天是周一，则落进上周）：让成本地形多一天形状 ──────────────
+  const yesterdayId = idOf(104);
+  const yesterdayCwd = PROJECTS[2].cwd;
+  const yesterdayAt = now - 26 * ROUND_FF_HOUR;
+  sessions.push({
+    cwd: yesterdayCwd,
+    id: yesterdayId,
+    records: [
+      user(yesterdayId, yesterdayCwd, yesterdayAt, "昨天：对一下两个模型的差异"),
+      assistant(
+        yesterdayId,
+        yesterdayCwd,
+        yesterdayAt + 4 * 60_000,
+        "差异主要在输出与缓存写入。",
+        ROUND_FF_SONNET,
+        usage(9_000, 5_000, 3_000, 20_000)
+      ),
+      toolUse(yesterdayId, yesterdayCwd, yesterdayAt + 6 * 60_000, "ff-yesterday-write", "Write", {
+        file_path: SHARED_CONTRIBUTING
+      }, ROUND_FF_SONNET),
+      toolResult(yesterdayId, yesterdayCwd, yesterdayAt + 6 * 60_000 + 12_000, "ff-yesterday-write")
+    ]
+  });
+
+  const files: Record<string, string> = {};
+  for (const seed of sessions) {
+    files[`${HOME}/.claude/projects/${projectDir(seed.cwd)}/${seed.id}.jsonl`] = roundFFJsonl(seed);
+  }
+
+  return { files, records: sessions.flatMap((seed) => seed.records), now };
+}
+
+let roundFFCache: {
+  files: Record<string, string>;
+  records: RoundFFRecord[];
+  now: number;
+} | null = null;
+
+function roundFFBuilt(): { files: Record<string, string>; records: RoundFFRecord[]; now: number } {
+  if (roundFFCache === null) roundFFCache = buildRoundFF();
+  return roundFFCache;
+}
+
+/** Round FF 全量记录（时间戳为 ISO 字符串）——e2e 用它手算期望值。 */
+export function roundFFRecords(): RoundFFRecord[] {
+  return roundFFBuilt().records;
+}
+
+/** 夹具构建时的基准时刻；用例不得再直接读 `Date.now()`。 */
+export function roundFFNow(): number {
+  return roundFFBuilt().now;
+}
+
+/**
+ * Round FF 专用场景：只装本轮的 24 份会话，不叠默认八份。
+ *
+ * `savePath` 沿用 roundEE 的虚拟路径（本场景没有导出用例，但不留空避免
+ * 共享 mock 在别的断言里拿到 undefined）。
+ */
+export function roundFFScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  return {
+    ...defaultScenario(overrides),
+    files: roundFFBuilt().files,
+    savePath: "/Users/e2e/Documents/export.csv",
+    ...overrides
+  };
+}
+
 type Fixtures = { scenario: MockScenario };
 
 export const test = base.extend<Fixtures>({

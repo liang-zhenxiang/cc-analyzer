@@ -1,0 +1,232 @@
+/* F3 工具火焰：会话 × 工具耗时的横向堆叠条。
+   工具是本卡内部的系列，颜色只来自 --chart-1..6；「其他」用中性 --bg-active。
+   段间 1px 缝靠 --bg-subtle 透出卡面——高对比下换成 --bg（纯白/纯黑），
+   两档主题里都是最硬的分隔线。 */
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.scope {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+/* 降级说明是一枚文本 chip，不是可点按钮。 */
+.modeChip {
+  padding: 0 var(--sp-15);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+.chart {
+  min-width: 0;
+}
+
+.axisTitle {
+  margin: 0 0 var(--sp-1);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 刻度行与条区左端对齐：160 行标签 + 44 未配对计数列。 */
+.axis {
+  position: relative;
+  height: 16px;
+  margin: 0 44px 0 160px;
+  border-bottom: 1px solid var(--border);
+}
+
+.axisLabel {
+  position: absolute;
+  top: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.axisLabel:first-child {
+  transform: none;
+}
+
+.axisLabel:last-child {
+  transform: translateX(-100%);
+}
+
+.body {
+  position: relative;
+}
+
+/* 行本身是按钮：整行可点，焦点环走 inset 免得被卡面裁掉。 */
+.row {
+  display: grid;
+  width: 100%;
+  height: 22px;
+  grid-template-columns: 160px minmax(0, 1fr) 44px;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--bg-hover);
+}
+
+.row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-inset);
+}
+
+.label {
+  overflow: hidden;
+  padding-right: var(--sp-2);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.track {
+  position: relative;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 0 var(--r-xs) var(--r-xs) 0;
+}
+
+.segment {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  transition: filter var(--dur-hover) var(--ease-out);
+}
+
+/* 1px 缝不占布局：用 inset 阴影画在段内右沿，宽度预算不变。 */
+.segment:not(:last-child) {
+  box-shadow: inset -1px 0 0 var(--bg-subtle);
+}
+
+.row:hover .segment {
+  filter: brightness(1.08);
+}
+
+.unknown {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.series1 {
+  background: var(--chart-1);
+}
+
+.series2 {
+  background: var(--chart-2);
+}
+
+.series3 {
+  background: var(--chart-3);
+}
+
+.series4 {
+  background: var(--chart-4);
+}
+
+.series5 {
+  background: var(--chart-5);
+}
+
+.series6 {
+  background: var(--chart-6);
+}
+
+.other {
+  background: var(--bg-active);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.swatch {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-xs);
+}
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.emptyReason {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* 960 窄窗：左列收窄，右列保留（未配对计数是诚实性的一部分，不能省）。 */
+@media (max-width: 960px) {
+  .axis {
+    margin-left: 132px;
+  }
+
+  .row {
+    grid-template-columns: 132px minmax(0, 1fr) 44px;
+  }
+}
+
+/* 高对比度：段间缝换成纯白/纯黑，「其他」段补描边；条右侧圆角保留。 */
+:global([data-contrast="high"]) .track {
+  outline: 1px solid var(--border-strong);
+}
+
+:global([data-contrast="high"]) .segment:not(:last-child) {
+  box-shadow: inset -1px 0 0 var(--bg);
+}
+
+:global([data-contrast="high"]) .other {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}

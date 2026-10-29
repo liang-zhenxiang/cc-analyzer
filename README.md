@@ -464,6 +464,12 @@ The roadmap tracks open issues; each item links to the issue that owns it.
   annual report, CSV export, model migration, context health score, shortcut
   sheet, data freshness and KPI sparklines (merged; ships in v0.33.0-beta.1)
   ([#275](https://github.com/liang-zhenxiang/cc-analyzer/issues/275))
+- [ ] Fourth ten-feature pack — the data lab: ten more readings of the same
+  local logs (session constellation, cost terrain, hall of fame, tool flame
+  graph, cost sandbox, tool ecosystem, file footprint, conversation heartbeat,
+  weekly budget runway and prompt rhythm); every card is computed locally with
+  no new backend command (in progress; ships in v0.34.0-beta.1)
+  ([#279](https://github.com/liang-zhenxiang/cc-analyzer/issues/279))
 - [x] Frontend upgrade to React 19, moving `@types/react` / `@types/react-dom`
   together
   ([#19](https://github.com/liang-zhenxiang/cc-analyzer/issues/19))
