@@ -329,7 +329,7 @@ test("keeps collapse state for groups hidden by a search", async () => {
   ]);
 });
 
-test("shows title completion progress", () => {
+test("shows index progress", () => {
   render(
     <SessionList
       sessions={sessions}
@@ -342,8 +342,8 @@ test("shows title completion progress", () => {
     />
   );
 
-  const status = screen.getByRole("status", { name: "标题补全进度" });
-  expect(status).toHaveTextContent("正在补全标题 3/10");
+  const status = screen.getByRole("status", { name: "建立索引进度" });
+  expect(status).toHaveTextContent("正在建立索引 3/10");
   expect(status.querySelector("progress")).toHaveAttribute("value", "3");
 });
 
@@ -839,4 +839,86 @@ test("置顶：扫描结果里已不存在的路径会被清掉，置顶状态�
       "/repo/one.jsonl"
     ])
   );
+});
+
+const withFacts: SessionMeta[] = [
+  {
+    ...sessions[0],
+    metadataStatus: "complete",
+    facts: {
+      models: ["claude-sonnet-4-5"],
+      tools: ["builtin:Bash"],
+      ctxPeak: 120_000,
+      errors: 2,
+      durationMs: 30 * 60_000,
+      messages: 8
+    }
+  },
+  {
+    ...sessions[1],
+    metadataStatus: "complete",
+    facts: {
+      models: ["claude-opus-4-1"],
+      tools: ["builtin:Read"],
+      ctxPeak: 40_000,
+      errors: 0,
+      durationMs: 5 * 60_000,
+      messages: 3
+    }
+  }
+];
+
+function renderFactsList(onEnsureFacts = vi.fn()) {
+  return render(
+    <SessionList
+      sessions={withFacts}
+      selected={null}
+      loading={false}
+      error={null}
+      onSelect={() => undefined}
+      onRefresh={() => undefined}
+      onEnsureFacts={onEnsureFacts}
+    />
+  );
+}
+
+test("首次展开筛选栏时才补索引事实，收起不触发", async () => {
+  const user = userEvent.setup();
+  const onEnsureFacts = vi.fn();
+  renderFactsList(onEnsureFacts);
+
+  expect(onEnsureFacts).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: /筛选会话/ }));
+  expect(onEnsureFacts).toHaveBeenCalledTimes(1);
+  await user.click(screen.getByRole("button", { name: /筛选会话/ }));
+  expect(onEnsureFacts).toHaveBeenCalledTimes(1);
+});
+
+test("条件过滤是 AND：项目 + 有失败只留下同时命中的那条", async () => {
+  const user = userEvent.setup();
+  renderFactsList();
+
+  await user.click(screen.getByRole("button", { name: /筛选会话/ }));
+  await user.click(screen.getByRole("button", { name: /项目：全部项目/ }));
+  await user.click(screen.getByRole("checkbox", { name: /project-a/ }));
+  await user.click(screen.getByRole("combobox", { name: "错误" }));
+  await user.selectOptions(screen.getByRole("combobox", { name: "错误" }), "has");
+
+  expect(screen.getAllByRole("button", { name: /project-a/ }).length).toBeGreaterThan(0);
+  expect(screen.queryByRole("button", { name: /project-b/ })).toBeNull();
+});
+
+test("条件全不命中时给可挽回的空态，清空后列表回来", async () => {
+  const user = userEvent.setup();
+  renderFactsList();
+
+  await user.click(screen.getByRole("button", { name: /筛选会话/ }));
+  await user.selectOptions(screen.getByRole("combobox", { name: "上下文峰值" }), "200000");
+
+  expect(screen.getByText("没有符合全部条件的会话")).toBeInTheDocument();
+  const clear = screen.getByRole("button", { name: /清空 1 个条件/ });
+  await user.click(clear);
+
+  expect(screen.getByRole("button", { name: /project-a/ })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /project-b/ })).toBeInTheDocument();
 });

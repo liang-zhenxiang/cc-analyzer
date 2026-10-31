@@ -2,7 +2,7 @@ import { exportFileName, exportId, projectNameOf, EXPORT_MAX_RECORDS } from "./e
 import { buildExport } from "./exportPayload";
 import { parseJsonlText } from "./parseJsonl";
 import type { ExportBase, ExportInput } from "./exportTypes";
-import type { SessionRecord } from "./types";
+import type { ParsedSession, SessionRecord } from "./types";
 import basicFixture from "../../../tests/fixtures/session-basic.jsonl?raw";
 
 const ID = "3d2a5442-9c65-4b28-9c30-bb3d1a1b1a11";
@@ -26,7 +26,8 @@ function fakeRecord(index: number): SessionRecord {
 }
 
 function base(overrides: Partial<ExportBase> = {}): ExportBase {
-  const records = parsedRecords();
+  const parsed = parseJsonlText(basicFixture, "/tmp/session.jsonl");
+  const records = parsed.records;
   return {
     title: "标题里有 空格 / 斜杠: 冒号*问号?",
     sessionId: ID,
@@ -35,12 +36,13 @@ function base(overrides: Partial<ExportBase> = {}): ExportBase {
     endedAt: BASE + 1000,
     records,
     allRecords: records,
+    parsed,
     appVersion: "0.10.0-beta.2",
     ...overrides
   };
 }
 
-function input(overrides: Partial<ExportInput> = {}): ExportInput {
+function input(overrides: Partial<ExportInput> = {}): ExportInput & { parsed: ParsedSession } {
   return { ...base(), format: "html", scope: "filtered", generatedAt: BASE, ...overrides };
 }
 

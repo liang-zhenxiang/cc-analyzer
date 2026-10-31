@@ -122,3 +122,17 @@
   padding: var(--sp-3) var(--sp-4);
   border-top: 1px solid var(--border);
 }
+
+/* 档案的隐私口径（Round GG G3）。它占的是「范围」那一行的位置——档位越少，
+   用户越不会点错；这句话用 --text-secondary 而不是 -tertiary：它是这一屏
+   唯一需要被读进去的一句话，不是脚注。 */
+.archiveNote {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}

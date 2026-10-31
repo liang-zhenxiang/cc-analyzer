@@ -1,4 +1,4 @@
-import type { SessionRecord } from "./types";
+import type { ParsedSession, SessionRecord } from "./types";
 
 /**
  * One export request — everything both renderers need, with the clock injected.
@@ -7,7 +7,7 @@ import type { SessionRecord } from "./types";
  * the same input must produce byte-identical output (the CSV test asserts
  * exactly that), and a hidden clock is the only thing that could break it.
  */
-export type ExportFormat = "html" | "csv";
+export type ExportFormat = "html" | "csv" | "archive";
 export type ExportScope = "filtered" | "all";
 
 export type ExportInput = {
@@ -38,7 +38,14 @@ export type ExportInput = {
  * (a timestamp taken when the session was opened would lie about a report
  * exported an hour later).
  */
-export type ExportBase = Omit<ExportInput, "format" | "scope" | "generatedAt">;
+export type ExportBase = Omit<ExportInput, "format" | "scope" | "generatedAt"> & {
+  /**
+   * 解析结果本身（G3）：档案要 cwd、compactEvents 与「主导模型」，这些不在
+   * `ExportInput` 的扁平字段里。必填而不是可选——档案是它的第三种产物，
+   * 少一个字段就只能退化成「半个档案」，那比不给这个选项更糟。
+   */
+  parsed: ParsedSession;
+};
 
 /**
  * One export is capped: a shared report has to stay openable, and a CSV has to
@@ -71,13 +78,15 @@ export function projectNameOf(cwd: string | undefined, fallback: string): string
 }
 
 export function formatLabel(format: ExportFormat): string {
-  return format === "csv" ? "CSV" : "HTML 报告";
+  if (format === "csv") return "CSV";
+  if (format === "archive") return "会话档案";
+  return "HTML 报告";
 }
 
 export function formatHint(format: ExportFormat): string {
-  return format === "csv"
-    ? "逐条记录，供 Excel 或脚本进一步分析。"
-    : "自包含单文件，可离线打开、可直接分享。";
+  if (format === "csv") return "逐条记录，供 Excel 或脚本进一步分析。";
+  if (format === "archive") return "纯 Markdown 摘要：元信息、统计、工具清单、时间线摘录。";
+  return "自包含单文件，可离线打开、可直接分享。";
 }
 
 /**
@@ -100,6 +109,8 @@ export function exportFileName({
   scope: ExportScope;
 }): string {
   const id = exportId(sessionId);
+  // 档案是「整会话」的产物，没有 filtered/all 之分：文件名里也不该出现这个伪选择。
+  if (format === "archive") return `cca-session-${id}.md`;
   const suffix = scope === "all" ? "all" : "filtered";
   return format === "csv" ? `${id}-${suffix}.csv` : `cc-analyzer-${id}-${suffix}.html`;
 }

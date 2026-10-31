@@ -1,0 +1,197 @@
+/* 错误档案（G5）：一行一类、可展开。行高 30（--row-h 系列口径），
+   展开区最大 160，超出内部滚动。 */
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.table th {
+  height: 28px;
+  padding: 0 var(--sp-1);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table td {
+  height: 30px;
+  padding: 0 var(--sp-1);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  vertical-align: middle;
+}
+
+.row:hover td {
+  background: var(--bg-hover);
+}
+
+.colTool {
+  width: 88px;
+}
+
+.colNum {
+  width: 56px;
+}
+
+.colTime {
+  width: 140px;
+}
+
+.colToggle {
+  width: 44px;
+}
+
+.tool {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signature {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.num {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.time {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.toggleCell {
+  text-align: right;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.toggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.chev {
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translateY(-1px);
+}
+
+.toggle[aria-expanded="true"] .chev {
+  transform: rotate(-135deg) translateY(-1px);
+}
+
+.detailRow td {
+  height: auto;
+  padding: var(--sp-2) var(--sp-1);
+  background: var(--bg-inset);
+}
+
+.sample {
+  margin: 0 0 var(--sp-1);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
+
+.sample code {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.sessions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  max-height: 160px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.sessionLink {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+
+.sessionLink:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
+.sessionLink:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.more {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.caption {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.emptyFact {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

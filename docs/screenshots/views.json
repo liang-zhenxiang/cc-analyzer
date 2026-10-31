@@ -58,6 +58,10 @@
     "lab-footprint",
     "lab-heartbeat",
     "lab-runway",
-    "lab-scatter"
+    "lab-scatter",
+    "gg-story",
+    "gg-archive",
+    "gg-seasons",
+    "gg-query"
   ]
 }

@@ -40,10 +40,15 @@ import {
 import { buildAnomalyDays } from "./anomalyDays";
 import { buildTrendChannel } from "./trendChannel";
 import { modelTimeline } from "./modelTimeline";
+import { toolCalendar } from "./toolCalendar";
+import { contextQuantiles } from "./contextQuantiles";
 import { DailyTrendChart } from "./DailyTrendChart";
 import { StackedBar } from "./charts/StackedBar";
 import { Heatmap } from "./charts/Heatmap";
 import { usageSnapshotFileName, usageSnapshotHtml } from "./usageSnapshot";
+import { SnapshotCompareDialog } from "./SnapshotCompareDialog";
+import { buildSnapshotJson, snapshotJsonFileName, snapshotJsonText } from "./usageSnapshotJson";
+import { StoryLogPanel } from "./StoryLogPanel";
 import { WeeklyDigestPanel } from "./WeeklyDigestPanel";
 import { SessionComparePanel } from "./SessionComparePanel";
 import { EquivalentsToggle } from "./EquivalentsToggle";
@@ -191,6 +196,8 @@ export function UsageOverviewPage({
   const [view, setView] = useState<UsageView>(readStoredView);
   const [activityView, setActivityView] = useState<ActivityView>(readStoredActivityView);
   const [exporting, setExporting] = useState(false);
+  // G10：对比浮层是纯前端产物，开关状态住页面（浮层本身无状态可存）。
+  const [compareOpen, setCompareOpen] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   // 里程碑 → 日历的下钻请求（Round Y #214）：与 `AppShell` 的 `revealRequest`
   // 同款——请求带一个自增 nonce（不用 `Date.now()`：同毫秒的两次点击是两次
@@ -266,6 +273,23 @@ export function UsageOverviewPage({
     () => inputs.flatMap((input) => input.toolCalls ?? []),
     [inputs]
   );
+  // 工具月历（G6）同位：吃**全历史** inputs（回归/弃用周期要看长趋势，窗口
+  // 只截到近 90 天会把「弃用了半年的工具」直接截没），now 用模块缺省
+  // Date.now()——月粒度下重扫的分钟级抖动无感，不占 30s tick。
+  const calendarRows = useMemo(() => toolCalendar(inputs), [inputs]);
+  // 会话上下文峰值分位（G7）：contextQuantiles 是纯函数（无窗口概念），这里
+  // 按页面控件的时间窗先截 inputs 再喂它——窗口口径与 aggregateRange 同款
+  //（usageAggregations.ts：startTs = dayStartOf(now) - (days-1) 天）。now 与
+  // 里程碑一样取挂载时刻：分位是「这一窗读数」，30s tick 会让 P99 在两行
+  // 之间跳动，没有必要。
+  const contextQuantilesWindow = useMemo(() => {
+    const startTs = addLocalDays(dayStartOf(milestonesNow), -(days - 1));
+    const windowed = inputs.map((input) => ({
+      ...input,
+      records: input.records.filter((record) => record.timestamp >= startTs)
+    }));
+    return contextQuantiles(windowed);
+  }, [inputs, days, milestonesNow]);
   // 里程碑（Round Y #214）同位：吃同一份**全历史** inputs，一次遍历折成三层
   // 清单。它与 7/30/90 区间正交（全历史口径），所以不依赖 `days`；R9 要求只在
   // `inputs` 变化时重算，这里靠 memo 的依赖保证。
@@ -455,6 +479,26 @@ export function UsageOverviewPage({
   }
 
   /**
+   * 年报逐月卡下钻（G4）：切到「用量」档并选中该月最活跃的一天。
+   *
+   * 「最活跃」按当日 token 量（四计数之和）取最大，并列取更早——与年报
+   * 「最活跃的月份」同一套裁决口味。月内一天记录都没有（空月卡）时不动
+   * 日历选区：只切档，不编一个「1 号」出来。
+   */
+  function handleDrillMonth(year: number, month: number) {
+    const monthStart = new Date(year, month - 1, 1).getTime();
+    const monthEnd = new Date(year, month, 1).getTime();
+    let best: { dayStart: number; tokens: number } | null = null;
+    for (const point of range.dailySeries) {
+      if (point.dayStart < monthStart || point.dayStart >= monthEnd) continue;
+      const tokens = totalsSum(point);
+      if (!best || tokens > best.tokens) best = { dayStart: point.dayStart, tokens };
+    }
+    if (best) openDay(best.dayStart);
+    else setView("usage");
+  }
+
+  /**
    * 用量总览 → 单文件 HTML 快照（Issue #149）。
    *
    * 窗口与归因直接吃页面那一份 `readouts`（`useBillingReadouts`，Issue #174）——
@@ -497,6 +541,46 @@ export function UsageOverviewPage({
       notify("已导出用量快照", "success");
     } catch (cause) {
       // toast 会消失，错误不该跟着消失：就地那行 `role="alert"` 才是主声明。
+      const message = `导出失败：${String(cause)}`;
+      setExportError(message);
+      notify(message, "error");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  /**
+   * 同一份窗口的**数据版**快照（G10）：只写数字，供两份快照对比。
+   *
+   * 与 HTML 快照共用 `range` / `readouts.now` / `exporting` 三个来源——两枚
+   * 按钮导出的必须是同一段窗口，否则「对比」比的是两个用户以为相同的区间。
+   * 落盘走 `dialog.saveText`（一段文本），与其它单文件导出同一条路径。
+   */
+  async function handleExportSnapshotJson() {
+    if (scanning || exporting) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const generatedAt = Date.now();
+      const first = range.dailySeries[0]?.dayStart ?? dayStartOf(readouts.now);
+      const last = range.dailySeries[range.dailySeries.length - 1]?.dayStart ?? dayStartOf(readouts.now);
+      const json = buildSnapshotJson({
+        totals: range.totals,
+        messages: range.kpi.messages,
+        sessions: range.kpi.sessions,
+        startMs: first,
+        endMs: last,
+        generatedAt
+      });
+      const path = await bridges.dialog.saveText(
+        snapshotJsonFileName(generatedAt),
+        snapshotJsonText(json),
+        { title: "导出用量快照数据（JSON）", filterName: "JSON", extensions: ["json"] }
+      );
+      // 取消不是失败：不写文件、不报错、不提示。
+      if (path === null) return;
+      notify("已导出快照数据（JSON）", "success");
+    } catch (cause) {
       const message = `导出失败：${String(cause)}`;
       setExportError(message);
       notify(message, "error");
@@ -612,6 +696,20 @@ export function UsageOverviewPage({
               导出快照
             </Button>
           ) : null}
+          {/* G10：对比是「读两份已有文件」，与导出是两件事，因此是并列的第二个
+              按钮而不是导出按钮的菜单项——菜单项会让「我要对比」多点一次。 */}
+          {view === "usage" ? (
+            <Button
+              type="button"
+              variant="secondary"
+              data-probe="snapshot-compare-open"
+              aria-label="对比两份用量快照（JSON）"
+              title="读两份用「导出快照数据」得到的 JSON，比六项合计"
+              onClick={() => setCompareOpen(true)}
+            >
+              对比快照
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -633,7 +731,7 @@ export function UsageOverviewPage({
         /* 用量年报（E4）：吃同一份全历史 inputs、同一次扫描，零新增 I/O。
            窗口控件在这一档隐藏——年报的窗口是「那一年」，页头的「近 N 天」
            对它不生效，摆一个不起作用的控件比缺一个控件更坏。 */
-        <AnnualReportPanel inputs={inputs} />
+        <AnnualReportPanel inputs={inputs} onDrillMonth={handleDrillMonth} />
       ) : view === "lab" ? (
         /* 数据实验室（Round FF）：同一份窗口化 inputs 的十种看法。区间控件在这
            一档保留（9 张卡吃「近 N 天」，跑道在卡内声明自然周口径）；导出按钮
@@ -709,6 +807,11 @@ export function UsageOverviewPage({
               <EquivalentsToggle tokens={range.kpi.tokens} />
             </p>
           </div>
+
+          {/* G1 故事线（Round GG）：按日期倒序的日行，收起时首屏只占一列高。
+              住在 KPI 与周战报之间——KPI 是量级、故事线是「这些量级落在哪些
+              日子」，读者从「多大」滑到「什么时候」再进「这周 vs 上周」。 */}
+          <StoryLogPanel inputs={inputs} />
 
           {/* F3 周战报（Round CC）：本周 vs 上周的四行读数住在 KPI 与两列网格
               之间——KPI 是「这 N 天」的量级，战报是「这周比上周」的方向，
@@ -881,22 +984,34 @@ export function UsageOverviewPage({
                 days={days}
                 sessionsInWindow={range.kpi.sessions}
                 toolFacts={toolFacts}
+                calendarRows={calendarRows}
                 onOpenSession={onOpenSession}
               />
             </div>
 
             {/* 压缩统计住满第三行整行（design §4）：两列网格里塞半宽会留空洞，
-                这块面板本来就是一条横向叙事。 */}
+                这块面板本来就是一条横向叙事。G7 上下文峰值分位挂它底部（页面在
+                memo 里按窗口算好 ContextQuantiles 传进来，组件保持哑组件）。 */}
             <div className={styles.compactionRow}>
               <CompactionStatsPanel
                 stats={compaction}
                 days={days}
+                quantiles={contextQuantilesWindow}
                 onOpenSession={onOpenSession}
               />
             </div>
           </div>
         </>
       )}
+
+      {/* 浮层挂在页面根部：position: fixed 脱离文档流，而 .page → .board 链路上
+          没有 transform/filter，不会被拉进某个包含块。z-index 与速查卡同层。 */}
+      {compareOpen ? (
+        <SnapshotCompareDialog
+          onClose={() => setCompareOpen(false)}
+          onExportCurrent={() => void handleExportSnapshotJson()}
+        />
+      ) : null}
     </section>
   );
 }

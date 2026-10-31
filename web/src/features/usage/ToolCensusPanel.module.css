@@ -378,6 +378,80 @@
   font-size: var(--fs-xs);
 }
 
+/* 按月视图（G6，design §G6）：每工具一行，逐月迷你条。行高 34 = 条区 24 +
+   上下 5；条宽 6、间距 4；0 次月留 1px 底槽（--border）——「这个月为 0」和
+   「没有这个月」必须看得出区别。 */
+.months {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.months th,
+.months td {
+  height: 34px;
+  padding: 0 0 0 var(--sp-3);
+  text-align: right;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.months thead th {
+  height: 16px;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
+
+.months thead th:first-child,
+.months tbody th {
+  padding-left: 0;
+  text-align: left;
+}
+
+.months tbody th {
+  overflow: hidden;
+  max-width: 14em;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  text-overflow: ellipsis;
+}
+
+/* 条区：flex 底对齐（条从底线长起，像柱状图）；不换行——月份数由窗口决定，
+   12 个月 = 12×6 + 11×4 = 116px，窄面板横向滚动交给表格自身的 overflow。 */
+.monthTrack {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 24px;
+  vertical-align: middle;
+}
+
+.monthBar {
+  width: 6px;
+  border-radius: 1px;
+  background: var(--chart-1-soft);
+  border: 1px solid var(--chart-1);
+}
+
+/* 0 次月：1px 底槽声明「这一格是 0」——不画条（0 高条与空槽不可分辨）。 */
+.monthEmpty {
+  width: 6px;
+  height: 1px;
+  background: var(--border);
+}
+
+.monthNum {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
+.monthTrend {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
+
 .srOnly {
   position: absolute;
   overflow: hidden;

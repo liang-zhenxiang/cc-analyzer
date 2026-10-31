@@ -1,0 +1,179 @@
+@import "../../styles/animations.css";
+
+/* 第三层浮层（速查卡 / 导出 / 本浮层同层）。层级与遮罩浓度都沿用既有语言：
+   用户学过"遮罩上浮起一块面板"这件事一次，之后每块新面板都免费。 */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-5);
+  background: var(--overlay);
+}
+
+.panel {
+  display: flex;
+  width: min(640px, 100%);
+  max-height: min(720px, 84vh);
+  flex-direction: column;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+  animation: cca-enter var(--dur-enter) var(--ease-out);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.header h2 {
+  margin: 0;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  line-height: var(--lh-base);
+}
+
+.body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--sp-3);
+  overflow-y: auto;
+  padding: var(--sp-4);
+}
+
+.lead {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+/* 两个选择器并排：它们是同一件事的两个输入，横排才看得出"要比"。
+   960 窄窗下自动折成两行（minmax 兜底），不横向溢出。 */
+.pickers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--sp-3);
+}
+
+.pick {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-subtle);
+}
+
+.pickLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 原生 file input 的按钮文字是系统语言，改不了；但高度与字号可以对齐本应用。 */
+.file {
+  max-width: 100%;
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+}
+
+.pickHint {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.pickName {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 拒收原因用 --danger：这是一次确定的失败，不是"可能有问题"的提示。 */
+.pickError {
+  color: var(--danger);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--sp-4) 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-align: center;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.table th,
+.table td {
+  padding: var(--sp-15) var(--sp-2);
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+}
+
+.table thead th {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  line-height: var(--lh-xs);
+}
+
+/* 指标名左对齐、读数右对齐：一列文字一列数字，眼睛才有落点。 */
+.table tbody th {
+  color: var(--text-secondary);
+  font-weight: 400;
+  text-align: left;
+}
+
+.num {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.note {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--border);
+}
+
+/* 原生 file input 的键盘焦点是 UA 给的，和本应用的两档焦点环不一致。
+   给它本应用那一套（令牌而不是字面量），否则 Tab 进浮层的第一站会像"没聚焦"。 */
+.file:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--r-xs);
+}

@@ -13,8 +13,20 @@ import { ErrorTrendChart } from "./ErrorTrendChart";
 import { ErrorRankList, type ErrorRankRow } from "./ErrorRankList";
 import { ErrorEventList } from "./ErrorEventList";
 import { ErrorClustersPanel } from "./ErrorClustersPanel";
+import { ErrorArchivePanel } from "./ErrorArchivePanel";
+import { SegmentedControl, type SegmentedItem } from "../../components/SegmentedControl";
 import pageStyles from "./UsageOverviewPage.module.css";
 import styles from "./ErrorOverviewSection.module.css";
+
+/**
+ * 错误档的两档（G5）：时间线 = 现状原样；档案 = 聚类详版独占整档。
+ * 档位是「看当下」不是偏好，所以不进 localStorage。
+ */
+type ErrorMode = "timeline" | "archive";
+const ERROR_MODE_ITEMS: SegmentedItem<ErrorMode>[] = [
+  { value: "timeline", label: "时间线" },
+  { value: "archive", label: "档案" }
+];
 
 /** 两个分布切面统一的折尾规则：Top-5 + 「其他 N 类」（design §1-8）。 */
 const RANK_TOP_N = 5;
@@ -172,6 +184,7 @@ export function ErrorOverviewSection({
   /** 事件行点击 → 跳回会话分析定位（recordId=null 落到会话本身）。 */
   onRevealRecord?: (path: string, recordId: string | null) => void;
 }) {
+  const [mode, setMode] = useState<ErrorMode>("timeline");
   const [filter, setFilter] = useState<ErrorFilter | null>(null);
   const [everFiltered, setEverFiltered] = useState(false);
 
@@ -260,66 +273,84 @@ export function ErrorOverviewSection({
         </div>
       ) : (
         <>
-          <ErrorTrendChart
-            daily={stats.daily}
-            threshold={stats.anomalyThreshold}
-            totalTool={stats.total.tool}
-            totalApi={stats.total.api}
-            days={days}
-            selectedDay={filter?.kind === "day" ? filter.dayStart : null}
-            onToggleDay={(dayStart) => {
-              if (dayStart !== null) {
-                toggleFilter({ kind: "day", label: formatDayLabel(dayStart), dayStart });
-              }
-            }}
-            onClearFilter={clearFilter}
-          />
-          {/* 聚类（F7）紧跟趋势图：先给量级，再给「在跟几个问题打架」的清单，
-              最后才是按工具 / 按项目的分布。 */}
-          <ErrorClustersPanel events={stats.events} onRevealRecord={onRevealRecord} />
-          <div className={styles.twoCol}>
-            <Panel
-              title="按工具失败"
-              ariaLabel="按工具失败"
-              actions={<ProvenanceBadge provenance="logged" />}
-            >
-              <ErrorRankList
-                rows={toolRows.rows}
-                ariaLabel="按工具失败的分布"
-                selectedKey={filter?.kind === "tool" ? filter.label : null}
-                onSelect={(row) =>
-                  toggleFilter({ kind: "tool", label: row.key, toolNames: row.ids })
-                }
-              />
-              <p className={styles.caption}>
-                条长 = 失败次数（排序同此）；右列 = 失败率（失败 ÷ 该工具总调用次数）。
-              </p>
-            </Panel>
-            <Panel
-              title="按项目失败密度"
-              ariaLabel="按项目失败密度"
-              actions={<ProvenanceBadge provenance="logged" />}
-            >
-              <ErrorRankList
-                rows={projectRows.rows}
-                ariaLabel="按项目失败密度的分布"
-                selectedKey={filter?.kind === "project" ? filter.label : null}
-                onSelect={(row) =>
-                  toggleFilter({ kind: "project", label: row.key, projectLabels: row.ids })
-                }
-              />
-              <p className={styles.caption}>
-                条长 = 失败密度（失败记录 ÷ 该项目记录总数）；分段 = 工具 / API 两通道。
-              </p>
-            </Panel>
+          <div className={styles.errorTabs} data-probe="error-view-tabs">
+            <SegmentedControl
+              items={ERROR_MODE_ITEMS}
+              value={mode}
+              onChange={setMode}
+              ariaLabel="错误视图"
+            />
           </div>
-          <ErrorEventList
-            events={filteredEvents}
-            filter={filter}
-            everFiltered={everFiltered}
-            onClearFilter={clearFilter}
-            onRevealRecord={onRevealRecord}
-          />
+          {mode === "archive" ? (
+            <div className={styles.fullRow}>
+              <Panel title="错误档案" ariaLabel="错误档案">
+                <ErrorArchivePanel events={stats.events} onRevealRecord={onRevealRecord} />
+              </Panel>
+            </div>
+          ) : (
+            <>
+            <ErrorTrendChart
+              daily={stats.daily}
+              threshold={stats.anomalyThreshold}
+              totalTool={stats.total.tool}
+              totalApi={stats.total.api}
+              days={days}
+              selectedDay={filter?.kind === "day" ? filter.dayStart : null}
+              onToggleDay={(dayStart) => {
+                if (dayStart !== null) {
+                  toggleFilter({ kind: "day", label: formatDayLabel(dayStart), dayStart });
+                }
+              }}
+              onClearFilter={clearFilter}
+            />
+            {/* 聚类（F7）紧跟趋势图：先给量级，再给「在跟几个问题打架」的清单，
+                最后才是按工具 / 按项目的分布。 */}
+            <ErrorClustersPanel events={stats.events} onRevealRecord={onRevealRecord} />
+            <div className={styles.twoCol}>
+              <Panel
+                title="按工具失败"
+                ariaLabel="按工具失败"
+                actions={<ProvenanceBadge provenance="logged" />}
+              >
+                <ErrorRankList
+                  rows={toolRows.rows}
+                  ariaLabel="按工具失败的分布"
+                  selectedKey={filter?.kind === "tool" ? filter.label : null}
+                  onSelect={(row) =>
+                    toggleFilter({ kind: "tool", label: row.key, toolNames: row.ids })
+                  }
+                />
+                <p className={styles.caption}>
+                  条长 = 失败次数（排序同此）；右列 = 失败率（失败 ÷ 该工具总调用次数）。
+                </p>
+              </Panel>
+              <Panel
+                title="按项目失败密度"
+                ariaLabel="按项目失败密度"
+                actions={<ProvenanceBadge provenance="logged" />}
+              >
+                <ErrorRankList
+                  rows={projectRows.rows}
+                  ariaLabel="按项目失败密度的分布"
+                  selectedKey={filter?.kind === "project" ? filter.label : null}
+                  onSelect={(row) =>
+                    toggleFilter({ kind: "project", label: row.key, projectLabels: row.ids })
+                  }
+                />
+                <p className={styles.caption}>
+                  条长 = 失败密度（失败记录 ÷ 该项目记录总数）；分段 = 工具 / API 两通道。
+                </p>
+              </Panel>
+            </div>
+            <ErrorEventList
+              events={filteredEvents}
+              filter={filter}
+              everFiltered={everFiltered}
+              onClearFilter={clearFilter}
+              onRevealRecord={onRevealRecord}
+            />
+          </>
+          )}
         </>
       )}
     </section>

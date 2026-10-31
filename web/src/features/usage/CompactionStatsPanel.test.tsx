@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import { CompactionStatsPanel } from "./CompactionStatsPanel";
 import { compactionStats, type CompactionStats } from "./compactionStats";
+import { contextQuantiles } from "./contextQuantiles";
 import type { UsageSessionInput } from "./usageAggregations";
 import type { SessionRecord } from "../sessions/types";
 
@@ -108,5 +109,90 @@ describe("CompactionStatsPanel", () => {
     // 0 次时不画空图：既没有堆叠条也没有 KPI 读数。
     expect(screen.queryByRole("img", { name: "压缩触发方式分布" })).toBeNull();
     expect(panel.textContent).not.toContain("压缩次数");
+  });
+});
+
+/** G7 会话上下文峰值分位行：quantiles 由页面 memo 算好传入（组件是哑组件），
+ *  这里直接用已验收的 contextQuantiles 从带 usage 的输入算真值再断言。 */
+describe("CompactionStatsPanel 分位行（G7）", () => {
+  /** 带 usage 的 assistant 记录：上下文峰值 = input + cacheCreation + cacheRead
+   *  （SessionUsage 是解析后的 camelCase 形状，不是原始 JSONL 字段名）。 */
+  function usageRecord(id: string, timestamp: number, input: number, cacheRead: number): SessionRecord {
+    return {
+      ...record,
+      id,
+      fullId: id,
+      timestamp,
+      usage: { inputTokens: input, cacheCreationTokens: 0, cacheReadTokens: cacheRead, outputTokens: 0 }
+    };
+  }
+
+  it("缺省 quantiles 不渲染分位行（向后兼容）", () => {
+    render(<CompactionStatsPanel stats={stats} days={30} />);
+    expect(screen.queryByLabelText("会话上下文峰值分位数")).toBeNull();
+    expect(screen.queryByText("样本不足")).toBeNull();
+  });
+
+  it("count 0：一行事实文字，不印五个 0", () => {
+    render(
+      <CompactionStatsPanel
+        stats={stats}
+        days={30}
+        quantiles={{ p50: null, p75: null, p90: null, p99: null, max: null, count: 0 }}
+      />
+    );
+    expect(screen.getByText("本窗口的会话没有上下文读数")).toBeInTheDocument();
+    expect(screen.queryByLabelText("会话上下文峰值分位数")).toBeNull();
+  });
+
+  it("count 1（模型层 <2 全 null）：显示「样本不足」", () => {
+    render(
+      <CompactionStatsPanel
+        stats={stats}
+        days={30}
+        quantiles={{ p50: null, p75: null, p90: null, p99: null, max: null, count: 1 }}
+      />
+    );
+    expect(screen.getByText("样本不足")).toBeInTheDocument();
+    expect(screen.queryByLabelText("会话上下文峰值分位数")).toBeNull();
+  });
+
+  it("≥2：五个读数按 P50/P75/P90/P99/最大 顺序渲染，k 缩写与 data 锚点齐全", () => {
+    // 手造真分位（页面 memo 的产出物）：42_100 → 42.1k，131_000 → 131k，
+    // 196_880 → 196.9k，999 → 999，2_400_000 → 2.4M（formatTokenCount）。
+    render(
+      <CompactionStatsPanel
+        stats={stats}
+        days={30}
+        quantiles={{ p50: 42_100, p75: 131_000, p90: 196_880, p99: 999, max: 2_400_000, count: 37 }}
+      />
+    );
+
+    const row = screen.getByLabelText("会话上下文峰值分位数");
+    expect(within(row).getByText("会话上下文峰值")).toBeInTheDocument();
+    // 键面顺序固定。
+    const keys = ["P50", "P75", "P90", "P99", "最大"];
+    const values = ["42.1k", "131k", "196.9k", "999", "2.4M"];
+    for (let i = 0; i < keys.length; i += 1) {
+      const cell = within(row).getByText(keys[i]).closest("span[data-probe='ctx-q']") as HTMLElement | null;
+      expect(cell).not.toBeNull();
+      expect(cell).toHaveAttribute("data-q", ["p50", "p75", "p90", "p99", "max"][i]);
+      expect(within(cell as HTMLElement).getByText(values[i])).toBeInTheDocument();
+    }
+  });
+
+  it("真数据对账：contextQuantiles 产出直挂面板，P50 = 中位峰值", () => {
+    // 三个会话各一条带 usage 记录：峰值为 100 / 200 / 300 → nearest-rank
+    // p50 = 200、p75 = 300、p90 = 300、p99 = 300、max = 300。
+    const withUsage: UsageSessionInput[] = [0, 1, 2].map((n) => ({
+      records: [usageRecord(`u${n}`, NOW - (n + 1) * HOURS, 100 * (n + 1), 0)],
+      projectLabel: "compact-demo"
+    }));
+    const quantiles = contextQuantiles(withUsage);
+    render(<CompactionStatsPanel stats={stats} days={30} quantiles={quantiles} />);
+
+    const row = screen.getByLabelText("会话上下文峰值分位数");
+    expect(within(row).getByText("200")).toBeInTheDocument(); // P50
+    expect(within(row).getAllByText("300")).toHaveLength(4); // P75/P90/P99/最大
   });
 });

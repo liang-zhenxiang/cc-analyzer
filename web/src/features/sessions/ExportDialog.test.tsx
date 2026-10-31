@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { ExportDialog } from "./ExportDialog";
 import type { ClipboardService, DialogBridge } from "../../api/types";
 import type { ExportBase, ExportFormat } from "./exportTypes";
-import type { SessionRecord } from "./types";
+import type { ParsedSession, SessionRecord } from "./types";
 
 const ID = "3d2a5442-9c65-4b28-9c30-bb3d1a1b1a11";
 const BASE = Date.UTC(2026, 0, 2, 3, 4, 5);
@@ -22,6 +22,29 @@ function record(index: number, overrides: Partial<SessionRecord> = {}): SessionR
   };
 }
 
+/**
+ * 档案（Round GG G3）吃 `ParsedSession`：它的 cwd 与 compactEvents 不在扁平
+ * 字段里。夹具只填 `buildSessionArchive` 真正读的那几项，其余给空集合——
+ * 一个「能跑」的解析结果，而不是一个看起来齐全的假对象。
+ */
+function parsedOf(records: SessionRecord[]): ParsedSession {
+  return {
+    sessionId: ID,
+    path: "/tmp/session.jsonl",
+    cwd: "/repo/demo",
+    startedAt: BASE,
+    endedAt: BASE + 10_000,
+    records,
+    turns: [],
+    unmatchedToolUses: [],
+    warnings: [],
+    systemTurnDurations: [],
+    skippedCounts: {},
+    sidechainMessages: [],
+    compactEvents: []
+  };
+}
+
 function baseInput(overrides: Partial<ExportBase> = {}): ExportBase {
   const records = [record(1), record(2), record(3)];
   return {
@@ -32,6 +55,7 @@ function baseInput(overrides: Partial<ExportBase> = {}): ExportBase {
     endedAt: BASE + 10_000,
     records,
     allRecords: records,
+    parsed: parsedOf(records),
     appVersion: "0.10.0",
     ...overrides
   };
@@ -375,6 +399,29 @@ test("keeps one Tab stop per segmented group and moves within it", async () => {
   await user.keyboard("{ArrowRight}");
   expect(document.activeElement?.textContent).toBe("CSV");
   expect(screen.getByRole("tab", { name: "CSV" })).toHaveAttribute("aria-selected", "true");
+});
+
+test("档案格式：作用域消失、口径可见，存下去的是不含消息原文的 Markdown", async () => {
+  const user = userEvent.setup();
+  const { onSaved, services } = renderDialog();
+
+  await user.click(screen.getByRole("tab", { name: "档案" }));
+
+  // 档案是整会话产物：作用域两档必须消失，位置换成那句隐私口径。
+  expect(screen.queryByRole("tab", { name: "全部记录" })).not.toBeInTheDocument();
+  expect(document.querySelector('[data-probe="export-archive-note"]')).toHaveTextContent(
+    "只含统计与时间线摘要，不含消息内容与文件路径"
+  );
+
+  await user.click(screen.getByRole("button", { name: "保存…" }));
+
+  const [name, contents, options] = services.saveText.mock.calls[0];
+  expect(name).toBe("cca-session-3d2a5442.md");
+  expect(options).toMatchObject({ filterName: "Markdown", extensions: ["md"] });
+  expect(contents).toContain("# 会话档案");
+  // 隐私红线：档案里出现任何一条记录原文，这个断言就先红。
+  expect(contents).not.toContain("记录 1");
+  expect(onSaved).toHaveBeenCalledWith("archive");
 });
 
 afterEach(() => {

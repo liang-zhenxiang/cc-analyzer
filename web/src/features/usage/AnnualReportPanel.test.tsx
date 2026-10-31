@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { AnnualReportPanel } from "./AnnualReportPanel";
 import type { SessionRecord, SessionUsage } from "../sessions/types";
 import type { UsageSessionInput } from "./usageAggregations";
@@ -145,5 +146,72 @@ describe("AnnualReportPanel · 空态与跨年", () => {
       within(card("第 2026 年最活跃的月份")).getByText(/全年没有 token 读数/)
     ).toBeInTheDocument();
     expect(within(card("第 2026 年主力模型")).getByText(/没有可归因的模型/)).toBeInTheDocument();
+  });
+});
+
+afterEach(cleanup);
+
+  describe("AnnualReportPanel · G4 逐月区", () => {
+  /** 2026-02 到 2026-04 三个月：2 月 1000、3 月 3000+4000、4 月 2000。 */
+  function threeMonthsFixture(): UsageSessionInput[] {
+    return [
+      inputOf([
+        record(at(2026, 2, 10, 9), { usage: usage(1000), model: "claude-sonnet-4-5-20250929" }),
+        record(at(2026, 3, 2, 10), { usage: usage(3000), model: "claude-sonnet-4-5-20250929" }),
+        record(at(2026, 3, 3, 10), { usage: usage(4000), model: "claude-opus-4-6" }),
+        record(at(2026, 4, 1, 10), { usage: usage(2000), model: "claude-sonnet-4-5-20250929" })
+      ])
+    ];
+  }
+
+  it("横滚区在场：逐月卡按模型层升序，卡数 = 窗口月数", () => {
+    render(<AnnualReportPanel inputs={threeMonthsFixture()} now={at(2026, 4, 30, 23)} />);
+    const strip = screen.getByRole("list", { name: "逐月用量" });
+    const cards = within(strip).getAllByRole("listitem");
+    expect(cards).toHaveLength(3);
+    // 升序：2 月在前（名字在按钮上，listitem 只负责横滚布局）。
+    for (const [index, label] of ["1,000", "7,000", "2,000"].entries()) {
+      const button = within(cards[index]).getByRole("button");
+      expect(button).toHaveAttribute("aria-label", `2026 年 ${index + 2} 月 · ${label}`);
+    }
+  });
+
+  it("partial 月弱化：opacity 类挂上，但按钮照常可点", async () => {
+    const user = userEvent.setup();
+    const onDrill = vi.fn();
+    // 2/10 起、只到 4/1 → 首月（2 月，月中起）与末月（4 月，才过 1 天）都 partial，
+    // 中间的 3 月整月都在窗口内不 partial。
+    render(<AnnualReportPanel inputs={threeMonthsFixture()} onDrillMonth={onDrill} now={at(2026, 4, 30, 23)} />);
+    const strip = screen.getByRole("list", { name: "逐月用量" });
+    const cards = within(strip).getAllByRole("listitem");
+    // partial 判定在模型层钉过（monthlyReport.test.ts），这里只钉「弱化类挂上」。
+    const firstButton = cards[0].querySelector("button");
+    const midButton = cards[1].querySelector("button");
+    expect(firstButton?.className).not.toBe(midButton?.className);
+    // partial 卡仍然可点（不禁用）。
+    await user.click(within(cards[0]).getByRole("button"));
+    expect(onDrill).toHaveBeenCalledWith(2026, 2);
+  });
+
+  it("点月卡上抛 onDrillMonth(year, month)", async () => {
+    const user = userEvent.setup();
+    const onDrill = vi.fn();
+    render(<AnnualReportPanel inputs={threeMonthsFixture()} onDrillMonth={onDrill} now={at(2026, 4, 30, 23)} />);
+    await user.click(screen.getByRole("button", { name: "2026 年 3 月 · 7,000" }));
+    expect(onDrill).toHaveBeenCalledTimes(1);
+    expect(onDrill).toHaveBeenCalledWith(2026, 3);
+  });
+
+  it("空月卡 topModel 写「—」，不编模型名", () => {
+    // 3 月只有一条 user 消息（无 usage）→ 该月卡在场、token 0、模型 —。
+    const inputs = [
+      inputOf([
+        record(at(2026, 2, 10), { usage: usage(1000), model: "claude-sonnet-4-5-20250929" }),
+        record(at(2026, 3, 5), { kind: "user", text: "hi" })
+      ])
+    ];
+    render(<AnnualReportPanel inputs={inputs} now={at(2026, 3, 31, 23)} />);
+    const march = screen.getByRole("button", { name: "2026 年 3 月 · 0" });
+    expect(within(march).getByText("—")).toBeInTheDocument();
   });
 });

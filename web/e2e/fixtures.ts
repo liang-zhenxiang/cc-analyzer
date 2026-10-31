@@ -2683,6 +2683,347 @@ export function roundFFScenario(overrides: Partial<MockScenario> = {}): MockScen
   };
 }
 
+
+/* ====================================================================== *
+ * Round GG 场景（第三批十功能的端到端夹具）
+ *
+ * 独立场景，不碰 SESSION_SEEDS：并进去会让既有 8 张列表截图基线整体漂移。
+ * 形状按十功能的需要铺：
+ *   - G1 工作日志：最近 3 天有会话（今天 2 段、昨天 2 段、三天前 1 段）；
+ *   - G4 月报 + G8 季节条：两个项目 × 四个季度各有 usage（Q1/Q2/Q3/Q4），
+ *     且 alpha 的 Q4 与 beta 的 Q1 分别是各自最重季；
+ *   - G5 错误档案：同工具同首行的失败聚成 4 次（Bash exit 1）与 2 次
+ *     （Read ENOENT），够档案表出两行；
+ *   - G6 工具按月：读/写/命令在多个季度月里都有调用；
+ *   - G7 上下文分位：窗口内 5 段会话各有 usage，样本 ≥2；
+ *   - G9 相似会话：token 前两名同项目、同模型、同工具组。
+ * 时间锚定 `Date.now()`（与 Round FF 同款，用例不得再直读 Date.now）。
+ * ====================================================================== */
+const ROUND_GG_SONNET = "claude-sonnet-4-5-20250929";
+const ROUND_GG_OPUS = "claude-opus-4-1-20250805";
+const ROUND_GG_HAIKU = "claude-haiku-4-5-20251001";
+
+type RoundGGTool = { name: string; error?: string };
+
+function roundGGJsonl(seed: RoundFFSessionSeed): string {
+  const sorted = [...seed.records].sort(
+    (a, b) => Date.parse(String(a.timestamp)) - Date.parse(String(b.timestamp))
+  );
+  return sorted.map((record) => JSON.stringify(record)).join("\n") + "\n";
+}
+
+/**
+ * 一段会话：user → assistant(usage) → 每件工具一对 use/result。
+ * 工具结果可带失败文案；首行即错误聚类的签名。
+ */
+function buildRoundGG(): {
+  files: Record<string, string>;
+  records: RoundFFRecord[];
+  now: number;
+  days: number;
+} {
+  const now = Date.now();
+  const sessions: RoundFFSessionSeed[] = [];
+  let seed = 0;
+
+  const at = (daysAgo: number, hour: number, minute: number): number => {
+    const day = new Date(now);
+    day.setDate(day.getDate() - daysAgo);
+    day.setHours(hour, minute, 0, 0);
+    return day.getTime();
+  };
+
+  /** 第 q 季中旬（本月未到就退到去年），保证四季总有数据。 */
+  const quarterAt = (q: 1 | 2 | 3 | 4, hour: number): number => {
+    const year = new Date(now).getFullYear();
+    const month = (q - 1) * 3;
+    let stamp = new Date(year, month, 15, hour, 0, 0, 0).getTime();
+    if (stamp > now) stamp = new Date(year - 1, month, 15, hour, 0, 0, 0).getTime();
+    return stamp;
+  };
+
+  const make = (
+    kind: "user" | "assistant",
+    sessionId: string,
+    cwd: string,
+    timestamp: number,
+    message: Record<string, unknown>
+  ): RoundFFRecord => {
+    seed += 1;
+    return {
+      type: kind,
+      sessionId,
+      cwd,
+      gitBranch: "main",
+      version: "2.1.0",
+      timestamp: new Date(timestamp).toISOString(),
+      uuid: `roundgg-${seed}`,
+      parentUuid: null,
+      isSidechain: false,
+      message
+    };
+  };
+
+  const usage = (
+    input: number,
+    output: number,
+    cacheCreation: number,
+    cacheRead: number
+  ): RoundFFUsage => ({
+    input_tokens: input,
+    output_tokens: output,
+    cache_creation_input_tokens: cacheCreation,
+    cache_read_input_tokens: cacheRead
+  });
+
+  const session = (options: {
+    id: string;
+    cwd: string;
+    start: number;
+    prompt: string;
+    model: string;
+    tokens: RoundFFUsage;
+    tools: RoundGGTool[];
+  }) => {
+    const { id, cwd, start, prompt, model, tokens, tools } = options;
+    const records: RoundFFRecord[] = [
+      make("user", id, cwd, start, { role: "user", content: prompt }),
+      make("assistant", id, cwd, start + 60_000, {
+        id: `roundgg-msg-${id}`,
+        role: "assistant",
+        model,
+        content: [{ type: "text", text: `${prompt}（回答）` }],
+        usage: tokens
+      })
+    ];
+    tools.forEach((tool, index) => {
+      const toolId = `${id}-tool-${index}`;
+      const useAt = start + 120_000 + index * 30_000;
+      records.push(
+        make("assistant", id, cwd, useAt, {
+          id: `roundgg-tool-msg-${toolId}`,
+          role: "assistant",
+          model,
+          content: [
+            {
+              type: "tool_use",
+              id: toolId,
+              name: tool.name,
+              input:
+                tool.name === "Bash"
+                  ? { command: index % 2 === 0 ? "npm test" : "git status --short" }
+                  : { file_path: `${cwd}/src/gg-${index}.ts` }
+            }
+          ],
+          usage: usage(500, 200, 0, 1_500)
+        })
+      );
+      records.push(
+        make("user", id, cwd, useAt + 8_000, {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: toolId,
+              content: tool.error ?? "ok",
+              is_error: tool.error !== undefined
+            }
+          ]
+        })
+      );
+    });
+    sessions.push({ cwd, id, records });
+  };
+
+  const ALPHA = "/repo/gg-alpha";
+  const BETA = "/repo/gg-beta";
+  const idOf = (value: number) =>
+    `99009900-0000-4000-8000-${String(value).padStart(12, "0")}`;
+
+  // ── 四季（G4 月报 / G8 季节条）：alpha 的 Q4 最重，beta 的 Q1 最重 ──
+  const quarterTokens: Array<{ q: 1 | 2 | 3 | 4; alpha: RoundFFUsage; beta: RoundFFUsage }> = [
+    { q: 1, alpha: usage(80_000, 20_000, 10_000, 10_000), beta: usage(70_000, 15_000, 5_000, 0) },
+    { q: 2, alpha: usage(200_000, 50_000, 30_000, 20_000), beta: usage(20_000, 5_000, 5_000, 0) },
+    { q: 3, alpha: usage(120_000, 30_000, 20_000, 10_000), beta: usage(30_000, 5_000, 5_000, 0) },
+    { q: 4, alpha: usage(260_000, 70_000, 40_000, 30_000), beta: usage(15_000, 5_000, 0, 0) }
+  ];
+  for (const cell of quarterTokens) {
+    session({
+      id: idOf(100 + cell.q),
+      cwd: ALPHA,
+      start: quarterAt(cell.q, 10),
+      prompt: `Q${cell.q}：整理 alpha 的季度账`,
+      model: ROUND_GG_SONNET,
+      tokens: cell.alpha,
+      tools: [
+        { name: "Read" },
+        { name: "Bash" },
+        { name: "Edit" }
+      ]
+    });
+    session({
+      id: idOf(200 + cell.q),
+      cwd: BETA,
+      start: quarterAt(cell.q, 15),
+      prompt: `Q${cell.q}：beta 的回归清单`,
+      model: ROUND_GG_HAIKU,
+      tokens: cell.beta,
+      tools: [
+        { name: "Grep" },
+        { name: "Read" }
+      ]
+    });
+  }
+
+  // ── 最近三天（G1 日志 / G5 档案 / G7 分位 / G9 相似）──────────────────
+  session({
+    id: idOf(301),
+    cwd: ALPHA,
+    start: at(0, 9, 10),
+    prompt: "今天上午：把对比视图的读数对一遍",
+    model: ROUND_GG_SONNET,
+    tokens: usage(120_000, 60_000, 40_000, 80_000),
+    tools: [
+      { name: "Read" },
+      { name: "Read" },
+      { name: "Edit" },
+      { name: "Bash", error: "Error: exit code 1" }
+    ]
+  });
+  session({
+    id: idOf(302),
+    cwd: ALPHA,
+    start: at(0, 14, 30),
+    prompt: "今天下午：相似会话的判据再核一次",
+    model: ROUND_GG_SONNET,
+    tokens: usage(110_000, 55_000, 35_000, 80_000),
+    tools: [
+      { name: "Read" },
+      { name: "Edit" },
+      { name: "Bash", error: "Error: exit code 1" }
+    ]
+  });
+  session({
+    id: idOf(303),
+    cwd: ALPHA,
+    start: at(1, 10, 0),
+    prompt: "昨天：错误档案的聚类口径",
+    model: ROUND_GG_OPUS,
+    tokens: usage(50_000, 25_000, 10_000, 5_000),
+    tools: [
+      { name: "Bash", error: "Error: exit code 1" },
+      { name: "Bash", error: "Error: exit code 1" },
+      { name: "Read", error: "ENOENT: no such file or directory" }
+    ]
+  });
+  session({
+    id: idOf(304),
+    cwd: BETA,
+    start: at(1, 11, 20),
+    prompt: "昨天：beta 的导出清单",
+    model: ROUND_GG_HAIKU,
+    tokens: usage(35_000, 15_000, 5_000, 5_000),
+    tools: [
+      { name: "Grep" },
+      { name: "Read" },
+      { name: "Write" }
+    ]
+  });
+  session({
+    id: idOf(305),
+    cwd: BETA,
+    start: at(3, 16, 0),
+    prompt: "三天前：beta 的文件写入失败排查",
+    model: ROUND_GG_SONNET,
+    tokens: usage(25_000, 10_000, 3_000, 2_000),
+    tools: [
+      { name: "Bash", error: "Error: exit code 1" },
+      { name: "Read", error: "ENOENT: no such file or directory" },
+      { name: "Write" }
+    ]
+  });
+
+  // G7 需要真实的压缩事件（分位行挂在压缩面板里，压缩 0 次时整段不渲染）。
+  const compacted = sessions.find((entry) => entry.id === idOf(303));
+  compacted?.records.push(
+    make("assistant", idOf(303), ALPHA, at(1, 10, 6), {
+      role: "assistant",
+      content: [{ type: "text", text: "上下文压缩完成。" }]
+    })
+  );
+  compacted?.records.push({
+    type: "system",
+    subtype: "compact_boundary",
+    sessionId: idOf(303),
+    cwd: ALPHA,
+    gitBranch: "main",
+    version: "2.1.0",
+    timestamp: new Date(at(1, 10, 6) + 2_000).toISOString(),
+    uuid: "roundgg-compact-1",
+    parentUuid: null,
+    isSidechain: false,
+    compactMetadata: {
+      trigger: "auto",
+      preTokens: 180_000,
+      postTokens: 24_000,
+      cumulativeDroppedTokens: 156_000,
+      durationMs: 35_000
+    }
+  });
+
+  const files: Record<string, string> = {};
+  for (const entry of sessions) {
+    files[`${HOME}/.claude/projects/${projectDir(entry.cwd)}/${entry.id}.jsonl`] =
+      roundGGJsonl(entry);
+  }
+
+  return {
+    files,
+    records: sessions.flatMap((entry) => entry.records),
+    now,
+    days: new Set(
+      sessions.map((entry) => new Date(entry.records[0]?.timestamp as string).toDateString())
+    ).size
+  };
+}
+
+let roundGGCache: {
+  files: Record<string, string>;
+  records: RoundFFRecord[];
+  now: number;
+  days: number;
+} | null = null;
+
+function roundGGBuilt() {
+  if (roundGGCache === null) roundGGCache = buildRoundGG();
+  return roundGGCache;
+}
+
+/** Round GG 全量记录（时间戳为 ISO 字符串）——用例用它手算期望值。 */
+export function roundGGRecords(): RoundFFRecord[] {
+  return roundGGBuilt().records;
+}
+
+/** 夹具构建时的基准时刻；用例不得再直接读 `Date.now()`。 */
+export function roundGGNow(): number {
+  return roundGGBuilt().now;
+}
+
+/** 夹具覆盖的「有记录的自然日」数（G1 日志行数的下界）。 */
+export function roundGGDays(): number {
+  return roundGGBuilt().days;
+}
+
+/** Round GG 专用场景：只装本轮的 13 份会话，不叠默认八份。 */
+export function roundGGScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  return {
+    ...defaultScenario(overrides),
+    files: roundGGBuilt().files,
+    savePath: "/Users/e2e/Documents/export.md",
+    ...overrides
+  };
+}
+
 type Fixtures = { scenario: MockScenario };
 
 export const test = base.extend<Fixtures>({

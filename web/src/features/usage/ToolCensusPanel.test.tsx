@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { SessionMeta } from "../sessions/metadataCache";
 import { toolCensus, type ToolCallFact, type CensusBucket } from "./toolCensus";
+import { toolCalendar } from "./toolCalendar";
 import { ToolCensusPanel, mergeTopSessions } from "./ToolCensusPanel";
 
 /**
@@ -302,5 +303,142 @@ describe("ToolCensusPanel 健康视图（D2）", () => {
     await user.click(screen.getByRole("tab", { name: "健康" }));
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.getByText(/没有工具调用记录/)).toBeInTheDocument();
+  });
+});
+
+/** G6 按月视图：直接挂面板第三标签，行数据经 toolCalendar 聚合（与真实
+ *  页面同一入口，不手造 ToolCalendarRow——组件测试与模型层共用同一口径）。 */
+describe("ToolCensusPanel 按月视图（G6）", () => {
+  /** 30 天 × 每天 1ms 精度：月槽按本地时区落位。NOW=2026-10-03（本地 10 月），
+   *  事实落 7/9/10 三个月（用整月边界的实际落点，不假设 30 天=1 月）。 */
+  const DAY = 86_400_000;
+  const JULY = Date.parse("2026-07-15T12:00:00.000Z");
+  const SEPT = Date.parse("2026-09-15T12:00:00.000Z");
+  const factsAcrossMonths: ToolCallFact[] = [
+    // 7 月：Bash 3 + Read 1。
+    { key: { kind: "builtin", toolName: "Bash" }, timestamp: JULY, sidechain: false },
+    { key: { kind: "builtin", toolName: "Bash" }, timestamp: JULY + 1, sidechain: false },
+    { key: { kind: "builtin", toolName: "Bash" }, timestamp: JULY + 2, sidechain: false },
+    { key: { kind: "builtin", toolName: "Read" }, timestamp: JULY, sidechain: false },
+    // 9 月：Bash 2。
+    { key: { kind: "builtin", toolName: "Bash" }, timestamp: SEPT, sidechain: false },
+    { key: { kind: "builtin", toolName: "Bash" }, timestamp: SEPT + 1, sidechain: false },
+    // 10 月（当月）：Bash 1。
+    { key: { kind: "builtin", toolName: "Bash" }, timestamp: NOW - DAY, sidechain: false }
+  ];
+
+  it("正常：切「按月」出表，行按总量降序、合计列与趋势列齐全，caption 在场", async () => {
+    const user = userEvent.setup();
+    const session = metaOf("/m", "月历");
+    const inputs = [inputOf(session, factsAcrossMonths)];
+    render(
+      <ToolCensusPanel
+        census={toolCensus(inputs, 30, NOW)}
+        days={30}
+        sessionsInWindow={1}
+        calendarRows={toolCalendar(inputs, NOW)}
+      />
+    );
+
+    await user.click(screen.getByRole("tab", { name: "按月" }));
+
+    // srOnly caption（读屏 landmark）。
+    expect(screen.getByText("工具月历：每个工具各月的调用次数")).toBeInTheDocument();
+    const table = screen.getByRole("table");
+    // 行序：Bash 总 6 > Read 总 1。
+    const rows = within(table).getAllByRole("row");
+    expect(rows.length).toBe(3); // thead + 2 工具行
+    expect(within(rows[1]).getByRole("rowheader", { name: "Bash" })).toBeInTheDocument();
+    expect(within(rows[2]).getByRole("rowheader", { name: "Read" })).toBeInTheDocument();
+    // 合计列。
+    expect(within(rows[1]).getByText("6")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("1")).toBeInTheDocument();
+    // 趋势列：4 个月 < 9 →「—」。
+    expect(within(rows[1]).getByText("—")).toBeInTheDocument();
+    // 条的悬停读数（title 模板 `3 月 N 次`）。
+    expect(within(rows[1]).getByTitle("7 月 3 次")).toBeInTheDocument();
+    expect(within(rows[1]).getByTitle("9 月 2 次")).toBeInTheDocument();
+    expect(within(rows[1]).getByTitle("10 月 1 次")).toBeInTheDocument();
+  });
+
+  it("归一与空槽：条高按工具自身最大月归一，0 次月留 1px 底槽不画条", async () => {
+    const user = userEvent.setup();
+    const session = metaOf("/m", "月历");
+    const inputs = [inputOf(session, factsAcrossMonths)];
+    render(
+      <ToolCensusPanel
+        census={toolCensus(inputs, 30, NOW)}
+        days={30}
+        sessionsInWindow={1}
+        calendarRows={toolCalendar(inputs, NOW)}
+      />
+    );
+    await user.click(screen.getByRole("tab", { name: "按月" }));
+
+    const bashRow = screen.getByRole("row", { name: /^Bash/ });
+    // Bash：7 月 3（自身 max）→ 24px 满高；9 月 2 → 2/3×24=16；10 月 1 → 8；
+    // 8 月 0 → 空槽（title 在但不是条，无 height 内联样式）。
+    const bars = within(bashRow).getAllByTitle(/月 \d+ 次/);
+    const height = (n: number) => bars.find((el) => el.getAttribute("title") === `${n} 月 ${["3", "0", "2", "1"][n - 7]} 次`);
+    expect(height(7)).toHaveStyle({ height: "24px" });
+    expect(height(9)).toHaveStyle({ height: "16px" });
+    expect(height(10)).toHaveStyle({ height: "8px" });
+    // 空槽：title 在但没有任何内联高度（0 高条不画）。
+    expect(height(8)).not.toHaveAttribute("style");
+    // 条区 role=img 的 aria 读数。
+    expect(
+      screen.getByRole("img", { name: /Bash：逐月调用 6 次，趋势—/ })
+    ).toBeInTheDocument();
+  });
+
+  it("趋势判据：前 6 月均值 vs 后 3 月均值，>30% 升/降、不足 9 个月给「—」", async () => {
+    const user = userEvent.setup();
+    const session = metaOf("/t", "趋势");
+    // 12 个月窗口（2025-11 → 2026-10）：Bash 前 6 月各 1、后 3 月各 3。
+    const facts: ToolCallFact[] = [];
+    for (let back = 11; back >= 0; back -= 1) {
+      // 每月 15 号 12:00 放事实（避开月边界）：back=0 → 2026-10，back=11 →
+      // 2025-11（Date 构造器自己处理负月份溢出）。近 3 月放 3 条、此前 1 条。
+      const ts = new Date(2026, 9 - back, 15, 12).getTime();
+      const count = back <= 2 ? 3 : 1;
+      for (let n = 0; n < count; n += 1) {
+        facts.push({ key: { kind: "builtin", toolName: "Bash" }, timestamp: ts + n, sidechain: false });
+      }
+    }
+    const inputs = [inputOf(session, facts)];
+    render(
+      <ToolCensusPanel
+        census={toolCensus(inputs, 30, NOW)}
+        days={30}
+        sessionsInWindow={1}
+        calendarRows={toolCalendar(inputs, NOW)}
+      />
+    );
+    await user.click(screen.getByRole("tab", { name: "按月" }));
+
+    // 近 3 月均值 3 vs 前段 ~1：升。趋势列文本在场（「近 3 月 ↑」）。
+    const bashRow = screen.getByRole("row", { name: /^Bash/ });
+    expect(within(bashRow).getByText("近 3 月 ↑")).toBeInTheDocument();
+    // 脚注（判据公开给用户）。
+    expect(screen.getByText(/自身最忙的月份归一/)).toBeInTheDocument();
+  });
+
+  it("空态：没有 calendarRows 时「按月」不画表；aria 语义齐全", async () => {
+    const user = userEvent.setup();
+    render(
+      <ToolCensusPanel
+        census={toolCensus([], 30, NOW)}
+        days={30}
+        sessionsInWindow={4}
+        calendarRows={[]}
+      />
+    );
+    await user.click(screen.getByRole("tab", { name: "按月" }));
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByText(/没有工具调用记录/)).toBeInTheDocument();
+
+    // SegmentedControl 第三项的 tab 语义（读屏可切换）。
+    expect(screen.getByRole("tab", { name: "按月" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "调用次数" })).toHaveAttribute("aria-selected", "false");
   });
 });

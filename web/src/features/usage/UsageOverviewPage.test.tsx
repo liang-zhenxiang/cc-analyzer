@@ -872,4 +872,26 @@ describe("UsageOverviewPage", () => {
     expect(document.querySelectorAll('[data-probe="migration-bar"]')).toHaveLength(2);
     expect(document.querySelector('[data-probe="model-migration"]')).not.toBeNull();
   });
+
+  it("用量档渲染 story-log 容器（G1 挂载点：KPI 之后、周战报之前）", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 6 * 3_600_000)
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+
+    // 探针在场 = G1 真挂进了用量档（组件自己另有 5 条行为测试，这里只钉挂载）。
+    const storyLog = await waitFor(() => {
+      const node = document.querySelector('[data-probe="story-log"]');
+      if (node === null) throw new Error("story-log 还没渲染");
+      return node as HTMLElement;
+    });
+    expect(storyLog).toBeInTheDocument();
+    // 挂载次序：story-log 必须出现在周战报之前（「先量级、再日子、再方向」）。
+    const digest = document.querySelector("section[aria-label='周战报'], [data-probe='weekly-digest']");
+    if (digest !== null) {
+      expect(storyLog.compareDocumentPosition(digest) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+  });
 });

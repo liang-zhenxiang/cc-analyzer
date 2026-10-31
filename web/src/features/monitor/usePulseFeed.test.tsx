@@ -238,7 +238,7 @@ describe("usePulseFeed", () => {
     expect(calls.readHead).toContain(SESSION_PATH);
     expect(snapshot?.rows[0].title).toBe("修登录的 bug");
 
-    // 绝不写 meta-cache-v2.json：多一个写者就是读-改-写竞态。
+    // 绝不写 meta-cache-v3.json：多一个写者就是读-改-写竞态。
     expect(calls.writeText.filter((path) => path.includes("meta-cache"))).toEqual([]);
 
     unmount();

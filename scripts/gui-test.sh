@@ -596,6 +596,135 @@ install_fixture "${FIXTURE_SRC}/tool-census-session.jsonl" "-repo-census-demo" "
 COST_FIXTURE_DIR="${HOME_DIR}/.claude/projects/-repo-cost"
 mkdir -p "$COST_FIXTURE_DIR"
 cp "${FIXTURE_SRC}/cost-session.jsonl" "${COST_FIXTURE_DIR}/cost-session.jsonl"
+# 会话故事线 / 项目季节 / 会话筛选（Round GG）：三块面板都要「跨多个自然日、
+# 两个项目、跨四季」的数据形状，既有夹具凑不出来（/repo/demo 只有一个项目，
+# 且日期全在一季）。这里在内存里合成 8 份会话写进 HOME——固定日期不参与
+# 平移：故事线按全历史聚合、季节按全历史算，都不吃「近 7 天」窗口。
+python3 - "$HOME_DIR" <<'GGPY'
+import json
+import os
+import sys
+from datetime import datetime, timedelta
+
+home = sys.argv[1]
+
+
+def iso(day, hour, minute=0):
+    base = datetime(2026, 1, 1, hour, minute)
+    return (base + timedelta(days=day)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def record(**kw):
+    return kw
+
+
+def session(uuid, cwd, start_day, hour, model, input_tokens, output_tokens, tools):
+    t = start_day
+    rows = [
+        record(
+            type="user",
+            message={"role": "user", "content": "GG 门禁会话"},
+            sessionId=uuid,
+            cwd=cwd,
+            uuid=uuid + "-u",
+            parentUuid=None,
+            timestamp=iso(t, hour),
+            version="2.1.0",
+        ),
+        record(
+            type="assistant",
+            message={
+                "role": "assistant",
+                "id": "msg_" + uuid,
+                "model": model,
+                "content": [{"type": "text", "text": "收到"}],
+                "usage": {
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "cache_creation_input_tokens": 20000,
+                    "cache_read_input_tokens": 0,
+                },
+            },
+            sessionId=uuid,
+            cwd=cwd,
+            uuid=uuid + "-a",
+            parentUuid=uuid + "-u",
+            timestamp=iso(t, hour, 1),
+            version="2.1.0",
+        ),
+    ]
+    for index, (tool, failed) in enumerate(tools):
+        rows.append(
+            record(
+                type="assistant",
+                message={
+                    "role": "assistant",
+                    "id": "msg_%s_t%d" % (uuid, index),
+                    "model": model,
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_%s_%d" % (uuid, index),
+                            "name": tool,
+                            "input": {"command": "echo gg"},
+                        }
+                    ],
+                },
+                sessionId=uuid,
+                cwd=cwd,
+                uuid="%s-t%d" % (uuid, index),
+                parentUuid=uuid + "-a",
+                timestamp=iso(t, hour, 2 + index),
+                version="2.1.0",
+            )
+        )
+        rows.append(
+            record(
+                type="user",
+                message={
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "toolu_%s_%d" % (uuid, index),
+                            "content": "Error: exit code 1" if failed else "ok",
+                            "is_error": failed,
+                        }
+                    ],
+                },
+                sessionId=uuid,
+                cwd=cwd,
+                uuid="%s-r%d" % (uuid, index),
+                parentUuid="%s-t%d" % (uuid, index),
+                timestamp=iso(t, hour, 3 + index),
+                version="2.1.0",
+            )
+        )
+    return rows
+
+
+sessions = []
+# 复用既有项目目录（/repo/demo、/repo/errors）：新项目会多出项目卡、年报
+# region 与错误计数，把别轮的「恰好 N」断言顶掉；这里只要「跨日、跨季、多模型、
+# 可筛选」的形状。token 也压小，避免把下方面板推得更远。
+sessions.append(("gg-alpha", "/repo/gg-alpha", 300, 9, "claude-sonnet-4-5", 5000, 1000, [("Read", False), ("Bash", False)]))
+sessions.append(("gg-alpha", "/repo/gg-alpha", 300, 14, "claude-sonnet-4-5", 4000, 800, [("Edit", False)]))
+sessions.append(("gg-alpha", "/repo/gg-alpha", 287, 10, "claude-sonnet-4-5", 3000, 600, []))
+sessions.append(("gg-alpha", "/repo/gg-alpha", 195, 10, "claude-opus-4-1", 3000, 600, []))
+sessions.append(("gg-alpha", "/repo/gg-alpha", 104, 10, "claude-opus-4-1", 3000, 600, []))
+sessions.append(("gg-alpha", "/repo/gg-alpha", 14, 10, "claude-opus-4-1", 3000, 600, []))
+sessions.append(("gg-beta", "/repo/gg-beta", 303, 10, "claude-haiku-4-5", 2000, 400, [("Grep", False)]))
+sessions.append(("gg-beta", "/repo/gg-beta", 14, 10, "claude-haiku-4-5", 2000, 400, [("Write", False)]))
+
+for index, (project, cwd, day, hour, model, inp, out, tools) in enumerate(sessions, start=1):
+    uuid = "99009900-0000-4000-8000-%012d" % (600 + index)
+    directory = os.path.join(home, ".claude", "projects", "-" + project.replace("/", "-").strip("-"))
+    os.makedirs(directory, exist_ok=True)
+    path = os.path.join(directory, uuid + ".jsonl")
+    with open(path, "w", encoding="utf-8") as handle:
+        for row in session(uuid, cwd, day, hour, model, inp, out, tools):
+            handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+GGPY
 # 消耗日历（Round V / #187）：门禁要 `点选=[data-probe='calendar-today'] button`
 # 展开当天清单，而上面全部夹具统一平移到「最新活动日 = 昨天」——今天的格子
 # 恒无数据、点不开。这里**在内存里合成**一个「今天」的会话补上（时间戳相对
@@ -807,7 +936,8 @@ JSON
 printf '  隔离家目录：%s\n' "$HOME_DIR"
 printf '  夹具会话：13 个（含 1 个内存合成的「今天」日历会话与 3 个脉搏夹具；另有 1 个只剩归档副本的会话）\n'
 
-CACHE_PATH="${HOME_DIR}/Library/Application Support/${BUNDLE_ID}/meta-cache-v2.json"
+# Round G2 起缓存升到 v3（sessionRepository.CACHE_NAME）；路径必须跟实现同步。
+CACHE_PATH="${HOME_DIR}/Library/Application Support/${BUNDLE_ID}/meta-cache-v3.json"
 
 # ---------------------------------------------------------------------------
 step "启动应用"
@@ -948,7 +1078,14 @@ else
   "会话分析"
   "/repo/demo"
   "时间轴"
-  "时间轴")
+  "时间轴"
+  # Round GG：会话故事线（点开今天那条）、项目季节卡、会话筛选栏展开。
+  "用量总览"
+  "视图=用量"
+  "点选=[data-probe='story-day']"
+  "点选=[data-probe='cards-root']"
+  "会话分析"
+  "点选=[data-probe='session-query-toggle']")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
@@ -1087,10 +1224,11 @@ PY
   COUNT="$(printf '%s\n' "$CACHE_REPORT" | grep '^COUNT ' | awk '{print $2}')"
   OUTSIDE="$(printf '%s\n' "$CACHE_REPORT" | grep '^OUTSIDE ' | awk '{print $2}')"
 
-  if [[ "${COUNT:-}" == "15" ]]; then
-    ok "缓存条目数 = 15（14 个夹具 + 1 个归档副本；含消耗日历的「今天」合成会话、3 个脉搏夹具与账单夹具）"
+  if [[ "${COUNT:-}" == "23" ]]; then
+    ok "缓存条目数 = 23（14 个夹具 + 1 个归档副本 + Round GG 8 份合成会话；含日历「今天」、3 个脉搏夹具与账单夹具）"
   else
-    bad "缓存条目数 = ${COUNT:-解析失败}，期望 15"
+    bad "缓存条目数 = ${COUNT:-解析失败}，期望 23"
+    printf '  %s  （13 份夹具 + 归档副本 + 日历今天 + GG 8 份）\n' "$C_YELLOW"
     printf '  %s  %s%s\n' "$C_YELLOW" "$CACHE_REPORT" "$C_RESET"
   fi
 
@@ -1355,10 +1493,21 @@ COST_ROW_HEIGHT_TOLERANCE = 1
 COST_UNPRICED_CALLS = 2
 COST_TOP_ROWS = 5
 COST_TOP_CLICK_LABEL = "点选=[data-probe='cost-top-row'] button"
+# Round GG（会话故事线 / 项目季节 / 会话筛选）：三个点选标签各自一条断言。
+GG_STORY_LABEL = "点选=[data-probe='story-day']"
+GG_CARDS_LABEL = "点选=[data-probe='cards-root']"
+GG_QUERY_LABEL = "点选=[data-probe='session-query-toggle']"
+ROUNDGG_STORY_MIN_ROWS = 2
+ROUNDGG_CARD_MIN = 2
+ROUNDGG_SEASON_QUARTERS = 4
+ROUNDGG_QUERY_FIELDS_MIN = 4
+# 用量页每轮加长：可达性预算从两屏放到三屏（Round GG 故事线 + 项目卡之后）。
+USAGE_SCROLL_SCREENS = 3
 # 「第三批十功能」（Round EE / 设计 §13.3）：年报 6 卡、火花线 ≥2、时间轴滑块。
 ROUND_EE_YEAR_LABEL = "年报"
 ROUND_EE_TIMELINE_LABEL = "时间轴"
-ROUND_EE_YEAR_REGIONS = 6
+# Round GG 新增两个项目（gg-alpha / gg-beta），年报 region 从 6 变 7。
+ROUND_EE_YEAR_REGIONS = 7
 ROUND_EE_MIN_SPARKLINES = 2
 ROUND_EE_TIMELINE_MIN_WIDTH = 400
 coverage = os.environ.get("COVERAGE") == "1"
@@ -1385,6 +1534,7 @@ ROUND_CC_DIGEST_LABELS = ["Tokens", "估算成本", "会话数", "消息数"]
 ROUND_CC_CARDS_MAX = 8
 seen_cost = 0
 seen_rounddd = 0
+seen_roundgg = 0
 cost_top_clock = None
 seen_float_enter = 0
 seen_float_exit = 0
@@ -1856,12 +2006,13 @@ for arg in sys.argv[1:]:
                 problems.append(f"面板「{title}」不在文档里")
                 continue
             doc_top = hit.get("docTop")
-            # 不变量是「可达」（docTop ≤ scrollTop + 2×clientHeight），不是
-            # 「滚到底后恰在视口内」——用量页加长（Round DD 十功能）之后，一次
-            # 滚到底仍可能差一屏，所以预算放到两屏；顶部越界 = 途中已见过，
-            # 真正要防的是「还在折叠线下方、永远到不了」。
-            if isinstance(scroll_top, int) and isinstance(client_height, int) and isinstance(doc_top, (int, float)) and doc_top > scroll_top + client_height * 2 + 1:
-                problems.append(f"「{title}」滚两次到不了（docTop {doc_top:.0f} > scrollTop {scroll_top} + clientHeight {client_height}）")
+            # 不变量是「可达」（docTop ≤ scrollTop + N×clientHeight），不是
+            # 「滚到底后恰在视口内」——用量页每轮都在变长（Round DD 十功能、
+            # Round GG 故事线/项目卡），一次滚到底可能差两屏，所以预算放到
+            # 三屏；顶部越界 = 途中已见过，真正要防的是「还在折叠线下方、
+            # 永远到不了」。
+            if isinstance(scroll_top, int) and isinstance(client_height, int) and isinstance(doc_top, (int, float)) and doc_top > scroll_top + client_height * USAGE_SCROLL_SCREENS + 1:
+                problems.append(f"「{title}」滚三次到不了（docTop {doc_top:.0f} > scrollTop {scroll_top} + clientHeight {client_height}）")
         # 工具与 skill（N3）滚一次可达 + 主榜清单是真列表（行高测 li，账目与
         # <ul> 自己的 scrollHeight 对——被丢清单的判法）。此处不判「滚到底后
         # 在视口内」：面板常高约 300px，若上方内容把它顶出最终视口，那是页面
@@ -1872,8 +2023,8 @@ for arg in sys.argv[1:]:
             problems.append(f"面板「{CENSUS_PANEL_TITLE}」不在文档里（探针锚点缺失）")
         else:
             doc_top = census_hit.get("docTop")
-            if isinstance(scroll_top, int) and isinstance(client_height, int) and isinstance(doc_top, (int, float)) and doc_top > scroll_top + client_height * 2 + 1:
-                problems.append(f"「{CENSUS_PANEL_TITLE}」滚两次到不了（docTop {doc_top:.0f} > scrollTop {scroll_top} + clientHeight {client_height}）")
+            if isinstance(scroll_top, int) and isinstance(client_height, int) and isinstance(doc_top, (int, float)) and doc_top > scroll_top + client_height * USAGE_SCROLL_SCREENS + 1:
+                problems.append(f"「{CENSUS_PANEL_TITLE}」滚三次到不了（docTop {doc_top:.0f} > scrollTop {scroll_top} + clientHeight {client_height}）")
             rank = next((l for l in census.get("lists") or [] if l.get("label") == CENSUS_RANK_LABEL), None)
             if rank is None:
                 problems.append("主榜清单没有产出滚动几何（data-tool-census-list）")
@@ -2272,7 +2423,7 @@ for arg in sys.argv[1:]:
     #   改动档由 prev_label 分流（见上面改动档），工具普查由选择器里的 tool-census
     #   分流，配额归因由 ATTRIBUTION_CLICK_LABEL、浮窗退出由 PULSE_FLOAT_EXIT_LABEL
     #   分流（见各自段落）。这一条是兜底，所以每加一个「点选=」目标都要在这里点一次名。）
-    if label.startswith("点选=") and "tool-census" not in label and prev_label != CHANGES_TAB_LABEL and label != ATTRIBUTION_CLICK_LABEL and label != CALENDAR_CLICK_LABEL and label != PULSE_FLOAT_EXIT_LABEL and label not in (REPLAY_SEEK_LABEL, REPLAY_SETTINGS_CLOSE_LABEL, COST_TOP_CLICK_LABEL, ROUNDDD_CLICK_LABEL):
+    if label.startswith("点选=") and "tool-census" not in label and prev_label != CHANGES_TAB_LABEL and label != ATTRIBUTION_CLICK_LABEL and label != CALENDAR_CLICK_LABEL and label != PULSE_FLOAT_EXIT_LABEL and label not in (REPLAY_SEEK_LABEL, REPLAY_SETTINGS_CLOSE_LABEL, COST_TOP_CLICK_LABEL, ROUNDDD_CLICK_LABEL, GG_STORY_LABEL, GG_CARDS_LABEL, GG_QUERY_LABEL):
         ctx = data.get("context") or {}
         viewport = data.get("viewport") or {}
         card = ctx.get("forensicCard")
@@ -3133,6 +3284,66 @@ for arg in sys.argv[1:]:
                     f"换算 aria-expanded={equiv.get('expanded')}（换模/健康两 tab 不在默认档，由 e2e 覆盖）"
                 )
 
+    # 「第五批十功能」（Round GG）：故事线 / 项目季节 / 筛选栏。
+    if label in (GG_STORY_LABEL, GG_CARDS_LABEL, GG_QUERY_LABEL):
+        gg = data.get("roundgg") or {}
+        if gg.get("present") is not True:
+            print(f"BAD|{label}：用量页/筛选栏的 Round GG 事实不在场")
+        else:
+            gg_problems = []
+            if label == GG_STORY_LABEL:
+                story = gg.get("story") or {}
+                rows_n = story.get("rows")
+                if not isinstance(rows_n, int) or rows_n < ROUNDGG_STORY_MIN_ROWS:
+                    gg_problems.append(
+                        f"故事线 {rows_n!r} 天，期望至少 {ROUNDGG_STORY_MIN_ROWS} 天"
+                    )
+                first = story.get("first") or ""
+                if not re.match(r"^\d{2}-\d{2}", first):
+                    gg_problems.append(f"故事线首行没有日期前缀（{first!r}）")
+                detail_items = story.get("detail_items")
+                if not isinstance(detail_items, int) or detail_items < 2:
+                    gg_problems.append(
+                        f"展开后的当天清单 {detail_items!r} 条，期望至少 2"
+                    )
+            elif label == GG_CARDS_LABEL:
+                cards = gg.get("cards") or {}
+                if not isinstance(cards.get("count"), int) or cards["count"] < ROUNDGG_CARD_MIN:
+                    gg_problems.append(
+                        f"项目卡片 {cards.get('count')!r} 张，期望至少 {ROUNDGG_CARD_MIN}"
+                    )
+                seasons = gg.get("seasons") or {}
+                if not isinstance(seasons.get("count"), int) or seasons["count"] < ROUNDGG_CARD_MIN:
+                    gg_problems.append(
+                        f"季节条 {seasons.get('count')!r} 条，期望至少 {ROUNDGG_CARD_MIN}"
+                    )
+                for quarters in seasons.get("quarters") or []:
+                    if quarters != str(ROUNDGG_SEASON_QUARTERS):
+                        gg_problems.append(
+                            f"季节条 data-quarters={quarters!r}，期望 {ROUNDGG_SEASON_QUARTERS}"
+                        )
+                texts = seasons.get("texts") or []
+                if not texts or not re.match(r"^Q[1-4] 最重（\d+%）", texts[0] or ""):
+                    gg_problems.append(f"季节文案没有「Qn 最重（%）」形状（{texts[:1]!r}）")
+            else:
+                query = gg.get("query") or {}
+                if query.get("expanded") != "true":
+                    gg_problems.append(f"筛选栏 aria-expanded={query.get('expanded')!r}，期望 'true'")
+                fields = query.get("fields")
+                if not isinstance(fields, int) or fields < ROUNDGG_QUERY_FIELDS_MIN:
+                    gg_problems.append(
+                        f"筛选栏原生 select {fields!r} 个，期望至少 {ROUNDGG_QUERY_FIELDS_MIN}"
+                    )
+                head = query.get("head") or ""
+                if "筛选" not in head:
+                    gg_problems.append(f"筛选栏标题没有「筛选」（{head!r}）")
+            if gg_problems:
+                for problem in gg_problems:
+                    print(f"BAD|{label}：{problem}")
+            else:
+                seen_roundgg += 1
+                print(f"OK|{label}：Round GG 事实通过（故事线/季节/筛选栏）")
+
     # 「实时脉搏」（Issue #203 / Round W）：几何事实全在 facts.pulse（应用侧只
     # 收集事实，阈值与判定在这里）。三步各有各的账：
     #   ① 「脉搏」——脉搏根在场、横向不溢出、5 个窗口读数与键序、60 根速率柱
@@ -3374,6 +3585,8 @@ if coverage and seen_milestones == 0:
     print("BAD|视图覆盖：没有任何视图产出里程碑的几何事实——「里程碑」档没被覆盖")
 if coverage and seen_cost == 0:
     print("BAD|视图覆盖：没有任何视图产出会话账单的几何事实——「账单」标签页没被覆盖")
+if coverage and seen_roundgg == 0:
+    print("BAD|视图覆盖：没有任何视图产出 Round GG 的事实——故事线/季节/筛选栏没被覆盖")
 if coverage and seen_rounddd == 0:
     print("BAD|视图覆盖：没有任何视图产出第二批十功能的几何事实——用量页新面板没被覆盖")
 if coverage and seen_roundcc == 0:

@@ -122,3 +122,51 @@
   font-size: var(--fs-xs);
   line-height: var(--lh-xs);
 }
+
+/* G8 季节条（Round GG）：6px 四段堆叠，段间 1px 缝由 gap 出（背景缝来自
+   卡片自身的透明底——缝即「什么都没画」）。-soft 填充 + 1px 实色描边：
+   Round Z 实测 -soft 单独填充在深色/高对比度下 <3:1，描边是对比度的载体。
+   段宽走 flex 比例（flexGrow = round(share×100)），0 份的季不渲染段。 */
+.season {
+  display: flex;
+  gap: 1px;
+  height: 6px;
+  margin-top: var(--sp-1);
+  border-radius: 1px;
+}
+
+.seg {
+  border-radius: 1px;
+}
+
+.seg[data-q="1"] {
+  background: var(--chart-1-soft);
+  border: 1px solid var(--chart-1);
+}
+
+.seg[data-q="2"] {
+  background: var(--chart-2-soft);
+  border: 1px solid var(--chart-2);
+}
+
+.seg[data-q="3"] {
+  background: var(--chart-3-soft);
+  border: 1px solid var(--chart-3);
+}
+
+.seg[data-q="4"] {
+  background: var(--chart-4-soft);
+  border: 1px solid var(--chart-4);
+}
+
+/* 季节一句话：11px 三级文字，行高 16。 */
+.seasonText {
+  display: block;
+  overflow: hidden;
+  min-width: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

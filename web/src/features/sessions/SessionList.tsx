@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from "react";
-import { IconButton } from "../../components/Button";
+import { Button, IconButton } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
 import { Icon } from "../../components/Icon";
@@ -7,6 +7,8 @@ import { SegmentedControl, type SegmentedItem } from "../../components/Segmented
 import { Skeleton } from "../../components/Skeleton";
 import { TextInput } from "../../components/TextInput";
 import { sessionTitle, type SessionMeta } from "./metadataCache";
+import { SessionQueryBar } from "./SessionQueryBar";
+import { matchesSessionFacts, type SessionQuery } from "../usage/sessionQuery";
 import { PinButton } from "./PinButton";
 import {
   PINNED_STORAGE_KEY,
@@ -36,6 +38,18 @@ const VIEW_ITEMS: SegmentedItem<ViewMode>[] = [
 const GROUP_ROW_HEIGHT = 32;
 const SESSION_ROW_HEIGHT = 54;
 const SESSION_ROW_HEIGHT_WITH_STATUS = 72;
+
+/** 生效条件数（与 SessionQueryBar 的徽标同口径：一个条件算一项）。 */
+function activeConditions(query: SessionQuery): number {
+  let count = 0;
+  if (query.projects && query.projects.length > 0) count += 1;
+  if (query.models && query.models.length > 0) count += 1;
+  if (query.toolKey !== undefined) count += 1;
+  if (query.hasError !== undefined) count += 1;
+  if (query.minContextPeak !== undefined) count += 1;
+  if (query.minDurationMin !== undefined) count += 1;
+  return count;
+}
 
 type ListRow =
   | { kind: "group"; key: string; label: string; count: number }
@@ -114,6 +128,7 @@ export function SessionList({
   error,
   errorShownElsewhere = false,
   progress,
+  onEnsureFacts,
   bleedCounts,
   onSelect,
   onOpenBleed,
@@ -131,6 +146,8 @@ export function SessionList({
    */
   errorShownElsewhere?: boolean;
   progress?: { done: number; total: number } | null;
+  /** 第一次展开筛选条件栏时补索引事实（G2，懒加载；可选）。 */
+  onEnsureFacts?: () => void;
   /**
    * 每个会话的压缩次数，键是 `SessionMeta.path`。
    *
@@ -151,6 +168,8 @@ export function SessionList({
   onRefresh: () => void;
 }) {
   const [search, setSearch] = useState("");
+  // G2 条件只在本次会话内有效：它们描述「我现在想找什么」，不是长期偏好。
+  const [query, setQuery] = useState<SessionQuery>({});
   const [view, setView] = useState<ViewMode>(readStoredView);
   const [collapsed, setCollapsed] = useState<Set<string>>(readStoredCollapsed);
   const [pinned, setPinned] = useState<Set<string>>(readStoredPinned);
@@ -206,19 +225,28 @@ export function SessionList({
     });
   }
 
+  const queryActive = activeConditions(query);
+
   const filtered = useMemo(() => {
     const needle = search.toLowerCase().trim();
     return sessions
       .filter((session) => {
-        return (
-          !needle ||
-          session.path.toLowerCase().includes(needle) ||
-          (session.sessionId ?? "").toLowerCase().includes(needle) ||
-          (session.cwd ?? "").toLowerCase().includes(needle)
-        );
+        if (
+          needle &&
+          !session.path.toLowerCase().includes(needle) &&
+          !(session.sessionId ?? "").toLowerCase().includes(needle) &&
+          !(session.cwd ?? "").toLowerCase().includes(needle)
+        ) {
+          return false;
+        }
+        // 没有条件时，未索引会话照常显示（它只是还不能被筛）；有条件时，
+        // 没有事实就没有证据——不参与，也不假装它不匹配。
+        if (queryActive === 0) return true;
+        if (!session.facts) return false;
+        return matchesSessionFacts({ projectLabel: session.projectLabel, facts: session.facts }, query);
       })
       .sort(compareSessions);
-  }, [sessions, search]);
+  }, [sessions, search, query, queryActive]);
 
   // 置顶只是把已排序的结果稳定地提到最前；两种视图（时间线/项目）都先
   // 在置顶组里出现，再从各自的剩余会话里分组。
@@ -366,6 +394,12 @@ export function SessionList({
         variant="equal"
         className={styles.viewTabs}
       />
+      <SessionQueryBar
+        sessions={sessions}
+        query={query}
+        onChange={setQuery}
+        onExpand={onEnsureFacts}
+      />
       {/* 出错时只说「什么失败了 + 下一步」，原始错误串收进「详情」。
           它过去被直接当成正文渲染，连同 `/Users/…` 与夹具说明一起端到用户面前。 */}
       {error && !errorShownElsewhere ? (
@@ -382,9 +416,9 @@ export function SessionList({
           两者可同时出现，互不冲突。 */}
       {loading ? <Skeleton variant="list" rows={6} label="正在加载会话列表" /> : null}
       {progress && progress.total > 0 ? (
-        <div className={styles.progress} role="status" aria-label="标题补全进度">
+        <div className={styles.progress} role="status" aria-label="建立索引进度">
           <span>
-            正在补全标题 {progress.done}/{progress.total}
+            正在建立索引 {progress.done}/{progress.total}
           </span>
           <progress value={progress.done} max={progress.total} />
         </div>
@@ -392,7 +426,19 @@ export function SessionList({
       {/* 错误与「没有匹配」不能同屏：扫描失败时列表本来就是空的，
           再说「调整搜索词后重试」是在给一个错的建议。 */}
       {!loading && !error && filtered.length === 0 ? (
-        <EmptyState title="没有匹配的会话" description="调整搜索词后重试。" />
+        queryActive > 0 ? (
+          <EmptyState
+            title="没有符合全部条件的会话"
+            description="试试去掉一个条件，或清空全部筛选。"
+            action={
+              <Button type="button" variant="secondary" onClick={() => setQuery({})}>
+                {`清空 ${queryActive} 个条件`}
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState title="没有匹配的会话" description="调整搜索词后重试。" />
+        )
       ) : null}
 
       <div className={styles.groups} ref={containerRef} onScroll={onScroll}>

@@ -19,6 +19,7 @@ function base(overrides: Partial<ExportBase> = {}): ExportBase {
     endedAt: BASE + 60_000,
     records: parsed.records,
     allRecords: parsed.records,
+    parsed,
     appVersion: "0.10.0",
     ...overrides
   };

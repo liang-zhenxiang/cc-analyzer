@@ -137,7 +137,7 @@ test("ignores a stale session read after rapid switching", async () => {
     return [{ name: "session.jsonl", is_dir: false, is_file: true }];
   });
   bridges.fs.readText = vi.fn((path: string) => {
-    if (path.endsWith("meta-cache-v2.json")) {
+    if (path.endsWith("meta-cache-v3.json")) {
       return Promise.resolve(JSON.stringify({ version: 1, entries: {} }));
     }
     // 归档索引：首次运行不存在，真实桥接是抛错；这里照做，免得它被当成
@@ -194,7 +194,7 @@ test("shows graph warnings when a child session cannot be resolved", async () =>
   );
   const bridges = createBridges();
   bridges.fs.readText = vi.fn(async (path: string) => {
-    if (path.endsWith("meta-cache-v2.json")) {
+    if (path.endsWith("meta-cache-v3.json")) {
       return JSON.stringify({ version: 1, entries: {} });
     }
     if (path.endsWith("session.jsonl")) return parentText;
@@ -265,7 +265,7 @@ test("ignores a stale graph resolution after rapid session switching", async () 
         : []
   );
   bridges.fs.readText = vi.fn((path: string) => {
-    if (path.endsWith("meta-cache-v2.json")) {
+    if (path.endsWith("meta-cache-v3.json")) {
       return Promise.resolve(JSON.stringify({ version: 1, entries: {} }));
     }
     if (path.endsWith("archive-index.json")) {
@@ -327,7 +327,7 @@ test("loads child session records as a subagent", async () => {
   });
   const bridges = createBridges();
   bridges.fs.readText = vi.fn(async (path: string) => {
-    if (path.endsWith("meta-cache-v2.json")) {
+    if (path.endsWith("meta-cache-v3.json")) {
       return JSON.stringify({ version: 1, entries: {} });
     }
     if (path.endsWith("session.jsonl")) return parentText;
@@ -394,7 +394,7 @@ test("hands the resolved session graph to report generation", async () => {
 
   const bridges = createBridges();
   bridges.fs.readText = vi.fn(async (path: string) => {
-    if (path.endsWith("meta-cache-v2.json")) {
+    if (path.endsWith("meta-cache-v3.json")) {
       return JSON.stringify({ version: 1, entries: {} });
     }
     if (path.endsWith("session.jsonl")) return parentText;
@@ -466,7 +466,7 @@ function graphBridges(): Bridges {
 
   const bridges = createBridges();
   bridges.fs.readText = vi.fn(async (path: string) => {
-    if (path.endsWith("meta-cache-v2.json")) {
+    if (path.endsWith("meta-cache-v3.json")) {
       return JSON.stringify({ version: 1, entries: {} });
     }
     if (path.endsWith("session.jsonl")) return parentText;
@@ -818,7 +818,7 @@ test("folds the token panel behind the session header chip", async () => {
   const user = userEvent.setup();
   const bridges = createBridges();
   bridges.fs.readText = vi.fn(async (path: string) => {
-    if (path.endsWith("meta-cache-v2.json")) return JSON.stringify({ version: 1, entries: {} });
+    if (path.endsWith("meta-cache-v3.json")) return JSON.stringify({ version: 1, entries: {} });
     return path.endsWith(".jsonl") ? tokenFixture : "{}";
   }) as Bridges["fs"]["readText"];
 

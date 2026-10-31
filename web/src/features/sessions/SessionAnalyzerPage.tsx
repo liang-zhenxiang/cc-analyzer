@@ -171,7 +171,7 @@ export function SessionAnalyzerPage({
 } = {}) {
   const bridges = useBridges();
   const { notify } = useNotifications();
-  const { sessions, loading, error, progress, refresh } = useSessions();
+  const { sessions, loading, error, progress, refresh, indexFacts } = useSessions();
   // 侧栏徽章的数字来自与「出血点」标签页同一个 `buildBleedReport`，只是分期补齐。
   const bleedCounts = useBleedCounts(sessions, loading);
   const { detailRows: reportRowLimit } = useThresholds();
@@ -237,6 +237,8 @@ export function SessionAnalyzerPage({
       endedAt: parsed.endedAt,
       records,
       allRecords: parsed.records,
+      // 档案（Round GG G3）要 cwd / compactEvents / 主导模型，三个都不在扁平字段里。
+      parsed,
       appVersion
     };
   }, [selectedSession, parsed, records, appVersion]);
@@ -562,6 +564,7 @@ export function SessionAnalyzerPage({
           onSelect={(session) => void openSession(session)}
           onOpenBleed={(session) => void openSession(session, "bleed")}
           onRefresh={() => void refresh()}
+          onEnsureFacts={() => void indexFacts()}
         />
         <div className={styles.workspace}>
           {!parsed ? (
