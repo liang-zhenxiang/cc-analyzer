@@ -119,7 +119,7 @@ async function readEntry(bridges: Bridges, session: SessionMeta): Promise<FeedEn
  * 缓存即可；读不到头就退回 `fallbackSessionTitle`（项目标签 + 会话 id 前 8 位）。
  *
  * 这份缓存只存在内存里：托盘与分析页各有自己的 `SessionRepository` 与写队列，
- * 多一个写 `meta-cache-v2.json` 的人就是读-改-写竞态。
+ * 多一个写 `meta-cache-v3.json` 的人就是读-改-写竞态。
  */
 async function readSessionTitle(bridges: Bridges, session: SessionMeta): Promise<string> {
   try {

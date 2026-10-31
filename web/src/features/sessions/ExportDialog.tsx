@@ -14,8 +14,14 @@ import styles from "./ExportDialog.module.css";
 
 const FORMAT_ITEMS: SegmentedItem<ExportFormat>[] = [
   { value: "html", label: "HTML 报告" },
-  { value: "csv", label: "CSV" }
+  { value: "csv", label: "CSV" },
+  // 档案与上两种并排，因为它是「导出这件事」的第三种产物，不是一个新动作
+  // （设计 §2.2：页头加第二个导出按钮会让每次导出都要先读懂两个按钮）。
+  { value: "archive", label: "档案" }
 ];
+
+/** 档案的保护性说明：用户会把它贴进 Issue、发给同事，这句必须常显。 */
+const ARCHIVE_NOTE = "只含统计与时间线摘要，不含消息内容与文件路径";
 
 const SCOPE_ITEMS: SegmentedItem<ExportScope>[] = [
   { value: "filtered", label: "当前筛选结果" },
@@ -137,7 +143,13 @@ export function ExportDialog({
     try {
       await clipboard.writeText(payload.clipboardText);
       setCopied(true);
-      setStatus(format === "csv" ? `已复制 ${payload.recordCount} 条记录的 CSV` : "已复制 HTML 源码");
+      setStatus(
+        format === "csv"
+          ? `已复制 ${payload.recordCount} 条记录的 CSV`
+          : format === "archive"
+            ? "已复制档案 Markdown"
+            : "已复制 HTML 源码"
+      );
     } catch (cause) {
       setStatus(null);
       setError(`导出失败: ${String(cause)}`);
@@ -149,9 +161,15 @@ export function ExportDialog({
     setError(null);
     try {
       const path = await dialog.saveText(payload.fileName, payload.contents, {
-        title: format === "csv" ? "导出会话记录（CSV）" : "导出会话报告（HTML）",
-        filterName: format === "csv" ? "CSV" : "HTML",
-        extensions: [format]
+        title:
+          format === "csv"
+            ? "导出会话记录（CSV）"
+            : format === "archive"
+              ? "导出会话档案（Markdown）"
+              : "导出会话报告（HTML）",
+        filterName: format === "csv" ? "CSV" : format === "archive" ? "Markdown" : "HTML",
+        // 扩展名不能直接用 format：`archive` 不是扩展名。
+        extensions: [format === "archive" ? "md" : format]
       });
       // Cancelling the system dialog is not a failure: say nothing, stay open.
       if (path === null) return;
@@ -204,21 +222,35 @@ export function ExportDialog({
             />
             <span className={styles.hint}>{formatHint(format)}</span>
           </div>
-          <div className={styles.field}>
-            <span className={styles.label}>范围</span>
-            <SegmentedControl
-              items={SCOPE_ITEMS}
-              value={scope}
-              onChange={setScope}
-              ariaLabel="导出范围"
-              variant="equal"
-            />
-          </div>
+          {/* 档案是整会话产物，没有「当前筛选结果」这个含义：与其给一个选了也
+              不起作用的作用域，不如把它换成那句真正要说的话。 */}
+          {format === "archive" ? (
+            <p className={styles.archiveNote} data-probe="export-archive-note">
+              {ARCHIVE_NOTE}
+            </p>
+          ) : (
+            <div className={styles.field}>
+              <span className={styles.label}>范围</span>
+              <SegmentedControl
+                items={SCOPE_ITEMS}
+                value={scope}
+                onChange={setScope}
+                ariaLabel="导出范围"
+                variant="equal"
+              />
+            </div>
+          )}
           <div className={styles.count} role="status" id="export-dialog-count">
             <b className={styles.countValue}>
-              将导出 {payload.recordCount.toLocaleString("en-US")} 条记录
+              {format === "archive"
+                ? `将导出整会话档案（${payload.recordCount.toLocaleString("en-US")} 条记录汇总）`
+                : `将导出 ${payload.recordCount.toLocaleString("en-US")} 条记录`}
             </b>
-            <span className={styles.countSource}>{sourceLine}</span>
+            <span className={styles.countSource}>
+              {format === "archive"
+                ? "时间线只摘录首尾各若干条，其余折成一行计数"
+                : sourceLine}
+            </span>
             {payload.truncated ? (
               <span className={styles.countSource}>
                 记录较多，本次仅导出前 {payload.recordCount.toLocaleString("en-US")} 条（共{" "}
@@ -229,7 +261,11 @@ export function ExportDialog({
           <p className={styles.fileName} title={payload.fileName}>
             文件名 <code>{payload.fileName}</code>
           </p>
-          {format === "csv" ? (
+          {format === "archive" ? (
+            <span className={styles.hint}>
+              存成 .md 后可粘进 Issue、Wiki 或版本库；档案不含消息原文，可安全分享。
+            </span>
+          ) : format === "csv" ? (
             <>
               <span className={styles.hint}>
                 粘贴到脚本或编辑器；要让 Excel 正确分列请用「保存…」。

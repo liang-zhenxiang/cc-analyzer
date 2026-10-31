@@ -2,27 +2,44 @@ import { useMemo } from "react";
 import { Panel } from "../../components/Panel";
 import { formatModelId, formatTokenCount } from "../../lib/format";
 import { annualReportOf, type AnnualReport } from "./annualReport";
+import { buildMonthlyReport, type MonthCard } from "./monthlyReport";
 import type { UsageSessionInput } from "./usageAggregations";
 import styles from "./AnnualReportPanel.module.css";
 
 /**
- * 用量年报（E4，规格 design-round-ee-batch3 §2.3）。
+ * 用量年报（E4，规格 design-round-ee-batch3 §2.3 + Round GG G4 逐月区）。
  *
- * 组件只吃 `AnnualReport`：年份过滤、各项之最、三处并列裁决全部由纯函数
- * `annualReportOf` 定死（同输入必同输出），这里只排版。**不在这里补算任何一个
- * 数字**——年报的每一个读数都该能在纯逻辑的测试里被钉住。
+ * 组件只吃 `AnnualReport` 与 `MonthlyReport`：年份过滤、各项之最、并列裁决、
+ * 逐月窗口全部由纯函数定死（同输入必同输出），这里只排版。**不在这里补算
+ * 任何一个数字**——年报的每一个读数都该能在纯逻辑的测试里被钉住。
  *
  * 六张卡：总量（含起止日与活跃天数）/ 消息 / 最活跃的月份 / 主力模型 /
- * 最长连击 / 最贵的一周。规格 §2.3 原本还画「十二个月的形状」与「一年中的
- * 分布小格」，但 `AnnualReport` 不带逐月与逐日序列——为画那两根图在视图里
- * 重扫一遍全量记录，等于把口径复制成两份，两边迟早对不上。年报在这台机器上
- * 是「一段叙事」，不是又一张图。
+ * 最长连击 / 最贵的一周。六卡之后是 G4「逐月」区：12 张迷你卡横滚
+ * （月名 / token / 活跃日 / 主力模型缩写），partial 月弱化但不禁用——
+ * 半月数据是事实不是缺陷，弱化只是提醒「这格不满」。点月卡上抛
+ * `onDrillMonth(year, month)`，由页面跳到用量档并选中该月最活跃的一天。
  *
  * 年度切换：规格没有定义多年浏览，所以只呈现数据所在的那一年（`annualReportOf`
  * 缺省取最新记录的本地年）。真要多年对比，第一件事是把逐月序列搬进纯逻辑层。
  */
-export function AnnualReportPanel({ inputs }: { inputs: readonly UsageSessionInput[] }) {
+export function AnnualReportPanel({
+  inputs,
+  onDrillMonth,
+  now
+}: {
+  inputs: readonly UsageSessionInput[];
+  /** 点逐月迷你卡：页面把它翻译成「切用量档 + 选中该月最活跃日」。 */
+  onDrillMonth?: (year: number, month: number) => void;
+  /** 「现在」锚点（测试注入夹具时间；缺省取真实当下）。 */
+  now?: number;
+}) {
   const report = useMemo(() => annualReportOf(inputs), [inputs]);
+  // 逐月窗口与年报同一年：年报说「第 2026 年」，月份条就不能混进 2025 的尾巴
+  // 月——六张卡是 2026 的账，逐月区必须是同一本账，否则读者对不上总数。
+  const months = useMemo(
+    () => (report ? buildMonthlyReport(inputs, now ?? Date.now()).months.filter((m) => m.year === report.year) : []),
+    [inputs, now, report]
+  );
 
   if (!report) {
     return (
@@ -99,7 +116,49 @@ export function AnnualReportPanel({ inputs }: { inputs: readonly UsageSessionInp
           </p>
         </Panel>
       </div>
+      <MonthStrip months={months} onDrillMonth={onDrillMonth} />
     </div>
+  );
+}
+
+/**
+ * G4 逐月区：12 张 88px 迷你卡横滚。
+ *
+ * 卡片可点（下钻该月）；「可点」不因 partial 而消失——半月也能下钻看那半截，
+ * 禁用了反而让人误以为「这个月还没统计」。空月（窗口内但无记录）同理可点：
+ * 下钻落到月内最活跃日，没有活跃日时页面自己兜底（不动日历选区）。
+ * 月卡按模型层给出的 (year, month) 升序排列，与读日历的方向一致。
+ */
+function MonthStrip({
+  months,
+  onDrillMonth
+}: {
+  months: MonthCard[];
+  onDrillMonth?: (year: number, month: number) => void;
+}) {
+  if (months.length === 0) return null;
+  return (
+    <section role="list" className={styles.monthStrip} data-probe="annual-months" aria-label="逐月用量">
+      {months.map((card) => (
+        <div
+          key={`${card.year}-${card.month}`}
+          role="listitem"
+          className={styles.monthItem}
+        >
+        <button
+          type="button"
+          className={card.partial ? styles.monthCardPartial : styles.monthCard}
+          aria-label={`${card.year} 年 ${card.month} 月 · ${formatTokenCount(card.tokens)}`}
+          onClick={() => onDrillMonth?.(card.year, card.month)}
+        >
+          <span className={styles.monthName}>{card.month} 月</span>
+          <span className={styles.monthTokens}>{formatTokenCount(card.tokens)}</span>
+          <span className={styles.monthMeta}>{card.activeDays} 天</span>
+          <span className={styles.monthMeta}>{card.topModel ? formatModelId(card.topModel) : "—"}</span>
+        </button>
+        </div>
+      ))}
+    </section>
   );
 }
 

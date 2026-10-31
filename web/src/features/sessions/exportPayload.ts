@@ -1,6 +1,8 @@
 import { CSV_BOM, csvOf } from "./exportCsv";
 import { htmlReportOf } from "./exportHtml";
+import { buildSessionArchive } from "./sessionArchive";
 import { exportFileName, recordsForExport, type ExportInput } from "./exportTypes";
+import type { ParsedSession } from "./types";
 
 export type ExportPayload = {
   fileName: string;
@@ -16,9 +18,16 @@ export type ExportPayload = {
 };
 
 /** One export request rendered once — the dialog saves and copies the same bytes. */
-export function buildExport(input: ExportInput): ExportPayload {
+export function buildExport(input: ExportInput & { parsed: ParsedSession }): ExportPayload {
   const { records, truncated, total } = recordsForExport(input);
-  const contents = input.format === "csv" ? csvOf(input) : htmlReportOf(input);
+  // 档案不吃作用域：它描述「这个会话是什么」，不是「我筛出了哪几行」。
+  // 因此它既不受 `EXPORT_MAX_RECORDS` 截断，也不写 truncated 那行提示。
+  const contents =
+    input.format === "archive"
+      ? buildSessionArchive(input.parsed)
+      : input.format === "csv"
+        ? csvOf(input)
+        : htmlReportOf(input);
   return {
     fileName: exportFileName({
       sessionId: input.sessionId,
@@ -27,7 +36,7 @@ export function buildExport(input: ExportInput): ExportPayload {
     }),
     contents,
     clipboardText: contents.startsWith(CSV_BOM) ? contents.slice(CSV_BOM.length) : contents,
-    recordCount: records.length,
+    recordCount: input.format === "archive" ? input.allRecords.length : records.length,
     totalRecords: total,
     truncated
   };

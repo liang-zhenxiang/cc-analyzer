@@ -74,3 +74,10 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* G5：错误档档位（时间线 | 档案）。与用量页其它档位同一画法，
+   左对齐、不占满整行。 */
+.errorTabs {
+  display: flex;
+  min-width: 0;
+}

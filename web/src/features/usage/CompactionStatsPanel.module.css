@@ -145,3 +145,53 @@
   font-size: var(--fs-sm);
   line-height: var(--lh-sm);
 }
+
+/* 会话上下文峰值分位行（G7，design §G7）：挂在叙事句之后，1px 上发丝线
+   隔开「压缩的因果解释」与「上下文的量级读数」。行高 20；键 11px 三级色、
+   值 12px 二级色 tabular-nums；五项 gap 12，整行可换行（960 下折第二行）。 */
+.quantiles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-3);
+  height: 20px;
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-1) 0 0;
+  border-top: 1px solid var(--border);
+  overflow: visible;
+}
+
+.qLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.qItem {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-05);
+}
+
+.qKey {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.qVal {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 分位行空态（count 0 / 样本不足）：与 zeroState 同语气的一行小字。 */
+.quantileEmpty {
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-1) 0 0;
+  border-top: 1px solid var(--border);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}

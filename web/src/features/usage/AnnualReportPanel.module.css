@@ -121,3 +121,78 @@
   font-size: var(--fs-sm);
   line-height: var(--lh-sm);
 }
+
+/* ---- G4 逐月区：12 张迷你卡横滚 ----
+   卡宽 88px（规格 §12 定的尺寸）、横向排一行放不下就滚——一年的十二个月
+   是时间序列，折成两行会读成「两个半年」而不是一条时间线。 */
+
+.monthStrip {
+  display: flex;
+  gap: var(--sp-1);
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: var(--sp-05);
+}
+
+/* 迷你卡是按钮（点月下钻），但视觉上按「数据格」说话：无框、底色分层，
+   只在 hover / focus 才亮边。四个读数纵排：月名 / token / 活跃日 / 模型。 */
+/* listitem 包装：只负责把按钮交给横滚布局，不画任何自己的框。 */
+.monthItem {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.monthCard,
+.monthCardPartial {
+  display: flex;
+  width: 88px;
+  flex-direction: column;
+  gap: var(--sp-05);
+  padding: var(--sp-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-subtle);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.monthCard:hover,
+.monthCardPartial:hover {
+  background: var(--bg-hover);
+}
+
+.monthCard:focus-visible,
+.monthCardPartial:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-inset);
+}
+
+/* partial 月弱化但不禁用：半月是事实不是缺陷，弱化提醒「这格不满」，
+   点击照常——半月也能下钻看那半截。 */
+.monthCardPartial {
+  opacity: 0.55;
+}
+
+.monthName {
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.monthTokens {
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.monthMeta {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

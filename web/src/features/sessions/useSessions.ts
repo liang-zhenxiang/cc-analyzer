@@ -60,6 +60,35 @@ export function useSessions() {
     }
   }, [repository]);
 
+  /**
+   * 懒补筛选事实（G2）：用户第一次展开筛选条件栏时调用。
+   *
+   * 不放在 `refresh` 里一起跑——事实要读全量文本，而元数据只用前 256KB；
+   * 混进首屏会让「一个文件读不动」拖住整块列表（既有扫描测试用永不 resolve
+   * 的 `readText` 盯着这条不变量）。索引进度与扫描进度共用同一行状态。
+   */
+  const indexingRef = useRef(false);
+  const indexFacts = useCallback(async () => {
+    if (indexingRef.current) return;
+    const targets = sessions.filter(
+      (session) => session.metadataStatus === "complete" && session.facts === undefined
+    );
+    if (targets.length === 0) return;
+    indexingRef.current = true;
+    try {
+      const enriched = await repository.enrichFacts(targets, (update) => {
+        setSessions((current) => replaceSessions(current, update.batch));
+        setProgress(update);
+      });
+      setSessions((current) => replaceSessions(current, enriched));
+    } catch {
+      // 单会话失败已在 enrichFacts 里降级；这里只兜住整体异常。
+    } finally {
+      indexingRef.current = false;
+      setProgress(null);
+    }
+  }, [repository, sessions]);
+
   const importPath = useCallback(async (path: string) => {
     try {
       const imported = await repository.importSession(path);
@@ -81,5 +110,5 @@ export function useSessions() {
     };
   }, [bridges.events, refresh, importPath]);
 
-  return { sessions, loading, error, progress, refresh, importPath };
+  return { sessions, loading, error, progress, refresh, importPath, indexFacts };
 }

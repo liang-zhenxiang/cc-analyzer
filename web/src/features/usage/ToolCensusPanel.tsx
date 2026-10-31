@@ -11,10 +11,62 @@ import {
   type ToolCallFact,
   type ToolCensus
 } from "./toolCensus";
+import type { ToolCalendarRow, ToolMonthCell } from "./toolCalendar";
 import styles from "./ToolCensusPanel.module.css";
 
 /** 三区统一折尾规则（design 裁决 7）：与用量档 DEFAULT_TOP_N=6 同数。 */
 const TOP_N = 6;
+
+/* ===================== 按月视图（G6，design §G6） ===================== */
+
+/** 条区几何（design 写死）：条区总高 24、条宽 6、条间 4（宽度与间距落在
+ *  CSS 类上——.monthBar/.monthEmpty 的 6px 与 .monthTrack 的 gap 4px；
+ *  本文件只保留参与高度计算的常量）。最小条高 2。 */
+const MONTH_BAR_TRACK = 24;
+const MONTH_BAR_MIN = 2;
+
+/** 趋势判据（design 写死）：前 6 月均值对比后 3 月均值，相对变化 > 30% 才算升/降。 */
+const TREND_BASE_MONTHS = 6;
+const TREND_RECENT_MONTHS = 3;
+const TREND_THRESHOLD = 0.3;
+/** 不足多少个月的数据就不判趋势（「—」）：基准段 6 + 对比段 3。 */
+const TREND_NEED_MONTHS = TREND_BASE_MONTHS + TREND_RECENT_MONTHS;
+
+/**
+ * 趋势读数（design §G6 判据写死）：前 6 月均值 vs 后 3 月均值，相对变化
+ * > 30% 才算 ↑/↓，否则「持平」；数据不足 9 个月给「—」——窗口不满 9 个月
+ * 时「前 6 月」自己就残缺，均值没有意义。
+ */
+function trendOf(months: readonly ToolMonthCell[]): string {
+  if (months.length < TREND_NEED_MONTHS) return "—";
+  const calls = months.map((cell) => cell.calls);
+  // 基准段是「更早的 6 个月」：窗口不足时前段会挤进空月，均值天然被稀释，
+  // 与 design 的意图（拿历史基线比最近）一致。
+  const base = calls.slice(0, TREND_BASE_MONTHS);
+  const recent = calls.slice(-TREND_RECENT_MONTHS);
+  const baseAvg = base.reduce((sum, n) => sum + n, 0) / base.length;
+  const recentAvg = recent.reduce((sum, n) => sum + n, 0) / recent.length;
+  if (baseAvg === 0) {
+    // 基线为 0：最近有量就是「在用起来了」，无量才是真持平。
+    return recentAvg > 0 ? "近 3 月 ↑" : "持平";
+  }
+  const change = (recentAvg - baseAvg) / baseAvg;
+  if (change > TREND_THRESHOLD) return "近 3 月 ↑";
+  if (change < -TREND_THRESHOLD) return "近 3 月 ↓";
+  return "持平";
+}
+
+/** 一根条的高（px）：按该工具**自身**窗口内最大月调用归一——回归/弃用的
+ *  周期要能看见，全局归一会让低频工具永远趴在地上。0 次月不画条（空槽）。 */
+function barHeight(calls: number, ownMax: number): number {
+  if (calls <= 0 || ownMax <= 0) return 0;
+  return Math.max(MONTH_BAR_MIN, Math.round((calls / ownMax) * MONTH_BAR_TRACK));
+}
+
+/** 条的悬停读数：`3 月 124 次`（月份不带「0」前缀，与条 title 模板一致）。 */
+function monthTitle(cell: ToolMonthCell): string {
+  return `${cell.month} 月 ${cell.calls.toLocaleString("en-US")} 次`;
+}
 
 /** 口径脚注常显（design §3.6）；分桶口径由四栏栏头逐栏写明，不在这里复述。 */
 const FOOTNOTE = "调用次数含子 agent 记录，主链单独计数见各行悬停；点击任一行可下钻使用最多的会话。";
@@ -190,6 +242,7 @@ export function ToolCensusPanel({
   days,
   sessionsInWindow,
   toolFacts = [],
+  calendarRows = [],
   onOpenSession
 }: {
   census: ToolCensus;
@@ -198,11 +251,14 @@ export function ToolCensusPanel({
   sessionsInWindow: number;
   /** 健康视图的输入（D2）。缺省 = 页面没给，健康表显示空态而不是崩。 */
   toolFacts?: readonly ToolCallFact[];
+  /** 按月视图的输入（G6，toolCalendar 产出）。缺省 = 页面没给，按月表显示
+   *  空态而不是崩（与健康视图的缺省语义一致）。 */
+  calendarRows?: readonly ToolCalendarRow[];
   /** 下钻会话行的「打开会话」回调；缺省（单测直挂组件）时行仍列出，只是不可点。 */
   onOpenSession?: (session: SessionMeta) => void;
 }) {
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [mode, setMode] = useState<"calls" | "health">("calls");
+  const [mode, setMode] = useState<"calls" | "health" | "months">("calls");
   const health = useMemo(() => toolHealth(toolFacts), [toolFacts]);
   // 样本不足的调用不参与均值/p95，也不冒充「0 ms」。
   const healthRows = health.worst.slice(0, TOP_N);
@@ -248,7 +304,8 @@ export function ToolCensusPanel({
             <SegmentedControl
               items={[
                 { value: "calls", label: "调用次数" },
-                { value: "health", label: "健康" }
+                { value: "health", label: "健康" },
+                { value: "months", label: "按月" }
               ]}
               value={mode}
               onChange={setMode}
@@ -258,7 +315,65 @@ export function ToolCensusPanel({
           </span>
         }
       >
-        {mode === "health" ? (
+        {mode === "months" ? (
+          calendarRows.length === 0 ? (
+            <p className={styles.zeroState}>
+              {`近 ${days} 天检查了 ${fmt(sessionsInWindow)} 个会话，没有工具调用记录`}
+            </p>
+          ) : (
+            <div data-probe="tool-months">
+              <table className={styles.months}>
+                <caption className={styles.srOnly}>
+                  工具月历：每个工具各月的调用次数
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">工具</th>
+                    {/* 月份列的数字逐格写在条槽下（见月份行），表头这一格只占位；
+                        aria-hidden 避免「1…12 月」这样的省略读法混进表语义。 */}
+                    <th scope="col" aria-hidden="true">{`月（${calendarRows[0]?.months.length ?? 0} 个月）`}</th>
+                    <th scope="col">合计</th>
+                    <th scope="col">趋势</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {calendarRows.map((row) => {
+                    // 自身归一：每个工具用自己的最大月做分母（design §G6——
+                    // 回归/弃用周期要能看见，低频工具不能被全局 max 压平）。
+                    const ownMax = row.months.reduce((max, cell) => Math.max(max, cell.calls), 0);
+                    return (
+                      <tr key={row.key} data-probe="tool-month-row">
+                        <th scope="row" title={row.key}>
+                          {row.label}
+                        </th>
+                        <td>
+                          <span className={styles.monthTrack} role="img" aria-label={`${row.label}：逐月调用 ${row.totalCalls.toLocaleString("en-US")} 次，趋势${trendOf(row.months)}`}>
+                            {row.months.map((cell) => {
+                              const height = barHeight(cell.calls, ownMax);
+                              return (
+                                <span
+                                  key={`${cell.year}-${cell.month}`}
+                                  className={height > 0 ? styles.monthBar : styles.monthEmpty}
+                                  style={height > 0 ? { height: `${height}px` } : undefined}
+                                  title={monthTitle(cell)}
+                                />
+                              );
+                            })}
+                          </span>
+                        </td>
+                        <td className={styles.monthNum}>{fmt(row.totalCalls)}</td>
+                        <td className={styles.monthTrend}>{trendOf(row.months)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <p className={styles.healthNote}>
+                条高按各工具自身最忙的月份归一；趋势对比前 6 个月与近 3 个月的均值，变化超过 30% 才算升/降。
+              </p>
+            </div>
+          )
+        ) : mode === "health" ? (
           health.tools.length === 0 ? (
             <p className={styles.zeroState}>本窗口没有工具调用记录</p>
           ) : (

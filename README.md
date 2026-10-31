@@ -470,6 +470,10 @@ The roadmap tracks open issues; each item links to the issue that owns it.
   weekly budget runway and prompt rhythm); every card is computed locally with
   no new backend command (ships in v0.34.0-beta.1)
   ([#279](https://github.com/liang-zhenxiang/cc-analyzer/issues/279))
+- [ ] Fifth ten-feature pack — story log, session filters, archive markdown
+  export, monthly report strip, error archive, tool month calendar, context
+  peak quantiles, project seasons, session similarity and snapshot compare
+  ([#284](https://github.com/liang-zhenxiang/cc-analyzer/issues/284))
 - [x] Frontend upgrade to React 19, moving `@types/react` / `@types/react-dom`
   together
   ([#19](https://github.com/liang-zhenxiang/cc-analyzer/issues/19))

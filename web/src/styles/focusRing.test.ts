@@ -116,18 +116,26 @@ describe("焦点环的几何只走令牌", () => {
    * Round FF 的实验室再加 6 条环规则：星系行、火焰行、名人堂领奖台列 + 榜单行
    * 各一条（内嵌负偏移），提示词图例、生态「清除筛选」各一条（正偏移）。
    * 重数后：环宽度 52、偏移 26 + 23、消费规则 56。
+   * Round GG 再加 12 条环规则：工作日志日行（内嵌负偏移）与展开明细行、年报
+   * 逐月卡（内嵌负偏移）、错误档案的开关与会话链接、筛选栏头部与多选块
+   * （calc 内嵌负偏移 ×2）、工具普查按月视图的桶按钮 ×3（正偏移）、压缩统计
+   * 分位行、快照对比对话框、会话对比的相似会话行。
+   * 重数后：环宽度 59、偏移 29 + 27（含 2 处 calc 内嵌）、消费规则 63。
    */
-  it("令牌被 56 条规则消费，环宽度 52 处、偏移 26 + 23 处、焦点竖条 7 处", () => {
+  it("令牌被 63 条规则消费，环宽度 59 处、偏移 29 + 27 处、焦点竖条 7 处", () => {
     const count = (pattern: RegExp) => ALL_SOURCE.match(pattern)?.length ?? 0;
     // 只数「消费」的规则：tokens.css 里那几块是**声明**（`--focus-ring-width: 2px;`），
     // 不含 `var(...)`，不能被算进消费方。
     const consumingRules = ALL_RULES.filter((rule) => /var\(--focus-ring-/.test(rule.body));
 
-    expect(count(/outline(?:-width)?:\s*var\(--focus-ring-width\)/g)).toBe(52);
-    expect(count(/outline-offset:\s*var\(--focus-ring-offset\)/g)).toBe(26);
-    expect(count(/outline-offset:\s*var\(--focus-ring-inset\)/g)).toBe(23);
+    expect(count(/outline(?:-width)?:\s*var\(--focus-ring-width\)/g)).toBe(59);
+    expect(count(/outline-offset:\s*var\(--focus-ring-offset\)/g)).toBe(29);
+    // 内嵌负偏移有两种写法：直接令牌，与 calc(-1 * 令牌)（Round GG 筛选栏）。
+    const insetDirect = count(/outline-offset:\s*var\(--focus-ring-inset\)/g);
+    const insetCalc = count(/outline-offset:\s*calc\(-1 \* var\(--focus-ring-inset\)\)/g);
+    expect(insetDirect + insetCalc).toBe(27);
     expect(count(/inset\s+var\(--focus-ring-width\)\s+0\s+0\s+var\(--accent\)/g)).toBe(7);
-    expect(consumingRules.length).toBe(56);
+    expect(consumingRules.length).toBe(63);
   });
 });
 

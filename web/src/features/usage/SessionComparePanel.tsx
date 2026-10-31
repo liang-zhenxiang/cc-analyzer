@@ -10,13 +10,16 @@ import {
   type SessionCompareSide
 } from "./sessionCompare";
 import { aggregateSession, totalsSum } from "./usageAggregations";
+import { topKSimilar } from "./sessionSimilarity";
 import styles from "./SessionComparePanel.module.css";
 
 /**
- * 「会话对比」（D1）：并排看两段会话的五项读数。
+ * 「会话对比」（D1 + Round GG G9 相似会话）：并排看两段会话的五项读数，
+ * 并推荐「与会话 A 最像的三个会话」。
  *
- * 模型层只给四维差值（tokens / messages / durationMinutes / records）与两侧的
- * 原始读数；摘要句由这一层拼——它是纯排版，不做第二次统计。
+ * 模型层只给四维差值（tokens / messages / durationMinutes / records）、两侧的
+ * 原始读数与加权 Jaccard 相似度；摘要句与推荐排版由这一层拼——纯展示，
+ * 不做第二次统计。
  */
 
 const ROWS: ReadonlyArray<{ label: string; value: (side: SessionCompareSide) => string }> = [
@@ -37,6 +40,9 @@ const FIELD_LABEL: Record<SessionCompareDiff["field"], string> = {
   durationMinutes: "时长",
   records: "记录数"
 };
+
+/** 相似度低于此值只当参考，不当结论（诚实角标的门槛）。 */
+const SIMILARITY_WEAK_THRESHOLD = 0.3;
 
 function sideValue(side: SessionCompareSide, field: SessionCompareDiff["field"]): number {
   if (field === "tokens") return totalsSum(side.tokens);
@@ -73,6 +79,13 @@ export function SessionComparePanel({ inputs }: { inputs: readonly UsageSessionI
   // The range can change under us (7 → 30 days): keep the indices inside.
   const safeA = Math.min(indexA, Math.max(0, ranked.length - 1));
   const safeB = Math.min(Math.max(indexB, ranked.length > 1 ? 1 : 0), Math.max(0, ranked.length - 1));
+
+  // G9 相似会话：锚点是当前选中的会话 A，池子是同一份窗口 inputs。
+  // 排除自身由 topKSimilar 按 session.path 身份完成（无 path 时回退池内下标）。
+  const similar = useMemo(
+    () => (ranked.length > 0 ? topKSimilar(ranked[safeA].input, inputs, 3) : []),
+    [inputs, ranked, safeA]
+  );
 
   if (ranked.length < 2) {
     return (
@@ -143,6 +156,59 @@ export function SessionComparePanel({ inputs }: { inputs: readonly UsageSessionI
       <p className={styles.footnote}>
         只比较已读到的记录；时长取首尾记录之差，不把窗口外的等待算进来。
       </p>
+      <SimilarSessions similar={similar} anchorLabel={sessionLabel(a.input)} />
     </Panel>
+  );
+}
+
+/**
+ * G9 相似会话：topKSimilar 的三条推荐。
+ *
+ * 诚实口径：score < 0.3 的推荐**不隐藏**，挂「相似度低，仅供参考」角标——
+ * 「找不到像的」本身就是一条有用信息，悄悄删掉它会让人以为推荐是全量的。
+ * 全部低于门槛（或池子干净到一条都没有）时整区让位给一句实话
+ * 「没有足够相似的会话」——满屏 20% 的角标不是推荐，是噪声。
+ */
+function SimilarSessions({
+  similar,
+  anchorLabel
+}: {
+  similar: ReturnType<typeof topKSimilar>;
+  anchorLabel: string;
+}) {
+  const hasStrong = similar.some((item) => item.score >= SIMILARITY_WEAK_THRESHOLD);
+  if (similar.length === 0 || !hasStrong) {
+    return (
+      <section className={styles.similar} data-probe="compare-similar">
+        <h3 className={styles.similarTitle}>相似会话</h3>
+        <p className={styles.similarEmpty}>没有足够相似的会话</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className={styles.similar} data-probe="compare-similar">
+      <h3 className={styles.similarTitle}>相似会话 · 与「{anchorLabel}」最像</h3>
+      <ul className={styles.similarList}>
+        {similar.map((item) => {
+          const weak = item.score < SIMILARITY_WEAK_THRESHOLD;
+          return (
+            <li key={item.session.session?.path ?? sessionLabel(item.session)} className={styles.similarItem}>
+              <span className={styles.similarScore}>{Math.round(item.score * 100)}%</span>
+              <span className={styles.similarBody}>
+                <span className={styles.similarLabel}>{sessionLabel(item.session)}</span>
+                {/* 理由串接：模型层已按贡献降序，这里只负责顿号连接。 */}
+                <span className={styles.similarReasons}>{item.reasons.join("；") || "无共同维度"}</span>
+              </span>
+              {weak ? (
+                <span className={styles.similarWeakBadge} title="相似度低于 30%，只当线索不当结论">
+                  相似度低，仅供参考
+                </span>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

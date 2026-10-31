@@ -1,0 +1,98 @@
+/* 工作日志（G1）：收起一行一天，展开一天会话清单。全部复用 tokens，零新增令牌。 */
+
+.days {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.dayBlock {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 收起态一行 24px：按钮拍扁、无边框干扰，整行可点。 */
+.dayRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: 24px;
+  padding: 0 var(--sp-1);
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dayRow:hover {
+  background: var(--bg-hover);
+}
+
+.dayRow:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-inset);
+}
+
+.dayDate {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.dayMeta {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 展开区：一天会话清单，最高 160px 内滚动。 */
+.sessionList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-05);
+  max-height: 160px;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--sp-1) var(--sp-1) var(--sp-1) var(--sp-3);
+  list-style: none;
+  border-left: 2px solid var(--border);
+}
+
+.sessionRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.sessionTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--fs-sm);
+}
+
+.sessionMeta {
+  flex: 0 0 auto;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}

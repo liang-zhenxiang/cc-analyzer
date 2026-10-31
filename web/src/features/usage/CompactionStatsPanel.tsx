@@ -4,20 +4,57 @@ import type { SessionMeta } from "../sessions/metadataCache";
 import { ProvenanceBadge } from "./ProvenanceBadge";
 import { StackedBar } from "./charts/StackedBar";
 import type { CompactionStats } from "./compactionStats";
+import type { ContextQuantiles } from "./contextQuantiles";
 import styles from "./CompactionStatsPanel.module.css";
+
+/**
+ * 分位读数的显示格式（design §G7 样例 42.1k / 131k / 196k）：
+ * - < 1,000：原样（千分位是日级 KPI 的量级，不需要缩写）；
+ * - < 1M：一位小数的 k，尾 0 去掉（131.0k → 131k）；
+ * - ≥ 1M：交给 formatTokenCount（它的 1.2M 档从百万起，正好接住）。
+ * formatTokenCount 没有 k 档（lib/format.ts），所以 k 档在这里本地实现。
+ */
+function formatQuantile(value: number): string {
+  if (value < 1000) return value.toLocaleString("en-US");
+  if (value < 1_000_000) {
+    const k = (value / 1000).toFixed(1);
+    return `${k.endsWith(".0") ? k.slice(0, -2) : k}k`;
+  }
+  return formatTokenCount(value);
+}
+
+/** 五个读数的 (键, 显示面) 固定序列——键面与 design §G7 的样例一致。 */
+const QUANTILE_ITEMS: ReadonlyArray<{
+  key: "p50" | "p75" | "p90" | "p99" | "max";
+  label: string;
+}> = [
+  { key: "p50", label: "P50" },
+  { key: "p75", label: "P75" },
+  { key: "p90", label: "P90" },
+  { key: "p99", label: "P99" },
+  { key: "max", label: "最大" }
+];
 
 /**
  * 用量总览「压缩统计」面板（design §4）：读数 → 占比 → 去哪了 的一条横向
  * 叙事，因此住满 board 的第三行整行。周期内 0 次时面板保留（切时间档不闪
  * 没），体是一行事实文字——不画三根 0 柱、不画空堆叠条。
+ *
+ * G7（design §G7）：主分支末尾挂「会话上下文峰值」分位行——与压缩共用
+ * 「上下文有多重」这条叙事线。quantiles 由页面按窗口算好传入（哑组件先例，
+ * 同 stats）；缺省不渲染该行（单测直挂旧快照不破）。
  */
 export function CompactionStatsPanel({
   stats,
   days,
+  quantiles,
   onOpenSession
 }: {
   stats: CompactionStats;
   days: number;
+  /** 窗口内会话上下文峰值分位（contextQuantiles，页面 memo 产出）。
+   *  缺省 = 不渲染分位行（向后兼容：没接线的调用方与旧快照）。 */
+  quantiles?: ContextQuantiles;
   /**
    * top3 行点击 → 打开会话分析并落到该会话（用量页与取证页的握手）。
    * 缺省（单测直挂组件时）行仍列出，只是不可点。
@@ -114,6 +151,28 @@ export function CompactionStatsPanel({
           <p className={styles.narrative}>
             压缩把已积累的上下文重写为摘要；重读的上下文计入缓存读取，是消耗大头之一。
           </p>
+          {quantiles ? (
+            quantiles.count === 0 ? (
+              // count===0：窗口内有会话但没有一条带 usage 的上下文读数——
+              // 与「压缩 0 次」的事实行同语气，不印五个 0。
+              <p className={styles.quantileEmpty}>本窗口的会话没有上下文读数</p>
+            ) : quantiles.count === 1 || quantiles.p50 === null ? (
+              // count===1（或模型因样本 <2 给 null）：单样本分位数没有统计
+              // 意义——模型层 nearest-rank 在 <2 会话时五读数全 null（已验收
+              // 口径），界面只说「样本不足」，不印五个相同数字。
+              <p className={styles.quantileEmpty}>样本不足</p>
+            ) : (
+              <div className={styles.quantiles} data-probe="ctx-quantiles" aria-label="会话上下文峰值分位数">
+                <span className={styles.qLabel}>会话上下文峰值</span>
+                {QUANTILE_ITEMS.map(({ key, label }) => (
+                  <span key={key} className={styles.qItem} data-probe="ctx-q" data-q={key}>
+                    <span className={styles.qKey}>{label}</span>
+                    <span className={styles.qVal}>{formatQuantile(quantiles[key] ?? 0)}</span>
+                  </span>
+                ))}
+              </div>
+            )
+          ) : null}
         </>
       )}
     </Panel>

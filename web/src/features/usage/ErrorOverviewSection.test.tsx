@@ -224,3 +224,43 @@ describe("ErrorOverviewSection", () => {
     expect(screen.getByRole("button", { name: "× 清除过滤" })).toBeInTheDocument();
   });
 });
+
+describe("错误档的两档（G5）", () => {
+  it("档案档独占整档：趋势让位给档案表，切回时间线原样回来", async () => {
+    const user = userEvent.setup();
+    renderSection(fixtureStats());
+
+    // 时间线档：现状的四个区域都在，档案表不在。
+    expect(screen.getByRole("region", { name: "每日错误率" })).toBeInTheDocument();
+    expect(document.querySelector('[data-probe="error-archive"]')).toBeNull();
+
+    const archiveTab = screen.getByRole("tab", { name: "档案" });
+    expect(archiveTab).toHaveAttribute("aria-selected", "false");
+    await user.click(archiveTab);
+
+    expect(archiveTab).toHaveAttribute("aria-selected", "true");
+    expect(document.querySelector('[data-probe="error-archive"]')).not.toBeNull();
+    expect(screen.queryByRole("region", { name: "每日错误率" })).toBeNull();
+    expect(screen.getAllByRole("row").length).toBeGreaterThan(1);
+
+    await user.click(screen.getByRole("tab", { name: "时间线" }));
+    expect(screen.getByRole("region", { name: "每日错误率" })).toBeInTheDocument();
+    expect(document.querySelector('[data-probe="error-archive"]')).toBeNull();
+  });
+
+  it("零错误时不渲染档位，只给整卡事实", () => {
+    const base = fixtureStats();
+    renderSection({
+      ...base,
+      total: { api: 0, tool: 0 },
+      events: [],
+      byTool: [],
+      byProject: [],
+      daily: [],
+      anomalyThreshold: null,
+      toolCalls: 0
+    });
+    expect(screen.queryByRole("tab", { name: "档案" })).toBeNull();
+    expect(screen.getByText(/没有发现失败记录——0 是检查后的结果/)).toBeInTheDocument();
+  });
+});

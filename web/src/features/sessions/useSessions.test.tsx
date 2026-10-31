@@ -250,3 +250,68 @@ test("reports metadata completion failure and clears loading", async () => {
   await waitFor(() => expect(result.current.loading).toBe(false));
   expect(result.current.error).toContain("metadata failed");
 });
+
+test("facts 索引是懒加载的：列表先出现，展开筛选才读全量并补齐事实", async () => {
+  const sessionPath = "/home/tester/.claude/projects/repo-demo/session.jsonl";
+  const jsonl = [
+    JSON.stringify({
+      type: "user",
+      timestamp: "2026-05-01T10:00:00.000Z",
+      message: { role: "user", content: "hi" },
+      sessionId: "s1",
+      cwd: "/repo",
+      uuid: "u1"
+    }),
+    JSON.stringify({
+      type: "assistant",
+      timestamp: "2026-05-01T10:05:00.000Z",
+      message: {
+        id: "m1",
+        role: "assistant",
+        model: "claude-sonnet-4-5",
+        content: [{ type: "text", text: "ok" }],
+        usage: { input_tokens: 100, output_tokens: 10 }
+      },
+      uuid: "a1"
+    })
+  ].join("\n");
+  const bridges = createBridges();
+  bridges.fs.readDir = vi.fn(async (path: string) =>
+    path.endsWith("projects")
+      ? [{ name: "repo-demo", is_dir: true, is_file: false }]
+      : [{ name: "session.jsonl", is_dir: false, is_file: true }]
+  ) as Bridges["fs"]["readDir"];
+  bridges.fs.stat = vi.fn(async () => ({ is_file: true, size: 200, mtime_ms: 5 }));
+  bridges.fs.readHead = vi.fn(async () => jsonl);
+  bridges.fs.readText = vi.fn(async (path: string) =>
+    path === sessionPath ? jsonl : "{}"
+  ) as Bridges["fs"]["readText"];
+
+  const { result } = renderSessionsHook(bridges);
+  await waitFor(() => expect(result.current.loading).toBe(false));
+
+  expect(result.current.sessions).toHaveLength(1);
+  expect(result.current.sessions[0].facts).toBeUndefined();
+  expect(bridges.fs.readText).not.toHaveBeenCalledWith(sessionPath);
+
+  await act(async () => {
+    await result.current.indexFacts();
+  });
+
+  expect(bridges.fs.readText).toHaveBeenCalledWith(sessionPath);
+  expect(result.current.sessions[0].facts).toEqual({
+    models: ["claude-sonnet-4-5"],
+    tools: [],
+    ctxPeak: 100,
+    errors: 0,
+    durationMs: 5 * 60_000,
+    messages: 2
+  });
+
+  // 第二次展开不再重复读：已有 facts 的会话跳过。
+  const reads = vi.mocked(bridges.fs.readText).mock.calls.length;
+  await act(async () => {
+    await result.current.indexFacts();
+  });
+  expect(vi.mocked(bridges.fs.readText).mock.calls.length).toBe(reads);
+});

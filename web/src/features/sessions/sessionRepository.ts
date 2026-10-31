@@ -8,10 +8,17 @@ import {
   type SessionMeta
 } from "./metadataCache";
 import { extractSessionMetadata, METADATA_HEAD_BYTES } from "./metadataScanner";
+import { parseJsonlTextAsync } from "./parseJsonl";
+import { sessionFactsOf } from "./sessionFacts";
+import { sharedSessionParseCache } from "./sessionParseCache";
 import { archivedSessions, type ArchiveIndex } from "../archive/archiveIndex";
 import { readArchiveIndex } from "../archive/archiveStore";
 
-const CACHE_NAME = "meta-cache-v2.json";
+/**
+ * v2 → v3：条目新增 `facts`（G2 筛选事实）。文件名跟着版本走——旧文件留在
+ * 磁盘上不会被读，回滚版本时也还能命中旧缓存。
+ */
+const CACHE_NAME = "meta-cache-v3.json";
 const METADATA_BATCH_SIZE = 16;
 
 export type MetadataScanProgress = {
@@ -145,6 +152,70 @@ export class SessionRepository {
         batch.push(result[index]);
         if (batch.length < METADATA_BATCH_SIZE) continue;
 
+        onProgress?.({ done, total, batch });
+        batch = [];
+        await this.writeCache(cache);
+      }
+
+      if (batch.length > 0) onProgress?.({ done, total, batch });
+      await this.writeCache(cache);
+      return result;
+    });
+  }
+
+  /**
+   * 第二阶段：补筛选事实（G2）。
+   *
+   * 刻意**不**塞进 `completeMetadata`：事实要读全量文本，而元数据只用前
+   * 256KB。混在一起会让「一个文件读不动」卡住整个列表的首屏——索引建立
+   * 不能阻塞渲染，已扫到的会话必须先出现（端到端门禁用一条永不 resolve 的
+   * `readText` 抓着这条不变量）。这一阶段在 `loading=false` 之后跑，逐批
+   * 发布；读失败的会话保持无事实，由筛选栏的「已索引 N/M」如实交代。
+   */
+  async enrichFacts(
+    sessions: SessionMeta[],
+    onProgress?: (progress: MetadataScanProgress) => void
+  ): Promise<SessionMeta[]> {
+    return this.withCacheOperation(async () => {
+      const cache = await this.readCache();
+      const result = [...sessions];
+      const indexes = new Map(result.map((session, index) => [session.path, index]));
+      const targets = result.filter(
+        (session) => session.metadataStatus === "complete" && session.facts === undefined
+      );
+      const total = targets.length;
+      let done = 0;
+      let batch: SessionMeta[] = [];
+
+      for (const session of targets) {
+        const index = indexes.get(session.path);
+        if (index === undefined) continue;
+        try {
+          // 与用量页/全局搜索共用同一份解析缓存：这里读过，下一趟扫描零 IO。
+          const cached = sharedSessionParseCache.get(session.path);
+          const parsed =
+            cached && cached.mtimeMs === session.mtimeMs && cached.sizeBytes === session.sizeBytes
+              ? cached.session
+              : await this.bridges.fs
+                  .readText(session.path)
+                  .then((text) => parseJsonlTextAsync(text, session.path));
+          if (parsed !== cached?.session) {
+            sharedSessionParseCache.set(session.path, {
+              mtimeMs: session.mtimeMs,
+              sizeBytes: session.sizeBytes,
+              session: parsed
+            });
+          }
+          const facts = sessionFactsOf(parsed, session);
+          const entry = cache.entries[session.path];
+          if (entry) cache.entries[session.path] = { ...entry, facts };
+          result[index] = { ...session, facts };
+        } catch {
+          // 留空事实：不筛它、也不谎报它「不匹配」。
+        }
+        done += 1;
+        batch.push(result[index]);
+        if (batch.length < METADATA_BATCH_SIZE) continue;
         onProgress?.({ done, total, batch });
         batch = [];
         await this.writeCache(cache);

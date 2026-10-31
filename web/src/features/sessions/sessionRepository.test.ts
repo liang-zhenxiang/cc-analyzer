@@ -26,7 +26,7 @@ function createBridges(fs: FsBridgeStub): Bridges {
       stat: vi.fn(async () => ({ is_file: true, size: 10, mtime_ms: 42 })),
       readHead: vi.fn(async () => JSON.stringify({ sessionId: "session-1", cwd: "/repo" })),
       readText: vi.fn(async (_path: string) =>
-        JSON.stringify({ version: 2, generatedAt: 1, entries: {} })
+        JSON.stringify({ version: 3, generatedAt: 1, entries: {} })
       ),
       writeText: vi.fn(async () => undefined),
       ...fs
@@ -41,7 +41,7 @@ describe("SessionRepository", () => {
     bridges = createBridges({});
   });
 
-  it("returns pending sessions and populates cache v2 in batches", async () => {
+  it("returns pending sessions and populates cache v3 in batches", async () => {
     const repository = new SessionRepository(bridges);
     expect(METADATA_HEAD_BYTES).toBe(8 * 1024 * 1024);
     const sessions = await repository.listSessions();
@@ -66,8 +66,8 @@ describe("SessionRepository", () => {
       batch: [completed[0]]
     });
     expect(bridges.fs.writeText).toHaveBeenCalledWith(
-      "/app-data/meta-cache-v2.json",
-      expect.stringContaining('"version": 2')
+      "/app-data/meta-cache-v3.json",
+      expect.stringContaining('"version": 3')
     );
     expect(bridges.fs.readHead).toHaveBeenCalledWith(
       "/home/tester/.claude/projects/repo-demo/session.jsonl",
@@ -75,7 +75,7 @@ describe("SessionRepository", () => {
     );
   });
 
-  it("reuses a valid v2 cache entry without reading the file", async () => {
+  it("reuses a valid v3 cache entry without reading the file", async () => {
     const entry: MetadataCacheEntry = {
       mtimeMs: 42,
       sizeBytes: 10,
@@ -94,7 +94,7 @@ describe("SessionRepository", () => {
       ),
       readText: vi.fn(async () =>
         JSON.stringify({
-          version: 2,
+          version: 3,
           generatedAt: 1,
           entries: { "/.claude/projects/a/session.jsonl": entry }
         })
@@ -191,8 +191,8 @@ describe("SessionRepository", () => {
       metadataStatus: "complete"
     });
     expect(bridges.fs.writeText).toHaveBeenCalledWith(
-      "/app-data/meta-cache-v2.json",
-      expect.stringContaining('"version": 2')
+      "/app-data/meta-cache-v3.json",
+      expect.stringContaining('"version": 3')
     );
     expect(bridges.fs.readHead).toHaveBeenLastCalledWith(
       "/home/tester/.claude/projects/repo-demo/session.jsonl",
@@ -202,7 +202,7 @@ describe("SessionRepository", () => {
 
   it("preserves an import that starts while metadata completion is reading", async () => {
     let resolveHead: ((head: string) => void) | undefined;
-    let cacheText = JSON.stringify({ version: 2, generatedAt: 1, entries: {} });
+    let cacheText = JSON.stringify({ version: 3, generatedAt: 1, entries: {} });
     bridges = createBridges({
       readText: vi.fn(async () => cacheText),
       readHead: vi.fn(
@@ -244,9 +244,9 @@ describe("SessionRepository", () => {
     );
   });
 
-  it("uses only the v2 metadata cache", async () => {
+  it("uses only the v3 metadata cache", async () => {
     const readText = vi.fn(async (_path: string) =>
-      JSON.stringify({ version: 2, generatedAt: 1, entries: {} })
+      JSON.stringify({ version: 3, generatedAt: 1, entries: {} })
     );
     const writeText = vi.fn(async () => undefined);
     bridges = createBridges({ readText, writeText });
@@ -269,11 +269,11 @@ describe("SessionRepository", () => {
     // （`/app-data/archive/archive-index.json`），次数会随功能增长而漂移，
     // 而这条用例真正要守住的是「不碰 v1 的老缓存」。
     const readPaths = readText.mock.calls.map((call) => call[0]);
-    expect(readPaths.filter((path) => path === "/app-data/meta-cache-v2.json")).toHaveLength(3);
+    expect(readPaths.filter((path) => path === "/app-data/meta-cache-v3.json")).toHaveLength(3);
     expect(readPaths).not.toContain("/app-data/meta-cache.json");
     expect(writeText).toHaveBeenCalledTimes(2);
-    expect(writeText).toHaveBeenNthCalledWith(1, "/app-data/meta-cache-v2.json", expect.any(String));
-    expect(writeText).toHaveBeenNthCalledWith(2, "/app-data/meta-cache-v2.json", expect.any(String));
+    expect(writeText).toHaveBeenNthCalledWith(1, "/app-data/meta-cache-v3.json", expect.any(String));
+    expect(writeText).toHaveBeenNthCalledWith(2, "/app-data/meta-cache-v3.json", expect.any(String));
   });
 
   it("derives Windows import paths and project labels", async () => {
@@ -289,7 +289,7 @@ describe("SessionRepository", () => {
 
     expect(session.projectLabel).toBe("repo-demo");
     expect(bridges.fs.writeText).toHaveBeenCalledWith(
-      "C:\\Users\\tester\\AppData\\Roaming\\cc-analyzer\\meta-cache-v2.json",
+      "C:\\Users\\tester\\AppData\\Roaming\\cc-analyzer\\meta-cache-v3.json",
       expect.any(String)
     );
   });
@@ -317,7 +317,7 @@ describe("SessionRepository", () => {
       readText: vi.fn(async (path: string) =>
         path.endsWith("archive-index.json")
           ? JSON.stringify(index)
-          : JSON.stringify({ version: 2, generatedAt: 1, entries: {} })
+          : JSON.stringify({ version: 3, generatedAt: 1, entries: {} })
       )
     });
 
