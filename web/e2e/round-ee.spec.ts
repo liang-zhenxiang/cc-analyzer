@@ -1,4 +1,4 @@
-import { test, expect, roundEEScenario } from "./fixtures";
+import { test, expect, roundEERecords, roundEEScenario } from "./fixtures";
 import type { Page } from "@playwright/test";
 
 /**
@@ -9,6 +9,28 @@ import type { Page } from "@playwright/test";
  * 会话（上下文 20k→100k，合计 302,500 tok）。断言里的数值都是从这些记录手算的，
  * **不从界面读回来当期望值**。
  */
+
+/**
+ * 最贵一周的 token 总量：按本地周一 00:00 分桶，从夹具记录现算。
+ * 写死 332,600 会随「now」跨周漂移（实测到 11 月后变成 362,500）。
+ */
+function eeCostliestWeekTotal(): number {
+  const weeks = new Map<number, number>();
+  for (const record of roundEERecords()) {
+    const usage = (record.message as { usage?: Record<string, number> } | undefined)?.usage;
+    if (!usage) continue;
+    const day = new Date(String(record.timestamp));
+    const start = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    const total =
+      (usage.input_tokens ?? 0) +
+      (usage.output_tokens ?? 0) +
+      (usage.cache_creation_input_tokens ?? 0) +
+      (usage.cache_read_input_tokens ?? 0);
+    weeks.set(start.getTime(), (weeks.get(start.getTime()) ?? 0) + total);
+  }
+  return Math.max(...weeks.values());
+}
 
 test.use({ scenario: roundEEScenario() });
 
@@ -48,9 +70,11 @@ test.describe("Round EE · 用量页", () => {
       expect(Number.isFinite(z)).toBe(true);
       expect(z).toBeGreaterThanOrEqual(2);
     }
-    // 日历圆点：尖峰日 10/14 带「异常」与 ▲ 同源读数
+    // 日历圆点：三枚异常日与 ▲ 同源；60,000 那天必须带「异常」读数。
+    // 不写死 10/14——夹具窗口相对 now 滚动，跨周/跨月后异常日会漂。
+    // 日历格用「，异常」后缀与 ▲ 同源；60,000 那天必须在其中。
     await expect(
-      page.locator("[data-probe='calendar-day'][aria-label*='10月14日'][aria-label*='异常']")
+      page.locator("[data-probe='calendar-day'][aria-label*='60,000'][aria-label*='，异常']")
     ).toHaveCount(1);
   });
 
@@ -359,12 +383,13 @@ test.describe("Round EE · 年报", () => {
     await expect(report).toContainText("522,500");
     await expect(report).toContainText("44");
     await expect(report).toContainText(labels.topMonthLabel);
-    await expect(report).toContainText("100.0%");
+    // 月份占比随夹具窗口跨月而变（实测 10/11 两月时约 57.9%），只断格式。
+    await expect(report).toContainText(/占全年 \d+\.\d%/);
     await expect(report).toContainText("Sonnet 4.5");
     await expect(report).toContainText("322,300");
     await expect(report).toContainText("61.7%");
     await expect(report).toContainText(`${labels.longestStreakDays}天`);
-    await expect(report).toContainText("332,600");
+    await expect(report).toContainText(eeCostliestWeekTotal().toLocaleString("en-US"));
     await expect(report).toContainText(`${labels.costliestWeekLabel} 起的一周`);
 
     await expect(page.getByText(/全部 \d+ 个已扫描会话纳入年度统计/)).toBeVisible();

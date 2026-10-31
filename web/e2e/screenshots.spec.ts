@@ -12,6 +12,7 @@ import {
   roundDDScenario,
   roundEEScenario,
   roundFFScenario,
+  roundGGScenario,
   errorScenario,
   changedFilesScenario,
   calendarScenario,
@@ -1203,6 +1204,78 @@ test.describe("截图归档 · 实验室", () => {
           path: path.join(OUT_DIR, `${view}-${theme}${suffix}.png`)
         });
       }
+    });
+  }
+});
+
+// Round GG（第五批十功能）：会话故事线 / 错误档案 / 项目季节 / 筛选栏。
+// 夹具只装本轮的 13 份会话（独立场景，见 fixtures.ts 的注释）。
+const V_GG_STORY = declareView("gg-story");
+const V_GG_ARCHIVE = declareView("gg-archive");
+const V_GG_SEASONS = declareView("gg-seasons");
+const V_GG_QUERY = declareView("gg-query");
+
+test.describe("截图归档 · Round GG 十功能", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: roundGGScenario() });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`Round GG · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+      const shot = async (view: string) => {
+        await settleImages(page);
+        await page.screenshot({ path: path.join(OUT_DIR, `${view}-${theme}${suffix}.png`) });
+      };
+      const center = (locator: ReturnType<Page["locator"]>) =>
+        locator.evaluate((element) => element.scrollIntoView({ block: "center" }));
+
+      await page.addInitScript(() => {
+        localStorage.setItem("cca-billing-plan", JSON.stringify({ id: "max5" }));
+      });
+
+      await page.goto("/");
+      await page.getByRole("tab", { name: "用量总览" }).click();
+      await expect(page.locator("[data-probe='usage-progress']")).toBeVisible({ timeout: 15_000 });
+      await page.waitForTimeout(300);
+
+      // G1 会话故事线：展开今天那一条，露出当天的两个会话。
+      await page.locator("[data-probe='story-day']").first().click();
+      await center(page.locator("[data-probe='story-log']"));
+      await page.waitForTimeout(200);
+      await shot(V_GG_STORY);
+
+      // G8 项目季节：两张卡片上的四季度条与「Q4 最重」。
+      await center(page.locator("[data-probe='cards-root']"));
+      await page.waitForTimeout(200);
+      await shot(V_GG_SEASONS);
+
+      // G5 错误档案：错误档内的第二 tab。
+      await page.getByRole("tab", { name: "错误", exact: true }).click();
+      await page.getByRole("tab", { name: "档案" }).click();
+      await expect(page.locator("[data-probe='archive-row']")).toHaveCount(2);
+      await page
+        .locator("[data-probe='error-archive']")
+        .getByRole("button", { name: /^展开/ })
+        .first()
+        .click();
+      await expect(page.locator("[data-probe='archive-detail']")).toHaveCount(1);
+      await center(page.locator("[data-probe='error-archive']"));
+      await page.waitForTimeout(200);
+      await shot(V_GG_ARCHIVE);
+
+      // G2 会话筛选：展开筛选栏并选「有失败」，侧栏只剩 4 个会话。
+      await page.getByRole("tab", { name: "会话分析" }).click();
+      await page.locator("[data-probe='session-query-toggle']").click();
+      await page.getByLabel("错误").selectOption("has");
+      await expect(sessionItems(page)).toHaveCount(4);
+      await shot(V_GG_QUERY);
     });
   }
 });

@@ -106,7 +106,7 @@ test.describe("用量总览", () => {
     await expect(page.getByText(/已分析/)).toHaveCount(0);
   });
 
-  test("1440×900 首屏有周战报与会话对比，项目卡片滚动可达", async ({ page }) => {
+  test("1440×900 首屏有周战报，后续面板滚动可达", async ({ page }) => {
     // Round DD 起用量页在 KPI 之后插入了「周战报」与「会话对比」两行；实测
     // 1440×900 首屏（main 高 852）完整可见的是这两块——「按项目分布」被推到
     // 1012px、项目卡片 1249px，都要滚一次才可达，所以首屏断言改成这两块，
@@ -121,16 +121,20 @@ test.describe("用量总览", () => {
     expect(await main.evaluate((element) => element.scrollTop)).toBe(0);
 
     await expect(page.getByRole("heading", { name: "周战报" })).toBeInViewport({ ratio: 1 });
-    await expect(page.getByRole("heading", { name: "会话对比" })).toBeInViewport({ ratio: 1 });
+
+    // Round GG 在 KPI 后插入了「工作日志」，会话对比也被推到首屏之外；
+    // 首屏只断周战报，其余面板一律「滚一次可达」。
+    const compare = page.getByRole("heading", { name: "会话对比" });
+    await compare.scrollIntoViewIfNeeded();
+    await expect(compare).toBeInViewport({ ratio: 1 });
+
+    const arena = page.getByRole("heading", { name: "按项目分布" });
+    await arena.scrollIntoViewIfNeeded();
+    expect(await main.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    await expect(arena).toBeInViewport({ ratio: 1 });
 
     const cards = page.getByRole("heading", { name: "项目卡片" });
     await cards.scrollIntoViewIfNeeded();
-    const scrolled = await main.evaluate((element) => ({
-      top: element.scrollTop,
-      view: element.clientHeight
-    }));
-    expect(scrolled.top).toBeGreaterThan(0);
-    await expect(page.getByRole("heading", { name: "按项目分布" })).toBeInViewport({ ratio: 1 });
     await expect(cards).toBeInViewport({ ratio: 1 });
   });
 

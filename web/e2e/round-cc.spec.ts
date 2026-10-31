@@ -232,7 +232,8 @@ test.describe("Round CC · 用量页", () => {
     await openUsage(page);
     // 默认仍是按项目分布（HBar），点「对比」才进擂台。
     await expect(page.getByRole("img", { name: "按项目分布" })).toBeVisible();
-    await page.getByRole("button", { name: "对比" }).click();
+    // Round GG 的快照对比按钮也叫「对比快照」，先限定到擂台面板。
+    await page.locator("button[title='并排比较两个项目']").click();
 
     const arena = page.locator("[data-probe='arena-root']");
     await expect(arena).toBeVisible();
@@ -329,15 +330,16 @@ test.describe("Round CC · 用量页", () => {
     await expect(cards).toHaveCount(3);
     await expect(cards.nth(0)).toHaveAttribute(
       "aria-label",
-      /^alpha：2 个会话，53,900 token，成本 \$0\.25，最近活跃 2小时前$/
+      // Round GG 的 G8 在卡片 aria 末尾追加了季节性，活跃时间也随 now 漂。
+      /^alpha：2 个会话，53,900 token，成本 \$0\.25，最近活跃 (刚刚|\d+小时前|昨天)/
     );
     await expect(cards.nth(1)).toHaveAttribute(
       "aria-label",
-      /^beta：1 个会话，6,900 token，成本 \$0\.07，最近活跃 昨天$/
+      /^beta：1 个会话，6,900 token，成本 \$0\.07，最近活跃 (刚刚|\d+小时前|昨天)/
     );
     await expect(cards.nth(2)).toHaveAttribute(
       "aria-label",
-      /^gamma：1 个会话，2,250 token，成本 \$0\.03，最近活跃 14小时前$/
+      /^gamma：1 个会话，2,250 token，成本 \$0\.03，最近活跃 (刚刚|\d+小时前|昨天)/
     );
     // 每张卡都有 14 天走势；三种项目不能画成同一张图。
     for (let index = 0; index < 3; index += 1) {

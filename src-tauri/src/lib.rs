@@ -2157,6 +2157,46 @@ mod gui_probe {
   }
   facts.roundee = roundeeFacts;
 
+  /* 「第五批十功能」（Round GG）：只收事实——故事线天数与首行、项目卡片与
+     季节条、筛选栏的展开态与字段数。阈值与判定留在 scripts/gui-test.sh。 */
+  var roundggFacts = { present: false };
+  var ggStory = document.querySelectorAll("[data-probe='story-day']");
+  var ggCards = document.querySelectorAll("[data-probe='card-item']");
+  var ggQuery = document.querySelector("[data-probe='session-query']");
+  if (ggStory.length > 0 || ggCards.length > 0 || ggQuery) {
+    roundggFacts.present = true;
+    roundggFacts.story = {
+      rows: ggStory.length,
+      first: ggStory[0] ? (ggStory[0].textContent || "").replace(/\s+/g, " ").trim() : null,
+      detail_items: document.querySelectorAll("[data-probe='story-detail'] li").length
+    };
+    var ggCardLabels = [];
+    for (var gci = 0; gci < ggCards.length; gci += 1) {
+      ggCardLabels.push(ggCards[gci].getAttribute('aria-label'));
+    }
+    roundggFacts.cards = { count: ggCards.length, labels: ggCardLabels };
+    var ggSeasons = document.querySelectorAll("[data-probe='card-season']");
+    var ggSeasonTexts = [];
+    var ggSeasonQuarters = [];
+    var ggSeasonText = document.querySelectorAll("[data-probe='card-season-text']");
+    for (var gsi = 0; gsi < ggSeasons.length; gsi += 1) {
+      ggSeasonQuarters.push(ggSeasons[gsi].getAttribute('data-quarters'));
+      ggSeasonTexts.push(ggSeasonText[gsi] ? ggSeasonText[gsi].textContent.trim() : null);
+    }
+    roundggFacts.seasons = { count: ggSeasons.length, quarters: ggSeasonQuarters, texts: ggSeasonTexts };
+    var ggToggle = document.querySelector("[data-probe='session-query-toggle']");
+    var ggNote = document.querySelector("[data-probe='session-query-index-note']");
+    roundggFacts.query = ggQuery
+      ? {
+          expanded: ggToggle ? ggToggle.getAttribute('aria-expanded') : null,
+          head: ggToggle ? (ggToggle.textContent || "").replace(/\s+/g, " ").trim() : null,
+          fields: ggQuery.querySelectorAll("select").length,
+          note: ggNote ? ggNote.textContent.trim() : null
+        }
+      : null;
+  }
+  facts.roundgg = roundggFacts;
+
   return JSON.stringify(facts);
 })();"##;
 
