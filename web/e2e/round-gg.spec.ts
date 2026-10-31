@@ -1,4 +1,11 @@
-import { test, expect, defaultScenario, roundGGScenario } from "./fixtures";
+import {
+  test,
+  expect,
+  defaultScenario,
+  roundGGNow,
+  roundGGRecords,
+  roundGGScenario
+} from "./fixtures";
 import type { Page } from "@playwright/test";
 import { sessionItems } from "./selectors";
 
@@ -12,7 +19,144 @@ import { sessionItems } from "./selectors";
  * 夹具是独立场景（不并进 SESSION_SEEDS）：并进默认场景会让 8 张列表截图的
  * 会话条数基线一起漂移。所有时刻由 roundGGNow() 锚定，不直读 Date.now()。
  */
-test.use({ scenario: roundGGScenario() });
+/**
+ * WebKit（macOS）**不认 TZ 环境变量**，Chromium 认。CI 的 Node 与两个引擎都在
+ * UTC 上，本地却可能是 Asia/Shanghai；为了让「TZ=UTC 双引擎」这条验证真的
+ * 把浏览器也切到 UTC，显式把 TZ 透传给 Playwright 的 timezoneId。CI 上通常
+ * 不设 TZ，此时不覆盖，两边都取系统时区，仍然一致。
+ */
+const tzOverride = process.env.TZ?.trim() ? process.env.TZ.trim() : undefined;
+
+test.use({
+  scenario: roundGGScenario(),
+  ...(tzOverride ? { timezoneId: tzOverride } : {})
+});
+
+/**
+ * 时区漂移的唯一解法：期望的时刻一律从夹具记录**在 Node 里现算**，用与界面
+ * 相同的本地时区格式化。CI runner 是 UTC、开发机是 Asia/Shanghai，写死
+ * `11-01` 这类绝对日期在两边必然只能对一边（PR #285 首轮红）。
+ */
+type GgRecord = {
+  type?: string;
+  cwd?: string;
+  timestamp?: string;
+  message?: {
+    usage?: {
+      input_tokens?: number;
+      output_tokens?: number;
+      cache_creation_input_tokens?: number;
+      cache_read_input_tokens?: number;
+    };
+    content?: Array<{ type?: string; is_error?: boolean; content?: unknown }> | string;
+  };
+};
+
+const ggRecords = roundGGRecords() as unknown as GgRecord[];
+
+const pad2 = (value: number): string => String(value).padStart(2, "0");
+
+/** `11-01`：界面的月-日拍子（本地时区，零 locale 依赖）。 */
+function monthDayOf(iso: string): string {
+  const date = new Date(iso);
+  return `${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+/** `16:02`。 */
+function hhmmOf(iso: string): string {
+  const date = new Date(iso);
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
+function timeOf(iso: string): number {
+  return Date.parse(iso);
+}
+
+/** G1：最近一条记录落在哪个本地自然日——就是故事线第一行。 */
+const latestRecord = ggRecords.reduce((latest, record) =>
+  timeOf(record.timestamp as string) > timeOf(latest.timestamp as string) ? record : latest
+);
+const latestDayLabel = monthDayOf(latestRecord.timestamp as string);
+
+/** G5：Bash 失败（`exit code`）的最早/最晚时刻，档案行的时间跨度。 */
+const bashErrorTimes = ggRecords
+  .filter((record) => {
+    if (!Array.isArray(record.message?.content)) return false;
+    return record.message.content.some(
+      (item) =>
+        item.type === "tool_result" &&
+        item.is_error === true &&
+        String(item.content).includes("exit code")
+    );
+  })
+  .map((record) => timeOf(record.timestamp as string))
+  .sort((a, b) => a - b);
+const bashErrorSpan = `${monthDayOf(new Date(bashErrorTimes[0]).toISOString())} ${hhmmOf(
+  new Date(bashErrorTimes[0]).toISOString()
+)} – ${monthDayOf(new Date(bashErrorTimes.at(-1) as number).toISOString())} ${hhmmOf(
+  new Date(bashErrorTimes.at(-1) as number).toISOString()
+)}`;
+
+/** G4/G6：夹具的月几何=首条记录所在月 → 当前月（整月保留，空月也在）。 */
+const ggNow = new Date(roundGGNow());
+const ggFirstMonth = ggRecords
+  .map((record) => new Date(record.timestamp as string))
+  .reduce((first, date) => (date < first ? date : first));
+const ggMonthCount =
+  (ggNow.getFullYear() - ggFirstMonth.getFullYear()) * 12 +
+  (ggNow.getMonth() - ggFirstMonth.getMonth()) +
+  1;
+
+/** G4：当前月的 token 合计（usage 四计数之和，含工具调用记录）。 */
+function usageTokensOf(record: GgRecord): number {
+  const usage = record.message?.usage;
+  if (!usage) return 0;
+  return (
+    (usage.input_tokens ?? 0) +
+    (usage.output_tokens ?? 0) +
+    (usage.cache_creation_input_tokens ?? 0) +
+    (usage.cache_read_input_tokens ?? 0)
+  );
+}
+
+const currentMonthTokens = ggRecords
+  .filter((record) => {
+    const date = new Date(record.timestamp as string);
+    return (
+      date.getFullYear() === ggNow.getFullYear() && date.getMonth() === ggNow.getMonth()
+    );
+  })
+  .reduce((total, record) => total + usageTokensOf(record), 0);
+
+/** 与 `formatTokenCount` 同款：百万以上保留一位小数，否则千分位。 */
+function formatTokenCount(count: number): string {
+  if (count >= 1_000_000_000) return `${(count / 1_000_000_000).toFixed(2)}B`;
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  return count.toLocaleString("en-US");
+}
+
+const currentMonthLabel = `${ggNow.getFullYear()} 年 ${ggNow.getMonth() + 1} 月 · ${formatTokenCount(
+  currentMonthTokens
+)}`;
+
+/** G8：项目四季占比（与 projectSeasons 同口径：本地自然季、usage 四计数）。 */
+function seasonAriaOf(cwd: string): string {
+  const totals = [0, 0, 0, 0];
+  for (const record of ggRecords) {
+    if (record.cwd !== cwd) continue;
+    const tokens = usageTokensOf(record);
+    if (tokens === 0) continue;
+    totals[Math.floor(new Date(record.timestamp as string).getMonth() / 3)] += tokens;
+  }
+  const total = totals.reduce((sum, value) => sum + value, 0);
+  return totals
+    .map((value, index) => `Q${index + 1} ${total > 0 ? Math.round((value / total) * 100) : 0}%`)
+    .join("、");
+}
+
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const activeText = "(刚刚|\\d+小时前|昨天)";
 
 async function openUsage(page: Page): Promise<void> {
   await page.goto("/");
@@ -27,7 +171,7 @@ test.describe("Round GG 十功能", () => {
     const days = page.locator("[data-probe='story-day']");
     await expect(days).toHaveCount(7);
     // 夹具：今天 2 个会话（595,400 token），两个会话分别在 09:10 / 14:30。
-    await expect(days.first()).toContainText("11-01");
+    await expect(days.first()).toContainText(latestDayLabel);
     await expect(days.first()).toContainText("2 会话 · 1 项目 · 595,400 token · 最忙 09:00");
     await days.first().click();
     const detail = page.locator("[data-probe='story-detail']").first();
@@ -45,7 +189,7 @@ test.describe("Round GG 十功能", () => {
     await expect(rows).toHaveCount(2);
     await expect(rows.first()).toContainText("Bash");
     await expect(rows.first()).toContainText("5");
-    await expect(rows.first()).toContainText("10-29 16:02 – 11-01 14:33");
+    await expect(rows.first()).toContainText(bashErrorSpan);
     await expect(rows.nth(1)).toContainText("Read");
     await expect(rows.nth(1)).toContainText("ENOENT: no such file or directory");
     await page.getByRole("button", { name: /展开 Bash .* 的档案/ }).click();
@@ -61,11 +205,19 @@ test.describe("Round GG 十功能", () => {
     await expect(cards.first()).toContainText("gg-alpha");
     await expect(cards.first()).toHaveAttribute(
       "aria-label",
-      "gg-alpha：4 个会话，1.1M token，成本 $7.68，最近活跃 刚刚，季节性：Q1 7%、Q2 18%、Q3 11%、Q4 64%"
+      new RegExp(
+        `^gg-alpha：4 个会话，1\\.1M token，成本 \\$7\\.68，最近活跃 ${activeText}，季节性：${escapeRegExp(
+          seasonAriaOf("/repo/gg-alpha")
+        )}$`
+      )
     );
     await expect(cards.nth(1)).toHaveAttribute(
       "aria-label",
-      /^gg-beta：3 个会话，137,600 token，成本 \$0\.42，最近活跃 \d+小时前，季节性：Q1 30%、Q2 11%、Q3 14%、Q4 44%$/
+      new RegExp(
+        `^gg-beta：3 个会话，137,600 token，成本 \\$0\\.42，最近活跃 ${activeText}，季节性：${escapeRegExp(
+          seasonAriaOf("/repo/gg-beta")
+        )}$`
+      )
     );
     const seasons = page.locator("[data-probe='card-season']");
     await expect(seasons).toHaveCount(2);
@@ -100,7 +252,9 @@ test.describe("Round GG 十功能", () => {
     await expect(rows.first()).toContainText("近 3 月 ↑");
     await expect(page.locator("[data-probe='tool-months'] [role='img']")).toHaveCount(5);
     await expect(rows.nth(1)).toContainText("Bash");
-    await expect(page.locator("[data-probe='tool-months']")).toContainText("工具月（11 个月）");
+    await expect(page.locator("[data-probe='tool-months']")).toContainText(
+      `工具月（${ggMonthCount} 个月）`
+    );
   });
 
   test("G9 相似会话：点名对照会话并给出相似度与理由", { tag: "@round-gg" }, async ({ page }) => {
@@ -124,8 +278,8 @@ test.describe("Round GG 十功能", () => {
     await openUsage(page);
     await page.getByRole("tab", { name: "年报" }).click();
     const months = page.locator("[data-probe='annual-months'] button");
-    await expect(months).toHaveCount(11);
-    await expect(months.last()).toHaveAttribute("aria-label", "2026 年 11 月 · 595,400");
+    await expect(months).toHaveCount(ggMonthCount);
+    await expect(months.last()).toHaveAttribute("aria-label", currentMonthLabel);
     await months.last().click();
     await expect(page.getByRole("tab", { name: "用量", exact: true })).toHaveAttribute(
       "aria-selected",
