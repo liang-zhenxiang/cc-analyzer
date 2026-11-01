@@ -5,18 +5,21 @@ import { BudgetRunwayPanel } from "./BudgetRunwayPanel";
 import { ConstellationPanel } from "./ConstellationPanel";
 import { CostSandboxPanel } from "./CostSandboxPanel";
 import { CutoffPanel } from "./CutoffPanel";
+import { WeekdayWeekendPanel } from "./WeekdayWeekendPanel";
 import type { HourlyTokens } from "./cutoffProjection";
 import { CostTerrainPanel } from "./CostTerrainPanel";
 import { FlameGraphPanel } from "./FlameGraphPanel";
 import { HallOfFamePanel } from "./HallOfFamePanel";
 import { HeartbeatPanel } from "./HeartbeatPanel";
 import { ProjectFootprintPanel } from "./ProjectFootprintPanel";
+import { MultiComparePanel } from "./MultiComparePanel";
 import { PromptRhythmPanel } from "./PromptRhythmPanel";
+import { PromptProfilePanel } from "./PromptProfilePanel";
 import { ToolEcosystemPanel } from "./ToolEcosystemPanel";
 import styles from "./LabView.module.css";
 
 /**
- * 数据实验室（Round FF：十种看法 + Round HH 的收工推演，共十一张卡）。
+ * 数据实验室（Round FF 十种看法 + Round HH 收工推演 + Round II 三张：共十四张卡）。
  *
  * 它是用量页的第 5 个子视图，不是新页面——十张卡吃的是同一次扫描产出的
  * `inputs`、同一个区间控件与同一个 `now`，零新增 I/O、零新增后端命令。
@@ -27,7 +30,7 @@ import styles from "./LabView.module.css";
  * → 跑道成对散点（前瞻 → 个人节律）。
  *
  * 每张卡外面包一层 `data-lab-card`：截图脚本按它逐卡取图，e2e 按它断言
- * 「十一张卡都在」，卡片本身不重复造定位属性。
+ * 「十四张卡都在」，卡片本身不重复造定位属性。
  */
 export function LabView({
   inputs,
@@ -56,7 +59,7 @@ export function LabView({
         <div className={styles.introText}>
           <h2 className={styles.title}>数据实验室</h2>
           <p className={styles.description}>
-            十一个视角读同一份本机日志：形状、密度、极端值、前瞻与「如果早点收工」——全部现算，不出本机。
+            十四个视角读同一份本机日志：形状、密度、极端值、前瞻与「如果早点收工」——全部现算，不出本机。
           </p>
         </div>
         {/* 口径声明，不是第二个区间控件：窗口的唯一实例仍在页头第一行。 */}
@@ -100,12 +103,25 @@ export function LabView({
           />
         </div>
 
+        {/* I2 工作日 vs 周末：沙盘 → 收工推演 → 工作日对照，三张都在问
+            「时间怎么用掉的」。整行，四列表格不挤。 */}
+        <div className={`${styles.card} ${styles.weekend}`} data-lab-card="weekend">
+          <WeekdayWeekendPanel inputs={inputs} days={days} now={now} />
+        </div>
+
         <div className={`${styles.card} ${styles.network}`} data-lab-card="network">
           <ToolEcosystemPanel inputs={inputs} days={days} now={now} plan={plan} />
         </div>
 
         <div className={`${styles.card} ${styles.footprint}`} data-lab-card="footprint">
           <ProjectFootprintPanel inputs={inputs} days={days} now={now} plan={plan} />
+        </div>
+
+        {/* I4 多选对照：与工具生态同一维度叙事（讲其中几个），但表格要 4 列
+            实体列，塞半宽会挤——span 12 独占一行，接在「工具生态 + 文件足迹」
+            这一对之后，避免把 6+6 的一行拆出空位。 */}
+        <div className={`${styles.card} ${styles.multi}`} data-lab-card="multi">
+          <MultiComparePanel inputs={inputs} days={days} now={now} />
         </div>
 
         <div className={`${styles.card} ${styles.heartbeat}`} data-lab-card="heartbeat">
@@ -118,6 +134,12 @@ export function LabView({
 
         <div className={`${styles.card} ${styles.scatter}`} data-lab-card="scatter">
           <PromptRhythmPanel inputs={inputs} days={days} now={now} onOpenSession={onOpenSession} />
+        </div>
+
+        {/* I5 提问画像：实验室档末尾——提示节奏讲「多久问一次」，这里讲
+            「问的是什么形状」。整行，五档标签才排得开。 */}
+        <div className={`${styles.card} ${styles.profile}`} data-lab-card="profile">
+          <PromptProfilePanel inputs={inputs} days={days} now={now} />
         </div>
       </div>
     </section>

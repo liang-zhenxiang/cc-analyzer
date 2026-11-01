@@ -34,6 +34,7 @@ import { AnnualReportPanel } from "./AnnualReportPanel";
 import { milestonesOf } from "./milestones";
 import { toolCensus } from "./toolCensus";
 import { ToolCensusPanel } from "./ToolCensusPanel";
+import { SessionShapePanel } from "./SessionShapePanel";
 import { UsageCalendarPanel } from "./UsageCalendarPanel";
 import {
   addLocalDays,
@@ -283,6 +284,15 @@ export function UsageOverviewPage({
   // 只截到近 90 天会把「弃用了半年的工具」直接截没），now 用模块缺省
   // Date.now()——月粒度下重扫的分钟级抖动无感，不占 30s tick。
   const calendarRows = useMemo(() => toolCalendar(inputs), [inputs]);
+  // 会话形状卡（Round II）：四档都只谈「窗口内的会话」，所以按页面时间控件
+  // 先把 inputs 截到窗口再喂——与 aggregateRange 的 startTs 同款口径。
+  const shapeInputs = useMemo(() => {
+    const startTs = addLocalDays(dayStartOf(readouts.now), -(days - 1));
+    return inputs.map((input) => ({
+      ...input,
+      records: input.records.filter((record) => record.timestamp >= startTs)
+    }));
+  }, [inputs, days, readouts.now]);
   // 会话上下文峰值分位（G7）：contextQuantiles 是纯函数（无窗口概念），这里
   // 按页面控件的时间窗先截 inputs 再喂它——窗口口径与 aggregateRange 同款
   //（usageAggregations.ts：startTs = dayStartOf(now) - (days-1) 天）。now 与
@@ -786,7 +796,7 @@ export function UsageOverviewPage({
                 : view === "annual"
                   ? `全部 ${milestoneReport.facts.sessionCount} 个已扫描会话纳入年度统计`
                   : view === "lab"
-                    ? `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计 · 11 个视角`
+                    ? `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计 · 14 个视角`
                     : `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计`}
             {skipped > 0 ? ` · ${skipped} 个会话读取失败已跳过` : ""}
           </span>
@@ -1106,6 +1116,12 @@ export function UsageOverviewPage({
                 <Heatmap counts={range.hourly} ariaLabel="活跃时段热力图" />
               )}
             </Panel>
+
+            {/* I1/I3/I9/I10 会话形状卡（Round II）：活跃时段之后、工具普查之前——
+                四档里最后一档就是工具配方，与工具普查相邻最顺。单列整行。 */}
+            <div className={styles.compactionRow}>
+              <SessionShapePanel inputs={shapeInputs} />
+            </div>
 
             {/* 工具与 skill（N3）住活跃时段之后、压缩统计之前（design 裁决 10）：
                 「量级主体 → 配置清单 → 现场（会话）」是一条横向叙事，整行同

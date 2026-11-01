@@ -7,6 +7,7 @@ import { SegmentedControl, type SegmentedItem } from "../../components/Segmented
 import { Skeleton } from "../../components/Skeleton";
 import { TextInput } from "../../components/TextInput";
 import { sessionTitle, type SessionMeta } from "./metadataCache";
+import { firstMessagePreview } from "./firstMessagePreview";
 import { SessionQueryBar } from "./SessionQueryBar";
 import { matchesSessionFacts, type SessionQuery } from "../usage/sessionQuery";
 import { sortSessions, type SessionSortKey } from "./sessionSort";
@@ -37,8 +38,12 @@ const VIEW_ITEMS: SegmentedItem<ViewMode>[] = [
 
 /** Row heights for the virtualised list at 100%; the CSS scales them by --font-scale. */
 const GROUP_ROW_HEIGHT = 32;
-const SESSION_ROW_HEIGHT = 54;
-const SESSION_ROW_HEIGHT_WITH_STATUS = 72;
+/* I8：行高 54 → 72，多一行首条消息预览（--lh-xs 16 + 余量）。这与
+   `sessionRow` / `sessionRowWithStatus` 的 CSS 高度是同一份契约，
+   SessionList.test.tsx 会逐字比对；改这里必须同步改 CSS。
+   带状态行（补全标题中/失败）时再 +18：预览始终渲染，状态行不能顶掉它。 */
+const SESSION_ROW_HEIGHT = 72;
+const SESSION_ROW_HEIGHT_WITH_STATUS = 90;
 
 /** 生效条件数（与 SessionQueryBar 的徽标同口径：一个条件算一项）。 */
 function activeConditions(query: SessionQuery): number {
@@ -608,6 +613,9 @@ function SessionButton({
   // `0` 与 `undefined` 都不画徽章，但原因不同（「确认没有」vs「还不知道」）。
   // 只渲染 > 0：用「0」占满列表是一条噪音，不是信息。
   const showBleed = typeof bleedCount === "number" && Number.isFinite(bleedCount) && bleedCount > 0;
+  // 预览源：用户首条消息优先，其次 AI 标题（老会话可能没有 userPrompt）。
+  // 两者都没有 → null，界面写一句诚实的占位，不编造。
+  const preview = firstMessagePreview(session.userPrompt ?? session.aiTitle ?? null);
   return (
     /* 行的本体是 `role="button"` 的 <div>，不是 <button>——因为出血点徽章是一个**真的
        <button>**，而按钮不能嵌按钮（React 会报 validateDOMNesting，HTML 里也是非法结构）。
@@ -629,7 +637,7 @@ function SessionButton({
         onSelect(session);
       }}
     >
-      {/* 标题与归档徽标内联在一行，不新增 grid 行——行高 54px 由虚拟滚动镜像。 */}
+      {/* 标题与归档徽标内联在一行，不新增 grid 行——行高 72px 由虚拟滚动镜像。 */}
       <span className={styles.titleLine}>
         <strong>{sessionTitle(session)}</strong>
         {session.archived ? (
@@ -663,12 +671,37 @@ function SessionButton({
       </span>
       {session.metadataStatus === "pending" ? <small>补全标题中</small> : null}
       {session.metadataStatus === "failed" ? <small>标题提取失败</small> : null}
+      {/* I8 首条消息预览：纯文本，**不能**放按钮——行本体已经是 role=button 的 div，
+          再嵌一个 <button> 会构成非法结构（出血点徽章为此才把行降级成 div）。
+          预览由模型在生成侧脱敏；这里只负责单行省略与「已脱敏」记号。 */}
+      {preview ? (
+        <span className={styles.preview} data-probe="session-preview" title={preview.preview}>
+          <span className={styles.previewText}>{preview.preview}</span>
+          {preview.redacted ? (
+            <span className={styles.previewShield} role="img" aria-label="已脱敏" title="已脱敏">
+              <svg viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+                <path
+                  d="M6 1.2 10 2.9v3.2c0 2.3-1.6 4.1-4 4.7-2.4-.6-4-2.4-4-4.7V2.9L6 1.2Z"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+          ) : null}
+        </span>
+      ) : (
+        <span className={`${styles.preview} ${styles.previewEmpty}`} data-probe="session-preview">
+          这条会话没有用户消息
+        </span>
+      )}
       <span className={styles.meta}>
         {formatRelativeTime(session.mtimeMs)} · {formatBytes(session.sizeBytes)} ·{" "}
         {/* 项目名取会话真实 cwd 的末段；没有 cwd 时退回目录名（去掉编码用的前导 `-`）。 */}
         {formatProjectPath(session.projectLabel, session.cwd)}
       </span>
-      {/* 置顶开关绝对定位在行右上角，不参与 grid——多一个网格行会把 54px 的行高撑坏。
+      {/* 置顶开关绝对定位在行右上角，不参与 grid——多一个网格行会把 72px 的行高撑坏。
           它和出血点徽章一样是真按钮，因此行本体保持 role="button" 的 div。 */}
       <PinButton pinned={pinned} onToggle={() => onTogglePin(session.path)} />
     </div>

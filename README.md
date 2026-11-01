@@ -480,6 +480,11 @@ The roadmap tracks open issues; each item links to the issue that owns it.
   cache hit-rate health, shareable session card PNG, data health check and
   empty-state onboarding (merged; ships in v0.36.0-beta.1)
   ([#288](https://github.com/liang-zhenxiang/cc-analyzer/issues/288))
+- [x] Seventh ten-feature pack — session shape card (durations, gaps, model
+  switch heat, tool signatures), weekday-vs-weekend split, multi-entity
+  compare, prompt profile, decision-point filter, saved searches, and
+  sanitized first-message preview (merged; ships in v0.37.0-beta.1)
+  ([#291](https://github.com/liang-zhenxiang/cc-analyzer/issues/291))
 - [x] Frontend upgrade to React 19, moving `@types/react` / `@types/react-dom`
   together
   ([#19](https://github.com/liang-zhenxiang/cc-analyzer/issues/19))

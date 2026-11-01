@@ -3,6 +3,13 @@ import { snippetOf, sharedSearchIndex, type SearchHit } from "./searchIndex";
 import type { SearchSource } from "./searchSources";
 import { useSearchIndex } from "./useSearchIndex";
 import { formatProjectPath, formatRelativeTime } from "../../lib/format";
+import {
+  addSavedSearch,
+  loadSavedSearches,
+  removeSavedSearch,
+  SAVED_SEARCHES_MAX,
+  type SavedSearch
+} from "./savedSearches";
 import styles from "./SearchPalette.module.css";
 
 /** One flat, keyboard-navigable list item: a hit. */
@@ -78,6 +85,11 @@ export function SearchPalette({
   onReveal: (sessionPath: string, recordId: string) => void;
 }) {
   const [query, setQuery] = useState("");
+  // I7 保存的搜索：列表只在打开时读一次（存储是缓存，坏了按空列表渲染）。
+  const [saved, setSaved] = useState<SavedSearch[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
   // 默认五个来源全选：⌘K 立刻能搜到一切的既有承诺不变。
   const [sources, setSources] = useState<ReadonlySet<SearchSource>>(() => new Set(SOURCE_ORDER));
   const [activeIndex, setActiveIndex] = useState(0);
@@ -91,6 +103,10 @@ export function SearchPalette({
       // 过滤器不记忆：关闭再打开重置为全部选中，「为什么这次搜不到」比省一次点击贵。
       setSources(new Set(SOURCE_ORDER));
       setActiveIndex(0);
+      setSaved(loadSavedSearches(window.localStorage));
+      setSaving(false);
+      setSaveName("");
+      setSaveError(null);
       // 浮层打开后焦点进输入框——键盘流从第一击就可用。
       inputRef.current?.focus();
     }
@@ -207,6 +223,76 @@ export function SearchPalette({
             setActiveIndex(0);
           }}
         />
+        {query.trim() !== "" && !saving ? (
+          <button
+            type="button"
+            className={styles.saveButton}
+            data-probe="saved-save"
+            onClick={() => {
+              setSaving(true);
+              setSaveName(query.trim().slice(0, 40));
+              setSaveError(null);
+            }}
+          >
+            保存
+          </button>
+        ) : null}
+        {saving ? (
+          <form
+            className={styles.saveForm}
+            onSubmit={(event) => {
+              event.preventDefault();
+              const name = saveName.trim();
+              if (name === "") {
+                setSaveError("先给这次搜索起个名字");
+                return;
+              }
+              const result = addSavedSearch(window.localStorage, name, query.trim(), Date.now());
+              if (!result.added) {
+                setSaveError("已有同名搜索，换个名字保存");
+                return;
+              }
+              setSaved(result.list);
+              setSaving(false);
+              setSaveName("");
+              setSaveError(null);
+              inputRef.current?.focus();
+            }}
+          >
+            <input
+              className={styles.saveName}
+              aria-label="保存的搜索名称"
+              placeholder="给这次搜索起个名字"
+              maxLength={40}
+              autoFocus
+              value={saveName}
+              onChange={(event) => {
+                setSaveName(event.target.value);
+                setSaveError(null);
+              }}
+            />
+            <button type="submit" className={styles.saveConfirm}>
+              存
+            </button>
+            <button
+              type="button"
+              className={styles.saveCancel}
+              onClick={() => {
+                setSaving(false);
+                setSaveError(null);
+              }}
+            >
+              取消
+            </button>
+            {saveError ? (
+              <p className={styles.saveError} role="alert">
+                {saveError}
+              </p>
+            ) : saved.length >= SAVED_SEARCHES_MAX ? (
+              <p className={styles.saveHint}>已存 {SAVED_SEARCHES_MAX} 条，保存会先丢掉最旧的一条</p>
+            ) : null}
+          </form>
+        ) : null}
         <div
           className={styles.filters}
           role="group"
@@ -240,6 +326,35 @@ export function SearchPalette({
         <p className={styles.status} role="status" data-probe="search-status">
           {status}
         </p>
+        {query === "" && saved.length > 0 ? (
+          <div className={styles.saved} data-probe="saved-searches">
+            {saved.map((item) => (
+              <div key={`${item.name}-${item.addedAt}`} className={styles.savedItem}>
+                <button
+                  type="button"
+                  className={styles.savedCard}
+                  data-probe="saved-search"
+                  data-query={item.query}
+                  onClick={() => {
+                    setQuery(item.query);
+                    inputRef.current?.focus();
+                  }}
+                >
+                  <strong className={styles.savedName}>{item.name}</strong>
+                  <span className={styles.savedQuery}>{item.query}</span>
+                </button>
+                <button
+                  type="button"
+                  className={styles.savedRemove}
+                  aria-label={`删除保存的搜索 ${item.name}`}
+                  onClick={() => setSaved(removeSavedSearch(window.localStorage, item.name))}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
         <div className={styles.results} ref={listRef}>
           {groups.map((group) => (
             <div key={group.projectLabel} className={styles.group}>

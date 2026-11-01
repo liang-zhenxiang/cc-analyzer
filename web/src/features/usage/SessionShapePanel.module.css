@@ -1,0 +1,116 @@
+/* I1/I3/I9/I10 会话形状卡：四档共用一个 96px 画布，切换不跳高。
+   柱高 = 本视图最大桶的百分比；颜色只有 --chart-1 一种（同一分布里的桶
+   没有类别语义，用颜色区分反而是噪音）。 */
+
+.shape {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--sp-3);
+  height: 96px;
+  min-width: 0;
+}
+
+.col {
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  gap: var(--sp-05);
+  width: min(40px, 18%);
+  height: 100%;
+  min-width: 0;
+}
+
+.bar {
+  display: block;
+  align-self: end;
+  width: 100%;
+  min-height: 2px;
+  border-radius: var(--r-xs) var(--r-xs) 0 0;
+  background: var(--chart-1);
+}
+
+.count {
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-xs);
+  text-align: center;
+}
+
+.label {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signatureList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-05);
+  height: 96px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.signatureRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-width: 0;
+  height: 19px;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.signatureName {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signatureCount {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.readout {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-base);
+}
+
+.note {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 96px;
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}

@@ -19,6 +19,7 @@ import { useArchiveTask } from "../archive/archiveTask";
 import { formatProjectPath } from "../../lib/format";
 import { TreeView } from "./TreeView";
 import { LogView } from "./LogView";
+import { decisionPointsOf } from "./decisionPoints";
 import { ContextView, type ContextRevealRequest } from "./ContextView";
 import { ChangedFilesView } from "./ChangedFilesView";
 import { BleedView } from "./BleedView";
@@ -211,10 +212,16 @@ export function SessionAnalyzerPage({
   const sessionParseCacheRef = useRef(createSessionParseCache());
   const [filter, setFilter] = useState<RecordFilter>(emptyFilter);
   const [selectedRecord, setSelectedRecord] = useState<SessionRecord | null>(null);
+  // I6 决策点回顾：只过滤不改数据；切走标签页即复位（过滤态跨页会让人以为日志丢了）。
+  const [decisionsOnly, setDecisionsOnly] = useState(false);
   const [graph, setGraph] = useState<ParsedSessionGraph | null>(null);
   const [graphLoading, setGraphLoading] = useState(false);
   const [parseProgress, setParseProgress] = useState<number | null>(null);
   const [view, setView] = useState<AnalyzerView>(readStoredView);
+  // 切走日志档时复位「只看决策点」：留着过滤态再回来，会像日志少了一半。
+  useEffect(() => {
+    if (view !== "log") setDecisionsOnly(false);
+  }, [view]);
   // 折叠是默认：面板是会话级明细，不是主流程的一部分。
   const [tokenPanelOpen, setTokenPanelOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -247,6 +254,42 @@ export function SessionAnalyzerPage({
     [parsed]
   );
   const logRows = useMemo(() => filterLogRows(allLogRows, filter), [allLogRows, filter]);
+  // I6：判定只做一次，行列表与标记共用同一份结果（避免两处口径漂移）。
+  // buildLogRows 会把每轮首条 user 行并进「用户+LLM」行（mergedWith:"user"、
+  // kind:"llm"），而决策点判据只认用户消息——喂给模型前把合并行还原成
+  // user 视图。summary 不用表格摘要（它被 truncate 到 72 码位，判据的
+  // escalate 阈值是 80，喂摘要会把 81 字的长追问判丢）：改取合并行 records
+  // 里第一条 user 记录的完整原文（records[0] 就是 user 记录，构建时按序
+  // 拼接），时间戳回退 durationMs 到轮起点。不改 logRows 本身。
+  const decisions = useMemo(
+    () =>
+      decisionPointsOf(
+        logRows.map((row) => {
+          if (row.mergedWith !== "user") {
+            return { kind: row.kind, summary: row.summary, timestamp: row.timestamp };
+          }
+          const userRecord = row.records.find((record) => record.kind === "user");
+          return {
+            kind: "user" as const,
+            summary: userRecord?.text || row.summary.split(" · ")[0] || row.summary,
+            timestamp: row.timestamp - Math.max(0, row.durationMs),
+          };
+        })
+      ),
+    [logRows]
+  );
+  const decisionReasons = useMemo(() => {
+    const map = new Map<string, "redirect" | "escalate" | "restart">();
+    for (const point of decisions) {
+      const row = logRows[point.index];
+      if (row) map.set(row.id, point.reason);
+    }
+    return map;
+  }, [decisions, logRows]);
+  const visibleLogRows = useMemo(
+    () => (decisionsOnly ? logRows.filter((row) => decisionReasons.has(row.id)) : logRows),
+    [decisionsOnly, decisionReasons, logRows]
+  );
   const records = useMemo(() => recordsOfRows(logRows), [logRows]);
   const signature = parsed ? reportSignature(parsed, mode, filter, graph) : null;
   const stale = report.signature !== null && report.signature !== signature;
@@ -652,7 +695,24 @@ export function SessionAnalyzerPage({
                     onSelect={(timeRange) => setFilter({ ...filter, timeRange })}
                     onReveal={revealRecord}
                   />
-                  <FilterBar filter={filter} onChange={setFilter} />
+                  <FilterBar
+                    filter={filter}
+                    onChange={setFilter}
+                    actions={
+                      view === "log" && decisions.length > 0 ? (
+                        <button
+                          type="button"
+                          className={styles.decisionToggle}
+                          aria-pressed={decisionsOnly}
+                          aria-label={`只看决策点，共 ${decisions.length} 个`}
+                          data-probe="decisions-only"
+                          onClick={() => setDecisionsOnly((value) => !value)}
+                        >
+                          只看决策点（{decisions.length}）
+                        </button>
+                      ) : undefined
+                    }
+                  />
                 </>
               )}
               <div className={styles.viewBar}>
@@ -685,15 +745,28 @@ export function SessionAnalyzerPage({
               </div>
               <div className={styles.pane}>
                 {view === "log" ? (
-                  <LogView
-                    rows={logRows}
-                    selectedId={selectedRecord?.fullId ?? null}
-                    highlightId={highlightId}
-                    timeRange={filter.timeRange}
-                    onSelect={setSelectedRecord}
-                    onLocateInTree={locateInTree}
-                    onLocateInContext={locateInContext}
-                  />
+                  <>
+                    {decisionsOnly ? (
+                      <p
+                        className={styles.decisionBanner}
+                        role="status"
+                        data-probe="decisions-banner"
+                        title="只保留 user 消息里被判定为转折（重做）、加码（长追问）或换题（长间隔后的新指令）的帧。"
+                      >
+                        {`已滤出 ${decisions.length} 个决策点。`}
+                      </p>
+                    ) : null}
+                    <LogView
+                      rows={visibleLogRows}
+                      decisionReasons={decisionReasons}
+                      selectedId={selectedRecord?.fullId ?? null}
+                      highlightId={highlightId}
+                      timeRange={filter.timeRange}
+                      onSelect={setSelectedRecord}
+                      onLocateInTree={locateInTree}
+                      onLocateInContext={locateInContext}
+                    />
+                  </>
                 ) : view === "tree" ? (
                   <TreeView
                     session={parsed}

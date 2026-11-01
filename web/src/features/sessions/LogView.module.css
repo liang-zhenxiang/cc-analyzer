@@ -416,3 +416,16 @@ tbody tr:focus-visible {
   background: var(--bg-hover);
   box-shadow: inset var(--focus-ring-width) 0 0 var(--accent);
 }
+
+/* I6 决策点小标：与 kind 文字同基线、不配色（结构标记不是状态）。 */
+.decisionTag {
+  display: inline-block;
+  margin-left: var(--sp-1);
+  padding: 0 var(--sp-05);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  vertical-align: baseline;
+}

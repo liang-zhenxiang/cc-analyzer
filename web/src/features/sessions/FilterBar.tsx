@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Button } from "../../components/Button";
 import { TextInput } from "../../components/TextInput";
 import type { DurationMode, RecordFilter, RowKindFilter, RowStatusFilter } from "./filters";
@@ -38,10 +38,13 @@ const UNIT_MS: Record<Unit, number> = { ms: 1, s: 1000, m: 60_000 };
 
 export function FilterBar({
   filter,
-  onChange
+  onChange,
+  actions
 }: {
   filter: RecordFilter;
   onChange: (filter: RecordFilter) => void;
+  /** 工具行末尾的附加控件（I6 的「只看决策点」），与筛选条件同一行不涨高度。 */
+  actions?: ReactNode;
 }) {
   const [unit, setUnit] = useState<Unit>("s");
 
@@ -177,6 +180,7 @@ export function FilterBar({
           清除时间选区
         </Button>
       ) : null}
+      {actions ? <div className={styles.actions}>{actions}</div> : null}
     </section>
   );
 }
