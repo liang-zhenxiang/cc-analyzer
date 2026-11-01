@@ -38,11 +38,12 @@ async function openLab(page: Page) {
   await page.getByRole("tab", { name: "用量总览", exact: true }).click();
   await expect(page.locator("[data-probe='usage-progress']")).toBeVisible({ timeout: 15_000 });
   await page.getByRole("tab", { name: "实验室", exact: true }).click();
-  // 等扫描收口成统计口径：扫描中的进度行不写「11 个视角」。
-  // Round HH 起实验室第 11 张卡是「收工推演」（cutoff），视角数 10→11。
-  await expect(page.getByText(/纳入统计 · 11 个视角/)).toBeVisible({ timeout: 15_000 });
+  // 等扫描收口成统计口径：扫描中的进度行不写「14 个视角」。
+  // Round HH 起 11 张；Round II 加会话形状/工作日对照/多选对照/提问画像中的
+  // 三张实验室卡（weekend / multi / profile），视角数 11→14。
+  await expect(page.getByText(/纳入统计 · 14 个视角/)).toBeVisible({ timeout: 15_000 });
   await expect(page.locator("[data-probe='lab-view']")).toBeVisible();
-  await expect(page.locator("[data-lab-card]")).toHaveCount(11);
+  await expect(page.locator("[data-lab-card]")).toHaveCount(14);
 }
 
 test.describe("实验室 · 有数据", () => {
@@ -233,8 +234,8 @@ test.describe("实验室 · 空场景", () => {
     await page.goto("/");
     await page.getByRole("tab", { name: "用量总览", exact: true }).click();
     await expect(page.locator("[data-probe='lab-view']")).toBeVisible({ timeout: 15_000 });
-    // Round HH 起第 11 张卡是「收工推演」（cutoff）。
-    await expect(page.locator("[data-lab-card]")).toHaveCount(11);
+    // Round HH 起 11 张；Round II 三张实验室卡（weekend / multi / profile）→ 14。
+    await expect(page.locator("[data-lab-card]")).toHaveCount(14);
 
     const expectations: ReadonlyArray<readonly [string, RegExp]> = [
       ["galaxy", /所选范围内没有会话/],

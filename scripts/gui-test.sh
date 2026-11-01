@@ -1230,7 +1230,11 @@ else
   "用量总览"
   "视图=用量"
   "会话分析"
-  "/repo/hh-alpha")
+  "/repo/hh-alpha"
+  # Round II：形状 + 工作日（用量档）、多选对照 + 提问画像（实验室档）。
+  "用量总览"
+  "视图=用量"
+  "视图=实验室")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
@@ -1640,6 +1644,13 @@ COST_TAB_LABEL = "账单"
 GG_BRIEFING_COUNT = 3
 GG_BRIEFING_TONES = ["alert", "warning", "alert"]
 ROUNDHH_SESSION_LABEL = "/repo/hh-alpha"
+# Round II（第七批）：会话形状五桶 / 工作日两行 / 多选对照两行起 / 提问画像三指标。
+ROUNDII_LAB_LABEL = "视图=实验室"
+ROUNDII_USAGE_LABEL = "视图=用量"
+ROUNDII_SHAPE_BUCKETS = 5
+ROUNDII_WORKDAY_ROWS = 2
+ROUNDII_MULTI_ROWS_MIN = 2
+ROUNDII_PROFILE_METRICS = 3
 COST_CLASS_ROWS = 4
 COST_MONEY_RIGHT_TOLERANCE = 1
 COST_ROW_HEIGHT_TOLERANCE = 1
@@ -1689,6 +1700,8 @@ seen_cost = 0
 seen_rounddd = 0
 seen_roundhh = 0
 seen_roundgg = 0
+seen_roundii = 0
+seen_roundii_workday = 0
 cost_top_clock = None
 seen_float_enter = 0
 seen_float_exit = 0
@@ -2627,7 +2640,8 @@ for arg in sys.argv[1:]:
                 print(f"OK|{label}：被丢清单是真列表（声明 {declared} 行，总高 {scroll_h}px ≈ {declared} × {row_h}px）")
 
     # 会话行是 `overflow: hidden` 的固定盒：字号放大最先在这里裁字。行高本身
-    # 随档位走（`round(54 × --font-scale)`），所以判据是**相对当前档位**的。
+    # 随档位走（`round(72 × --font-scale)`，第七批把行高从 54 提到 72 放预览行），
+    # 所以判据是**相对当前档位**的。
     for row in data.get("session_rows") or []:
         seen_rows += 1
         height = row.get("height")
@@ -2637,10 +2651,10 @@ for arg in sys.argv[1:]:
             continue
         if sh > ch + 1:
             print(f"BAD|{label}：会话行裁字（内容 {sh}px > 行盒 {ch}px）——字号放大后行盒没跟上")
-        elif font_scale is not None and abs(height - round(54 * font_scale)) > 1:
+        elif font_scale is not None and abs(height - round(72 * font_scale)) > 1:
             print(
                 f"BAD|{label}：会话行高与档位不符（实测 {height}px，"
-                f"期望 round(54×{font_scale})={round(54 * font_scale)}px）"
+                f"期望 round(72×{font_scale})={round(72 * font_scale)}px）"
             )
         else:
             print(f"OK|{label}：会话行不裁字且行高随档位（{height}px，内容 {sh} ≤ {ch}）")
@@ -3199,6 +3213,59 @@ for arg in sys.argv[1:]:
             else:
                 seen_roundhh += 1
                 print(f"OK|{label}：Round HH 事实通过（三件事/模型 A-B/缓存体检）")
+
+    # Round II（第七批）：用量档看会话形状与工作日对照，实验室档看多选对照与
+    # 提问画像。只锁结构（桶数/行数/指标数）与「不是空态」，具体数值由单元测试覆盖。
+    if label in (ROUNDII_USAGE_LABEL, ROUNDII_LAB_LABEL):
+        ii = data.get("roundii") or {}
+        if ii.get("present"):
+            ii_problems = []
+            shape = ii.get("shape") or {}
+            workday = ii.get("workday") or {}
+            if label == ROUNDII_USAGE_LABEL:
+                mode = shape.get("mod")
+                if mode not in ("duration", "gap", "switch"):
+                    ii_problems.append(
+                        f"会话形状视图 {mode!r}，期望 duration / gap / switch"
+                    )
+                elif len(shape.get("buckets") or []) != ROUNDII_SHAPE_BUCKETS:
+                    ii_problems.append(
+                        f"会话形状 {len(shape.get('buckets') or [])} 个桶，期望 {ROUNDII_SHAPE_BUCKETS}"
+                    )
+                readout = (shape.get("readout") or "").strip()
+                if not readout:
+                    ii_problems.append("会话形状没有中位读数（shape-readout 为空）")
+            else:
+                # 工作日对照在实验室档（收工推演之后），用量档看不到它。
+                wd_rows = workday.get("rows")
+                if wd_rows != ROUNDII_WORKDAY_ROWS:
+                    ii_problems.append(
+                        f"工作日对照 {wd_rows!r} 行，期望 {ROUNDII_WORKDAY_ROWS}"
+                    )
+                else:
+                    groups = set(workday.get("groups") or [])
+                    if groups != {"weekday", "weekend"}:
+                        ii_problems.append(f"工作日对照分组 {sorted(groups)!r}")
+                    else:
+                        seen_roundii_workday += 1
+                multi = ii.get("multi") or {}
+                if (multi.get("rows") or 0) < ROUNDII_MULTI_ROWS_MIN:
+                    ii_problems.append(
+                        f"多选对照 {multi.get('rows')!r} 行，期望至少 {ROUNDII_MULTI_ROWS_MIN}"
+                    )
+                if "按" not in (multi.get("table") or ""):
+                    ii_problems.append("多选对照表头没有「按 …对照」")
+                profile = ii.get("profile") or {}
+                if profile.get("metrics") != ROUNDII_PROFILE_METRICS:
+                    ii_problems.append(
+                        f"提问画像 {profile.get('metrics')!r} 个指标，期望 {ROUNDII_PROFILE_METRICS}"
+                    )
+            if ii_problems:
+                for problem in ii_problems:
+                    print(f"BAD|{label}：{problem}")
+            else:
+                seen_roundii += 1
+                print(f"OK|{label}：Round II 事实通过（形状/工作日/多选/画像）")
 
     if label == COST_TAB_LABEL:
         cost = data.get("cost") or {}
@@ -3795,6 +3862,10 @@ if coverage and seen_milestones == 0:
     print("BAD|视图覆盖：没有任何视图产出里程碑的几何事实——「里程碑」档没被覆盖")
 if coverage and seen_cost == 0:
     print("BAD|视图覆盖：没有任何视图产出会话账单的几何事实——「账单」标签页没被覆盖")
+if coverage and seen_roundii_workday == 0:
+    print("BAD|视图覆盖：工作日对照一次都没画出两行——实验室档夹具/渲染没被覆盖")
+if coverage and seen_roundii == 0:
+    print("BAD|视图覆盖：没有任何视图产出 Round II 的事实——形状/工作日/多选/画像没被覆盖")
 if coverage and seen_roundgg == 0:
     print("BAD|视图覆盖：没有任何视图产出 Round GG 的事实——故事线/季节/筛选栏没被覆盖")
 if coverage and seen_roundhh == 0:

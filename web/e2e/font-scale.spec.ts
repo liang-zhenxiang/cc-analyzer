@@ -123,8 +123,9 @@ test.describe("界面字号缩放", () => {
       scrollHeight: el.scrollHeight,
       rectHeight: el.getBoundingClientRect().height
     }));
-    // 54 × 1.3 = 70.2 → 70px（TS 常量会话行高就是 round(54*1.3)）。
-    expect(Math.round(box.rectHeight)).toBe(70);
+    // 72 × 1.3 = 93.6 → 94px（第七批把会话行从 54 加高到 72：标题/状态/预览/元信息
+    // 四行；TS 常量会话行高就是 round(72*1.3)）。
+    expect(Math.round(box.rectHeight)).toBe(94);
     // 内容装得下：元信息行没有被 overflow:hidden 切掉。
     expect(box.scrollHeight).toBeLessThanOrEqual(box.clientHeight + 1);
   });

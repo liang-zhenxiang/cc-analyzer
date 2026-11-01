@@ -25,6 +25,9 @@ import { useThresholds } from "../settings/thresholds";
 import { useFontScale } from "../settings/fontScale";
 import { ScrollArea } from "../../components/ScrollArea";
 import styles from "./LogView.module.css";
+import type { DecisionPoint } from "./decisionPoints";
+
+type DecisionReason = DecisionPoint["reason"];
 
 type Panel = { label: string; meta?: string; body: string };
 type Axis = { lo: number; total: number };
@@ -109,6 +112,13 @@ function shareTitle(row: LogRow, axis: Axis): string {
   ].join(" · ");
 }
 
+/** 三个 reason 的中文小标（规格 §4.5：各 2 字，与 30px 行高不冲突）。 */
+const DECISION_LABELS: Record<DecisionReason, string> = {
+  redirect: "换题",
+  escalate: "加码",
+  restart: "转折"
+};
+
 export function LogView({
   rows,
   selectedId,
@@ -116,7 +126,8 @@ export function LogView({
   timeRange,
   onSelect,
   onLocateInTree,
-  onLocateInContext
+  onLocateInContext,
+  decisionReasons
 }: {
   rows: LogRow[];
   selectedId: string | null;
@@ -126,6 +137,8 @@ export function LogView({
   onLocateInTree: (recordId: string) => void;
   /** 切到上下文标签页并选中该压缩事件（带行展开区的「在上下文视图定位」）。 */
   onLocateInContext: (eventId: string) => void;
+  /** I6：决策点帧的 reason（按行 id），在 kind 列旁加一枚文字小标。 */
+  decisionReasons?: ReadonlyMap<string, "redirect" | "escalate" | "restart">;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const highlightRef = useRef<HTMLTableRowElement | null>(null);
@@ -274,6 +287,7 @@ export function LogView({
                 onSelect={onSelect}
                 onLocateInTree={onLocateInTree}
                 onLocateInContext={onLocateInContext}
+                decisionReasons={decisionReasons}
                 onToggle={() => setExpandedId((current) => (current === row.id ? null : row.id))}
               />
             );
@@ -306,6 +320,7 @@ function Fragment({
   onSelect,
   onLocateInTree,
   onLocateInContext,
+  decisionReasons,
   onToggle
 }: {
   row: LogRow;
@@ -323,6 +338,8 @@ function Fragment({
   onSelect: (record: SessionRecord) => void;
   onLocateInTree: (recordId: string) => void;
   onLocateInContext: (eventId: string) => void;
+  /** I6：决策点帧的 reason（按行 id），在 kind 列旁加一枚文字小标。 */
+  decisionReasons?: ReadonlyMap<string, "redirect" | "escalate" | "restart">;
   onToggle: () => void;
 }) {
   const panels = row.gap
@@ -367,7 +384,14 @@ function Fragment({
           }}
         >
           <td>{formatDateTime(row.timestamp)}</td>
-          <td><span className={styles.kind}>{row.label}</span></td>
+          <td>
+            <span className={styles.kind}>{row.label}</span>
+            {decisionReasons?.has(row.id) ? (
+              <span className={styles.decisionTag} data-probe="decision-tag">
+                {DECISION_LABELS[decisionReasons.get(row.id) as DecisionReason]}
+              </span>
+            ) : null}
+          </td>
           <td>
             {/* 摘要列是唯一没写宽度的列：它在固定布局里吸收剩余宽度（130% 档实测
                 ~404px）。截断交给这一行自己——列宽不再由内容决定。 */}
@@ -548,6 +572,8 @@ function CompactExpandedRow({
   compact: CompactRowData;
   panelMeasure: (element: HTMLTableRowElement | null) => void;
   onLocateInContext: (eventId: string) => void;
+  /** I6：决策点帧的 reason（按行 id），在 kind 列旁加一枚文字小标。 */
+  decisionReasons?: ReadonlyMap<string, "redirect" | "escalate" | "restart">;
 }) {
   const summaryBody = compact.summaryRecord
     ? compact.summaryRecord.text || "（空）"

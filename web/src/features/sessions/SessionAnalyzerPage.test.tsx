@@ -947,3 +947,118 @@ test("已有会话打开时，失败落在侧栏那条告警上", async () => {
   // 主区还在显示那个会话——错误不会把它顶掉。
   expect(screen.getByRole("application", { name: "时间轨道" })).toBeInTheDocument();
 });
+
+/** I6：两条相邻 user 记录，第二条以「算了」开头 → 唯一的决策点（restart）。 */
+function decisionJsonl(): string {
+  const at = (second: number) => new Date(second * 1000).toISOString();
+  return [
+    JSON.stringify({
+      type: "user",
+      sessionId: "s",
+      timestamp: at(0),
+      uuid: "u1",
+      message: { role: "user", content: "先看登录流程" }
+    }),
+    JSON.stringify({
+      type: "user",
+      sessionId: "s",
+      timestamp: at(60),
+      uuid: "u2",
+      message: { role: "user", content: "算了，换成注册流程" }
+    })
+  ].join("\n");
+}
+
+test("I6：只看决策点会滤到决策帧并标出 reason，再按一次还原", async () => {
+  const bridges = createBridges();
+  bridges.fs.readText = vi.fn(async (path: string) => {
+    if (path.endsWith("session.jsonl")) return decisionJsonl();
+    if (path.endsWith("meta-cache-v3.json")) {
+      return JSON.stringify({ version: 1, entries: {} });
+    }
+    throw new Error(`no such file: ${path}`);
+  }) as Bridges["fs"]["readText"];
+
+  const user = userEvent.setup();
+  render(
+    <BridgesProvider bridges={bridges}>
+      <NotificationProvider>
+        <SessionAnalyzerPage />
+      </NotificationProvider>
+    </BridgesProvider>
+  );
+
+  await user.click(await screen.findByRole("button", { name: /project-a/ }));
+  expect(await screen.findByText(/先看登录流程/)).toBeInTheDocument();
+
+  const toggle = screen.getByRole("button", { name: "只看决策点，共 1 个" });
+  await user.click(toggle);
+
+  expect(screen.getByText("已滤出 1 个决策点。")).toBeInTheDocument();
+  expect(screen.getByText("转折")).toBeInTheDocument();
+  expect(screen.queryByText(/先看登录流程/)).toBeNull();
+
+  await user.click(toggle);
+  expect(screen.queryByText("已滤出 1 个决策点。")).toBeNull();
+  expect(await screen.findByText(/先看登录流程/)).toBeInTheDocument();
+});
+
+test("I6：没有决策点时按钮不渲染（0 帧不留空开关）", async () => {
+  const bridges = createBridges();
+  bridges.fs.readText = vi.fn(async (path: string) => {
+    if (path.endsWith("session.jsonl")) {
+      return JSON.stringify({
+        type: "user",
+        sessionId: "s",
+        timestamp: new Date(0).toISOString(),
+        uuid: "u1",
+        message: { role: "user", content: "只有一个用户消息" }
+      });
+    }
+    if (path.endsWith("meta-cache-v3.json")) return JSON.stringify({ version: 1, entries: {} });
+    throw new Error(`no such file: ${path}`);
+  }) as Bridges["fs"]["readText"];
+
+  const user = userEvent.setup();
+  render(
+    <BridgesProvider bridges={bridges}>
+      <NotificationProvider>
+        <SessionAnalyzerPage />
+      </NotificationProvider>
+    </BridgesProvider>
+  );
+
+  await user.click(await screen.findByRole("button", { name: /project-a/ }));
+  expect(await screen.findByText(/只有一个用户消息/)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /只看决策点/ })).toBeNull();
+});
+
+test("I6：切到别的标签档时过滤态复位，回日志不再只剩决策帧", async () => {
+  const bridges = createBridges();
+  bridges.fs.readText = vi.fn(async (path: string) => {
+    if (path.endsWith("session.jsonl")) return decisionJsonl();
+    if (path.endsWith("meta-cache-v3.json")) return JSON.stringify({ version: 1, entries: {} });
+    throw new Error(`no such file: ${path}`);
+  }) as Bridges["fs"]["readText"];
+
+  const user = userEvent.setup();
+  render(
+    <BridgesProvider bridges={bridges}>
+      <NotificationProvider>
+        <SessionAnalyzerPage />
+      </NotificationProvider>
+    </BridgesProvider>
+  );
+
+  await user.click(await screen.findByRole("button", { name: /project-a/ }));
+  await user.click(await screen.findByRole("button", { name: "只看决策点，共 1 个" }));
+  expect(screen.getByText("已滤出 1 个决策点。")).toBeInTheDocument();
+
+  await user.click(screen.getByRole("tab", { name: "树视图" }));
+  await user.click(screen.getByRole("tab", { name: "日志视图" }));
+
+  expect(screen.queryByText("已滤出 1 个决策点。")).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "只看决策点，共 1 个" })
+  ).toHaveAttribute("aria-pressed", "false");
+});

@@ -1,0 +1,61 @@
+/* I2 工作日 vs 周末：两行对照表。数值右对齐 + 等宽数字，便于纵向比。 */
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.caption {
+  padding-bottom: var(--sp-1);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-align: left;
+}
+
+.table th,
+.table td {
+  padding: var(--sp-1) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.table thead th {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: var(--lh-xs);
+  text-align: right;
+}
+
+.table thead th:first-child,
+.table tbody th {
+  text-align: left;
+}
+
+.table tbody th {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.table td.num {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.note {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.empty {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}

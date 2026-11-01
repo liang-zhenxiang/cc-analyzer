@@ -94,6 +94,12 @@
 }
 
 /* 行 E：一条横向节奏带，独占整行。 */
+.weekend,
+.multi,
+.profile {
+  grid-column: span 12;
+}
+
 .heartbeat {
   grid-column: span 12;
 }

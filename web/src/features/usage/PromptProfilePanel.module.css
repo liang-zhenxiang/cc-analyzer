@@ -1,0 +1,60 @@
+/* I5 提问画像：三个指标一行 + 一条 8px 的长度示意条 + 五档标签。 */
+
+.profile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
+  margin: 0;
+}
+
+.metric {
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-sm);
+}
+
+.mini {
+  display: flex;
+  gap: var(--sp-05);
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--r-xs);
+  background: var(--bg-inset);
+}
+
+.segment {
+  min-width: 2px;
+  background: var(--chart-1);
+}
+
+.labels {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.label {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note,
+.empty {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}

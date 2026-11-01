@@ -484,3 +484,78 @@ async function waitForRows(count: number): Promise<HTMLElement[]> {
   await waitFor(() => expect(rows()).toHaveLength(count));
   return rows();
 }
+
+describe("I7 保存的搜索", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  const saveButton = () => screen.getByRole("button", { name: "保存" });
+  const savedCards = () => document.querySelectorAll('[data-probe="saved-search"]');
+
+  it("没有保存也不在空态时显示保存区块", () => {
+    renderPalette();
+    expect(document.querySelector('[data-probe="saved-searches"]')).toBeNull();
+    expect(window.localStorage.getItem("cca-saved-searches")).toBeNull();
+  });
+
+  it("保存当前查询后，空态出现卡片，点卡片把查询填回输入框", async () => {
+    const user = userEvent.setup();
+    renderPalette(SOURCE_FILES);
+
+    await user.type(inputOf(), "关键词");
+    await user.click(saveButton());
+    await user.clear(screen.getByLabelText("保存的搜索名称"));
+    await user.type(screen.getByLabelText("保存的搜索名称"), "构建排查");
+    await user.click(screen.getByRole("button", { name: "存" }));
+
+    const stored = JSON.parse(window.localStorage.getItem("cca-saved-searches") ?? "[]");
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({ name: "构建排查", query: "关键词" });
+
+    await user.clear(inputOf());
+    expect(savedCards()).toHaveLength(1);
+
+    await user.click(savedCards()[0] as HTMLElement);
+    expect(inputOf()).toHaveValue("关键词");
+  });
+
+  it("重名不覆盖，只提示换名并保留原有一条", async () => {
+    const user = userEvent.setup();
+    renderPalette(SOURCE_FILES);
+
+    await user.type(inputOf(), "关键词");
+    await user.click(saveButton());
+    await user.clear(screen.getByLabelText("保存的搜索名称"));
+    await user.type(screen.getByLabelText("保存的搜索名称"), "构建排查");
+    await user.click(screen.getByRole("button", { name: "存" }));
+
+    await user.clear(inputOf());
+    await user.type(inputOf(), "构建");
+    await user.click(saveButton());
+    await user.clear(screen.getByLabelText("保存的搜索名称"));
+    await user.type(screen.getByLabelText("保存的搜索名称"), " 构建排查 ");
+    await user.click(screen.getByRole("button", { name: "存" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("已有同名搜索，换个名字保存");
+    const stored = JSON.parse(window.localStorage.getItem("cca-saved-searches") ?? "[]");
+    expect(stored).toHaveLength(1);
+    expect(stored[0].query).toBe("关键词");
+  });
+
+  it("删除一条后卡片与存储同时消失", async () => {
+    const user = userEvent.setup();
+    renderPalette(SOURCE_FILES);
+
+    await user.type(inputOf(), "关键词");
+    await user.click(saveButton());
+    await user.clear(screen.getByLabelText("保存的搜索名称"));
+    await user.type(screen.getByLabelText("保存的搜索名称"), "构建排查");
+    await user.click(screen.getByRole("button", { name: "存" }));
+    await user.clear(inputOf());
+
+    await user.click(screen.getByRole("button", { name: "删除保存的搜索 构建排查" }));
+    expect(savedCards()).toHaveLength(0);
+    expect(JSON.parse(window.localStorage.getItem("cca-saved-searches") ?? "[]")).toEqual([]);
+  });
+});

@@ -107,3 +107,11 @@
   font-weight: 600;
   box-shadow: inset 2px 0 0 var(--accent);
 }
+
+/* 工具行末尾的附加控件：贴右缘、与筛选条件基线对齐。 */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+}

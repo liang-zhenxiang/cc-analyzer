@@ -102,7 +102,11 @@ test.describe("本地归档 · 读到", () => {
     await openArchivedSession(page);
 
     // 打开的是副本（~/.claude 里没有这个文件），内容仍要解析出来。
-    await expect(page.getByLabel("会话列表").getByText("三个月前的那次重构")).toBeVisible();
+    // 第七批起行内多了一行「预览」，同一段文本会命中 strong 与预览 span 两处；
+    // 这里只认标题（strong）本身。
+    await expect(
+      page.getByLabel("会话列表").locator("strong", { hasText: "三个月前的那次重构" })
+    ).toBeVisible();
     await expect(page.getByRole("region", { name: "记录筛选" })).toBeVisible();
   });
 });

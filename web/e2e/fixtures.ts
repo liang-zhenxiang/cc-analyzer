@@ -3339,6 +3339,360 @@ export function roundHHScenario(overrides: Partial<MockScenario> = {}): MockScen
   };
 }
 
+
+/* ------------------------------------------------------------------------- *
+ * Round II（第七批十功能）夹具：会话形状 / 工作日对照 / 多选对照 / 提问画像 /
+ * 决策点 / 保存的搜索 / 首条消息预览。
+ *
+ * 独立场景，不进 SESSION_SEEDS——并进默认场景会让 8 张列表截图与多个
+ * 「恰好 N」断言漂移（cost/roundCC/roundGG/roundHH 同款理由）。
+ *
+ * 时间锚点：上一周的周一到周日（全部落在过去、且一定同时覆盖工作日与周末）。
+ * 不写死绝对日期：跨时区 CI（UTC 与 Asia/Shanghai）上「周几」必须相同，
+ * 因此以本地周一为原点做偏移，e2e 的期望值再从记录现算（design §8 铁律）。
+ * ------------------------------------------------------------------------- */
+
+type RoundIIRecord = {
+  type: "user" | "assistant";
+  sessionId: string;
+  cwd: string;
+  gitBranch?: string;
+  version?: string;
+  timestamp: string;
+  uuid: string;
+  parentUuid: string | null;
+  isSidechain?: boolean;
+  message: Record<string, unknown>;
+};
+
+type RoundIITool = { name: string; input?: Record<string, unknown>; failed?: boolean };
+
+type RoundIISessionSpec = {
+  id: string;
+  cwd: string;
+  /** 上一周周几：0=周一 … 6=周日。 */
+  day: number;
+  hour: number;
+  minute?: number;
+  /** 首末记录差（ms）——时长五桶的分桶依据。 */
+  durationMs: number;
+  /** 每次 assistant 记录依次取的模型（可重复；只对带 usage 的记录计数）。 */
+  models: string[];
+  tools?: RoundIITool[];
+  /** 用户消息：相对会话起点的毫秒偏移与文本。 */
+  prompts: Array<{ atMs: number; text: string }>;
+};
+
+const ROUND_II_HOME = "/Users/e2e";
+
+export function roundIIUserHome(): string {
+  return ROUND_II_HOME;
+}
+
+function roundIISessions(): RoundIISessionSpec[] {
+  const restartText = "不对，把输出改成 CSV";
+  const escalateText =
+    "我觉得这里还缺一段背景：这个统计口径到底覆盖哪些会话、跨压缩边界怎么算、" +
+    "遇到只有一条记录的会话算不算数，这些都需要在读数下面写清楚，否则读的人会按自己的想法理解。";
+  const redirectText = "帮我检查一下周末的账单";
+  return [
+    {
+      id: "ii-1",
+      cwd: "/repo/ii-alpha",
+      day: 0,
+      hour: 9,
+      durationMs: 2 * 60_000,
+      models: ["claude-opus-4-1"],
+      tools: [{ name: "Read" }, { name: "Bash" }],
+      prompts: [
+        { atMs: 0, text: `看看 ${ROUND_II_HOME}/Documents/work/alpha/secret 里的构建日志` }
+      ]
+    },
+    {
+      id: "ii-2",
+      cwd: "/repo/ii-alpha",
+      day: 0,
+      hour: 14,
+      durationMs: 8 * 60_000,
+      models: ["claude-opus-4-1"],
+      tools: [{ name: "Read" }, { name: "Bash" }],
+      prompts: [{ atMs: 0, text: "把昨天那份构建日志按错误类型分一下组" }]
+    },
+    {
+      id: "ii-3",
+      cwd: "/repo/ii-alpha",
+      day: 1,
+      hour: 10,
+      durationMs: 30 * 60_000,
+      models: ["claude-sonnet-4-5", "claude-opus-4-1"],
+      tools: [{ name: "Read" }, { name: "Bash", failed: true }],
+      prompts: [{ atMs: 0, text: "跑一下集成测试，失败的那条帮我定位到文件" }]
+    },
+    {
+      id: "ii-4",
+      cwd: "/repo/ii-beta",
+      day: 2,
+      hour: 10,
+      durationMs: 2 * 60 * 60_000,
+      models: ["claude-opus-4-1", "claude-sonnet-4-5", "claude-opus-4-1"],
+      tools: [{ name: "Edit" }],
+      prompts: [
+        { atMs: 0, text: "把导出脚本改成按天切分" },
+        { atMs: 20 * 60_000, text: restartText },
+        { atMs: 40 * 60_000, text: escalateText },
+        { atMs: 70 * 60_000, text: redirectText }
+      ]
+    },
+    {
+      id: "ii-5",
+      cwd: "/repo/ii-beta",
+      day: 3,
+      hour: 11,
+      durationMs: 5 * 60 * 60_000,
+      models: ["claude-sonnet-4-5"],
+      tools: [{ name: "Edit" }],
+      prompts: [{ atMs: 0, text: "把周报的模板补上季度对比那一节" }]
+    },
+    {
+      id: "ii-6",
+      cwd: "/repo/ii-alpha",
+      day: 5,
+      hour: 11,
+      durationMs: 15 * 60_000,
+      models: ["claude-sonnet-4-5"],
+      tools: [{ name: "Grep" }],
+      prompts: [{ atMs: 0, text: "周末顺手找一下超时重试的配置在哪" }]
+    },
+    {
+      id: "ii-7",
+      cwd: "/repo/ii-beta",
+      day: 6,
+      hour: 15,
+      durationMs: 45 * 60_000,
+      models: ["claude-haiku-4-5"],
+      tools: [{ name: "Bash" }],
+      prompts: [{ atMs: 0, text: "把缓存命中率低的那几个模型列出来" }]
+    },
+    {
+      id: "ii-8",
+      cwd: "/repo/ii-beta",
+      day: 4,
+      hour: 10,
+      durationMs: 60_000,
+      models: ["claude-haiku-4-5"],
+      prompts: [{ atMs: 0, text: "好的" }]
+    },
+    {
+      id: "ii-9",
+      cwd: "/repo/ii-alpha",
+      day: 4,
+      hour: 16,
+      durationMs: 10 * 60_000,
+      models: ["claude-sonnet-4-5"],
+      tools: [{ name: "Read" }],
+      prompts: [
+        {
+          atMs: 0,
+          text: "这段统计逻辑帮我看看：\n```ts\nconst x = buckets.filter((b) => b.count > 0)\n```\n有没有漏掉空桶"
+        }
+      ]
+    }
+  ];
+}
+
+function roundIIBuilt(): {
+  files: Record<string, string>;
+  now: number;
+  home: string;
+  weekdayTokens: number;
+  weekendTokens: number;
+} {
+  const now = Date.now();
+  const monday = new Date(now);
+  monday.setHours(0, 0, 0, 0);
+  const weekday = (monday.getDay() + 6) % 7; // 周一=0
+  monday.setDate(monday.getDate() - weekday - 7); // 上一周的周一
+
+  const at = (day: number, hour: number, minute: number): number => {
+    const value = new Date(monday);
+    value.setDate(value.getDate() + day);
+    value.setHours(hour, minute, 0, 0);
+    return value.getTime();
+  };
+
+  const files: Record<string, string> = {};
+  let seed = 0;
+
+  const make = (
+    kind: "user" | "assistant",
+    sessionId: string,
+    cwd: string,
+    timestamp: number,
+    message: Record<string, unknown>
+  ): RoundIIRecord => {
+    seed += 1;
+    return {
+      type: kind,
+      sessionId,
+      cwd,
+      gitBranch: "main",
+      version: "2.1.0",
+      timestamp: new Date(timestamp).toISOString(),
+      uuid: `roundii-${seed}`,
+      parentUuid: null,
+      isSidechain: false,
+      message
+    };
+  };
+
+  const usage = (index: number) => ({
+    input_tokens: 1_000 + index * 400,
+    output_tokens: 300 + index * 100,
+    cache_creation_input_tokens: 200,
+    cache_read_input_tokens: 5_000 + index * 1_000
+  });
+
+  for (const spec of roundIISessions()) {
+    const directory = `${ROUND_II_HOME}/.claude/projects/${spec.cwd.replace(/\//g, "-")}`;
+    const path = `${directory}/${spec.id}.jsonl`;
+    const start = at(spec.day, spec.hour, spec.minute ?? 0);
+    const end = start + spec.durationMs;
+    const records: RoundIIRecord[] = [];
+    let modelIndex = 0;
+    const nextModel = () => spec.models[modelIndex++ % spec.models.length]!;
+    const toolQueue = [...(spec.tools ?? [])];
+    let toolSeq = 0;
+
+    spec.prompts.forEach((prompt, promptIndex) => {
+      const userAt = start + prompt.atMs;
+      records.push(
+        make("user", spec.id, spec.cwd, userAt, { role: "user", content: prompt.text })
+      );
+      const assistantAt = Math.min(userAt + 20_000, end);
+      records.push(
+        make("assistant", spec.id, spec.cwd, assistantAt, {
+          id: `roundii-msg-${spec.id}-${promptIndex}`,
+          role: "assistant",
+          model: nextModel(),
+          content: [{ type: "text", text: `回答 ${promptIndex}` }],
+          usage: usage(promptIndex)
+        })
+      );
+    });
+
+    // 工具调用独立于提问次数排布：一个会话用到的工具集合必须完整，
+    // 否则「配方」签名会被截成单工具（Read · 4 个会话），测不出重复组合。
+    toolQueue.forEach((tool, index) => {
+      toolSeq += 1;
+      const toolAt = Math.min(start + 45_000 + index * 90_000, end - 15_000);
+      const toolId = `${spec.id}-tool-${toolSeq}`;
+      records.push(
+        make("assistant", spec.id, spec.cwd, toolAt, {
+          id: `roundii-tool-${spec.id}-${toolSeq}`,
+          role: "assistant",
+          model: nextModel(),
+          content: [
+            {
+              type: "tool_use",
+              id: toolId,
+              name: tool.name,
+              input: tool.input ?? { command: "echo ok" }
+            }
+          ]
+        })
+      );
+      records.push(
+        make("user", spec.id, spec.cwd, toolAt + 8_000, {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: toolId,
+              content: tool.failed ? "Error: exit code 1" : "ok",
+              is_error: tool.failed === true
+            }
+          ]
+        })
+      );
+    });
+
+    // 末尾补一条 assistant，把跨度精确拉到 durationMs（时长五桶的可复现锚点）。
+    records.push(
+      make("assistant", spec.id, spec.cwd, end, {
+        id: `roundii-end-${spec.id}`,
+        role: "assistant",
+        model: spec.models[spec.models.length - 1]!,
+        content: [{ type: "text", text: "收尾" }],
+        usage: usage(0)
+      })
+    );
+
+    files[path] = records.map((record) => JSON.stringify(record)).join("\n") + "\n";
+  }
+
+  files[`${ROUND_II_HOME}/.claude/projects/-repo-ii-alpha/.keep`] = "";
+
+  // I2 期望值在 Node 侧现算（与页面共享 runner 时区，「周几」的判定才不会
+  // 随 CI 的 UTC 漂移——写死 119,500 在 UTC 下变 106,500 教训见 round-ii）。
+  // 口径与页面一致：会话归属 = 首条 user 记录的本地日 getDay() ∈ {0,6} 为周末；
+  // token = 每次 prompt 的 assistant usage(promptIndex) + 末尾收尾 assistant
+  // 的 usage(0)（每个会话固定多一条收尾记录，漏掉它两侧都会少 6,500）。
+  let weekdayTokens = 0;
+  let weekendTokens = 0;
+  for (const spec of roundIISessions()) {
+    const start = at(spec.day, spec.hour, spec.minute ?? 0);
+    const day = new Date(start).getDay();
+    const perPrompt = (index: number) =>
+      1_000 + index * 400 + 300 + index * 100 + 200 + 5_000 + index * 1_000;
+    const perSession =
+      spec.prompts.reduce((sum, _prompt, promptIndex) => sum + perPrompt(promptIndex), 0) +
+      perPrompt(0);
+    if (day === 0 || day === 6) weekendTokens += perSession;
+    else weekdayTokens += perSession;
+  }
+  return { files, now, home: ROUND_II_HOME, weekdayTokens, weekendTokens };
+}
+
+let roundIICache: {
+  files: Record<string, string>;
+  now: number;
+  home: string;
+  weekdayTokens: number;
+  weekendTokens: number;
+} | null = null;
+
+function roundIIBuiltCached() {
+  if (roundIICache === null) roundIICache = roundIIBuilt();
+  return roundIICache;
+}
+
+export function roundIINow(): number {
+  return roundIIBuiltCached().now;
+}
+
+export function roundIIUserHomePath(): string {
+  return roundIIBuiltCached().home;
+}
+
+/** I2 期望值：两侧 token 总和（本地日历口径，与页面共享 runner 时区）。 */
+export function roundIIWeekdayTokens(): { weekday: number; weekend: number } {
+  const cache = roundIIBuiltCached();
+  return { weekday: cache.weekdayTokens, weekend: cache.weekendTokens };
+}
+
+/** 保存的搜索夹具：一条「错误排查」，用于验证卡片点击回填。 */
+export function roundIISavedSearches(): string {
+  return JSON.stringify([{ name: "错误排查", query: "错误:", addedAt: 1 }]);
+}
+
+export function roundIIScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  return {
+    ...defaultScenario(overrides),
+    files: roundIIBuiltCached().files,
+    ...overrides
+  };
+}
+
 type Fixtures = { scenario: MockScenario };
 
 export const test = base.extend<Fixtures>({

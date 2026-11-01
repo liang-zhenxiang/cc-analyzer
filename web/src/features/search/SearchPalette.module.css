@@ -190,3 +190,151 @@
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
 }
+
+/* I7 保存的搜索：输入框旁一枚「保存」，空态时两列卡片。 */
+
+.saveButton {
+  margin: var(--sp-1) var(--sp-3) 0;
+  height: var(--control-h);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  cursor: pointer;
+}
+
+.saveButton:focus-visible,
+.saveConfirm:focus-visible,
+.saveCancel:focus-visible,
+.saveName:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.saveForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+  margin: var(--sp-1) var(--sp-3) 0;
+}
+
+.saveName {
+  flex: 1 1 200px;
+  min-width: 0;
+  height: var(--control-h);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.saveConfirm,
+.saveCancel {
+  height: var(--control-h);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  cursor: pointer;
+}
+
+.saveError,
+.saveHint {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 重名是「提醒换个名字」而不是失败：用警告色，不用危险色——
+   浮层里唯一该染红的是真正的错误（Round II 守卫也会拒绝 --danger）。 */
+.saveError {
+  color: var(--warning);
+}
+
+.saveHint {
+  color: var(--text-tertiary);
+}
+
+.saved {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+  max-height: 148px;
+  padding: var(--sp-2) var(--sp-3);
+  overflow-y: auto;
+  border-bottom: 1px solid var(--border);
+}
+
+.savedItem {
+  position: relative;
+  min-width: 0;
+}
+
+.savedCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-05);
+  width: 100%;
+  height: 44px;
+  padding: var(--sp-1) var(--sp-4) var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-subtle);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.savedCard:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.savedName {
+  overflow: hidden;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: var(--lh-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.savedQuery {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.savedRemove {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  cursor: pointer;
+}
+
+.savedRemove:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-inset);
+}

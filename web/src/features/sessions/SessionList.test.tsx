@@ -155,7 +155,10 @@ test("shows fallback titles and failed metadata status in project view", async (
   await user.click(screen.getByRole("tab", { name: "项目" }));
   expect(screen.getByText("Agent title")).toBeInTheDocument();
   expect(screen.getByText("AI title")).toBeInTheDocument();
-  expect(screen.getByText("User prompt")).toBeInTheDocument();
+  // I8：每行都有一条预览；没有 aiTitle 的会话，标题兜底也是这段文本，
+  // 所以同一句话会在标题与预览里各出现一次（不是重复渲染）。
+  expect(document.querySelectorAll('[data-probe="session-preview"]')).toHaveLength(3);
+  expect(screen.getAllByText("User prompt").length).toBeGreaterThanOrEqual(2);
   expect(screen.getByText("标题提取失败")).toBeInTheDocument();
 });
 
@@ -1106,4 +1109,98 @@ test("H3：缺读数的会话垫底，有读数的照常排", async () => {
   const order = visibleOrder();
   expect(order[0]).toBe("sort-b");
   expect(new Set(order.slice(1))).toEqual(new Set(["sort-a", "sort-c"]));
+});
+
+test("I8：预览行显示脱敏后的首条消息，用户主目录不外泄", () => {
+  render(
+    <SessionList
+      sessions={[
+        {
+          path: "/sessions/p1.jsonl",
+          projectLabel: "p1",
+          mtimeMs: 1,
+          sizeBytes: 1,
+          hasRecords: true,
+          customTitle: "修一下路径",
+          userPrompt: "帮我改 /Users/liangyuxiang/work/yu-project/alpha/src/x.ts 的 bug"
+        }
+      ]}
+      selected={null}
+      loading={false}
+      error={null}
+      onSelect={() => undefined}
+      onRefresh={() => undefined}
+    />
+  );
+
+  const preview = document.querySelector<HTMLElement>('[data-probe="session-preview"]');
+  expect(preview).not.toBeNull();
+  expect(preview?.textContent).toContain("~");
+  expect(preview?.textContent).not.toContain("liangyuxiang");
+  expect(preview?.textContent).not.toContain("alpha/src");
+  // 命中打码规则 → 尾部一枚「已脱敏」小盾（不解释打了什么）。
+  expect(preview?.querySelector('[aria-label="已脱敏"]')).not.toBeNull();
+});
+
+test("I8：没有首条消息与 AI 标题时写占位，不编造内容", () => {
+  render(
+    <SessionList
+      sessions={[
+        {
+          path: "/sessions/p2.jsonl",
+          projectLabel: "p2",
+          mtimeMs: 1,
+          sizeBytes: 1,
+          hasRecords: true,
+          customTitle: "只有自定义标题"
+        }
+      ]}
+      selected={null}
+      loading={false}
+      error={null}
+      onSelect={() => undefined}
+      onRefresh={() => undefined}
+    />
+  );
+
+  const preview = document.querySelector<HTMLElement>('[data-probe="session-preview"]');
+  expect(preview?.textContent).toBe("这条会话没有用户消息");
+  expect(preview?.querySelector('[aria-label="已脱敏"]')).toBeNull();
+});
+
+test("I8：预览行是纯文本 span——行本体已是 role=button，不能再嵌按钮", () => {
+  renderList();
+
+  const preview = document.querySelector<HTMLElement>('[data-probe="session-preview"]');
+  expect(preview?.tagName).toBe("SPAN");
+  expect(preview?.querySelector("button")).toBeNull();
+});
+
+test("I8：预览超过 80 码位时截断，title 带截断后的全文", () => {
+  const long = "重构这个模块".repeat(30);
+  render(
+    <SessionList
+      sessions={[
+        {
+          path: "/sessions/p3.jsonl",
+          projectLabel: "p3",
+          mtimeMs: 1,
+          sizeBytes: 1,
+          hasRecords: true,
+          customTitle: "长消息",
+          userPrompt: long
+        }
+      ]}
+      selected={null}
+      loading={false}
+      error={null}
+      onSelect={() => undefined}
+      onRefresh={() => undefined}
+    />
+  );
+
+  const preview = document.querySelector<HTMLElement>('[data-probe="session-preview"]');
+  const text = preview?.getAttribute("title") ?? "";
+  expect(Array.from(text).length).toBe(81); // 80 码位 + 省略号
+  expect(text.endsWith("…")).toBe(true);
 });

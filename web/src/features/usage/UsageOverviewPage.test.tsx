@@ -631,7 +631,7 @@ describe("UsageOverviewPage", () => {
     expect(readDir.mock.calls.length).toBe(before);
   });
 
-  it("实验室档（Round FF）：十一张卡都在、区间控件保留、进度行写明 11 个视角", async () => {
+  it("实验室档（Round II）：十四张卡都在、区间控件保留、进度行写明 14 个视角", async () => {
     const bridges = createUsageBridges({
       [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 3_600_000)
     });
@@ -641,16 +641,20 @@ describe("UsageOverviewPage", () => {
 
     await userEvent.click(screen.getByRole("tab", { name: "实验室" }));
 
-    // 第 5 档、排最后；实验室自己承担页头（h2 + 口径），十一张卡各带截图定位属性。
+    // 第 5 档、排最后；实验室自己承担页头（h2 + 口径），十四张卡各带截图定位属性。
     expect(await screen.findByRole("region", { name: "数据实验室" })).toBeInTheDocument();
-    expect(document.querySelectorAll("[data-lab-card]")).toHaveLength(11);
+    expect(document.querySelectorAll("[data-lab-card]")).toHaveLength(14);
+    // Round II 的三张：多选对照、工作日对照、提问画像各占一行。
+    for (const card of ["multi", "weekend", "profile"]) {
+      expect(document.querySelector(`[data-lab-card="${card}"]`)).not.toBeNull();
+    }
     // Round HH 的收工推演独占一行，挂在沙盘之后。
     const cutoff = document.querySelector('[data-lab-card="cutoff"]');
     expect(cutoff).not.toBeNull();
     expect(within(cutoff as HTMLElement).getByRole("region", { name: "收工推演" })).toBeInTheDocument();
-    // 9 张卡吃「近 N 天」，所以区间控件必须留着（不是里程碑那种全历史档）。
+    // 12 张卡吃「近 N 天」，所以区间控件必须留着（不是里程碑那种全历史档）。
     expect(screen.getByRole("tablist", { name: "时间范围" })).toBeInTheDocument();
-    expect(screen.getByText(/纳入统计 · 11 个视角/)).toBeInTheDocument();
+    expect(screen.getByText(/纳入统计 · 14 个视角/)).toBeInTheDocument();
     // Round HH H1：这份夹具里模型没有值得说的事，整条带子不出现（0 条不打扰）。
     // 非空的排序/前缀/跳转由 BriefingStrip.test.tsx 逐条钉住。
     expect(document.querySelector('[data-probe="briefing"]')).toBeNull();
@@ -910,4 +914,33 @@ describe("UsageOverviewPage", () => {
       expect(storyLog.compareDocumentPosition(digest) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
   });
+});
+
+it("Round II：会话形状卡挂用量档，四档切换改的是同一张卡", async () => {
+  const bridges = createUsageBridges({
+    [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl(
+      "a2",
+      "claude-sonnet-4-5-20250929",
+      3_600_000
+    )
+  });
+
+  renderPage(bridges);
+  await screen.findByRole("region", { name: "用量总览" });
+
+  const shape = document.querySelector('[data-probe="session-shape"]');
+  expect(shape).not.toBeNull();
+  expect(shape).toHaveAttribute("data-shape", "duration");
+
+  await userEvent.click(screen.getByRole("tab", { name: "间隔" }));
+  expect(document.querySelector('[data-probe="session-shape"]')).toHaveAttribute(
+    "data-shape",
+    "gap"
+  );
+
+  await userEvent.click(screen.getByRole("tab", { name: "配方" }));
+  expect(document.querySelector('[data-probe="session-shape"]')).toHaveAttribute(
+    "data-shape",
+    "signature"
+  );
 });
