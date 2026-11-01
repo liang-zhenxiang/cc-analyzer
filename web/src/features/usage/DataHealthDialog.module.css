@@ -1,0 +1,182 @@
+/* H9 数据体检浮层（Round HH §4.9）：与「对比快照」同一套浮层语言。
+   居中卡 min(640px, 100%)、max-height min(720px, 84vh)、z-index 130。 */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-4);
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 100%);
+  max-height: min(720px, 84vh);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg);
+  box-shadow: 0 18px 48px rgb(0 0 0 / 0.24);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  height: 40px;
+  padding: 0 var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  line-height: var(--lh-base);
+}
+
+.body {
+  padding: var(--sp-3);
+  overflow-y: auto;
+}
+
+/* 没扫过：不出报告，一句话说明——空数据没有体检可言。 */
+.noScan {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+}
+
+/* 评级行：grade 大字 + score + 全过徽标。 */
+.verdict {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.grade {
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  line-height: var(--lh-lg);
+}
+
+/* 三档各一档色：优=正、良=中性、关注=警示——色只在 grade 上，行内容不上色。 */
+.grade[data-grade="优"] {
+  color: var(--success);
+}
+
+.grade[data-grade="良"] {
+  color: var(--text);
+}
+
+.grade[data-grade="关注"] {
+  color: var(--warning);
+}
+
+.score {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.allPass {
+  padding: 0 var(--sp-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 五项检查：每项一行，未过的多一行建议。 */
+.checks {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checks li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+
+/* ✓ / ! 记号：不依赖颜色单独可读（记号本身就是状态）。 */
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: 1;
+}
+
+.checks li[data-pass="false"] .mark {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.checks li[data-pass="true"] .mark {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.checkText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.checkLabel {
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-weight: 500;
+}
+
+/* 通过项也照样说数：「1 条 · 占 0.01%」比一个 ✓ 更可信。 */
+.checkActual {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.checkAdvice {
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.note {
+  margin: var(--sp-3) 0 0;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-top: 1px solid var(--border);
+  flex: 0 0 auto;
+}

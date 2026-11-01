@@ -15,6 +15,11 @@ import { csvFileName } from "./csvExport";
 import { ProvenanceBadge } from "./ProvenanceBadge";
 import { useUsageOverview } from "./useUsageOverview";
 import { BillingWindowCard } from "./BillingWindowCard";
+import { BriefingStrip } from "./BriefingStrip";
+import { briefingOf } from "./dailyBriefing";
+import { buildLimitForecast } from "./limitForecast";
+import { buildWeeklyDigest, weekStartOf } from "./weeklyDigest";
+import { cacheHealthOf } from "./cacheHealth";
 import { CompactionStatsPanel } from "./CompactionStatsPanel";
 import { compactionStats } from "./compactionStats";
 import { mergeErrorStats } from "./errorStats";
@@ -23,6 +28,7 @@ import { ActivityClockPanel } from "./ActivityClockPanel";
 import { buildActivityClock } from "./activityClock";
 import { buildFlowDiagram } from "./flowDiagram";
 import { FlowDiagramPanel } from "./FlowDiagramPanel";
+import { ModelSeesawPanel } from "./ModelSeesawPanel";
 import { MilestonesPanel } from "./MilestonesPanel";
 import { AnnualReportPanel } from "./AnnualReportPanel";
 import { milestonesOf } from "./milestones";
@@ -290,6 +296,30 @@ export function UsageOverviewPage({
     }));
     return contextQuantiles(windowed);
   }, [inputs, days, milestonesNow]);
+
+  // H7 缓存命中率：按自然周把窗口内的记录折成 CacheWeek[]。
+  // 模型的口径是 hitRate = cacheRead / (cacheRead + input)，所以这里喂的
+  // `inputTokens` 必须是「分母里除 cacheRead 之外的部分」= input + cacheCreation；
+  // 直接传 inputTokens 会把缓存写入漏出分母，命中率虚高。
+  const cacheHealth = useMemo(() => {
+    const startTs = addLocalDays(dayStartOf(readouts.now), -(days - 1));
+    const buckets = new Map<number, { cacheReadTokens: number; inputTokens: number }>();
+    for (const input of inputs) {
+      for (const record of input.records) {
+        if (record.timestamp < startTs) continue;
+        const usage = record.usage;
+        if (!usage) continue;
+        const weekStart = weekStartOf(record.timestamp);
+        const bucket = buckets.get(weekStart) ?? { cacheReadTokens: 0, inputTokens: 0 };
+        bucket.cacheReadTokens += usage.cacheReadTokens ?? 0;
+        bucket.inputTokens += (usage.inputTokens ?? 0) + (usage.cacheCreationTokens ?? 0);
+        buckets.set(weekStart, bucket);
+      }
+    }
+    return cacheHealthOf(
+      [...buckets.entries()].map(([weekStart, bucket]) => ({ weekStart, ...bucket }))
+    );
+  }, [inputs, days, readouts.now]);
   // 里程碑（Round Y #214）同位：吃同一份**全历史** inputs，一次遍历折成三层
   // 清单。它与 7/30/90 区间正交（全历史口径），所以不依赖 `days`；R9 要求只在
   // `inputs` 变化时重算，这里靠 memo 的依赖保证。
@@ -361,6 +391,65 @@ export function UsageOverviewPage({
     [range.dailySeries]
   );
 
+  // H1 晨报（Round HH）：候选池、阈值与中文短句全在 dailyBriefing.ts，页面只
+  // 负责把对齐给它的输入凑齐——不重算任何阈值，也不复核「预算是否真到 85%」。
+  // 异常序列取「全部 token」：晨报说的是「昨天不对劲」，那是总量的事，不该跟
+  // 日图当前选中的 token 口径（输入/输出/缓存…）走。
+  const totalTrendDays = useMemo(
+    () =>
+      range.dailySeries.map((point) => ({
+        date: isoDayOf(point.dayStart),
+        tokens: totalsSum(point)
+      })),
+    [range.dailySeries]
+  );
+  const briefingAnomalies = useMemo(
+    () => buildAnomalyDays(totalTrendDays),
+    [totalTrendDays]
+  );
+  // 周战报卡自己会再算一遍（同一份 inputs、同一个 now）；这里按同一口径重算，
+  // 不把面板的内部 memo 提成跨组件状态——两处都纯函数，重复的只是 O(记录数)。
+  const briefingDigest = useMemo(
+    () => buildWeeklyDigest(inputs, readouts.now),
+    [inputs, readouts.now]
+  );
+  const briefing = useMemo(() => {
+    const todayStart = dayStartOf(readouts.now);
+    const byDay = new Map(range.dailySeries.map((point) => [point.dayStart, point]));
+    const dayAt = (offset: number) => byDay.get(addLocalDays(todayStart, offset));
+    // 「安静」从昨天往前数：今天还没过完，把「今天还没有消息」算成一天会让
+    // 一句提醒在早饭前就冒出来。
+    let quietDays = 0;
+    for (let offset = -1; offset >= -range.dailySeries.length; offset -= 1) {
+      const day = dayAt(offset);
+      if (!day || day.messages > 0) break;
+      quietDays += 1;
+    }
+    const yesterday = dayAt(-1);
+    const previous = dayAt(-2);
+    return briefingOf(
+      {
+        weekly: briefingDigest,
+        anomalies: briefingAnomalies,
+        forecast: readouts.active
+          ? buildLimitForecast(readouts.active, readouts.plan.limitTokens, readouts.now)
+          : null,
+        errorStats: { total: errorStats.total.api + errorStats.total.tool },
+        yesterdayTokens: yesterday ? totalsSum(yesterday) : 0,
+        prevTokens: previous ? totalsSum(previous) : 0,
+        quietDays
+      },
+      readouts.now
+    );
+  }, [range.dailySeries, briefingAnomalies, briefingDigest, readouts, errorStats]);
+
+  // H2 的样本天数：窗口里有 token 读数的天数（aggregateRange 已补零，所以
+  // 「有读数」= 当天 token 合计 > 0）。少于 3 天时推演卡不给滑杆。
+  const sampleDays = useMemo(
+    () => range.dailySeries.filter((point) => totalsSum(point) > 0).length,
+    [range.dailySeries]
+  );
+
   // 新鲜度只关心「最后一条记录」与「最后一次扫描」两个时刻；相对时间由
   // `readouts.now`（30 秒 tick）驱动，不用 `Date.now()`——否则同一屏里两个
   // 「N 分钟前」会各说各的。
@@ -376,6 +465,7 @@ export function UsageOverviewPage({
 
   // E6：迁移只画所选窗口。模型层按会话收口、不认 days，所以这里做一次
   // 「时间戳筛选」——不重算任何聚合，只把窗口外的记录挡在输入之外。
+  // windowed 同时喂 H6 跷跷板（同一窗口、同一份记录，两个面板不各筛一遍）。
   const migration = useMemo(() => {
     const windowStart = addLocalDays(dayStartOf(readouts.now), -(days - 1));
     const windowEnd = addLocalDays(dayStartOf(readouts.now), 1);
@@ -385,13 +475,26 @@ export function UsageOverviewPage({
         (record) => record.timestamp >= windowStart && record.timestamp < windowEnd
       )
     }));
-    return { ...modelTimeline(windowed), start: windowStart, end: windowEnd };
+    return { ...modelTimeline(windowed), start: windowStart, end: windowEnd, windowed };
   }, [inputs, days, readouts.now]);
   // 与占比图共用同一个索引：图例第 N 个模型在这里也是 --chart-N。
   const modelColors = useMemo(
     () => new Map(range.topModels.map((slice, index) => [slice.label, (index % 6) + 1])),
     [range.topModels]
   );
+
+  // H6 跷跷板吃与迁移同一个窗口化输入（migration 的 windowed 记录序列）；
+  // 月数 = 窗口覆盖的自然月（含空月）——<2 个月整块不渲染（一根条不成画）。
+  // monthSpanOf 在模型层是全历史的，这里按窗口首末时间自己数月差 +1。
+  const seesawMonthCount = useMemo(() => {
+    const windowStart = addLocalDays(dayStartOf(readouts.now), -(days - 1));
+    const windowEnd = addLocalDays(dayStartOf(readouts.now), 1);
+    const start = new Date(windowStart);
+    const end = new Date(windowEnd - 1);
+    const monthDiff =
+      (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+    return monthDiff + 1;
+  }, [days, readouts.now]);
 
   // Buckets are keyed by the encoded project directory name; the sessions'
   // real paths come from the scan. First path wins — a project bucket can hold
@@ -620,6 +723,10 @@ export function UsageOverviewPage({
           size="page"
           title="还没有可统计的会话"
           description="本机 ~/.claude/projects 下没有发现会话记录。切到「会话分析」标签确认扫描结果，产生新会话后再回到本页。"
+          /* H10 三步引导：用量档的「整块没有数据」空态挂引导。
+             hasDirectory 恒 true——本页能出现就说明已经读了默认目录；
+             scanComplete 用 !scanning；sessionCount 即 inputs 数（0）。 */
+          guide={{ hasDirectory: true, scanComplete: !scanning, sessionCount: inputs.length }}
         />
       </div>
     );
@@ -679,7 +786,7 @@ export function UsageOverviewPage({
                 : view === "annual"
                   ? `全部 ${milestoneReport.facts.sessionCount} 个已扫描会话纳入年度统计`
                   : view === "lab"
-                    ? `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计 · 10 个视角`
+                    ? `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计 · 11 个视角`
                     : `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计`}
             {skipped > 0 ? ` · ${skipped} 个会话读取失败已跳过` : ""}
           </span>
@@ -742,6 +849,9 @@ export function UsageOverviewPage({
           now={labNow}
           plan={plan}
           onOpenSession={onOpenSession}
+          hourlyTokens={range.hourlyTokens}
+          sampleDays={sampleDays}
+          scanning={scanning}
         />
       ) : view === "milestones" ? (
         /* 里程碑（Round Y）：同一份全历史 inputs、同一次扫描，零新增 I/O。
@@ -760,6 +870,11 @@ export function UsageOverviewPage({
         </>
       ) : (
         <>
+          {/* H1 晨报（Round HH）：页头与第一张卡之间的一条带子。扫描中不渲染——
+              先闪一句「昨日 +0%」比晚半秒出现更糟；没有值得说的事时整条消失。 */}
+          {!scanning && briefing.items.length > 0 ? (
+            <BriefingStrip items={briefing.items} onNavigate={(target) => setView(target)} />
+          ) : null}
           {/* 归因行与压缩统计 top3 共用同一个「打开会话」握手，不新开跳转路径。 */}
           <BillingWindowCard inputs={inputs} readouts={readouts} onOpenSession={onOpenSession} />
 
@@ -950,6 +1065,23 @@ export function UsageOverviewPage({
               )}
             </Panel>
 
+            {/* H6 模型跷跷板：紧贴「按模型分布」——占比看「总量在谁那」，
+                跷跷板看「逐月此消彼长」。窗口覆盖 ≥2 个自然月才渲染
+                （一根条不成画）。数据与迁移共用 migration.windowed（同窗口
+                只筛一遍）。 */}
+            {seesawMonthCount >= 2 ? (
+              <Panel
+                title="模型跷跷板"
+                actions={<ProvenanceBadge provenance="logged" />}
+              >
+                <ModelSeesawPanel
+                  sessions={migration.windowed}
+                  months={seesawMonthCount}
+                  now={readouts.now}
+                />
+              </Panel>
+            ) : null}
+
             {/* F1 Token 流向（三层 Sankey）紧贴「按模型分布」：先看模型占比，再看
                 「哪个项目把 token 喂给了哪个模型、哪类计数器」。整行同
                 compactionRow 形态——三层图在单列里会挤扁，44px 的行容不下它。 */}
@@ -997,6 +1129,7 @@ export function UsageOverviewPage({
                 stats={compaction}
                 days={days}
                 quantiles={contextQuantilesWindow}
+                cacheHealth={cacheHealth}
                 onOpenSession={onOpenSession}
               />
             </div>

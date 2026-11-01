@@ -9,6 +9,7 @@ import { TextInput } from "../../components/TextInput";
 import { sessionTitle, type SessionMeta } from "./metadataCache";
 import { SessionQueryBar } from "./SessionQueryBar";
 import { matchesSessionFacts, type SessionQuery } from "../usage/sessionQuery";
+import { sortSessions, type SessionSortKey } from "./sessionSort";
 import { PinButton } from "./PinButton";
 import {
   PINNED_STORAGE_KEY,
@@ -69,10 +70,16 @@ function compareSessions(a: SessionMeta, b: SessionMeta): number {
 /**
  * Groups sessions by `keyOf`, sorts each group by recency and orders the groups
  * by their newest session, so the list never depends on scan/import order.
+ *
+ * H3：组内排序从「只有最近」扩成任意维度——组间仍按各组首条（排序后的
+ * 第一条）比较，保持「组的位置由组内最新会话决定」这一时间叙事不动；
+ * 置顶组天然只含置顶会话，同样吃 key 的组内排序（见 rows memo）。
  */
 function groupSessions(
   items: SessionMeta[],
-  keyOf: (session: SessionMeta) => string
+  keyOf: (session: SessionMeta) => string,
+  sortBy: SessionSortKey = "recent",
+  getValue: (session: SessionMeta, key: SessionSortKey) => number | null = sessionValueOf
 ): Array<[string, SessionMeta[]]> {
   const groups = new Map<string, SessionMeta[]>();
   for (const session of items) {
@@ -82,14 +89,65 @@ function groupSessions(
     else groups.set(key, [session]);
   }
   return [...groups.entries()]
-    .map(([key, list]) => [key, [...list].sort(compareSessions)] as [string, SessionMeta[]])
+    .map(([key, list]) => [key, sortSessions(list, sortBy, getValue)] as [string, SessionMeta[]])
     .sort((a, b) => compareSessions(a[1][0], b[1][0]));
 }
 
 const VIEW_STORAGE_KEY = "cca-session-view";
 const COLLAPSED_STORAGE_KEY = "cca-session-collapsed";
+/** H3：排序键持久化——与视图键同族（cca- 前缀），未知值回落 recent。 */
+const SORT_STORAGE_KEY = "cca-session-sort";
 /** 置顶会话合成分组的键与标题；与真实分组名/`日期:` 键区分开。 */
 const PINNED_GROUP_KEY = "置顶";
+
+/**
+ * 排序键的取数（H3）：tokens/messages/tools/errors/durationMs 全部来自
+ * `SessionFacts`（索引期一次算好，与 G2 筛选同源）。规格原文写
+ * 「durationMs 从 meta 取」，但 facts.durationMs 就是首末记录差（墙钟），
+ * 且列表侧唯一现成的取数通道就是 facts——以 facts 为准，不另开一套。
+ * facts 缺（未索引）→ null：sortSessions 把 null 排最后，不猜 0。
+ */
+function sessionValueOf(session: SessionMeta, key: SessionSortKey): number | null {
+  if (key === "recent") return session.mtimeMs;
+  const facts = session.facts;
+  if (!facts) return null;
+  switch (key) {
+    case "tokens":
+      // facts 没有 token 总量字段——ctxPeak（input+cacheCreation+cacheRead
+      // 的最大值）是列表侧最接近「这个会话有多大」的读数，注释写明代用。
+      return facts.ctxPeak;
+    case "durationMs":
+      return facts.durationMs;
+    case "messages":
+      return facts.messages;
+    case "tools":
+      return facts.tools.length;
+    case "errors":
+      return facts.errors;
+    default:
+      return null;
+  }
+}
+
+/** H3 排序选项：value 与 SessionSortKey 一一对应，label 逐字来自规格 §4.3。 */
+const SORT_ITEMS: Array<{ value: SessionSortKey; label: string }> = [
+  { value: "recent", label: "最近时间" },
+  { value: "tokens", label: "Token 最多" },
+  { value: "durationMs", label: "时长最长" },
+  { value: "messages", label: "消息最多" },
+  { value: "tools", label: "工具调用最多" },
+  { value: "errors", label: "错误最多" }
+];
+
+/** 六键之外（旧版本残留/手改 localStorage）回落 recent，不抛错。 */
+function readStoredSort(): SessionSortKey {
+  try {
+    const raw = localStorage.getItem(SORT_STORAGE_KEY);
+    return SORT_ITEMS.some((item) => item.value === raw) ? (raw as SessionSortKey) : "recent";
+  } catch {
+    return "recent";
+  }
+}
 
 function readStoredView(): ViewMode {
   try {
@@ -171,6 +229,7 @@ export function SessionList({
   // G2 条件只在本次会话内有效：它们描述「我现在想找什么」，不是长期偏好。
   const [query, setQuery] = useState<SessionQuery>({});
   const [view, setView] = useState<ViewMode>(readStoredView);
+  const [sortBy, setSortBy] = useState<SessionSortKey>(readStoredSort);
   const [collapsed, setCollapsed] = useState<Set<string>>(readStoredCollapsed);
   const [pinned, setPinned] = useState<Set<string>>(readStoredPinned);
   const [scrollTop, setScrollTop] = useState(0);
@@ -190,6 +249,14 @@ export function SessionList({
       // localStorage may be unavailable; the view still works for this session.
     }
   }, [view]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SORT_STORAGE_KEY, sortBy);
+    } catch {
+      // 排序偏好写不进存储：本次会话仍按所选键排，下次进来回落 recent。
+    }
+  }, [sortBy]);
 
   useEffect(() => {
     try {
@@ -249,14 +316,15 @@ export function SessionList({
   }, [sessions, search, query, queryActive]);
 
   // 置顶只是把已排序的结果稳定地提到最前；两种视图（时间线/项目）都先
-  // 在置顶组里出现，再从各自的剩余会话里分组。
+  // 在置顶组里出现，再从各自的剩余会话里分组。置顶组内也按所选维度排
+  // （§2-⑦：置顶是用户意图，排序是观察口径，两者不冲突）。
   const ordered = useMemo(
     () => partitionPinned(filtered, (session) => pinned.has(session.path)),
     [filtered, pinned]
   );
   const pinnedSessions = useMemo(
-    () => ordered.filter((session) => pinned.has(session.path)),
-    [ordered, pinned]
+    () => sortSessions(ordered.filter((session) => pinned.has(session.path)), sortBy, sessionValueOf),
+    [ordered, pinned, sortBy]
   );
   const unpinnedSessions = useMemo(
     () => ordered.filter((session) => !pinned.has(session.path)),
@@ -264,14 +332,22 @@ export function SessionList({
   );
 
   const grouped = useMemo(
-    () => groupSessions(unpinnedSessions, (session) => session.cwd ?? session.projectLabel),
-    [unpinnedSessions]
+    () => groupSessions(unpinnedSessions, (session) => session.cwd ?? session.projectLabel, sortBy),
+    [unpinnedSessions, sortBy]
   );
 
   const timelineGroups = useMemo(
-    () => groupSessions(unpinnedSessions, (session) => dateBucketLabel(session.mtimeMs)),
-    [unpinnedSessions]
+    () => groupSessions(unpinnedSessions, (session) => dateBucketLabel(session.mtimeMs), sortBy),
+    [unpinnedSessions, sortBy]
   );
+
+  // §4.3 空态行：选了非 recent 维度但**当前列表里没有任何会话给得出该读数**
+  // （全部未索引）时，说明一句「先按时间排」——列表本体照常显示，不空白。
+  // 有一个给得出就不用说：缺读数的行已经单独垫底，读数本身是有效的。
+  const sortHintVisible =
+    sortBy !== "recent" &&
+    filtered.length > 0 &&
+    filtered.every((session) => sessionValueOf(session, sortBy) === null);
 
   // 扫描结果里已经没有的会话（被删除/移动）不该永远占着置顶位。
   const knownPaths = useMemo(
@@ -394,6 +470,36 @@ export function SessionList({
         variant="equal"
         className={styles.viewTabs}
       />
+      {/* H3 排序选择：六键（§4.3）。放视图分段控件之后、筛选栏之前——
+          「怎么看」先于「找什么」。native select 自带键盘与读屏语义，
+          不自造 listbox。 */}
+      <div className={styles.sortField}>
+        <span className={styles.sortLabel} id="session-sort-label">
+          排序
+        </span>
+        <select
+          className={styles.sortSelect}
+          aria-labelledby="session-sort-label"
+          data-probe="session-sort"
+          value={sortBy}
+          onChange={(event) => {
+            const next = event.target.value;
+            // option 全部来自 SORT_ITEMS，理论上不会进来别的值；再守一道。
+            setSortBy(SORT_ITEMS.some((item) => item.value === next) ? (next as SessionSortKey) : "recent");
+          }}
+        >
+          {SORT_ITEMS.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      {sortHintVisible ? (
+        <p className={styles.sortHint}>{`这批会话还没有${
+          SORT_ITEMS.find((item) => item.value === sortBy)?.label.replace(/最[多长]$/, "") ?? "该维度"
+        }读数，先按时间排`}</p>
+      ) : null}
       <SessionQueryBar
         sessions={sessions}
         query={query}

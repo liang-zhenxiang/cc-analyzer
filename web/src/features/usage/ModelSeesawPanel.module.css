@@ -1,0 +1,119 @@
+/* 模型跷跷板（H6，§4.6）：行高 30 = 6 + 18 + 6；月份列 72；两根条各占
+   剩余一半的一半（A 条从左向右，B 条同一行内跟随，宽度按共刻度百分比）。 */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.seesawHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.picker {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+  flex: 1 1 200px;
+}
+
+.pickerLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+/* select 画法与 SessionComparePanel/.select、SessionList/.sortSelect 同款。 */
+.select {
+  height: var(--control-h);
+  min-width: 0;
+  flex: 1 1 auto;
+  max-width: 320px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  text-overflow: ellipsis;
+}
+
+.select:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 行高 30：条区 18 + 上下 6；月份列固定 72 保证竖向扫读时月份对齐。 */
+.seesawRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 30px;
+  padding: 6px 0;
+}
+
+.seesawMonth {
+  flex: none;
+  width: 72px;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 条区：两根条上下叠（A 上 B 下），各占 9px 高——并排左右会让「谁长谁短」
+   变成横向拼图，上下叠才是跷跷板的两端。 */
+.bars {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bar {
+  height: 8px;
+  border-radius: 1px;
+}
+
+.barA {
+  background: var(--chart-1-soft);
+  border: 1px solid var(--chart-1);
+}
+
+.barB {
+  background: var(--chart-2-soft);
+  border: 1px solid var(--chart-2);
+}
+
+.seesawValue {
+  flex: none;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.note {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.empty {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+}

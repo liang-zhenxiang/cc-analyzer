@@ -13,6 +13,8 @@ import {
   roundEEScenario,
   roundFFScenario,
   roundGGScenario,
+  roundHHScenario,
+  defaultScenario,
   errorScenario,
   changedFilesScenario,
   calendarScenario,
@@ -1192,8 +1194,9 @@ test.describe("截图归档 · 实验室", () => {
       await page.getByRole("tab", { name: "用量总览", exact: true }).click();
       await expect(page.locator("[data-probe='usage-progress']")).toBeVisible({ timeout: 15_000 });
       await page.getByRole("tab", { name: "实验室", exact: true }).click();
-      await expect(page.getByText(/纳入统计 · 10 个视角/)).toBeVisible({ timeout: 15_000 });
-      await expect(page.locator("[data-lab-card]")).toHaveCount(10);
+      // Round HH 起实验室第 11 张卡是「收工推演」（cutoff），视角数 10→11。
+      await expect(page.getByText(/纳入统计 · 11 个视角/)).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("[data-lab-card]")).toHaveCount(11);
 
       for (const [card, view] of LAB_SHOTS) {
         const locator = page.locator(`[data-lab-card="${card}"]`);
@@ -1276,6 +1279,97 @@ test.describe("截图归档 · Round GG 十功能", () => {
       await page.getByLabel("错误").selectOption("has");
       await expect(sessionItems(page)).toHaveCount(4);
       await shot(V_GG_QUERY);
+    });
+  }
+});
+
+
+// Round HH（第六批十功能）：三件事条 / 模型 A-B / 对话节奏 / 空态引导。
+// 夹具只装本轮的 12 份会话（独立场景）；空态另用「目录可读但没有会话」的短场景。
+const V_HH_BRIEFING = declareView("hh-briefing");
+const V_HH_SEESAW = declareView("hh-seesaw");
+const V_HH_RHYTHM = declareView("hh-rhythm");
+const V_HH_EMPTY = declareView("hh-empty");
+
+test.describe("截图归档 · Round HH 十功能", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: roundHHScenario() });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`Round HH · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+      const shot = async (view: string) => {
+        await settleImages(page);
+        await page.screenshot({ path: path.join(OUT_DIR, `${view}-${theme}${suffix}.png`) });
+      };
+      const center = (locator: ReturnType<Page["locator"]>) =>
+        locator.evaluate((element) => element.scrollIntoView({ block: "center" }));
+
+      await page.addInitScript(() => {
+        localStorage.setItem(
+          "cca-billing-plan",
+          JSON.stringify({ id: "custom", customLimitTokens: 1_500_000 })
+        );
+        localStorage.setItem("cca-usage-range", "90");
+      });
+
+      await page.goto("/");
+      await page.getByRole("tab", { name: "用量总览" }).click();
+      await expect(page.locator("[data-probe='usage-progress']")).toBeVisible({ timeout: 15_000 });
+      await page.waitForTimeout(300);
+
+      // H1 三件事：预算 / 异常日 / 错误，三条固定宽度。
+      await expect(page.locator("[data-probe='briefing-item']")).toHaveCount(3);
+      await center(page.locator("[data-probe='briefing']"));
+      await page.waitForTimeout(200);
+      await shot(V_HH_BRIEFING);
+
+      // H2 模型 A-B：按月的两条线。
+      await center(page.locator("[data-probe='model-seesaw']"));
+      await page.waitForTimeout(200);
+      await shot(V_HH_SEESAW);
+
+      // H4 对话节奏：打开四次提问的会话，切到重放档。
+      await page.getByRole("tab", { name: "会话分析" }).click();
+      await sessionItems(page).filter({ hasText: "早上第一段" }).first().click();
+      await expect(page.getByRole("tab", { name: "日志视图" })).toBeVisible();
+      await page.getByRole("tab", { name: "重放" }).click();
+      await expect(page.locator("[data-probe='rhythm']")).toBeVisible();
+      await center(page.locator("[data-probe='rhythm']"));
+      await page.waitForTimeout(200);
+      await shot(V_HH_RHYTHM);
+    });
+  }
+});
+
+test.describe("截图归档 · Round HH 空态", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({
+    scenario: defaultScenario({ files: { "/Users/e2e/.claude/projects/placeholder.txt": "" } })
+  });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`Round HH 空态 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+      await page.goto("/");
+      await page.getByRole("tab", { name: "用量总览" }).click();
+      await expect(page.locator("[data-probe='empty-steps']")).toBeVisible({ timeout: 15_000 });
+      await settleImages(page);
+      await page.screenshot({ path: path.join(OUT_DIR, `${V_HH_EMPTY}-${theme}${suffix}.png`) });
     });
   }
 });

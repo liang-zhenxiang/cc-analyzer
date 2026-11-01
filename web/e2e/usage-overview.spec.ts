@@ -92,7 +92,10 @@ test.describe("用量总览", () => {
 
     await expect(page.getByRole("img", { name: "按模型分布" })).toBeVisible();
     // 图例印「家族 + 版本」，原始 model id 收进 title（exact：svg 的 title 里也带着它）。
-    await expect(dashboard.getByText("Opus 4.1", { exact: true })).toBeVisible();
+    // Round HH 起跷跷板的模型 A/B 下拉也有同名 option——把查询收进图例的
+    // span（className 带 modelName），不再撞 strict mode。
+    const modelLegend = page.locator("span[class*='modelName']", { hasText: "Opus 4.1" }).first();
+    await expect(modelLegend).toBeVisible();
     await expect(dashboard.getByTitle("claude-opus-4-1-20250805").first()).toBeVisible();
 
     await expect(page.getByRole("img", { name: "活跃时段热力图" })).toBeVisible();

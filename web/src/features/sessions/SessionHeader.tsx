@@ -5,6 +5,7 @@ import { sessionTitle, type SessionMeta } from "./metadataCache";
 import type { ParsedSession } from "./types";
 import type { ClipboardService } from "../../api/types";
 import { tokenTotalsOf } from "./tokenTotals";
+import { ShareCardButton } from "./ShareCardButton";
 import { contextSeriesOf } from "./contextSeries";
 import { buildBleedReport } from "./bleedModel";
 import { buildContextHealth, type ContextHealth } from "../usage/contextHealth";
@@ -39,7 +40,8 @@ export function SessionHeader({
   onToggleTokenPanel,
   onOpenFolder,
   onExport,
-  clipboard
+  clipboard,
+  restartCount
 }: {
   session: SessionMeta;
   parsed: ParsedSession | null;
@@ -49,6 +51,12 @@ export function SessionHeader({
   /** Opens the export dialog. Absent while the session is still parsing. */
   onExport: (trigger: HTMLElement) => void;
   clipboard: ClipboardService;
+  /**
+   * H5 重启计数（§4.5）：同目录 24 小时窗口内该会话所在的连续重启链长。
+   * `undefined` = 列表未就绪或该会话不在链上（链首 N=0）——两种都不渲染，
+   * 不占位：徽章是补充读数，不是布局的承重墙。
+   */
+  restartCount?: number;
 }) {
   const { notify } = useNotifications();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -163,6 +171,9 @@ export function SessionHeader({
               导出
             </Button>
           ) : null}
+          {/* H8 分享卡：与「导出」同一档动作、同一解析守卫——解析中不渲染
+              （没有数据可晒）；桥接缺失时按钮自身会 disabled 并说明原因。 */}
+          {parsed ? <ShareCardButton session={session} parsed={parsed} /> : null}
           {resumeHint ? <span className={styles.hint}>{resumeHint}</span> : null}
         </div>
         {contextHealth ? (
@@ -208,6 +219,20 @@ export function SessionHeader({
             {total === null ? <SkeletonBar width="value" /> : formatDuration(total)}
           </b>
         </span>
+        {/* H5 重启徽章（§4.5）：紧挨总耗时之后。链长 ≥2 才显示「重新发起
+            N 次」（N=链长−1，即链首不算「重新发起」）；0/undefined 不渲染。
+            徽章是 span 不是 button——它在 button.readouts 内部，嵌 button
+            是非法结构（与出血点徽章降级行本体的理由同源，但这里连独立
+            动作都没有，span 足够）。 */}
+        {typeof restartCount === "number" && restartCount >= 2 ? (
+          <span
+            className={styles.restartChip}
+            data-probe="session-restart"
+            title={`同目录 24 小时内的第 ${restartCount} 次新会话`}
+          >
+            {`重新发起 ${restartCount - 1} 次`}
+          </span>
+        ) : null}
         <span className={styles.readout}>
           <span className={styles.readoutLabel}>输入</span>
           <b className={styles.readoutValue}>

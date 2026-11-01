@@ -13,6 +13,7 @@ import {
   type UsageAggregate,
   type UsageSessionInput
 } from "./usageAggregations";
+import type { HealthInput } from "../sessions/dataHealth";
 import { extractErrorEvents } from "./errorStats";
 import { extractToolCalls } from "./toolCensus";
 import { extractFileFacts } from "./projectFootprint";
@@ -50,6 +51,17 @@ export function useUsageOverview() {
   // E9：最后一次**完成**扫描的本地时刻。新鲜度徽章要区分「记录旧」与
   // 「刚扫过、目录没变」，没有这个时刻就只能猜。
   const [scannedAt, setScannedAt] = useState<number | null>(null);
+  // H9 数据体检：扫描趟里顺手数的六个数字（口径见 dataHealth.ts）。
+  // 与 inputs 同一趟产出——体检单读的就是「这次扫描实际读到的东西」，
+  // 单独再扫一遍等于给两份数据两次说谎的机会。
+  const [healthStats, setHealthStats] = useState<HealthInput>({
+    sessions: 0,
+    totalRecords: 0,
+    unmatchedRecords: 0,
+    truncatedLines: 0,
+    parseWarnings: 0,
+    missingUsage: 0
+  });
   const scanIdRef = useRef(0);
 
   // `loading` gates the target to the final list: metadata batches replace the
@@ -85,10 +97,27 @@ export function useUsageOverview() {
     setProgress({ done: 0, total: scanTarget.length });
     setInputs([]);
     setAggregate(emptyAggregate());
+    setHealthStats({
+      sessions: 0,
+      totalRecords: 0,
+      unmatchedRecords: 0,
+      truncatedLines: 0,
+      parseWarnings: 0,
+      missingUsage: 0
+    });
 
     const scan = async () => {
       const collected: UsageSessionInput[] = [];
       const accumulated = emptyAggregate();
+      // H9 体检的累计器：六数字在扫描趟里逐会话累加（见上方 healthStats 注释）。
+      const health: HealthInput = {
+        sessions: 0,
+        totalRecords: 0,
+        unmatchedRecords: 0,
+        truncatedLines: 0,
+        parseWarnings: 0,
+        missingUsage: 0
+      };
       let done = 0;
       let failed = 0;
       let published = 0;
@@ -107,6 +136,20 @@ export function useUsageOverview() {
           try {
             const parsed = await readSession(session);
             if (scanIdRef.current !== scanId) return;
+            // H9 六数字：全会话级口径（不筛 records.length>0——空会话
+            // 也是「读到了的会话」，它的截断/警告同样是事实）。
+            health.sessions += 1;
+            health.totalRecords += parsed.records.length;
+            health.unmatchedRecords += parsed.unmatchedToolUses.length;
+            health.parseWarnings += parsed.warnings.length;
+            // 截断行的既有口径：parseCoverage.unparsableLines（读不进来
+            // 的行 = 文件被外接截断/写坏的那部分）。coverage 缺省（旧缓存）
+            // 时按 0——拿不到证据不给读者定罪。
+            health.truncatedLines += parsed.parseCoverage?.unparsableLines ?? 0;
+            health.missingUsage += parsed.records.filter(
+              (record) =>
+                record.kind === "assistant" && record.usage === undefined
+            ).length;
             if (parsed.records.length > 0) {
               const input: UsageSessionInput = {
                 records: parsed.records,
@@ -140,6 +183,7 @@ export function useUsageOverview() {
         }
         publish();
         setSkipped(failed);
+        setHealthStats({ ...health });
       } finally {
         if (scanIdRef.current === scanId) {
           setScanning(false);
@@ -153,5 +197,15 @@ export function useUsageOverview() {
 
   // `refresh` 透出去只为一件事：错误态上的「重试」。不重试的错误提示
   // 等于让用户自己去找刷新会话列表的按钮，而那个按钮在另一个标签里。
-  return { inputs, aggregate, progress, scanning, error, skipped, refresh, scannedAt };
+  return {
+    inputs,
+    aggregate,
+    progress,
+    scanning,
+    error,
+    skipped,
+    refresh,
+    scannedAt,
+    healthStats
+  };
 }

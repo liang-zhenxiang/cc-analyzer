@@ -4,6 +4,7 @@ import { vi } from "vitest";
 import { CompactionStatsPanel } from "./CompactionStatsPanel";
 import { compactionStats, type CompactionStats } from "./compactionStats";
 import { contextQuantiles } from "./contextQuantiles";
+import { cacheHealthOf, type CacheWeek } from "./cacheHealth";
 import type { UsageSessionInput } from "./usageAggregations";
 import type { SessionRecord } from "../sessions/types";
 
@@ -194,5 +195,83 @@ describe("CompactionStatsPanel 分位行（G7）", () => {
     const row = screen.getByLabelText("会话上下文峰值分位数");
     expect(within(row).getByText("200")).toBeInTheDocument(); // P50
     expect(within(row).getAllByText("300")).toHaveLength(4); // P75/P90/P99/最大
+  });
+
+  describe("H7 缓存命中率", () => {
+    const WEEK = 7 * 24 * HOURS;
+    const week = (index: number, cacheReadTokens: number, inputTokens: number): CacheWeek => ({
+      weekStart: NOW - (4 - index) * WEEK,
+      cacheReadTokens,
+      inputTokens
+    });
+
+    it("四周年化：本周命中率、方向词、sparkline 与脚注都在", () => {
+      const health = cacheHealthOf([
+        week(0, 100, 900),
+        week(1, 200, 800),
+        week(2, 300, 700),
+        week(3, 450, 550)
+      ]);
+      render(<CompactionStatsPanel stats={stats} days={30} cacheHealth={health} />);
+
+      const section = document.querySelector('[data-probe="cache-hit"]');
+      expect(section).not.toBeNull();
+      expect(
+        section!.querySelector('[data-probe="cache-hit-value"]')?.textContent
+      ).toBe("45.0%");
+      expect(screen.getByText("在变好")).toBeInTheDocument();
+      expect(document.querySelector('[data-probe="cache-sparkline"]')).not.toBeNull();
+      expect(
+        screen.getByText("按周：缓存读取 ÷（输入 + 缓存写入 + 缓存读取）")
+      ).toBeInTheDocument();
+    });
+
+    it("不足 3 个非 null 周：只印数值与「样本不足」，不画线", () => {
+      const health = cacheHealthOf([
+        week(2, 200, 800),
+        week(3, 300, 700)
+      ]);
+      render(<CompactionStatsPanel stats={stats} days={30} cacheHealth={health} />);
+
+      expect(
+        document.querySelector('[data-probe="cache-hit-value"]')?.textContent
+      ).toBe("30.0%");
+      expect(screen.getByText("样本不足")).toBeInTheDocument();
+      expect(document.querySelector('[data-probe="cache-sparkline"]')).toBeNull();
+    });
+
+    it("最后一周没有读数：印「—」而不回退到更早的周", () => {
+      const health = cacheHealthOf([
+        week(0, 100, 900),
+        week(1, 200, 800),
+        week(2, 300, 700),
+        week(3, 0, 0)
+      ]);
+      render(<CompactionStatsPanel stats={stats} days={30} cacheHealth={health} />);
+
+      expect(
+        document.querySelector('[data-probe="cache-hit-value"]')?.textContent
+      ).toBe("—");
+      // 前三周有读数：线照画（3 个非 null 周达标），但数字停在「—」——
+      // 「当前」不能回退成「上次有数据的时候」，也不说「没有输入读数」。
+      expect(screen.queryByText("本窗口没有输入读数")).toBeNull();
+      expect(document.querySelector('[data-probe="cache-sparkline"]')).not.toBeNull();
+    });
+
+    it("整窗没有可读的输入：说「本窗口没有输入读数」，不印 0.0%", () => {
+      const health = cacheHealthOf([week(3, 0, 0)]);
+      render(<CompactionStatsPanel stats={stats} days={30} cacheHealth={health} />);
+
+      expect(
+        document.querySelector('[data-probe="cache-hit-value"]')?.textContent
+      ).toBe("—");
+      expect(screen.getByText("本窗口没有输入读数")).toBeInTheDocument();
+      expect(screen.queryByText("0.0%")).toBeNull();
+    });
+
+    it("缺省 cacheHealth 不渲染该 section（旧快照不破）", () => {
+      render(<CompactionStatsPanel stats={stats} days={30} />);
+      expect(document.querySelector('[data-probe="cache-hit"]')).toBeNull();
+    });
   });
 });

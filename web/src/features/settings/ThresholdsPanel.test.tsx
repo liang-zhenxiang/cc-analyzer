@@ -82,6 +82,12 @@ function createBridges(options: BridgeOptions = {}) {
       appVersion: async () => "0.0.0-test",
       checkUpdates: async () => ({ available: false, currentVersion: "0.0.0-test" }),
       relaunch: async () => undefined
+    },
+    // H9 数据体检入口在本面板，useSessions 要订阅导入事件——测试桥必须
+    // 提供 unlisten 型 events 面，否则面板挂载即崩。
+    events: {
+      // unlisten 是 Promise<dispose>（useSessions:108 走 .then）。
+      onSessionImport: vi.fn(async () => () => undefined)
     }
   } as unknown as Bridges;
   return { bridges, written, archiveBundle };

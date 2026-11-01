@@ -1,0 +1,83 @@
+/* H2 收工推演：表头 40（Panel 自带）+ 体 12 + 滑杆行 28 + 8 + 结果行 44 + 8 + 脚注 16 + 12。 */
+.cutoff {
+  display: flex;
+  flex-direction: column;
+}
+
+.cutoffRow {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 96px;
+  align-items: center;
+  gap: var(--sp-2);
+  height: var(--control-h);
+}
+
+.cutoffLabel {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  white-space: nowrap;
+}
+
+.cutoffSlider {
+  width: 100%;
+  margin: 0;
+}
+
+.cutoffSlider:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.cutoffValue {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-sm);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* 三个读数一行：标签 16 + 数值 18，整行 44——比三行矮 22，Sum 仍与 168 的
+   卡片高度账对得上（§4.2 的「两行」是按两个读数写的）。 */
+.cutoffResult {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-2);
+  align-content: center;
+  min-height: 44px;
+  margin: var(--sp-2) 0 0;
+}
+
+.cutoffResult div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-05);
+  min-width: 0;
+}
+
+.cutoffResult dt {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+.cutoffResult dd {
+  margin: 0;
+  /* 推演值，不是实测：与沙盘同一套双画法。 */
+  color: var(--chart-1);
+  font-size: var(--fs-md);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: var(--lh-md);
+  white-space: nowrap;
+}
+
+.note {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}

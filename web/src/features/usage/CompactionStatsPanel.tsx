@@ -3,6 +3,8 @@ import { formatTokenCount } from "../../lib/format";
 import type { SessionMeta } from "../sessions/metadataCache";
 import { ProvenanceBadge } from "./ProvenanceBadge";
 import { StackedBar } from "./charts/StackedBar";
+import { Sparkline } from "./Sparkline";
+import type { CacheHealth } from "./cacheHealth";
 import type { CompactionStats } from "./compactionStats";
 import type { ContextQuantiles } from "./contextQuantiles";
 import styles from "./CompactionStatsPanel.module.css";
@@ -22,6 +24,13 @@ function formatQuantile(value: number): string {
   }
   return formatTokenCount(value);
 }
+
+/** H7 的方向词：模型给的是机器可读的枚举，界面只说人话，且不染色。 */
+const CACHE_TREND_LABEL: Record<"improving" | "flat" | "declining", string> = {
+  improving: "在变好",
+  flat: "持平",
+  declining: "在变差"
+};
 
 /** 五个读数的 (键, 显示面) 固定序列——键面与 design §G7 的样例一致。 */
 const QUANTILE_ITEMS: ReadonlyArray<{
@@ -48,6 +57,7 @@ export function CompactionStatsPanel({
   stats,
   days,
   quantiles,
+  cacheHealth,
   onOpenSession
 }: {
   stats: CompactionStats;
@@ -55,6 +65,9 @@ export function CompactionStatsPanel({
   /** 窗口内会话上下文峰值分位（contextQuantiles，页面 memo 产出）。
    *  缺省 = 不渲染分位行（向后兼容：没接线的调用方与旧快照）。 */
   quantiles?: ContextQuantiles;
+  /** H7 缓存命中率（cacheHealth，页面 memo 产出）。缺省不渲染第二个 section
+   *  ——与 quantiles 同一条「哑组件 + 加法式接线」先例，旧快照不破。 */
+  cacheHealth?: CacheHealth;
   /**
    * top3 行点击 → 打开会话分析并落到该会话（用量页与取证页的握手）。
    * 缺省（单测直挂组件时）行仍列出，只是不可点。
@@ -175,6 +188,45 @@ export function CompactionStatsPanel({
           ) : null}
         </>
       )}
+      {cacheHealth ? (
+        <CacheHitSection health={cacheHealth} />
+      ) : null}
     </Panel>
+  );
+}
+
+/**
+ * H7 缓存命中率：压缩卡里的第二个 section。
+ *
+ * 三条「不印」规则：分母为 0 的周是 null（不是 0%）；不足 3 个非 null 周
+ * 不画线（两周的折线会被读成趋势）；没有读数时不把「—」当成 0.0%。
+ */
+function CacheHitSection({ health }: { health: CacheHealth }) {
+  const readings = health.weeks.filter((week) => week.hitRate !== null);
+  const hitPct = health.latest === null ? null : health.latest * 100;
+  const sparkValues = readings.map((week) => (week.hitRate ?? 0) * 100);
+
+  return (
+    <section className={styles.cacheSection} data-probe="cache-hit">
+      <header className={styles.cacheHead}>
+        <span className={styles.cacheLabel}>缓存命中率</span>
+        <span className={styles.cacheRight}>
+          {health.trend ? (
+            <span className={styles.cacheTrend}>{CACHE_TREND_LABEL[health.trend]}</span>
+          ) : null}
+          <strong className={styles.cacheValue} data-probe="cache-hit-value">
+            {hitPct === null ? "—" : `${hitPct.toFixed(1)}%`}
+          </strong>
+        </span>
+      </header>
+      {readings.length < 3 ? (
+        <p className={styles.cacheEmpty}>
+          {readings.length === 0 ? "本窗口没有输入读数" : "样本不足"}
+        </p>
+      ) : (
+        <Sparkline values={sparkValues} width={480} height={24} probe="cache-sparkline" />
+      )}
+      <p className={styles.cacheNote}>按周：缓存读取 ÷（输入 + 缓存写入 + 缓存读取）</p>
+    </section>
   );
 }

@@ -82,6 +82,11 @@
   grid-column: span 5;
 }
 
+/* 行 C2：收工推演独享整行（滑杆 + 三个读数 + 脚注，凑列只会挤）。 */
+.cutoff {
+  grid-column: span 12;
+}
+
 /* 行 D：结构一（工具生态 6）｜结构二（文件足迹 6）。 */
 .network,
 .footprint {

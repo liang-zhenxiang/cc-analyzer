@@ -38,10 +38,11 @@ async function openLab(page: Page) {
   await page.getByRole("tab", { name: "用量总览", exact: true }).click();
   await expect(page.locator("[data-probe='usage-progress']")).toBeVisible({ timeout: 15_000 });
   await page.getByRole("tab", { name: "实验室", exact: true }).click();
-  // 等扫描收口成统计口径：扫描中的进度行不写「10 个视角」。
-  await expect(page.getByText(/纳入统计 · 10 个视角/)).toBeVisible({ timeout: 15_000 });
+  // 等扫描收口成统计口径：扫描中的进度行不写「11 个视角」。
+  // Round HH 起实验室第 11 张卡是「收工推演」（cutoff），视角数 10→11。
+  await expect(page.getByText(/纳入统计 · 11 个视角/)).toBeVisible({ timeout: 15_000 });
   await expect(page.locator("[data-probe='lab-view']")).toBeVisible();
-  await expect(page.locator("[data-lab-card]")).toHaveCount(10);
+  await expect(page.locator("[data-lab-card]")).toHaveCount(11);
 }
 
 test.describe("实验室 · 有数据", () => {
@@ -222,9 +223,9 @@ test.describe("实验室 · 有数据", () => {
 test.describe("实验室 · 空场景", () => {
   test.use({ scenario: emptyScenario() });
 
-  test("十张卡都显示空态而不是崩溃", async ({ page }) => {
+  test("十一张卡都显示空态而不是崩溃", async ({ page }) => {
     // 实验室自己承担空态（与里程碑同一取舍）：预先落在 lab 档，页头的整页
-    // 空态就不会盖掉十张卡各自的解释。
+    // 空态就不会盖掉十一张卡各自的解释。
     await page.addInitScript(() => {
       localStorage.setItem("cca-usage-view", "lab");
     });
@@ -232,7 +233,8 @@ test.describe("实验室 · 空场景", () => {
     await page.goto("/");
     await page.getByRole("tab", { name: "用量总览", exact: true }).click();
     await expect(page.locator("[data-probe='lab-view']")).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator("[data-lab-card]")).toHaveCount(10);
+    // Round HH 起第 11 张卡是「收工推演」（cutoff）。
+    await expect(page.locator("[data-lab-card]")).toHaveCount(11);
 
     const expectations: ReadonlyArray<readonly [string, RegExp]> = [
       ["galaxy", /所选范围内没有会话/],
@@ -244,7 +246,8 @@ test.describe("实验室 · 空场景", () => {
       ["footprint", /没有跨项目共享的文件/],
       ["heartbeat", /所选范围内没有可画的一天/],
       ["runway", /本周还没有消耗/],
-      ["scatter", /所选范围内没有可读的用户消息/]
+      ["scatter", /所选范围内没有可读的用户消息/],
+      ["cutoff", /没有逐小时读数/]
     ];
     for (const [card, text] of expectations) {
       await expect(page.locator(`[data-lab-card="${card}"]`)).toContainText(text);

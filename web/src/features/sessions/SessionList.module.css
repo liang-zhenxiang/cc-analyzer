@@ -48,6 +48,48 @@
   margin: 0 var(--sp-3);
 }
 
+/* H3 排序行（§4.3）：与视图分段控件同一水平节奏——左右对齐侧栏内边距，
+   标签是三级小字，select 走 SessionComparePanel 的 .select 同款画法。 */
+.sortField {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0 var(--sp-3);
+}
+
+.sortLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.sortSelect {
+  height: var(--control-h);
+  min-width: 0;
+  flex: 1 1 auto;
+  max-width: 132px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  text-overflow: ellipsis;
+}
+
+.sortSelect:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* §4.3 空态行：选了维度但全部缺读数——一行小字说明，不占空态位。 */
+.sortHint {
+  margin: 0 var(--sp-3);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
 .groups {
   flex: 1;
   min-height: 0;
