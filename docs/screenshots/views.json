@@ -66,6 +66,10 @@
     "hh-briefing",
     "hh-seesaw",
     "hh-rhythm",
-    "hh-empty"
+    "hh-empty",
+    "ii-shape",
+    "ii-weekday",
+    "ii-compare",
+    "ii-profile"
   ]
 }
