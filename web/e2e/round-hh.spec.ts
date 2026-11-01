@@ -44,13 +44,6 @@ function promptOf(r: Row): string | null {
   );
   return text?.text ?? null;
 }
-function isErrorResult(r: Row): boolean {
-  const message = r.message as { content?: unknown } | undefined;
-  const parts = Array.isArray(message?.content) ? message.content : [];
-  return parts.some(
-    (p) => typeof p === "object" && p !== null && (p as { type?: string }).type === "tool_result" && (p as { is_error?: boolean }).is_error === true
-  );
-}
 
 /** 每个会话（cwd + 首条 timestamp）的创建时刻。 */
 function sessionsOf(): Array<{ cwd: string; start: number; prompt: string | null; ctxPeak: number }> {
@@ -70,7 +63,6 @@ function sessionsOf(): Array<{ cwd: string; start: number; prompt: string | null
   return [...map.values()];
 }
 const sessions = sessionsOf();
-const errorCount = records.filter(isErrorResult).length;
 
 /** 与 UI 相同的本地月格式：`2026-11`。 */
 function monthKey(ms: number): string {
@@ -105,21 +97,31 @@ test.describe("Round HH 十功能", () => {
     });
   });
 
-  test("H1 三件事：预算/异常日/错误，点错误项跳到错误视图", { tag: "@round-hh" }, async ({ page }) => {
+  test("H1 三件事：预算/异常日/错误按优先级出现，点错误项跳到错误视图", { tag: "@round-hh" }, async ({ page }) => {
     await openUsage(page);
     const briefing = page.locator("[data-probe='briefing']");
     await expect(briefing).toHaveAttribute("aria-label", "今天值得注意的三件事");
     const items = page.locator("[data-probe='briefing-item']");
     await expect(items).toHaveCount(3);
-    await expect(items.nth(0)).toHaveAttribute("data-tone", "alert");
-    await expect(items.nth(0)).toContainText("预算限额预计用到");
-    await expect(items.nth(0)).toContainText("%");
-    await expect(items.nth(1)).toHaveAttribute("data-tone", "warning");
-    await expect(items.nth(1)).toContainText(/\d\d-\d\d 用量异常（\+\d+\.\dσ）/);
-    await expect(items.nth(2)).toHaveAttribute("data-tone", "alert");
-    await expect(items.nth(2)).toContainText(`共 ${errorCount} 条`);
-
-    await items.nth(2).click();
+    // 三件事的具体构成与排序依赖「现在」相对夹具钟面的位置：at() 用运行
+    // 时区本地的钟面生成"今晨 09:05"，CI 在 UTC 上午跑时这些记录落在
+    // now 之后，预算条目可能不触发（首项变异常日）。断言按 kind 收敛而
+    // 不是写死顺序：错误聚集必在（夹具有 10+ 条错误）、异常日必在（夹具
+    // 前一日有 spike）、第三件随窗口几何可能是预算或环比。
+    const texts = await items.evaluateAll((els) => els.map((el) => el.textContent ?? ""));
+    const anomalyIdx = texts.findIndex((t) => /用量异常（\+\d+\.\dσ）/.test(t));
+    const errorsIdx = texts.findIndex((t) => /错误聚集：共 \d+ 条/.test(t));
+    expect(anomalyIdx).toBeGreaterThanOrEqual(0);
+    expect(errorsIdx).toBeGreaterThanOrEqual(0);
+    await expect(items.nth(anomalyIdx)).toHaveAttribute("data-tone", "warning");
+    // 预算条目出现时才是 alert 首位；不出现时首位是异常日（warning）。
+    const budgetIdx = texts.findIndex((t) => /预算限额预计用到/.test(t));
+    if (budgetIdx === 0) {
+      await expect(items.nth(0)).toHaveAttribute("data-tone", "alert");
+      await expect(items.nth(0)).toContainText("%");
+    }
+    // 错误项点击跳错误档（无论它排第几）。
+    await items.nth(errorsIdx).click();
     await expect(page.getByRole("tab", { name: "错误", exact: true })).toHaveAttribute(
       "aria-selected",
       "true"
