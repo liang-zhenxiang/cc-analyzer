@@ -1,0 +1,85 @@
+/* H4 对话节奏谱（Round HH §4.4）：六档对数分桶柱状图。 */
+
+/* 图区：六列等分，高度 72px（§4.4 几何：图 72 + 8 + 读数行）。 */
+.rhythm {
+  display: flex;
+  align-items: flex-end;
+  height: 72px;
+  gap: var(--sp-1);
+  /* 柱子的可见底基线：与 charts 原语同语言（--border 细线）。 */
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--sp-05);
+}
+
+/* 每档一列：柱 + 次数 + 档名纵向排。 */
+.rhythmCol {
+  display: flex;
+  position: relative;
+  min-width: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  /* 列内留给柱子的高度是图区减去次数/档名两行，柱子用百分比撑。 */
+  height: 100%;
+  gap: var(--sp-05);
+}
+
+/* 柱：--chart-1 实色描边 + --chart-1-soft 填充（§4.4 拍板沿用 charts 原语）。 */
+.rhythmBar {
+  width: 24px;
+  min-height: 2px;
+  border: 1px solid var(--chart-1);
+  border-radius: var(--r-xs) var(--r-xs) 0 0;
+  background: var(--chart-1-soft);
+}
+
+/* 柱顶次数：数字小、tabular，让六列可横比。 */
+.rhythmCount {
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 档名：11px 量过「30 分–2 时」两字一行放得下（§6 几何核对）。 */
+.rhythmLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+/* 标签行：模型层给的三档标签，是这块卡的第一句结论。 */
+.tagline {
+  margin: 0 0 var(--sp-1);
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: var(--lh-base);
+}
+
+/* 读数行：中位 / 90 分位 / 最长 / 爆发数，一条串完。 */
+.readout {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 脚注：诚实性口径写死在卡内，防止被读成效率指标。 */
+.note {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 样本不足的诚实空态：一句话，不画图。 */
+.few {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}

@@ -4,6 +4,7 @@ import { tokenTotalsOf } from "../sessions/tokenTotals";
 import type { ErrorSessionFacts } from "./errorStats";
 import type { ToolCallFact } from "./toolCensus";
 import type { FileFact } from "./projectFootprint";
+import type { HourlyTokens } from "./cutoffProjection";
 
 /**
  * Pure aggregation over parsed sessions: the usage dashboard's whole data
@@ -128,6 +129,14 @@ export type RangeAggregate = UsageAggregate & {
    * the rest of the range. Additive only: no existing field changes meaning.
    */
   cross?: ProjectModelCross;
+  /**
+   * Tokens by local hour of day across the whole window (H2「收工推演」的输入).
+   * Built in the same windowed pass, from records that actually carry `usage`:
+   * a record without a usage reading contributes nothing, not a zero — the
+   * difference matters, because 「这天没读过这一小时」 与 「这一小时真没花 token」
+   * 是两件事，而后者会让推演凭空多出一个「本可以省下」的分母。
+   */
+  hourlyTokens?: HourlyTokens[];
 };
 
 export const UNKNOWN_MODEL_LABEL = "未知模型";
@@ -370,10 +379,27 @@ export function aggregateRange(
 
   const aggregate = emptyAggregate();
   const cross: ProjectModelCross = new Map();
+  // 24 buckets, filled in the same pass as everything else so the推演 canvas
+  // and the cards below it can never disagree about which records were counted.
+  const hourlyTokens = new Array<number>(24).fill(0);
+  // 窗口里一条带 usage 的记录都没有时，整份分布是「没有读数」而不是「24 个 0」：
+  // 后者会让推演卡算出 0.0%，把「不知道」印成「没有」。
+  let sawUsage = false;
   for (const session of sessions) {
     const inWindow = session.records.filter((record) => record.timestamp >= startTs);
     if (inWindow.length === 0) continue;
     mergeInto(aggregate, aggregateSessionInput({ records: inWindow, projectLabel: session.projectLabel }));
+    for (const record of inWindow) {
+      const usage = record.usage;
+      if (!usage) continue;
+      sawUsage = true;
+      const hour = new Date(record.timestamp).getHours();
+      hourlyTokens[hour] +=
+        (usage.inputTokens ?? 0) +
+        (usage.outputTokens ?? 0) +
+        (usage.cacheCreationTokens ?? 0) +
+        (usage.cacheReadTokens ?? 0);
+    }
     // Same records, second split: project → model → four counters. Kept out of
     // `aggregateSession` because the model split needs the project label, which
     // only `aggregateRange` has; merging it separately leaves every existing
@@ -402,6 +428,9 @@ export function aggregateRange(
     topProjects: topSlices(aggregate.projects, DEFAULT_TOP_N),
     topModels: topSlices(aggregate.models, DEFAULT_TOP_N),
     cross,
+    hourlyTokens: sawUsage
+      ? hourlyTokens.map((tokens, hour) => ({ hour, tokens }))
+      : undefined,
     kpi: {
       sessions: aggregate.sessionCount,
       messages: aggregate.messages,

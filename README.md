@@ -475,6 +475,11 @@ The roadmap tracks open issues; each item links to the issue that owns it.
   peak quantiles, project seasons, session similarity and snapshot compare
   (merged; ships in v0.35.0-beta.1)
   ([#284](https://github.com/liang-zhenxiang/cc-analyzer/issues/284))
+- [x] Sixth ten-feature pack — daily briefing, cutoff what-if projection,
+  session sort keys, conversation rhythm, restart chain badge, model seesaw,
+  cache hit-rate health, shareable session card PNG, data health check and
+  empty-state onboarding (merged; ships in v0.36.0-beta.1)
+  ([#288](https://github.com/liang-zhenxiang/cc-analyzer/issues/288))
 - [x] Frontend upgrade to React 19, moving `@types/react` / `@types/react-dom`
   together
   ([#19](https://github.com/liang-zhenxiang/cc-analyzer/issues/19))

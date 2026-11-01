@@ -1425,6 +1425,10 @@ mod gui_probe {
        参考带只在自动压缩 ≥ 3 次时画、断崖数 = 样本窗口内的压缩次数，而夹具的
        live 档给了 3 次——三条一起对账，说明「视图真的拿到了夹具那几次压缩」，
        不只是画了张空图。计数是事实，阈值与判定在脚本里。 */
+    var pulseName = document.querySelector("[class*='sessionName']");
+    pulseFacts.latest_title = pulseName ? pulseName.textContent.trim() : null;
+    var pulseNote = document.querySelector("[data-probe='pulse-context-note']");
+    pulseFacts.context_note = pulseNote ? pulseNote.textContent.trim() : null;
     var contextCurve = document.querySelector("[data-probe='pulse-context-curve']");
     if (contextCurve) {
       pulseFacts.context_curve = {
@@ -2033,9 +2037,18 @@ mod gui_probe {
       : null;
     var ddGantt = ddRoot.querySelector("[data-probe='gantt']");
     var ddGanttRows = ddRoot.querySelectorAll("[data-probe='gantt-row']");
+    var ddGanttCharts = ddRoot.querySelectorAll("[data-probe='gantt']");
     roundddFacts.gantt = ddGantt
       ? {
           rect: rectOf(ddGantt),
+          charts: ddGanttCharts.length,
+          chartRows: (function () {
+            var out = [];
+            for (var gi = 0; gi < ddGanttCharts.length; gi++) {
+              out.push(ddGanttCharts[gi].querySelectorAll("[data-probe='gantt-row']").length);
+            }
+            return out;
+          })(),
           rows: ddGanttRows.length,
           first: ddGanttRows[0] ? ddGanttRows[0].getAttribute('aria-label') : null,
           last: ddGanttRows[ddGanttRows.length - 1]
@@ -2196,6 +2209,46 @@ mod gui_probe {
       : null;
   }
   facts.roundgg = roundggFacts;
+
+  /* 第六批（Round HH）：三件事条 / 模型 A-B / 缓存体检 / 会话筛选栏 / 分享卡。
+     只收事实——条数、tone、文本、几何；阈值与判定都在 scripts/gui-test.sh。
+     分享卡只读 `disabled` 与 `title`，**不点击**：真机上点它会弹原生保存对话框，
+     门禁在无人值守下会挂住。 */
+  (function () {
+    var briefing = document.querySelector("[data-probe='briefing']");
+    var items = Array.prototype.slice.call(document.querySelectorAll("[data-probe='briefing-item']"));
+    var seesaw = document.querySelector("[data-probe='model-seesaw']");
+    var rows = seesaw ? Array.prototype.slice.call(seesaw.querySelectorAll("[data-probe='seesaw-row']")) : [];
+    var cache = document.querySelector("[data-probe='cache-hit']");
+    var body = document.querySelector("[data-probe='session-query-body']");
+    var share = document.querySelector("[data-probe='share-card']");
+    var rhythm = document.querySelector("[data-probe='rhythm']");
+    facts.roundhh = {
+      present: !!(briefing || seesaw || cache || share || rhythm || body),
+      briefing: briefing
+        ? {
+            count: items.length,
+            tones: items.map(function (item) { return item.getAttribute('data-tone'); }),
+            texts: items.map(function (item) { return (item.textContent || '').trim(); })
+          }
+        : null,
+      seesaw: seesaw
+        ? {
+            rows: rows.length,
+            months: rows.map(function (row) { return row.getAttribute('data-month'); }),
+            text: (seesaw.textContent || '').slice(0, 400)
+          }
+        : null,
+      cache: cache ? (cache.textContent || '').trim() : null,
+      query: body ? { present: true, fields: body.querySelectorAll('select, input').length } : null,
+      share: share
+        ? { present: true, disabled: !!share.disabled, title: share.getAttribute('title') }
+        : null,
+      rhythm: rhythm
+        ? { present: true, bars: document.querySelectorAll("[data-probe='rhythm-bar']").length }
+        : null
+    };
+  })();
 
   return JSON.stringify(facts);
 })();"##;

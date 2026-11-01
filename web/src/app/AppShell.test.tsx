@@ -90,8 +90,11 @@ test("命令面板过滤后用 Enter 执行：直接切到用量总览", async (
   fireEvent.keyDown(window, { key: "k", metaKey: true });
   const input = screen.getByLabelText("搜索命令");
   await user.type(input, "用量");
+  // 结果必须收在面板自己的作用域里：页面背后的会话列表（H3 排序控件）
+  // 也是 listbox，全页 `getAllByRole("option")` 会先撞上它。
+  const palette = screen.getByRole("dialog", { name: "命令面板" });
   // 「用量总览」是前缀命中，排在「导出用量快照」之前。
-  expect(screen.getAllByRole("option")[0]).toHaveTextContent("用量总览");
+  expect(within(palette).getAllByRole("option")[0]).toHaveTextContent("用量总览");
   await user.keyboard("{Enter}");
   // 执行完就关：面板不该盖住它刚切过去的页面。
   expect(screen.queryByRole("dialog", { name: "命令面板" })).not.toBeInTheDocument();
@@ -445,7 +448,8 @@ test("命令面板里能搜到「快捷键速查」并执行它", async () => {
 
   fireEvent.keyDown(window, { key: "k", metaKey: true });
   await user.type(screen.getByLabelText("搜索命令"), "速查");
-  const first = screen.getAllByRole("option")[0];
+  const palette = screen.getByRole("dialog", { name: "命令面板" });
+  const first = within(palette).getAllByRole("option")[0];
   expect(first).toHaveTextContent("快捷键速查");
   await user.keyboard("{Enter}");
 

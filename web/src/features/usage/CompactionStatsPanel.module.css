@@ -195,3 +195,53 @@
   font-size: var(--fs-xs);
   line-height: var(--lh-xs);
 }
+
+/* H7 缓存命中率（design §4.7）：压缩卡内的第二个 section。
+   与 quantiles 之间用 1px 分隔线分层——不套第二层卡片。 */
+.cacheSection {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border);
+}
+
+.cacheHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.cacheLabel {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.cacheRight {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+
+/* 方向词只说人话、不上色：涨跌在这里没有「好坏」的通用方向。 */
+.cacheTrend {
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.cacheValue {
+  color: var(--text);
+  font-size: var(--fs-md);
+  line-height: var(--lh-md);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.cacheEmpty,
+.cacheNote {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}

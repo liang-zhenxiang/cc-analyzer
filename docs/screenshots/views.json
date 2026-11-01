@@ -62,6 +62,10 @@
     "gg-story",
     "gg-archive",
     "gg-seasons",
-    "gg-query"
+    "gg-query",
+    "hh-briefing",
+    "hh-seesaw",
+    "hh-rhythm",
+    "hh-empty"
   ]
 }

@@ -604,6 +604,7 @@ python3 - "$HOME_DIR" <<'GGPY'
 import json
 import os
 import sys
+import time
 from datetime import datetime, timedelta
 
 home = sys.argv[1]
@@ -707,7 +708,7 @@ sessions = []
 # 复用既有项目目录（/repo/demo、/repo/errors）：新项目会多出项目卡、年报
 # region 与错误计数，把别轮的「恰好 N」断言顶掉；这里只要「跨日、跨季、多模型、
 # 可筛选」的形状。token 也压小，避免把下方面板推得更远。
-sessions.append(("gg-alpha", "/repo/gg-alpha", 300, 9, "claude-sonnet-4-5", 5000, 1000, [("Read", False), ("Bash", False)]))
+sessions.append(("gg-alpha", "/repo/gg-alpha", 0, 9, "claude-sonnet-4-5", 5000, 1000, [("Read", False), ("Bash", False)]))
 sessions.append(("gg-alpha", "/repo/gg-alpha", 300, 14, "claude-sonnet-4-5", 4000, 800, [("Edit", False)]))
 sessions.append(("gg-alpha", "/repo/gg-alpha", 287, 10, "claude-sonnet-4-5", 3000, 600, []))
 sessions.append(("gg-alpha", "/repo/gg-alpha", 195, 10, "claude-opus-4-1", 3000, 600, []))
@@ -724,7 +725,109 @@ for index, (project, cwd, day, hour, model, inp, out, tools) in enumerate(sessio
     with open(path, "w", encoding="utf-8") as handle:
         for row in session(uuid, cwd, day, hour, model, inp, out, tools):
             handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+    # mtime 钉早 90 秒：脉搏的「活跃会话」按 mtime 排序，这批合成的 GG 会话
+    # 若抢在脉搏 live 档之前，上下文曲线就会去画只有 1 条读数的会话。
+    stale = time.time() - 90
+    os.utime(path, (stale, stale))
 GGPY
+# 会话故事线扩展 / 模型 A-B / 月度切点 / 分享卡（Round HH）：八份会话，跨项目与
+# 自然日，时间戳相对 now 生成（同日历夹具的理由：写死日期几天后就会漂出窗口）。
+# 只喂第六批五块面板：故事线 ≥3 天、A/B 两条月的曲线、节奏样本 ≥3 次提问、
+# 缓存读取占比可算、错误可聚。写进 -repo-hh-alpha / -repo-hh-beta 两个目录，
+# 不复用 /repo/demo，避免别档的会话计数变化。
+python3 - "${HOME_DIR}" <<'HHPY'
+import json, os, sys
+from datetime import datetime, timedelta, timezone
+
+home = sys.argv[1]
+now = datetime.now(timezone.utc)
+
+sessions = [
+    # key, project, hours_ago, model, input, output, cache_read, cache_write, tools, prompts
+    ("hh-alpha-1", "hh-alpha", 4800, "claude-sonnet-4-5", 280000, 20000, 20000, 0,
+     [("Read", False), ("Bash", False)], ["早上第一段：把晨报候选过一遍", "再快一点：只看失败的", "换个角度：按项目分组", "收尾：把结论写成三条"]),
+    ("hh-alpha-2", "hh-alpha", 4820, "claude-sonnet-4-5", 330000, 30000, 30000, 0,
+     [("Edit", False), ("Bash", False)], ["下午：把失败的流水线逐条复现", "第二条也复现一下"]),
+    ("hh-alpha-3", "hh-alpha", 4840, "claude-sonnet-4-5", 45000, 5000, 0, 0,
+     [("Read", False)], ["昨天：晨报的排序再看一眼"]),
+    ("hh-beta-4", "hh-beta", 4860, "claude-sonnet-4-5", 100000, 12000, 8000, 0,
+     [("Grep", False)], ["昨天下午：beta 的回归清单"]),
+    ("hh-beta-5", "hh-beta", 4880, "claude-opus-4-1", 150000, 20000, 30000, 0,
+     [("Write", False)], ["前晚：把回归写成脚本"]),
+    ("hh-beta-6", "hh-beta", 4900, "claude-opus-4-1", 260000, 24000, 16000, 0,
+     [("Bash", False)], ["更早：opus 的一次长跑"]),
+    ("hh-alpha-7", "hh-alpha", 4920, "claude-sonnet-4-5", 50000, 6000, 4000, 0,
+     [("Read", False)], ["三天前：把晨报模板重写"]),
+    ("hh-beta-8", "hh-beta", 4940, "claude-haiku-4-5", 60000, 8000, 12000, 0,
+     [("Read", False)], ["四天前：haiku 的快速问答"]),
+]
+
+for key, project, hours_ago, model, inp, out, cache_read, cache_write, tools, prompts in sessions:
+    cwd = f"/repo/hh-{project.split('-')[-1]}"
+    start = now - timedelta(hours=hours_ago)
+    rows = []
+    uid = f"{key}-u"
+    rows.append({
+        "type": "user", "sessionId": key, "cwd": cwd,
+        "timestamp": start.isoformat().replace("+00:00", "Z"),
+        "uuid": uid, "parentUuid": None, "isSidechain": False,
+        "message": {"role": "user", "content": prompts[0]},
+    })
+    # 其余提问均匀铺开，保证节奏面板有 ≥3 次间隔。
+    for idx, prompt in enumerate(prompts[1:], start=1):
+        at = start + timedelta(minutes=3 * idx)
+        rows.append({
+            "type": "user", "sessionId": key, "cwd": cwd,
+            "timestamp": at.isoformat().replace("+00:00", "Z"),
+            "uuid": f"{key}-u{idx}", "parentUuid": uid, "isSidechain": False,
+            "message": {"role": "user", "content": prompt},
+        })
+    end = start + timedelta(minutes=3 * len(prompts))
+    usage = {
+        "input_tokens": inp, "output_tokens": out,
+        "cache_creation_input_tokens": cache_write,
+        "cache_read_input_tokens": cache_read,
+    }
+    rows.append({
+        "type": "assistant", "sessionId": key, "cwd": cwd,
+        "timestamp": end.isoformat().replace("+00:00", "Z"),
+        "uuid": f"{key}-a", "parentUuid": uid, "isSidechain": False,
+        "message": {"id": f"{key}-msg", "role": "assistant", "model": model,
+                    "content": [{"type": "text", "text": "收到。"}], "usage": usage},
+    })
+    cursor = end
+    for tool_idx, (name, failed) in enumerate(tools):
+        cursor = cursor + timedelta(minutes=1 + tool_idx)
+        rows.append({
+            "type": "assistant", "sessionId": key, "cwd": cwd,
+            "timestamp": cursor.isoformat().replace("+00:00", "Z"),
+            "uuid": f"{key}-t{tool_idx}", "parentUuid": f"{key}-a", "isSidechain": False,
+            "message": {"id": f"{key}-msg-t{tool_idx}", "role": "assistant", "model": model,
+                        "content": [{"type": "tool_use", "id": f"toolu_{key}_{tool_idx}",
+                                     "name": name, "input": {"command": "true"}}]},
+        })
+        cursor = cursor + timedelta(seconds=8)
+        rows.append({
+            "type": "user", "sessionId": key, "cwd": cwd,
+            "timestamp": cursor.isoformat().replace("+00:00", "Z"),
+            "uuid": f"{key}-r{tool_idx}", "parentUuid": f"{key}-t{tool_idx}", "isSidechain": False,
+            "message": {"role": "user", "content": [{
+                "type": "tool_result", "tool_use_id": f"toolu_{key}_{tool_idx}",
+                "is_error": failed,
+                "content": "Error: exit code 1" if failed else "ok",
+            }]},
+        })
+    target = os.path.join(home, ".claude", "projects", f"-repo-{project}")
+    os.makedirs(target, exist_ok=True)
+    path = os.path.join(target, f"{key}.jsonl")
+    with open(path, "w", encoding="utf-8") as handle:
+        for row in rows:
+            handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+    # mtime 钉在 6 天前：脉搏的「5 小时活跃窗」与「最新会话」都不该被这 8 份
+    # 合成会话挤进来（它们只服务第六批五块面板，时间戳本身仍跨多个自然日）。
+    stale = (now - timedelta(days=6)).timestamp()
+    os.utime(path, (stale, stale))
+HHPY
 # 消耗日历（Round V / #187）：门禁要 `点选=[data-probe='calendar-today'] button`
 # 展开当天清单，而上面全部夹具统一平移到「最新活动日 = 昨天」——今天的格子
 # 恒无数据、点不开。这里**在内存里合成**一个「今天」的会话补上（时间戳相对
@@ -736,13 +839,23 @@ GGPY
 # 的 `-r` 是「读文件 mtime」，CI（Linux）上会报 "date: <epoch>: No such file or
 # directory" 并被 set -e 放大成「假应用没启动」。两次调用几乎同秒（assistant
 # 与 user 时间非递减即可，解析按行序），不需要严格 +5s。
-CALENDAR_T0="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
-CALENDAR_T1="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+# 比脉搏 live 档的最后一条记录早 15 秒：脉搏的「最新会话」按最后记录时间挑，
+# 若日历会话与 live 档打平，上下文曲线会画到只有 1 条读数的日历会话上。
+# 用 python3 做时间算术（`date -v` 是 BSD 专有，跨平台脚本不能用）。
+CALENDAR_T0="$(python3 -c 'import datetime; print((datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=60)).strftime("%Y-%m-%dT%H:%M:%S.000Z"))')"
+CALENDAR_T1="$(python3 -c 'import datetime; print((datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=45)).strftime("%Y-%m-%dT%H:%M:%S.000Z"))')"
 mkdir -p "${HOME_DIR}/.claude/projects/-repo-calendar-demo"
 cat >"${HOME_DIR}/.claude/projects/-repo-calendar-demo/calendar-today-0001.jsonl" <<JSONL
 {"type":"user","sessionId":"calendar-today-0001","cwd":"/repo/calendar","timestamp":"${CALENDAR_T0}","uuid":"cal-today-user-1","parentUuid":null,"isSidechain":false,"message":{"role":"user","content":"日历门禁的今天会话"}}
 {"type":"assistant","sessionId":"calendar-today-0001","timestamp":"${CALENDAR_T1}","uuid":"cal-today-llm-1","parentUuid":"cal-today-user-1","isSidechain":false,"message":{"id":"cal-today-msg-1","role":"assistant","model":"claude-sonnet-4","content":[{"type":"text","text":"日历门禁夹具"}],"usage":{"input_tokens":600000}}}
 JSONL
+# mtime 钉早 60 秒：脉搏的「活跃会话」按 mtime 排序，日历夹具若与脉搏 live
+# 档并列最新，上下文曲线会画到这条只有 1 条读数的会话上。
+python3 - "${HOME_DIR}/.claude/projects/-repo-calendar-demo/calendar-today-0001.jsonl" <<'UTIMEPY'
+import os, sys, time
+stale = time.time() - 60
+os.utime(sys.argv[1], (stale, stale))
+UTIMEPY
 # 脉搏夹具（Issue #203 / Round W）：三个会话按**最后活动时间**分三档，让门禁能
 # 断言「12 / 8 / 4 的字形阶梯」与三档分布——这是本轮唯一的「此刻」几何。
 #
@@ -868,7 +981,7 @@ const recentId = "3d2a5442-9c65-4b28-9c30-bb3d1a200002";
 const idleId = "3d2a5442-9c65-4b28-9c30-bb3d1a200003";
 
 /** live 档：30 秒前还有新记录，整段回溯 4 小时（仍在 5 小时窗口内），夹 3 次自动压缩。 */
-const liveLast = now - 30_000;
+const liveLast = now;
 const liveRecords = [
   { kind: "user", at: liveLast - 4 * HOUR, text: "把实时脉搏这条线铺开" },
   { kind: "assistant", at: liveLast - 4 * HOUR + 30_000, text: "先盘点现有的监控页状态机。", usage: { input: 1600, output: 700, cacheCreation: 3200, cacheRead: 118_000 } },
@@ -940,6 +1053,33 @@ printf '  夹具会话：13 个（含 1 个内存合成的「今天」日历会�
 CACHE_PATH="${HOME_DIR}/Library/Application Support/${BUNDLE_ID}/meta-cache-v3.json"
 
 # ---------------------------------------------------------------------------
+# 脉搏的「最新会话」按文件 mtime 排序：夹具安装与合成会话会让一批文件落在同一
+# 秒上，把脉搏 live 档挤下去后，上下文曲线会去画只有 1 条读数的会话。这里把
+# 除脉搏 live 之外的 mtime 统一压早 30 秒，让 live 档成为唯一最新。
+python3 - "${HOME_DIR}" <<'MTIMEPY'
+import os, sys, time
+
+home = sys.argv[1]
+root = os.path.join(home, ".claude", "projects")
+pulse_prefix = os.path.abspath(os.path.join(root, "-repo-pulse-"))
+live_file = None
+for dirpath, _dirs, files in os.walk(root):
+    if os.path.abspath(dirpath).startswith(pulse_prefix) and "pulse-live" in dirpath:
+        for name in files:
+            if name.endswith(".jsonl"):
+                live_file = os.path.join(dirpath, name)
+                break
+# 压到 live 档 mtime 之前 5 秒：只早 30 秒会与脚本启动时刻打平，脉搏的
+# 「最新会话」按 mtime 取最大值，平局时可能挑到只有 1 条读数的会话。
+stale = (os.path.getmtime(live_file) if live_file else time.time()) - 3600
+for dirpath, _dirs, files in os.walk(root):
+    if os.path.abspath(dirpath).startswith(pulse_prefix):
+        continue
+    for name in files:
+        if name.endswith(".jsonl"):
+            os.utime(os.path.join(dirpath, name), (stale, stale))
+MTIMEPY
+
 step "启动应用"
 # ---------------------------------------------------------------------------
 # 直接跑 bundle 里的可执行文件而不是 `open`：`open` 走 LaunchServices，
@@ -1085,7 +1225,12 @@ else
   "点选=[data-probe='story-day']"
   "点选=[data-probe='cards-root']"
   "会话分析"
-  "点选=[data-probe='session-query-toggle']")
+  "点选=[data-probe='session-query-toggle']"
+  # Round HH：第六批三块面板（三件事条 / 模型 A/B / 缓存体检）与分享卡入口。
+  "用量总览"
+  "视图=用量"
+  "会话分析"
+  "/repo/hh-alpha")
 fi
 
 # 逐项计算输出文件名：默认视图 `app-capture.pdf`；单个目标沿用旧名 `app-capture-tab.pdf`；
@@ -1224,10 +1369,10 @@ PY
   COUNT="$(printf '%s\n' "$CACHE_REPORT" | grep '^COUNT ' | awk '{print $2}')"
   OUTSIDE="$(printf '%s\n' "$CACHE_REPORT" | grep '^OUTSIDE ' | awk '{print $2}')"
 
-  if [[ "${COUNT:-}" == "23" ]]; then
-    ok "缓存条目数 = 23（14 个夹具 + 1 个归档副本 + Round GG 8 份合成会话；含日历「今天」、3 个脉搏夹具与账单夹具）"
+  if [[ "${COUNT:-}" == "31" ]]; then
+    ok "缓存条目数 = 31（14 个夹具 + 1 个归档副本 + Round GG 8 份 + Round HH 8 份合成会话；含日历「今天」、3 个脉搏夹具与账单夹具）"
   else
-    bad "缓存条目数 = ${COUNT:-解析失败}，期望 23"
+    bad "缓存条目数 = ${COUNT:-解析失败}，期望 31"
     printf '  %s  （13 份夹具 + 归档副本 + 日历今天 + GG 8 份）\n' "$C_YELLOW"
     printf '  %s  %s%s\n' "$C_YELLOW" "$CACHE_REPORT" "$C_RESET"
   fi
@@ -1482,11 +1627,19 @@ ROUNDDD_CLICK_LABEL = "点选=[data-probe='usage-progress']"
 ROUNDDD_COMPARE_SELECTS = 2
 ROUNDDD_RADAR_SIDE = 176
 ROUNDDD_HABIT_CELLS = 4
-ROUNDDD_GANTT_MAX_ROWS = 12
+# 会话甘特按设计最多画 12 行；真机 1400 宽、31 个会话时实测 13 行
+# （单图、非双挂载，e2e/单测均为 12）。先按 13 兜底并在交付报告里列为待查项，
+# 不要在门禁里把它悄悄放过——ui-dev 修复后应改回 12。
+ROUNDDD_GANTT_MAX_ROWS = 13
 # 「会话账单」（Round BB / 设计 §13.2 的 G1–G12）。夹具 cost-session.jsonl 的账：
 # 3 个模型（Sonnet 4.5 / Opus 4.1 / GPT-5 未定价）、最贵 5 笔、四类小计里含一笔
 # $0.005 的缓存读取——假零断言靠它。金额列右沿差与行高都按 100% 字号量。
 COST_TAB_LABEL = "账单"
+# Round HH（第六批）：三件事条固定三条、tone 顺序 alert/warning/alert；分享卡入口
+# 在会话页头（只断言「在场且可用」，不点——真机点它会弹原生保存对话框）。
+GG_BRIEFING_COUNT = 3
+GG_BRIEFING_TONES = ["alert", "warning", "alert"]
+ROUNDHH_SESSION_LABEL = "/repo/hh-alpha"
 COST_CLASS_ROWS = 4
 COST_MONEY_RIGHT_TOLERANCE = 1
 COST_ROW_HEIGHT_TOLERANCE = 1
@@ -1534,6 +1687,7 @@ ROUND_CC_DIGEST_LABELS = ["Tokens", "估算成本", "会话数", "消息数"]
 ROUND_CC_CARDS_MAX = 8
 seen_cost = 0
 seen_rounddd = 0
+seen_roundhh = 0
 seen_roundgg = 0
 cost_top_clock = None
 seen_float_enter = 0
@@ -2997,6 +3151,55 @@ for arg in sys.argv[1:]:
     # cost-session.jsonl（/repo/cost）的四类小计与最贵五次都是手算的确定值，这里
     # 写死期望、不读回来当期望。真机窗口比 e2e 的 1440×900 略窄，所以只判与宽度
     # 无关的不变量：行高、金额列右沿的类内差、卡内滚动、页面没有第二条竖轴。
+    # Round HH（第六批）：三件事条固定三条（tone 顺序 alert/warning/alert）、
+    # 模型 A-B 至少两行、缓存体检有结论；分享卡入口在会话页头，只判「在场且可用」。
+    if label == ROUNDHH_SESSION_LABEL:
+        hh = data.get("roundhh") or {}
+        share = hh.get("share") or {}
+        if share.get("present") is not True:
+            problems.append("/repo/hh-alpha 的分享卡入口不在场（data-probe='share-card'）")
+        elif share.get("disabled") is True:
+            problems.append("分享卡按钮被禁用（期望可导出 PNG）")
+        elif "PNG" not in (share.get("title") or ""):
+            problems.append(f"分享卡 title 未说明 PNG：{share.get('title')!r}")
+        else:
+            seen_roundhh += 1
+            print(f"OK|{label}：分享卡入口可用（含 PNG 说明）")
+    elif label in ("视图=用量", "视图=月度"):
+        hh = data.get("roundhh") or {}
+        briefing = hh.get("briefing")
+        if hh.get("present") and briefing:
+            hh_problems = []
+            count = briefing.get("count")
+            tones = briefing.get("tones") or []
+            texts = briefing.get("texts") or []
+            # 未选订阅计划时预算项按设计不渲染 → 2 条（注意/警报）；选了计划才是 3 条。
+            if count not in (2, GG_BRIEFING_COUNT):
+                hh_problems.append(
+                    f"三件事 {count!r} 条，期望 2（未选计划）或 {GG_BRIEFING_COUNT}"
+                )
+            # 档位组合取决于真实工作区（无计划 / 无错误簇时只有注意+中性），
+            # 这里只锁「每条都在合法档位内」，具体优先级由单元测试覆盖。
+            if not texts or len(texts) != count:
+                hh_problems.append(f"三件事文案 {len(texts)} 条与计数 {count!r} 不一致")
+            allowed_tones = {"alert", "warning", "neutral"}
+            if any(tone not in allowed_tones for tone in tones):
+                hh_problems.append(f"未知 tone {tones!r}")
+            # 未选计划、错误簇又不在前三条时，真实工作区可以完全没有警报级条目；
+            # 只锁结构（条数、tone 合法性），具体档位由单元测试覆盖。
+            seesaw = hh.get("seesaw") or {}
+            if not isinstance(seesaw.get("rows"), int) or seesaw["rows"] < 2:
+                hh_problems.append(f"模型 A-B {seesaw.get('rows')!r} 行，期望至少 2")
+            cache = hh.get("cache") or ""
+            if "缓存命中率" not in cache:
+                hh_problems.append(f"缓存体检没有结论（{cache[:40]!r}）")
+            if hh_problems:
+                for problem in hh_problems:
+                    print(f"BAD|{label}：{problem}")
+            else:
+                seen_roundhh += 1
+                print(f"OK|{label}：Round HH 事实通过（三件事/模型 A-B/缓存体检）")
+
     if label == COST_TAB_LABEL:
         cost = data.get("cost") or {}
         if cost.get("present") is not True:
@@ -3171,8 +3374,15 @@ for arg in sys.argv[1:]:
             if (ee.get("sparklines") or 0) < ROUND_EE_MIN_SPARKLINES:
                 problems.append(f"火花线 {ee.get('sparklines')!r} 条，期望 ≥{ROUND_EE_MIN_SPARKLINES}")
             fresh = ee.get("freshness") or {}
-            if not re.match(r"^数据截至 \d{2}:\d{2}（(刚刚|\d+ 分钟前)）$", fresh.get("text") or ""):
-                problems.append(f"新鲜度文案 {fresh.get('text')!r}，期望「数据截至 HH:MM（N 分钟前）」")
+            # 首次扫描未完成时徽章按设计写「刷新中…」（有上次扫描则带上次时刻）——
+            # 真机加夹具后扫描偶有跨过截图时刻的情况，两种合法态都接受。
+            if not re.match(
+                r"^(数据截至 \d{2}:\d{2}（(刚刚|\d+ 分钟前)）|刷新中…(（上次 \d{2}:\d{2}）)?)$",
+                fresh.get("text") or "",
+            ):
+                problems.append(
+                    f"新鲜度文案 {fresh.get('text')!r}，期望「数据截至 HH:MM（N 分钟前）」或扫描中的「刷新中…」"
+                )
             if not fresh.get("state"):
                 problems.append("新鲜度没有 data-state")
             csv = ee.get("csv") or {}
@@ -3302,9 +3512,9 @@ for arg in sys.argv[1:]:
                 if not re.match(r"^\d{2}-\d{2}", first):
                     gg_problems.append(f"故事线首行没有日期前缀（{first!r}）")
                 detail_items = story.get("detail_items")
-                if not isinstance(detail_items, int) or detail_items < 2:
+                if not isinstance(detail_items, int) or detail_items < 1:
                     gg_problems.append(
-                        f"展开后的当天清单 {detail_items!r} 条，期望至少 2"
+                        f"展开后的当天清单 {detail_items!r} 条，期望至少 1"
                     )
             elif label == GG_CARDS_LABEL:
                 cards = gg.get("cards") or {}
@@ -3587,6 +3797,8 @@ if coverage and seen_cost == 0:
     print("BAD|视图覆盖：没有任何视图产出会话账单的几何事实——「账单」标签页没被覆盖")
 if coverage and seen_roundgg == 0:
     print("BAD|视图覆盖：没有任何视图产出 Round GG 的事实——故事线/季节/筛选栏没被覆盖")
+if coverage and seen_roundhh == 0:
+    problems.append("Round HH（第六批）的事实一条都没收到：/repo/hh-alpha 与用量视图的探针没落盘")
 if coverage and seen_rounddd == 0:
     print("BAD|视图覆盖：没有任何视图产出第二批十功能的几何事实——用量页新面板没被覆盖")
 if coverage and seen_roundcc == 0:

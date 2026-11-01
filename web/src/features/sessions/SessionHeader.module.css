@@ -230,3 +230,17 @@
     display: none;
   }
 }
+
+/* H5 重启徽章（§4.5）：读数带内的补充读数，紧挨总耗时。高 20（lh-xs 16 +
+   上下 2），流式排布不加高读数带；不可聚焦（span，无独立动作），
+   完整口径在 title 与 aria 环境里（读数带自身的 aria-label 已说明这是会话读数）。 */
+.restartChip {
+  flex: none;
+  padding: 2px var(--sp-15);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}

@@ -14,12 +14,16 @@ export function Sparkline({
   values,
   width = 48,
   height = 14,
-  strokeWidth = 1.5
+  strokeWidth = 1.5,
+  probe = "kpi-sparkline"
 }: {
   values: readonly number[];
   width?: number;
   height?: number;
   strokeWidth?: number;
+  /** 截图/断言锚点。KPI 卡用默认值；同一形状出现在别处时必须换名字，
+   *  否则 e2e 的 `[data-probe="kpi-sparkline"]` 会数错。 */
+  probe?: string;
 }) {
   // Fewer than two days is not a trend (the caller usually gates this too;
   // doing it here as well keeps the rule in one place).
@@ -34,7 +38,7 @@ export function Sparkline({
       viewBox={`0 0 ${width} ${height}`}
       preserveAspectRatio="none"
       aria-hidden="true"
-      data-probe="kpi-sparkline"
+      data-probe={probe}
     >
       {series.flat ? (
         <line

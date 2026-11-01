@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SessionHeader } from "./SessionHeader";
+import { BridgesProvider } from "../../api/bridges";
+import type { Bridges } from "../../api/types";
 import { NotificationProvider } from "../../app/NotificationProvider";
 import type { ClipboardService } from "../../api/types";
 import type { SessionMeta } from "./metadataCache";
@@ -21,23 +23,46 @@ function meta(overrides: Partial<SessionMeta> = {}): SessionMeta {
   };
 }
 
+/** 队友 H8 的 ShareCardButton 挂进了 SessionHeader（parsed 才渲染），
+ *  它 useBridges——所有渲染路径都要 BridgesProvider 兜底。桥接成员给
+ *  no-op：分享卡按钮在无 fs/窗口桥接时自行 disabled，不影响这里的断言。 */
+const TEST_BRIDGES: Bridges = {
+  fs: { writeBinary: vi.fn(async () => undefined), readText: vi.fn(async () => "") },
+  system: { openFolder: vi.fn(async () => undefined) },
+  clipboard: { writeText: vi.fn(async () => undefined) }
+} as unknown as Bridges;
+
 function renderHeader(
   session: SessionMeta,
   clipboard: ClipboardService,
   parsed: ParsedSession | null = null
 ) {
   return render(
+    <BridgesProvider bridges={TEST_BRIDGES}>
     <NotificationProvider>
-      <SessionHeader
-        session={session}
-        parsed={parsed}
-        tokenPanelOpen={false}
-        onToggleTokenPanel={() => undefined}
-        onOpenFolder={() => undefined}
-        onExport={() => undefined}
-        clipboard={clipboard}
-      />
+      {/* H8 分享卡按钮要桥面：给一个最小测试桥（savePath/writeBinary 缺失
+          只会让按钮 disabled，不影响既有断言）。 */}
+      <BridgesProvider
+        bridges={
+          {
+            dialog: {},
+            fs: {},
+            events: { onSessionImport: async () => () => undefined }
+          } as unknown as Bridges
+        }
+      >
+            <SessionHeader
+            session={session}
+            parsed={parsed}
+            tokenPanelOpen={false}
+            onToggleTokenPanel={() => undefined}
+            onOpenFolder={() => undefined}
+            onExport={() => undefined}
+          clipboard={clipboard}
+        />
+      </BridgesProvider>
     </NotificationProvider>
+    </BridgesProvider>
   );
 }
 
@@ -63,15 +88,25 @@ test("offers export only once the session has parsed", () => {
 
   rerender(
     <NotificationProvider>
-      <SessionHeader
-        session={meta()}
-        parsed={PARSED}
-        tokenPanelOpen={false}
-        onToggleTokenPanel={() => undefined}
-        onOpenFolder={() => undefined}
-        onExport={() => undefined}
-        clipboard={clipboard}
-      />
+      <BridgesProvider
+        bridges={
+          {
+            dialog: {},
+            fs: {},
+            events: { onSessionImport: async () => () => undefined }
+          } as unknown as Bridges
+        }
+      >
+        <SessionHeader
+          session={meta()}
+          parsed={PARSED}
+          tokenPanelOpen={false}
+          onToggleTokenPanel={() => undefined}
+          onOpenFolder={() => undefined}
+          onExport={() => undefined}
+          clipboard={clipboard}
+        />
+      </BridgesProvider>
     </NotificationProvider>
   );
   expect(screen.getByRole("button", { name: "导出" })).toBeInTheDocument();
@@ -232,4 +267,84 @@ test("E9：页头显示数据新鲜度，按最后一条记录算，不编扫描
   const badge = document.querySelector<HTMLElement>('[data-probe="data-freshness"]');
   expect(badge).not.toBeNull();
   expect(badge?.textContent).toMatch(/^数据截至 \d{2}:\d{2}（2 分钟前）$/);
+});
+
+/* ── H5 重启徽章（Round HH，§4.5）────────────────────────────── */
+
+function renderHeaderWithRestarts(restartCount: number | undefined) {
+  const clipboard = { writeText: vi.fn(async () => undefined) };
+  return render(
+    <BridgesProvider bridges={TEST_BRIDGES}>
+    <NotificationProvider>
+      <BridgesProvider
+        bridges={
+          {
+            dialog: {},
+            fs: {},
+            events: { onSessionImport: async () => () => undefined }
+          } as unknown as Bridges
+        }
+      >
+        <SessionHeader
+          session={meta()}
+          parsed={parsedWith([usageRecord("a1", 1_000, 20_000)])}
+          tokenPanelOpen={false}
+          onToggleTokenPanel={() => undefined}
+          onOpenFolder={() => undefined}
+          onExport={() => undefined}
+          clipboard={clipboard}
+          restartCount={restartCount}
+        />
+      </BridgesProvider>
+    </NotificationProvider>
+    </BridgesProvider>
+  );
+}
+
+test("H5：链长 3 显示「重新发起 2 次」，title 带链位语义", () => {
+  renderHeaderWithRestarts(3);
+
+  const chip = document.querySelector<HTMLElement>('[data-probe="session-restart"]');
+  expect(chip).not.toBeNull();
+  expect(chip?.textContent).toBe("重新发起 2 次");
+  expect(chip?.getAttribute("title")).toBe("同目录 24 小时内的第 3 次新会话");
+});
+
+test("H5：undefined 与 1 都不渲染——「没有概念」和「链首」不同形", () => {
+  const first = renderHeaderWithRestarts(undefined);
+  expect(document.querySelector('[data-probe="session-restart"]')).toBeNull();
+  // 读数带本体还在，徽章缺席不是列表塌了。
+  expect(screen.getByRole("button", { name: "会话读数" })).toBeInTheDocument();
+  first.unmount();
+
+  renderHeaderWithRestarts(1);
+  expect(document.querySelector('[data-probe="session-restart"]')).toBeNull();
+});
+
+test("H5：徽章在读数带内、紧挨总耗时之后，是 span 不是嵌套 button", () => {
+  renderHeaderWithRestarts(2);
+
+  const readouts = screen.getByRole("button", { name: "会话读数" });
+  const chip = document.querySelector<HTMLElement>('[data-probe="session-restart"]');
+  expect(chip).not.toBeNull();
+  expect(readouts).toContainElement(chip);
+  // 读数带是 button：徽章必须是非聚焦 span，不能嵌套交互控件。
+  expect(chip?.tagName).toBe("SPAN");
+  // 顺序：总耗时 span 之后、输入 span 之前。
+  const children = Array.from(readouts.querySelectorAll("span"));
+  const chipIndex = children.findIndex((node) => node === chip);
+  const durationIndex = children.findIndex((node) => node.textContent?.includes("总耗时"));
+  const inputIndex = children.findIndex(
+    (node) => node.textContent?.includes("输入") && node !== chip
+  );
+  expect(durationIndex).toBeGreaterThan(-1);
+  expect(chipIndex).toBeGreaterThan(durationIndex);
+  expect(inputIndex).toBeGreaterThan(chipIndex);
+});
+
+test("H5：链长 2 起才显示——链长 2 显示「重新发起 1 次」", () => {
+  renderHeaderWithRestarts(2);
+
+  const chip = document.querySelector<HTMLElement>('[data-probe="session-restart"]');
+  expect(chip?.textContent).toBe("重新发起 1 次");
 });

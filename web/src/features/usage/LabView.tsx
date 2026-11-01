@@ -4,6 +4,8 @@ import type { UsageSessionInput } from "./usageAggregations";
 import { BudgetRunwayPanel } from "./BudgetRunwayPanel";
 import { ConstellationPanel } from "./ConstellationPanel";
 import { CostSandboxPanel } from "./CostSandboxPanel";
+import { CutoffPanel } from "./CutoffPanel";
+import type { HourlyTokens } from "./cutoffProjection";
 import { CostTerrainPanel } from "./CostTerrainPanel";
 import { FlameGraphPanel } from "./FlameGraphPanel";
 import { HallOfFamePanel } from "./HallOfFamePanel";
@@ -14,7 +16,7 @@ import { ToolEcosystemPanel } from "./ToolEcosystemPanel";
 import styles from "./LabView.module.css";
 
 /**
- * 数据实验室（Round FF）：同一份本机日志的十种看法。
+ * 数据实验室（Round FF：十种看法 + Round HH 的收工推演，共十一张卡）。
  *
  * 它是用量页的第 5 个子视图，不是新页面——十张卡吃的是同一次扫描产出的
  * `inputs`、同一个区间控件与同一个 `now`，零新增 I/O、零新增后端命令。
@@ -25,20 +27,28 @@ import styles from "./LabView.module.css";
  * → 跑道成对散点（前瞻 → 个人节律）。
  *
  * 每张卡外面包一层 `data-lab-card`：截图脚本按它逐卡取图，e2e 按它断言
- * 「十张卡都在」，卡片本身不重复造定位属性。
+ * 「十一张卡都在」，卡片本身不重复造定位属性。
  */
 export function LabView({
   inputs,
   days,
   now,
   plan,
-  onOpenSession
+  onOpenSession,
+  hourlyTokens,
+  sampleDays,
+  scanning
 }: {
   inputs: readonly UsageSessionInput[];
   days: number;
   now: number;
   plan: PlanSelection;
   onOpenSession?: (session: SessionMeta) => void;
+  /** H2 的输入：窗口内按本地小时聚合的 token（`RangeAggregate.hourlyTokens`）。 */
+  hourlyTokens?: readonly HourlyTokens[];
+  /** 窗口内有逐小时读数的天数——少于 3 天时推演卡不给滑杆。 */
+  sampleDays: number;
+  scanning: boolean;
 }) {
   return (
     <section className={styles.lab} aria-label="数据实验室" data-probe="lab-view">
@@ -46,7 +56,7 @@ export function LabView({
         <div className={styles.introText}>
           <h2 className={styles.title}>数据实验室</h2>
           <p className={styles.description}>
-            十个视角读同一份本机日志：形状、密度、极端值与前瞻——全部现算，不出本机。
+            十一个视角读同一份本机日志：形状、密度、极端值、前瞻与「如果早点收工」——全部现算，不出本机。
           </p>
         </div>
         {/* 口径声明，不是第二个区间控件：窗口的唯一实例仍在页头第一行。 */}
@@ -77,6 +87,17 @@ export function LabView({
 
         <div className={`${styles.card} ${styles.sandbox}`} data-lab-card="sandbox">
           <CostSandboxPanel inputs={inputs} days={days} now={now} plan={plan} />
+        </div>
+
+        {/* H2 收工推演（Round HH）：沙盘之后——同一个「如果……会怎样」的
+            反事实区，不混进用量主档的实测读数。span 12 独占一行。 */}
+        <div className={`${styles.card} ${styles.cutoff}`} data-lab-card="cutoff">
+          <CutoffPanel
+            hourlyTokens={hourlyTokens}
+            days={days}
+            sampleDays={sampleDays}
+            scanning={scanning}
+          />
         </div>
 
         <div className={`${styles.card} ${styles.network}`} data-lab-card="network">

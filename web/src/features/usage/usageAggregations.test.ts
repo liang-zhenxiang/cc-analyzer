@@ -304,4 +304,43 @@ describe("usageAggregations", () => {
     expect(withFacts).toEqual(withoutFacts);
     expect(withFacts.totals).toEqual({ input: 100, output: 20, cacheCreation: 30, cacheRead: 400 });
   });
+
+  it("fills hourlyTokens per local hour from usage-bearing records only", () => {
+    // H2 的输入：记录落在它实际发生的小时上。没有 usage 的记录不贡献任何桶——
+    // 它既不是「0 读数」，也不是「这一小时没花 token」。
+    const day = new Date(2026, 8, 28, 10, 0);
+    const range = aggregateRange(
+      [
+        inputOf([
+          record(new Date(2026, 8, 28, 9, 5), { usage: usage(100, 20, 30, 400) }),
+          record(new Date(2026, 8, 28, 9, 40), { usage: usage(10, 0, 0, 0) }),
+          record(new Date(2026, 8, 28, 17, 10)),
+          record(new Date(2026, 8, 28, 20, 0), { kind: "user" })
+        ])
+      ],
+      7,
+      day.getTime()
+    );
+
+    const byHour = new Map((range.hourlyTokens ?? []).map((row) => [row.hour, row.tokens]));
+    expect(range.hourlyTokens).toHaveLength(24);
+    expect(byHour.get(9)).toBe(560);
+    expect(byHour.get(17)).toBe(0);
+    expect(byHour.get(20)).toBe(0);
+    expect(range.hourlyTokens?.every((row) => row.tokens >= 0)).toBe(true);
+    expect(range.kpi.tokens).toBe(560);
+  });
+
+  it("leaves hourlyTokens undefined when the window has no usage readings", () => {
+    // 「没有读数」不是「24 个 0」：后者会让推演卡把 0.0% 印成结论。
+    const day = new Date(2026, 8, 28, 10, 0);
+    const range = aggregateRange(
+      [inputOf([record(day, { kind: "user" }), record(day, { kind: "tool" })])],
+      7,
+      day.getTime()
+    );
+
+    expect(range.hourlyTokens).toBeUndefined();
+    expect(range.kpi.tokens).toBe(0);
+  });
 });

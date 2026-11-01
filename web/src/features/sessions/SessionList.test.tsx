@@ -922,3 +922,188 @@ test("条件全不命中时给可挽回的空态，清空后列表回来", async
   expect(screen.getByRole("button", { name: /project-a/ })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /project-b/ })).toBeInTheDocument();
 });
+
+/* ---------- H3 排序（§4.3）：sortSelect 六键 + 组内维度排序 + 持久化 ---------- */
+
+/** H3 专用夹具：三条会话，ctxPeak/messages/errors/durationMs 各维度名次不同，
+ *  才能断言「按谁排谁在前」不是靠 mtime 撞出来的。mtime：a=300 > b=200 > c=100。 */
+const sortFixture: SessionMeta[] = [
+  {
+    ...sessions[0],
+    path: "/repo/sort-a.jsonl",
+    projectLabel: "sort-a",
+    cwd: "/repo/project-a",
+    mtimeMs: 300,
+    metadataStatus: "complete",
+    facts: {
+      models: ["m-a"],
+      tools: ["builtin:Bash", "builtin:Read"],
+      ctxPeak: 50_000,
+      errors: 0,
+      durationMs: 10 * 60_000,
+      messages: 2
+    }
+  },
+  {
+    ...sessions[1],
+    path: "/repo/sort-b.jsonl",
+    projectLabel: "sort-b",
+    cwd: "/repo/project-b",
+    mtimeMs: 200,
+    metadataStatus: "complete",
+    facts: {
+      models: ["m-b"],
+      tools: ["builtin:Bash"],
+      ctxPeak: 120_000,
+      errors: 5,
+      durationMs: 5 * 60_000,
+      messages: 8
+    }
+  },
+  {
+    ...sessions[0],
+    path: "/repo/sort-c.jsonl",
+    projectLabel: "sort-c",
+    cwd: "/repo/project-a",
+    mtimeMs: 100,
+    metadataStatus: "complete",
+    facts: {
+      models: ["m-c"],
+      tools: [],
+      ctxPeak: 80_000,
+      errors: 2,
+      durationMs: 30 * 60_000,
+      messages: 5
+    }
+  }
+];
+
+function renderSortList() {
+  return render(
+    <SessionList
+      sessions={sortFixture}
+      selected={null}
+      loading={false}
+      error={null}
+      onSelect={() => undefined}
+      onRefresh={() => undefined}
+    />
+  );
+}
+
+/** 时间线视图下的可见顺序（按钮 name 含 projectLabel）。 */
+function visibleOrder() {
+  return screen
+    .getAllByRole("button", { name: /sort-[abc]/ })
+    .map((button) => (button.textContent ?? "").match(/sort-[abc]/)?.[0])
+    .filter((value): value is string => value !== undefined);
+}
+
+test("H3：排序下拉在工具行，六键逐字，默认最近时间", () => {
+  renderSortList();
+
+  const select = screen.getByRole("combobox", { name: "排序" });
+  expect(select).toHaveAttribute("data-probe", "session-sort");
+  const options = within(select).getAllByRole("option");
+  expect(options.map((option) => option.textContent)).toEqual([
+    "最近时间",
+    "Token 最多",
+    "时长最长",
+    "消息最多",
+    "工具调用最多",
+    "错误最多"
+  ]);
+  expect(select).toHaveValue("recent");
+  // 默认（recent）= 原 mtime 降序链，顺序与没加排序时一致。
+  expect(visibleOrder()).toEqual(["sort-a", "sort-b", "sort-c"]);
+});
+
+test("H3：按 Token/messages 排组内顺序，组间仍按时间", async () => {
+  const user = userEvent.setup();
+  renderSortList();
+
+  // 项目视图：a/c 同组（project-a）、b 独组。
+  await user.click(screen.getByRole("tab", { name: "项目" }));
+  await user.selectOptions(screen.getByRole("combobox", { name: "排序" }), "tokens");
+  // tokens=ctxPeak：组内 c(80k) 反超 a(50k)；组间按组内首条时间——
+  // 排序后 project-a 组首条是 c（mtime 100）< b（200），组 b 到前面。
+  expect(visibleOrder()).toEqual(["sort-b", "sort-c", "sort-a"]);
+
+  await user.selectOptions(screen.getByRole("combobox", { name: "排序" }), "messages");
+  // messages：b(8) > c(5) > a(2)——组间仍按首条时间（c 100 < b 200），b 组在前。
+  expect(visibleOrder()).toEqual(["sort-b", "sort-c", "sort-a"]);
+
+  // 切回最近时间：组内回 mtime 序（a 前 c），组间仍按首条（a 300 > b 200）。
+  await user.selectOptions(screen.getByRole("combobox", { name: "排序" }), "recent");
+  expect(visibleOrder()).toEqual(["sort-a", "sort-c", "sort-b"]);
+});
+
+test("H3：排序键写进 cca-session-sort，重挂载恢复；非法值回落 recent", async () => {
+  const user = userEvent.setup();
+  const first = renderSortList();
+  await user.selectOptions(screen.getByRole("combobox", { name: "排序" }), "errors");
+  await waitFor(() =>
+    expect(window.localStorage.getItem("cca-session-sort")).toBe("errors")
+  );
+  first.unmount();
+
+  window.localStorage.setItem("cca-session-sort", "not-a-key");
+  const second = renderSortList();
+  // 非法值不抛、回落 recent（readStoredView 同款白名单读）。
+  expect(screen.getByRole("combobox", { name: "排序" })).toHaveValue("recent");
+  second.unmount();
+
+  window.localStorage.setItem("cca-session-sort", "messages");
+  renderSortList();
+  expect(screen.getByRole("combobox", { name: "排序" })).toHaveValue("messages");
+});
+
+test("H3：全部会话缺该维度读数时给「先按时间排」提示，列表不空白", async () => {
+  const user = userEvent.setup();
+  // 夹具整体不带 facts（未索引）——任何维度都取不出读数。
+  const noFacts = sortFixture.map(({ facts: _facts, metadataStatus: _status, ...rest }) => rest);
+  render(
+    <SessionList
+      sessions={noFacts}
+      selected={null}
+      loading={false}
+      error={null}
+      onSelect={() => undefined}
+      onRefresh={() => undefined}
+    />
+  );
+
+  await user.selectOptions(screen.getByRole("combobox", { name: "排序" }), "messages");
+  expect(screen.getByText("这批会话还没有消息读数，先按时间排")).toBeInTheDocument();
+  // 列表本体照常渲染（时间序），不空白。
+  expect(visibleOrder()).toEqual(["sort-a", "sort-b", "sort-c"]);
+  // recent 键不提示（时间永远有）。
+  await user.selectOptions(screen.getByRole("combobox", { name: "排序" }), "recent");
+  expect(screen.queryByText(/先按时间排/)).not.toBeInTheDocument();
+});
+
+test("H3：缺读数的会话垫底，有读数的照常排", async () => {
+  const user = userEvent.setup();
+  // b 有读数（messages 8 最大），a/c 缺 facts——两者都在 b 后。
+  const mixed: SessionMeta[] = [
+    sortFixture[1],
+    ...sortFixture.slice(0, 1).map(({ facts: _f, metadataStatus: _s, ...rest }) => rest),
+    ...sortFixture.slice(2).map(({ facts: _f2, metadataStatus: _s2, ...rest }) => rest)
+  ];
+  render(
+    <SessionList
+      sessions={mixed}
+      selected={null}
+      loading={false}
+      error={null}
+      onSelect={() => undefined}
+      onRefresh={() => undefined}
+    />
+  );
+
+  await user.click(screen.getByRole("tab", { name: "时间线" }));
+  await user.selectOptions(screen.getByRole("combobox", { name: "排序" }), "messages");
+  const order = visibleOrder();
+  expect(order[0]).toBe("sort-b");
+  expect(new Set(order.slice(1))).toEqual(new Set(["sort-a", "sort-c"]));
+});

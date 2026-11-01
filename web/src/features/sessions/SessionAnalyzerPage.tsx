@@ -23,6 +23,7 @@ import { ContextView, type ContextRevealRequest } from "./ContextView";
 import { ChangedFilesView } from "./ChangedFilesView";
 import { BleedView } from "./BleedView";
 import { ReplayView } from "./ReplayView";
+import { RhythmPanel } from "./RhythmPanel";
 import { TimelineView } from "./TimelineView";
 import { CostLedgerView } from "./CostLedgerView";
 import { ParseCoverageChip } from "./ParseCoverageChip";
@@ -33,6 +34,15 @@ import { createSessionParseCache, sharedSessionParseCache } from "./sessionParse
 import type { DurationNode } from "./durationTree";
 import { buildLogRows, filterLogRows, recordsOfRows } from "./logRows";
 import { useThresholds } from "../settings/thresholds";
+import { countRestarts } from "./restartCount";
+import { parentDirectory } from "../../lib/path";
+
+/**
+ * H5（§4.5）：重启链的时间窗——同目录上一个会话起点 24 小时内又起了新的，
+ * 算「重新发起」。24h 来自规格原文（模型层 countRestarts 的 15 分钟缺省是
+ * 「进程重启」粒度，UI 这层看的是「工作还在继续」的粒度，两者不共用）。
+ */
+const RESTART_WINDOW_MS = 24 * 60 * 60_000;
 import {
   generateReport,
   reportSignature,
@@ -174,6 +184,25 @@ export function SessionAnalyzerPage({
   const { sessions, loading, error, progress, refresh, indexFacts } = useSessions();
   // 侧栏徽章的数字来自与「出血点」标签页同一个 `buildBleedReport`，只是分期补齐。
   const bleedCounts = useBleedCounts(sessions, loading);
+  // H5 重启计数（§4.5）：整页聚合一次，sessions 变化才重算——SessionHeader
+  // 每次渲染都拿现成的 Map，不在渲染路径里重跑 O(n log n)。
+  // 口径：同 cwd（parentDirectory 归一）且相邻会话起点间隔 <24h 成链；
+  // 起点**代用** mtimeMs——列表侧只有它是每会话必有且对应写入时刻的时间戳
+  // （SessionMeta 无首记录时间戳，代用理由写死在注释）。lead 派工说放
+  // AppShell「数据就绪处」，但 AppShell 不持 sessions（本页自己 useSessions），
+  // 数据在本页就绪，聚合落这里语义等价且不动 AppShell。
+  const restartChains = useMemo(
+    () =>
+      countRestarts(
+        sessions.map((session) => ({
+          path: session.path,
+          projectLabel: parentDirectory(session.path) ?? null,
+          startTimestamp: session.mtimeMs
+        })),
+        RESTART_WINDOW_MS
+      ),
+    [sessions]
+  );
   const { detailRows: reportRowLimit } = useThresholds();
   const archiveStatus = useArchiveTask().status;
   const [selectedSession, setSelectedSession] = useState<SessionMeta | null>(null);
@@ -550,6 +579,7 @@ export function SessionAnalyzerPage({
             setExportOpen(true);
           }}
           clipboard={bridges.clipboard}
+          restartCount={restartChains.get(selectedSession.path)}
         />
       ) : null}
       <div className={styles.body}>
@@ -683,7 +713,12 @@ export function SessionAnalyzerPage({
                 ) : view === "bleed" ? (
                   <BleedView parsed={parsed} />
                 ) : view === "replay" ? (
-                  <ReplayView parsed={parsed} />
+                  <>
+                    <ReplayView parsed={parsed} />
+                    {/* H4 节奏谱：重放讲「发生了什么」，这块讲「隔多久提问一次」。
+                        同一时间轴两层聚合，跟在胶片带后面就是它的位置。 */}
+                    <RhythmPanel parsed={parsed} />
+                  </>
                 ) : view === "timeline" ? (
                   <TimelineView parsed={parsed} onLocateInLog={locateInLog} />
                 ) : view === "cost" ? (

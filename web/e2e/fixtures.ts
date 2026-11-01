@@ -3024,6 +3024,321 @@ export function roundGGScenario(overrides: Partial<MockScenario> = {}): MockScen
   };
 }
 
+/* ====================================================================== *
+ * Round HH 场景（第六批十功能的端到端夹具）
+ *
+ * 独立场景，不碰 SESSION_SEEDS（既有 8 张列表截图基线不能漂）。形状：
+ *   - 两个项目、12 段会话；同一项目今早三段在 15 分钟内接续（H5 重启链）；
+ *   - 今早那段有 4 次提问（间隔 2/33/35 分钟，H4 六档与中位间隔）；
+ *   - 另有一段只有 1 次提问（H4 空态）；
+ *   - 窗口内 11 次工具失败（H1 错误聚集 ≥10）、预算 max5 88k（H1 预算项）；
+ *   - 最近四周各有一段带缓存读数的会话（H7 四周 sparkline）；
+ *   - sonnet/opus 在当月与前两个月都有量（H6 跷跷板，配 90 天窗口）。
+ * 时间一律相对 `Date.now()`；用例的期望值从 `roundHHRecords()` 现算。
+ * ====================================================================== */
+const ROUND_HH_SONNET = "claude-sonnet-4-5-20250929";
+const ROUND_HH_OPUS = "claude-opus-4-1-20250805";
+
+type RoundHHUsage = {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens: number;
+  cache_read_input_tokens: number;
+};
+
+type RoundHHRecord = Record<string, unknown>;
+type RoundHHTool = { name: string; error?: string };
+
+function roundHHJsonl(records: RoundHHRecord[]): string {
+  const sorted = [...records].sort(
+    (a, b) => Date.parse(String(a.timestamp)) - Date.parse(String(b.timestamp))
+  );
+  return sorted.map((record) => JSON.stringify(record)).join("\n") + "\n";
+}
+
+function buildRoundHH(): { files: Record<string, string>; records: RoundHHRecord[]; now: number } {
+  const now = Date.now();
+  const sessions: Array<{ cwd: string; id: string; records: RoundHHRecord[] }> = [];
+  let seed = 0;
+
+  const at = (daysAgo: number, hour: number, minute: number): number => {
+    const day = new Date(now);
+    day.setDate(day.getDate() - daysAgo);
+    day.setHours(hour, minute, 0, 0);
+    return day.getTime();
+  };
+
+  const make = (
+    kind: "user" | "assistant",
+    sessionId: string,
+    cwd: string,
+    timestamp: number,
+    message: Record<string, unknown>
+  ): RoundHHRecord => {
+    seed += 1;
+    return {
+      type: kind,
+      sessionId,
+      cwd,
+      gitBranch: "main",
+      version: "2.1.0",
+      timestamp: new Date(timestamp).toISOString(),
+      uuid: `roundhh-${seed}`,
+      parentUuid: null,
+      isSidechain: false,
+      message
+    };
+  };
+
+  const usage = (
+    input: number,
+    output: number,
+    cacheCreation: number,
+    cacheRead: number
+  ): RoundHHUsage => ({
+    input_tokens: input,
+    output_tokens: output,
+    cache_creation_input_tokens: cacheCreation,
+    cache_read_input_tokens: cacheRead
+  });
+
+  const session = (options: {
+    id: string;
+    cwd: string;
+    start: number;
+    model: string;
+    prompt: string;
+    /** 每次提问相对会话起点的分钟偏移；长度即提问次数。 */
+    turns: number[];
+    /** 每次提问后那条 assistant 的 usage；长度与 turns 对齐。 */
+    perTurn: RoundHHUsage[];
+    tools?: RoundHHTool[];
+  }) => {
+    const { id, cwd, start, model, prompt, turns, perTurn, tools = [] } = options;
+    const records: RoundHHRecord[] = [];
+    turns.forEach((minute, index) => {
+      const userAt = start + minute * 60_000;
+      records.push(
+        make("user", id, cwd, userAt, {
+          role: "user",
+          content: `${prompt}${index === 0 ? "" : `（追问 ${index}）`}`
+        })
+      );
+      records.push(
+        make("assistant", id, cwd, userAt + 30_000, {
+          id: `roundhh-msg-${id}-${index}`,
+          role: "assistant",
+          model,
+          content: [{ type: "text", text: `回答 ${index}` }],
+          usage: perTurn[index]
+        })
+      );
+    });
+    const lastAt = start + (turns[turns.length - 1] ?? 0) * 60_000;
+    tools.forEach((tool, index) => {
+      const toolId = `${id}-tool-${index}`;
+      const useAt = lastAt + 120_000 + index * 30_000;
+      records.push(
+        make("assistant", id, cwd, useAt, {
+          id: `roundhh-tool-${toolId}`,
+          role: "assistant",
+          model,
+          content: [
+            {
+              type: "tool_use",
+              id: toolId,
+              name: tool.name,
+              input:
+                tool.name === "Bash"
+                  ? { command: "npm test" }
+                  : { file_path: `${cwd}/src/hh-${index}.ts` }
+            }
+          ]
+        })
+      );
+      records.push(
+        make("user", id, cwd, useAt + 8_000, {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: toolId,
+              content: tool.error ?? "ok",
+              is_error: tool.error !== undefined
+            }
+          ]
+        })
+      );
+    });
+    sessions.push({ cwd, id, records });
+  };
+
+  const ALPHA = "/repo/hh-alpha";
+  const BETA = "/repo/hh-beta";
+  const idOf = (value: number) => `88008800-0000-4000-8000-${String(value).padStart(12, "0")}`;
+
+  // 今早的重启链：09:05 → 09:20 → 09:32（同目录、间隔 <24h）。
+  session({
+    id: idOf(1),
+    cwd: ALPHA,
+    start: at(0, 9, 5),
+    model: ROUND_HH_SONNET,
+    prompt: "早上第一段：把晨报候选过一遍",
+    turns: [0, 2, 35, 70],
+    perTurn: [
+      usage(20_000, 5_000, 2_000, 8_000),
+      usage(25_000, 6_000, 2_000, 10_000),
+      usage(22_000, 5_000, 1_000, 7_000),
+      usage(20_000, 4_000, 1_000, 5_000)
+    ],
+    tools: [{ name: "Read" }, { name: "Edit" }, { name: "Bash", error: "Error: exit code 1" }]
+  });
+  session({
+    id: idOf(2),
+    cwd: ALPHA,
+    start: at(0, 9, 20),
+    model: ROUND_HH_SONNET,
+    prompt: "重来：晨报的排序再看一眼",
+    turns: [0],
+    perTurn: [usage(30_000, 8_000, 2_000, 20_000)],
+    tools: [{ name: "Bash", error: "Error: exit code 1" }]
+  });
+  session({
+    id: idOf(3),
+    cwd: ALPHA,
+    start: at(0, 9, 32),
+    model: ROUND_HH_SONNET,
+    prompt: "再重来：晨报排序与阈值",
+    turns: [0],
+    perTurn: [usage(15_000, 4_000, 1_000, 10_000)],
+    tools: [{ name: "Bash", error: "Error: exit code 1" }]
+  });
+  // 下午的多错误会话：4 次 Bash 失败（凑满晨报的错误聚集线）。
+  session({
+    id: idOf(4),
+    cwd: ALPHA,
+    start: at(0, 14, 0),
+    model: ROUND_HH_OPUS,
+    prompt: "下午：把失败的流水线逐条复现",
+    turns: [0, 10, 20],
+    perTurn: [
+      usage(60_000, 20_000, 5_000, 10_000),
+      usage(55_000, 18_000, 4_000, 8_000),
+      usage(40_000, 12_000, 3_000, 5_000)
+    ],
+    tools: [
+      { name: "Bash", error: "Error: exit code 1" },
+      { name: "Bash", error: "Error: exit code 1" },
+      { name: "Bash", error: "Error: exit code 2" },
+      { name: "Read", error: "ENOENT: no such file or directory" }
+    ]
+  });
+
+  // 昨天：token 最多的会话（H3 按 token 排序应排第一）。
+  session({
+    id: idOf(5),
+    cwd: BETA,
+    start: at(1, 11, 0),
+    model: ROUND_HH_OPUS,
+    prompt: "昨天：beta 的回归清单",
+    turns: [0, 60],
+    perTurn: [usage(170_000, 50_000, 20_000, 40_000), usage(160_000, 45_000, 15_000, 30_000)],
+    tools: [
+      { name: "Bash", error: "Error: exit code 1" },
+      { name: "Bash", error: "Error: exit code 1" },
+      { name: "Grep", error: "Error: exit code 1" }
+    ]
+  });
+  // 只有一次提问：H4 空态。
+  session({
+    id: idOf(6),
+    cwd: BETA,
+    start: at(2, 15, 30),
+    model: ROUND_HH_SONNET,
+    prompt: "只问一句：这个报错怎么读",
+    turns: [0],
+    perTurn: [usage(8_000, 2_000, 1_000, 4_000)]
+  });
+
+  // 最近四周：H7 的逐周缓存命中率（四周、其中三周有读数）。
+  const weekly: Array<{ days: number; id: number; read: number; tokens: RoundHHUsage }> = [
+    { days: 7, id: 7, read: 60_000, tokens: usage(30_000, 8_000, 10_000, 60_000) },
+    { days: 14, id: 8, read: 80_000, tokens: usage(40_000, 10_000, 10_000, 80_000) },
+    { days: 21, id: 9, read: 20_000, tokens: usage(50_000, 12_000, 8_000, 20_000) },
+    { days: 28, id: 10, read: 40_000, tokens: usage(45_000, 10_000, 5_000, 40_000) }
+  ];
+  for (const week of weekly) {
+    session({
+      id: idOf(week.id),
+      cwd: BETA,
+      start: at(week.days, 10, 0),
+      model: week.id % 2 === 0 ? ROUND_HH_OPUS : ROUND_HH_SONNET,
+      prompt: `${week.days} 天前：周缓存体检`,
+      turns: [0, 5],
+      perTurn: [week.tokens, usage(1_000, 500, 0, 500)],
+      tools: week.id === 7 ? [{ name: "Bash", error: "Error: exit code 1" }] : []
+    });
+  }
+
+  // 前两个月：H6 跷跷板的两侧历史（90 天窗口下与当月形成逐月对照）。
+  session({
+    id: idOf(11),
+    cwd: ALPHA,
+    start: at(45, 11, 0),
+    model: ROUND_HH_SONNET,
+    prompt: "上上月：sonnet 的账",
+    turns: [0],
+    perTurn: [usage(200_000, 40_000, 5_000, 5_000)]
+  });
+  session({
+    id: idOf(12),
+    cwd: ALPHA,
+    start: at(50, 11, 0),
+    model: ROUND_HH_OPUS,
+    prompt: "上上月：opus 的账",
+    turns: [0],
+    perTurn: [usage(240_000, 50_000, 5_000, 5_000)]
+  });
+
+  const files: Record<string, string> = {};
+  for (const entry of sessions) {
+    files[`${HOME}/.claude/projects/${projectDir(entry.cwd)}/${entry.id}.jsonl`] =
+      roundHHJsonl(entry.records);
+  }
+  return { files, records: sessions.flatMap((entry) => entry.records), now };
+}
+
+let roundHHCache: {
+  files: Record<string, string>;
+  records: RoundHHRecord[];
+  now: number;
+} | null = null;
+
+function roundHHBuilt() {
+  if (roundHHCache === null) roundHHCache = buildRoundHH();
+  return roundHHCache;
+}
+
+/** Round HH 全量记录（时间戳为 ISO 字符串）——用例用它现算期望值。 */
+export function roundHHRecords(): RoundHHRecord[] {
+  return roundHHBuilt().records;
+}
+
+/** 夹具构建时的基准时刻；用例不得再直接读 `Date.now()`。 */
+export function roundHHNow(): number {
+  return roundHHBuilt().now;
+}
+
+/** Round HH 专用场景：只装本轮的 12 份会话，不叠默认八份。 */
+export function roundHHScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  return {
+    ...defaultScenario(overrides),
+    files: roundHHBuilt().files,
+    savePath: "/Users/e2e/Documents/session-card.png",
+    ...overrides
+  };
+}
+
 type Fixtures = { scenario: MockScenario };
 
 export const test = base.extend<Fixtures>({

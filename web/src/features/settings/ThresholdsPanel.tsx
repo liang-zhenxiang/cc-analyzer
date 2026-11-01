@@ -14,6 +14,9 @@ import {
 } from "./thresholds";
 import { PLAN_PRESETS, setPlan, usePlan, type PlanId } from "../usage/planLimits";
 import { useArchiveBundleBridge, useBridges } from "../../api/bridges";
+import { DataHealthDialog } from "../usage/DataHealthDialog";
+import { useCollectHealthInput } from "../sessions/sessionHealthCollect";
+import { useSessions } from "../sessions/useSessions";
 import { setKiosk, useKiosk } from "../../app/KioskMode";
 import {
   CHANNEL_LABELS,
@@ -627,6 +630,11 @@ function ThresholdField({ thresholdKey }: { thresholdKey: ThresholdKey }) {
 }
 
 export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
+  // H9 数据体检：入口在本面板 footer，报告在独立浮层（§2-⑥ 侧栏装不下
+  // 逐项明细）。取数在点开时现算（useCollectHealthInput），不做轮询。
+  const { sessions } = useSessions();
+  const [healthOpen, setHealthOpen] = useState(false);
+  const healthInput = useCollectHealthInput(sessions, healthOpen);
   const thresholds = useThresholds();
   const plan = usePlan();
   const isDefault = THRESHOLD_KEYS.every((key) => thresholds[key] === DEFAULT_THRESHOLDS[key]);
@@ -861,10 +869,20 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
       </div>
       <ArchiveSection bridges={bridges} />
       <footer className={styles.footer}>
+        <Button
+          type="button"
+          data-probe="health-check-open"
+          onClick={() => setHealthOpen(true)}
+        >
+          数据体检
+        </Button>
         <Button type="button" onClick={() => resetThresholds()} disabled={isDefault}>
           恢复默认
         </Button>
       </footer>
+      {healthOpen ? (
+        <DataHealthDialog input={healthInput} onClose={() => setHealthOpen(false)} />
+      ) : null}
     </section>
   );
 }
