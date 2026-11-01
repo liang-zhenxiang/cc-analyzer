@@ -4,11 +4,12 @@
   flex-direction: column;
   gap: var(--sp-3);
   /* 钉住并封顶：列表在内部滚动，而不是把整页撑长。
-     上限由 --topbar-h 和页面内边距推出，改顶栏高度时这里跟着走。 */
+     上限跟随**主区实际高度**（.body 的 grid 区），不再用 100dvh 推算——
+     视口高 ≠ 可用高，I8 行高提到 72px 后按视口算会多出 66px 把 main 撑出滚动条。 */
   position: sticky;
-  top: var(--sp-3);
+  top: 0;
   align-self: start;
-  max-height: calc(100dvh - var(--topbar-h) - var(--sp-3) * 2);
+  max-height: 100%;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   background: var(--bg-subtle);
@@ -113,12 +114,14 @@
 }
 
 .sessionRow {
-  height: calc(54px * var(--font-scale));
+  /* I8：54 → 72，多一行预览。与 SessionList.tsx 的 SESSION_ROW_HEIGHT 互为镜像。 */
+  height: calc(72px * var(--font-scale));
   overflow: hidden;
 }
 
 .sessionRowWithStatus {
-  height: calc(72px * var(--font-scale));
+  /* 预览始终渲染，状态行只能加高，不能顶掉预览（72 + 18）。 */
+  height: calc(90px * var(--font-scale));
   overflow: hidden;
 }
 
@@ -195,7 +198,7 @@
   width: 100%;
   gap: var(--sp-05);
   padding: 8px 10px;
-  /* 没有边框：选中态用的是内嵌阴影，而 1px 边框会让按钮比 54px 的行高多出 2px，
+  /* 没有边框：选中态用的是内嵌阴影，而 1px 边框会让按钮比 72px 的行高多出 2px，
      被 .sessionRow 的 overflow: hidden 从底部切掉——正好切在文字下沿。 */
   border: 0;
   border-radius: var(--r-sm);
@@ -239,7 +242,7 @@
 }
 
 /* 标题行：标题 + 归档徽标内联，是会话行的第一个（也是唯一新增的）grid 子元素。
-   0 高差：--lh-base(20) 装得下 16px 徽标，行高 54px 不变。 */
+   0 高差：--lh-base(20) 装得下 16px 徽标，行高 72px 不变。 */
 .titleLine {
   display: flex;
   min-width: 0;
@@ -357,4 +360,43 @@
   font-size: var(--fs-base);
   font-weight: 600;
   line-height: var(--lh-base);
+}
+
+/* I8 首条消息预览：单行省略，全文在 title 上；已脱敏时尾部一枚小盾。
+   颜色用 --text-secondary（在行底色上 7:1 量级），空态降到 --text-tertiary。 */
+.preview {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.previewText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.previewEmpty {
+  display: block;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.previewShield {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: var(--text-tertiary);
+}
+
+.previewShield svg {
+  width: 12px;
+  height: 12px;
 }

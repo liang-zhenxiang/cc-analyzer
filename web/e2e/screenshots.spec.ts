@@ -14,6 +14,7 @@ import {
   roundFFScenario,
   roundGGScenario,
   roundHHScenario,
+  roundIIScenario,
   defaultScenario,
   errorScenario,
   changedFilesScenario,
@@ -900,7 +901,7 @@ test.describe("截图归档 · Round CC 新面板", () => {
       await shot(V_DIGEST);
 
       // 项目擂台：按项目分布的对比态。
-      await page.getByRole("button", { name: "对比" }).click();
+      await page.getByRole("button", { name: "对比", exact: true }).click();
       await center(page.locator("[data-probe='arena-root']"));
       await page.waitForTimeout(250);
       await shot(V_ARENA);
@@ -1195,8 +1196,8 @@ test.describe("截图归档 · 实验室", () => {
       await expect(page.locator("[data-probe='usage-progress']")).toBeVisible({ timeout: 15_000 });
       await page.getByRole("tab", { name: "实验室", exact: true }).click();
       // Round HH 起实验室第 11 张卡是「收工推演」（cutoff），视角数 10→11。
-      await expect(page.getByText(/纳入统计 · 11 个视角/)).toBeVisible({ timeout: 15_000 });
-      await expect(page.locator("[data-lab-card]")).toHaveCount(11);
+      await expect(page.getByText(/纳入统计 · 14 个视角/)).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("[data-lab-card]")).toHaveCount(14);
 
       for (const [card, view] of LAB_SHOTS) {
         const locator = page.locator(`[data-lab-card="${card}"]`);
@@ -1370,6 +1371,69 @@ test.describe("截图归档 · Round HH 空态", () => {
       await expect(page.locator("[data-probe='empty-steps']")).toBeVisible({ timeout: 15_000 });
       await settleImages(page);
       await page.screenshot({ path: path.join(OUT_DIR, `${V_HH_EMPTY}-${theme}${suffix}.png`) });
+    });
+  }
+});
+
+// Round II（第七批十功能）：会话形状 / 工作日对照 / 多选对照 / 提问画像。
+// 夹具只装本轮的 9 份会话（独立场景）。
+const V_II_SHAPE = declareView("ii-shape");
+const V_II_WEEKDAY = declareView("ii-weekday");
+const V_II_COMPARE = declareView("ii-compare");
+const V_II_PROFILE = declareView("ii-profile");
+
+test.describe("截图归档 · Round II 十功能", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: roundIIScenario() });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`Round II · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+      const shot = async (view: string) => {
+        await settleImages(page);
+        await page.screenshot({ path: path.join(OUT_DIR, `${view}-${theme}${suffix}.png`) });
+      };
+      const center = (locator: ReturnType<Page["locator"]>) =>
+        locator.evaluate((element) => element.scrollIntoView({ block: "center" }));
+
+      await page.goto("/");
+      await page.getByRole("tab", { name: "用量总览" }).click();
+      await expect(page.locator("[data-probe='usage-progress']")).toBeVisible({ timeout: 15_000 });
+      await page.waitForTimeout(300);
+
+      // I1 会话形状（时长档）：五桶直方图 + 中位读数。
+      await center(page.locator("[data-probe='session-shape']"));
+      await page.waitForTimeout(200);
+      await shot(V_II_SHAPE);
+
+      await page.getByRole("tab", { name: "实验室" }).click();
+      await expect(page.locator("[data-probe='lab-view']")).toBeVisible({ timeout: 15_000 });
+
+      // I2 工作日 vs 周末：两行对照。
+      await center(page.locator("[data-probe='workday-split']"));
+      await page.waitForTimeout(200);
+      await shot(V_II_WEEKDAY);
+
+      // I4 多选对照：模型维度选满三个，表里三行、占比可见。
+      await page.getByRole("tab", { name: "模型" }).click();
+      await expect(page.locator("[data-probe='multi-chip']")).toHaveCount(3);
+      await page.locator("[data-probe='multi-chip']").nth(2).click();
+      await expect(page.locator("[data-probe='multi-row']")).toHaveCount(3);
+      await center(page.locator("[data-probe='multi-compare']"));
+      await page.waitForTimeout(200);
+      await shot(V_II_COMPARE);
+
+      // I5 提问画像：三指标 + 长度迷你条。
+      await center(page.locator("[data-probe='prompt-profile']"));
+      await page.waitForTimeout(200);
+      await shot(V_II_PROFILE);
     });
   }
 });

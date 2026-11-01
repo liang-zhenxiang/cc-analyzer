@@ -2250,6 +2250,49 @@ mod gui_probe {
     };
   })();
 
+  /* 第七批（Round II）：会话形状 / 工作日对照 / 多选对照 / 提问画像。
+     只收事实——桶数、读数、行文本、表头；阈值与判定在 scripts/gui-test.sh。 */
+  (function () {
+    var shape = document.querySelector("[data-probe='session-shape']");
+    var shapeBars = shape ? Array.prototype.slice.call(shape.querySelectorAll("[data-probe='shape-bar']")) : [];
+    var split = document.querySelector("[data-probe='workday-split']");
+    var wdRows = split ? Array.prototype.slice.call(split.querySelectorAll("[data-probe='workday-row']")) : [];
+    var multi = document.querySelector("[data-probe='multi-compare']");
+    var profile = document.querySelector("[data-probe='prompt-profile']");
+    var profileMetrics = profile ? profile.querySelectorAll("p > span").length : 0;
+    facts.roundii = {
+      present: !!(shape || split || multi || profile),
+      shape: shape
+        ? {
+            mod: shape.getAttribute('data-shape'),
+            buckets: shapeBars.map(function (bar) { return bar.getAttribute('data-bucket'); }),
+            counts: shapeBars.map(function (bar) {
+              var count = bar.querySelector("span:not([aria-hidden])");
+              return count ? (count.textContent || '').trim() : null;
+            }),
+            readout: (shape.querySelector("[data-probe='shape-readout']") || {}).textContent || null
+          }
+        : null,
+      workday: split
+        ? {
+            rows: wdRows.length,
+            groups: wdRows.map(function (row) { return row.getAttribute('data-group'); }),
+            texts: wdRows.map(function (row) { return (row.textContent || '').replace(/\s+/g, " ").trim(); })
+          }
+        : null,
+      multi: multi
+        ? {
+            chips: multi.querySelectorAll("[data-probe='multi-chip']").length,
+            rows: multi.querySelectorAll("[data-probe='multi-row']").length,
+            table: (multi.querySelector("[data-probe='multi-table']") || {}).textContent || null
+          }
+        : null,
+      profile: profile
+        ? { metrics: profileMetrics, text: (profile.textContent || '').trim().slice(0, 160) }
+        : null
+    };
+  })();
+
   return JSON.stringify(facts);
 })();"##;
 

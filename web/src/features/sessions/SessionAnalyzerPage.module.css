@@ -2,11 +2,16 @@
    网格里若出现两个 auto 行，多出来的空间会被平分，会话信息条会被撑高。 */
 .page {
   display: flex;
-  min-height: 100%;
+  /* 占满主区、内容在内部消化：选中会话后日志表格自己滚，页面本身不长出
+     第二条滚动条。高度封顶后 grid/flex 子项必须能收缩（下面两处 min-height:0），
+     否则列表 8 行 × 72px 会把 .body 撑高、再把 main 撑出滚动条（I8 行高回归）。 */
+  height: 100%;
+  min-height: 0;
   min-width: 0;
   flex-direction: column;
   gap: var(--sp-3);
   padding: var(--sp-3);
+  overflow: hidden;
 }
 
 .page.withDetail .body {
@@ -16,6 +21,7 @@
 .body {
   display: grid;
   flex: 1 1 auto;
+  min-height: 0;
   min-width: 0;
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
   gap: var(--sp-4);
@@ -24,6 +30,7 @@
 
 .workspace {
   display: flex;
+  min-height: 0;
   min-width: 0;
   flex-direction: column;
   gap: var(--sp-3);
@@ -103,4 +110,35 @@
   .page.withDetail .body > aside:last-child {
     grid-column: 2;
   }
+}
+
+/* I6 决策点回顾：「只看决策点」按钮与说明带。不配色——这是结构过滤，不是告警。 */
+.decisionToggle {
+  height: var(--control-h);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  cursor: pointer;
+}
+
+.decisionToggle[aria-pressed="true"] {
+  border-color: var(--border-strong);
+  background: var(--bg-active);
+  color: var(--text);
+}
+
+.decisionToggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.decisionBanner {
+  margin: 0 0 var(--sp-2);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
 }
