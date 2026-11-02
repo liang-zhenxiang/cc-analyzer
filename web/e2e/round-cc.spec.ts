@@ -174,11 +174,9 @@ test.describe("Round CC · 用量页", () => {
         await expect(delta).toHaveText("0%");
       }
     }
-    // 涨跌方向与手算一致：本周 tokens 比上周多。
-    expect(thisWeek.tokens).toBeGreaterThan(lastWeek.tokens);
-    await expect(rows.filter({ hasText: "Tokens" }).getByRole("cell").nth(2)).toHaveText(
-      new RegExp(`^▲ \\+${Math.round(((thisWeek.tokens - lastWeek.tokens) / lastWeek.tokens) * 100)}%$`)
-    );
+    // 涨跌方向不再写死「本周一定大于上周」：周一上午跑时本周只有今天，
+    // 上周是完整的 7 天，方向必然是跌。上面已经逐行核对了本周 / 上周的读数，
+    // 变化列的三选一与「持平」分支也在循环里断言过。
 
     await expect(dashboard.getByRole("button", { name: "复制战报" })).toBeVisible();
     await expect(dashboard.getByText("按本地自然周（周一起始）")).toBeVisible();
@@ -331,15 +329,15 @@ test.describe("Round CC · 用量页", () => {
     await expect(cards.nth(0)).toHaveAttribute(
       "aria-label",
       // Round GG 的 G8 在卡片 aria 末尾追加了季节性，活跃时间也随 now 漂。
-      /^alpha：2 个会话，53,900 token，成本 \$0\.25，最近活跃 (刚刚|\d+小时前|昨天)/
+      /^alpha：2 个会话，53,900 token，成本 \$0\.25，最近活跃 (刚刚|\d+分钟前|\d+小时前|昨天|\d+天前)(，季节性：.*)?$/
     );
     await expect(cards.nth(1)).toHaveAttribute(
       "aria-label",
-      /^beta：1 个会话，6,900 token，成本 \$0\.07，最近活跃 (刚刚|\d+小时前|昨天)/
+      /^beta：1 个会话，6,900 token，成本 \$0\.07，最近活跃 (刚刚|\d+分钟前|\d+小时前|昨天|\d+天前)(，季节性：.*)?$/
     );
     await expect(cards.nth(2)).toHaveAttribute(
       "aria-label",
-      /^gamma：1 个会话，2,250 token，成本 \$0\.03，最近活跃 (刚刚|\d+小时前|昨天)/
+      /^gamma：1 个会话，2,250 token，成本 \$0\.03，最近活跃 (刚刚|\d+分钟前|\d+小时前|昨天|\d+天前)(，季节性：.*)?$/
     );
     // 每张卡都有 14 天走势；三种项目不能画成同一张图。
     for (let index = 0; index < 3; index += 1) {

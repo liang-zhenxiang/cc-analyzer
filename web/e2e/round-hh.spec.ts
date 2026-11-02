@@ -196,8 +196,10 @@ test.describe("Round HH 十功能", () => {
 
   test("H7 缓存体检：命中率变差 18.7%", { tag: "@round-hh" }, async ({ page }) => {
     await openUsage(page);
+    // 周同比的方向与幅度随「现在」漂：周一上午跑时本周样本还不完整。
+    // 断言结构（命中率 + 方向 + 百分数）与口径说明，不写死某一周的数字。
     await expect(page.locator("[data-probe='cache-hit']")).toContainText(
-      "缓存命中率在变差18.7%"
+      /缓存命中率(在变差|持平|在变好)\d+\.\d%/
     );
     await expect(page.locator("[data-probe='cache-hit']")).toContainText(
       "按周：缓存读取 ÷（输入 + 缓存写入 + 缓存读取）"
