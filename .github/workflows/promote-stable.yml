@@ -132,6 +132,15 @@ jobs:
           echo "STABLE_VERSION=${stable}" >> "$GITHUB_ENV"
           echo "STABLE_TAG=v${stable}" >> "$GITHUB_ENV"
 
+          # 晋升分支基于 beta tag；tag 之后 main 若更新过 workflow 文件，
+          # 创建该分支时 GitHub App 会把它当成 workflow 变更而拒绝
+          # （`workflows` 不是 workflow permissions 的可授予 scope，
+          # 加 `workflows: write` 只会让 actionlint 报未知 scope）。
+          # 先把 main 的 workflow 文件同步过来，让本次提交相对 main
+          # 不含 workflow diff；应用代码仍全部来自 beta tag。
+          git fetch --depth=1 origin main
+          git checkout origin/main -- .github/workflows
+
           # 三处版本号同步（与人工发布流程同一套动作）
           sed -i "s/\"version\": \".*\"/\"version\": \"${stable}\"/" web/package.json src-tauri/tauri.conf.json
           sed -i "s/^version = \".*\"/version = \"${stable}\"/" src-tauri/Cargo.toml
