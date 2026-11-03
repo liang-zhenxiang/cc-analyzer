@@ -359,6 +359,35 @@ describe("PulsePage 5 小时读数", () => {
     // 标签在两个分支里逐字不变：语义由文字承载，颜色只是加强。
     expect(readout.textContent).toContain("预测触顶");
   });
+
+  it("窗口已关闭：预测格只报事实，不再给未来时刻或「距现在」", () => {
+    // 窗口 NOW-6h..NOW-1h：已关闭 1 小时。
+    const records = [record(NOW - 6 * 3_600_000, usage(100_000))];
+    setPlan({ id: "custom", limitTokens: 200_000, weeklyLimitTokens: null });
+    mockFeed({ snapshot: oneSession(records) });
+    render(<PulsePage />);
+
+    const readout = predictionReadout();
+    expect(readout.querySelector("b")?.textContent).toBe("窗口已关闭");
+    expect(readout.textContent).toContain("等下一个窗口开启后再预测");
+    expect(readout.textContent).not.toContain("距现在");
+    expect(readout.textContent).not.toMatch(/\d{2}:\d{2}/);
+    // 关闭不是风险：不挂 warning 色。
+    expect(readout.getAttribute("data-warning")).toBe("false");
+  });
+
+  it("已关闭且已超预算：显示「已达预算」这个事实，仍然不外推", () => {
+    const records = [record(NOW - 6 * 3_600_000, usage(100_000))];
+    setPlan({ id: "custom", limitTokens: 50_000, weeklyLimitTokens: null });
+    mockFeed({ snapshot: oneSession(records) });
+    render(<PulsePage />);
+
+    const readout = predictionReadout();
+    expect(readout.querySelector("b")?.textContent).toBe("已达预算");
+    expect(readout.textContent).toContain("本窗口已结束，预算已用尽");
+    expect(readout.textContent).not.toContain("距现在");
+    expect(readout.textContent).not.toMatch(/\d{2}:\d{2}/);
+  });
 });
 
 describe("PulsePage 浮窗紧凑档", () => {

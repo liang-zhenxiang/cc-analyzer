@@ -76,8 +76,10 @@ function inputs(): UsageSessionInput[] {
   ];
 }
 
+/** 卡可能是 `<button>`（传了 onOpenProject）或静态 `<article>`；两种容器
+    都带同一份 aria-label，按它取卡，不把角色写死。 */
 function cardOf(name: string): HTMLElement {
-  return screen.getByRole("button", { name: new RegExp(`^${name}：`) });
+  return screen.getByLabelText(new RegExp(`^${name}：`));
 }
 
 describe("ProjectCardsPanel", () => {
@@ -115,6 +117,20 @@ describe("ProjectCardsPanel", () => {
     expect(alpha.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
   });
 
+  it("renders static containers instead of dead buttons when no opener is provided", () => {
+    render(<ProjectCardsPanel inputs={inputs()} days={30} now={NOW} />);
+
+    // 唯一调用方没有传 onOpenProject：卡片不能以按钮语义出现，
+    // 否则用户会点一次「什么都没发生」（评审 P1-4）。
+    expect(screen.queryByRole("button", { name: /^alpha：/ })).toBeNull();
+    const alpha = cardOf("alpha");
+    expect(alpha.tagName).toBe("ARTICLE");
+    expect(alpha).toHaveAttribute("data-interactive", "false");
+    expect(alpha).not.toHaveAttribute("title");
+    // 读数与走势不受容器变化影响。
+    expect(alpha.querySelector("polyline")).not.toBeNull();
+  });
+
   it("calls back with the encoded label and explains that the view does not exist yet", async () => {
     const user = userEvent.setup();
     const onOpenProject = vi.fn();
@@ -127,6 +143,8 @@ describe("ProjectCardsPanel", () => {
       />
     );
     const alpha = cardOf("alpha");
+    expect(alpha.tagName).toBe("BUTTON");
+    expect(alpha).toHaveAttribute("data-interactive", "true");
     expect(alpha).toHaveAttribute("title", "项目筛选视图将在后续版本提供");
     await user.click(alpha);
     expect(onOpenProject).toHaveBeenCalledWith(ALPHA);
@@ -146,9 +164,9 @@ describe("ProjectCardsPanel", () => {
 });
 
 /**
- * G8 项目季节：卡内 6px 四段条 + 一句话。断言四件事——段数与 flex 比例
- * （0 份季不渲染段）、最重季文字与空季补注、aria-label 全量读数、
- * 无 token 卡整块不渲染。
+ * G8 项目季节：卡内 6px 四段条 + 一句话。断言五件事——段数与 flex 比例
+ * （0 份季不渲染段）、四段同一色阶、四季占比文字与空季补注、
+ * aria-label 全量读数、无 token 卡整块不渲染。
  */
 describe("ProjectCardsPanel 季节条（G8）", () => {
   /** 记录落在指定年/月（本地时区），带 usage。 */
@@ -177,7 +195,7 @@ describe("ProjectCardsPanel 季节条（G8）", () => {
     ];
   }
 
-  it("渲染四段条与最重季文字，0 份季不渲染段也不出假缝", () => {
+  it("渲染四段条与四季占比文字，0 份季不渲染段也不出假缝", () => {
     render(<ProjectCardsPanel inputs={seasonInputs()} days={400} now={NOW} />);
 
     const alpha = cardOf("alpha");
@@ -198,8 +216,14 @@ describe("ProjectCardsPanel 季节条（G8）", () => {
     expect(segs?.[1]).toHaveAttribute("style", "flex-grow: 57;");
     expect(segs?.[2]).toHaveAttribute("style", "flex-grow: 14;");
 
-    // 文字：Q2 最重 57%（400/700）；Q3 无记录补注。
-    expect(within(alpha).getByText("Q2 最重（57%） · Q3 无记录")).toBeInTheDocument();
+    // 四段同一色阶：季度是时间序号，不是类别（评审 P1-4）。CSS module
+    // 类名是构建期哈希，断言三段用同一个类即「没有按 Q 换色」。
+    expect(new Set([...segs!].map((seg) => seg.className)).size).toBe(1);
+
+    // 文字：四季占比全量可见，不只最重季；空季写「无记录」。
+    expect(
+      within(alpha).getByText("Q1 29% · Q2 57% · Q3 无记录 · Q4 14%")
+    ).toBeInTheDocument();
   });
 
   it("aria-label 末尾带全量季节读数（颜色与形状不是唯一编码）", () => {
@@ -222,7 +246,7 @@ describe("ProjectCardsPanel 季节条（G8）", () => {
     expect(zeta.getAttribute("aria-label")).not.toContain("季节性");
   });
 
-  it("单季 100%：整条一段，文字无空季补注", () => {
+  it("单季 100%：整条一段，其余三季写无记录", () => {
     const inputs = [
       inputOf(BETA, [seasonRecord("b-q1", 2026, 1, 300), seasonRecord("b-q1b", 2026, 3, 100)], "/work/beta")
     ];
@@ -234,7 +258,7 @@ describe("ProjectCardsPanel 季节条（G8）", () => {
     expect(segs[0]).toHaveAttribute("data-q", "1");
     // 单季 100%：Q2/Q3/Q4 全空 → 空季补注照样写明（诚实读数）。
     expect(
-      within(beta).getByText("Q1 最重（100%） · Q2 无记录 · Q3 无记录 · Q4 无记录")
+      within(beta).getByText("Q1 100% · Q2 无记录 · Q3 无记录 · Q4 无记录")
     ).toBeInTheDocument();
   });
 });

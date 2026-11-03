@@ -32,6 +32,19 @@ export function blockWidthShare(durationMs: number, spanMs: number): number {
 /** Keyboard nudge for the selection, as a fraction of the visible span. */
 const KEYBOARD_NUDGE = 0.02;
 
+/**
+ * 轴刻度精度：四个刻度把跨度三等分，刻度间距不足 1 分钟时补秒。
+ * 8 秒的会话若只写 HH:mm，四个刻度会全是同一个「18:00」——轴没有区分度，
+ * 也帮不上框选（评审 P1-5）。长会话仍用 HH:mm，避免刻度噪音。
+ *
+ * 只约束**轴刻度**；悬停准线与选区预览始终到秒——它们回答的是「这一刻
+ * 是几点几秒」，长会话里那一秒仍然有用，不该为了和轴对齐而丢掉。
+ */
+export function axisClockFor(spanMs: number): (ms: number) => string {
+  const withSeconds = spanMs / 3 < 60_000;
+  return (ms: number) => formatClock(ms, withSeconds);
+}
+
 export function TimelineTrack({
   session,
   selection,
@@ -52,6 +65,7 @@ export function TimelineTrack({
     [session]
   );
   const span = range.end - range.start;
+  const clock = useMemo(() => axisClockFor(span), [span]);
 
   const blocks = useMemo(
     () =>
@@ -90,7 +104,7 @@ export function TimelineTrack({
       const end = Math.max(preview.start, preview.end);
       const duration = end - start;
       return duration > 0
-        ? `${formatClock(start)} – ${formatClock(end)} · ${formatDuration(duration)}`
+        ? `${formatClock(start, true)} – ${formatClock(end, true)} · ${formatDuration(duration)}`
         : formatClock(start, true);
     }
     if (probeAt !== null) return formatClock(probeAt, true);
@@ -161,10 +175,12 @@ export function TimelineTrack({
         )}
         {/* 刻度读数放在轨道内部的底部：单独一行会把下方表格压到
             「内部滚动」布局不变量的地板上（e2e 视口用例守着 240px 线）。 */}
-        <span className={styles.axisStart} aria-hidden="true">{formatClock(range.start)}</span>
-        <span className={styles.axisThird} aria-hidden="true">{formatClock(range.start + span / 3)}</span>
-        <span className={styles.axisTwoThirds} aria-hidden="true">{formatClock(range.start + (span * 2) / 3)}</span>
-        <span className={styles.axisEnd} aria-hidden="true">{formatClock(range.end)}</span>
+        {/* 轴刻度精度随跨度走（axisClockFor）：短会话补秒，长会话保持 HH:mm；
+            悬停/选区读数不受影响，始终到秒。 */}
+        <span className={styles.axisStart} data-probe="axis-tick" aria-hidden="true">{clock(range.start)}</span>
+        <span className={styles.axisThird} data-probe="axis-tick" aria-hidden="true">{clock(range.start + span / 3)}</span>
+        <span className={styles.axisTwoThirds} data-probe="axis-tick" aria-hidden="true">{clock(range.start + (span * 2) / 3)}</span>
+        <span className={styles.axisEnd} data-probe="axis-tick" aria-hidden="true">{clock(range.end)}</span>
         {shownSelection && shownSelection.end > shownSelection.start ? (
           <span className={styles.axisSelection} aria-hidden="true">
             选区 {formatDuration(Math.min(shownSelection.end, range.end) - Math.max(shownSelection.start, range.start))}
@@ -175,7 +191,7 @@ export function TimelineTrack({
              aria-hidden——时刻对读屏用户由选区文案与记录 title 承载。 */
           <span className={styles.probe} style={{ left: `${((probeAt - range.start) / span) * 100}%` }} aria-hidden="true">
             <span className={styles.probeLine} />
-            <span className={styles.probeBubble}>{probeBubble}</span>
+            <span className={styles.probeBubble} data-probe="probe-bubble">{probeBubble}</span>
           </span>
         )}
       </div>

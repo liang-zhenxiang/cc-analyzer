@@ -169,7 +169,13 @@ test.describe("Round GG 十功能", () => {
   test("G1 工作日志按天聚合，点开某天看到当天会话", { tag: "@round-gg" }, async ({ page }) => {
     await openUsage(page);
     const days = page.locator("[data-probe='story-day']");
-    await expect(days).toHaveCount(7);
+    // P0-1：工作日志按页面区间裁剪。夹具全历史 7 个有活动的日，但默认 30 天
+    // 窗口里只剩 4 个——Q1–Q3 的季度会话在 30 天之外（Q4 在 10-15，仍在窗内），
+    // 最近三天是今天 / 昨天 / 三天前。窗口外那些日子正是修复前的越界来源。
+    await expect(days).toHaveCount(4);
+    // 4 天不足一页（默认 5 天），所以不出现「再显示」入口；增量展开由
+    // StoryLogPanel 的单测覆盖（12 天夹具：5 → 10 → 12）。
+    await expect(page.locator("[data-probe='story-more']")).toHaveCount(0);
     // 夹具：今天 2 个会话（595,400 token），两个会话分别在 09:10 / 14:30。
     await expect(days.first()).toContainText(latestDayLabel);
     await expect(days.first()).toContainText("2 会话 · 1 项目 · 595,400 token · 最忙 09:00");
@@ -198,7 +204,7 @@ test.describe("Round GG 十功能", () => {
     await expect(detail).toContainText("代表消息：Error: exit code 1");
   });
 
-  test("G8 项目卡片给出四季度占比，最重季度写下百分比", { tag: "@round-gg" }, async ({ page }) => {
+  test("G8 项目卡片给出四季度占比，四季百分比全部可见", { tag: "@round-gg" }, async ({ page }) => {
     await openUsage(page);
     const cards = page.locator("[data-probe='card-item']");
     await expect(cards).toHaveCount(2);
@@ -222,7 +228,10 @@ test.describe("Round GG 十功能", () => {
     const seasons = page.locator("[data-probe='card-season']");
     await expect(seasons).toHaveCount(2);
     await expect(seasons.first()).toHaveAttribute("data-quarters", "4");
-    await expect(page.locator("[data-probe='card-season-text']").first()).toHaveText("Q4 最重（64%）");
+    // 文字从「只写最重季」改为四季全量占比；空季写「无记录」。
+    const seasonText = page.locator("[data-probe='card-season-text']").first();
+    await expect(seasonText).toHaveText(/^Q1 .+ · Q2 .+ · Q3 .+ · Q4 .+$/);
+    await expect(seasonText).toContainText("Q4 64%");
   });
 
   test("G2 筛选栏：错误条件把 13 个会话收窄到 4 个", { tag: "@round-gg" }, async ({ page }) => {

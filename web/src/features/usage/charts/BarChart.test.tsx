@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { BarChart } from "./BarChart";
+import { BarChart, cappedAxisTicks } from "./BarChart";
 
 const data = [
   { label: "9/28", value: 100 },
@@ -77,5 +77,64 @@ describe("BarChart", () => {
     );
 
     expect(screen.getByText("每个柱 = 一个 5 小时计费窗口")).toBeInTheDocument();
+  });
+
+  it("不传 yTickCount：保持原来的 3 档提示（1M 轴仍是 6 个刻度），长图不回归", () => {
+    render(<BarChart data={[{ label: "w", value: 1_000_000 }]} ariaLabel="趋势" />);
+
+    const lines = screen.getByRole("img", { name: "趋势" }).querySelectorAll("line");
+    expect(lines).toHaveLength(6);
+  });
+
+  it("yTickCount 是硬上限：1M 轴在 72px 高时最多 3 个刻度", () => {
+    render(
+      <BarChart
+        data={[{ label: "w", value: 1_000_000 }]}
+        ariaLabel="历史计费窗口消耗"
+        height={72}
+        yTickCount={3}
+      />
+    );
+
+    const lines = Array.from(
+      screen.getByRole("img", { name: "历史计费窗口消耗" }).querySelectorAll("line")
+    );
+    expect(lines.length).toBeLessThanOrEqual(3);
+    expect(cappedAxisTicks(1_000_000, 3)).toEqual([0, 500_000, 1_000_000]);
+  });
+
+  it("短图刻度行距撑得过 130% 字号：42px 绘图区里至少 18px 一格", () => {
+    render(
+      <BarChart
+        data={[{ label: "w", value: 1_000_000 }]}
+        ariaLabel="历史计费窗口消耗"
+        height={72}
+        yTickCount={3}
+      />
+    );
+
+    const ys = Array.from(
+      screen.getByRole("img", { name: "历史计费窗口消耗" }).querySelectorAll("line")
+    )
+      .map((line) => Number(line.getAttribute("y1")))
+      .sort((left, right) => left - right);
+    const gaps = ys.slice(1).map((y, index) => y - ys[index]);
+    // --fs-xs 在 130% 下是 14.3px（tokens.css）；行距 21px，留得出 6.7px 间隙。
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(18);
+  });
+});
+
+describe("cappedAxisTicks", () => {
+  it("无论提示怎么四舍五入，都不超过上限", () => {
+    for (const max of [1, 12, 250, 5_000, 200_000, 999_999, 1_000_000, 2_500_000]) {
+      expect(cappedAxisTicks(max, 2).length).toBeLessThanOrEqual(2);
+      expect(cappedAxisTicks(max, 3).length).toBeLessThanOrEqual(3);
+      expect(cappedAxisTicks(max, 4).length).toBeLessThanOrEqual(4);
+    }
+  });
+
+  it("上限小于 2 时也保留轴的两端，不返回空轴", () => {
+    expect(cappedAxisTicks(1_000_000, 0)).toEqual([0, 1_000_000]);
+    expect(cappedAxisTicks(1_000_000, 1)).toEqual([0, 1_000_000]);
   });
 });

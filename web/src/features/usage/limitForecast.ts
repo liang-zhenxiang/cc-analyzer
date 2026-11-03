@@ -12,6 +12,10 @@ import { totalsSum } from "./usageAggregations";
  *
  * 界面上的每一行都必须带「若保持此速率」：这是线性外推，不是事实。所以本模块
  * 不返回「安全 / 危险」这类判断词，只返回数字与时刻，措辞留给界面。
+ *
+ * 两个前提缺一不可：有分母（`planLimitTokens > 0`），且窗口还没关闭。
+ * 窗口关闭后 `currentBlock` 仍返回那个块（已用是多少还是事实），但未来已经
+ * 不存在——本模块返回 `null`，调用方不得把「当前读数」冒充成「预计」。
  */
 
 export type LimitForecast = {
@@ -57,6 +61,11 @@ export function buildLimitForecast(
 
   const windowMs = block.end - block.start;
   if (!Number.isFinite(windowMs) || windowMs <= 0) return null;
+
+  // 窗口已关闭（`end` 为开区间）：「按当前速率走到窗口结束」的前提不存在了。
+  // 不返回一个把 `remainingMs` 压成 0 的读数——那会让「预计用到 X%」听起来
+  // 仍是对未来的判断。与「没有分母」同样处理：调用方整块不渲染。
+  if (now >= block.end) return null;
 
   const consumed = totalsSum(block.totals);
   const elapsedMs = Math.max(0, Math.min(now, block.end) - block.start);

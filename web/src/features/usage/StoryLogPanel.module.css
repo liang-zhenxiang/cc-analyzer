@@ -86,6 +86,30 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 「再显示 5 天」：与日行同一拍（左对齐、24px 高），但用小字 + 次级色，
+   读起来是「还有」而不是「又一天」。 */
+.more {
+  margin-top: var(--sp-1);
+  padding: 0 var(--sp-1);
+  min-height: 24px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  cursor: pointer;
+}
+
+.more:hover {
+  background: var(--bg-hover);
+}
+
+.more:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-inset);
+}
+
 .empty {
   margin: 0;
   color: var(--text-muted);

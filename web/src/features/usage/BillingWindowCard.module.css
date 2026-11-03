@@ -51,6 +51,17 @@
   min-width: 0;
 }
 
+/* 窗口已关闭后替换预测行的事实句：同一位置、同一字号，但没有「若…」的
+   外推语气，也不挂 warning 色——关闭不是风险，是已经发生的事。 */
+.closedNote {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
 /* 满额一小时烧完：整行换 warning。颜色只加在「速率异常」这一种情况下，
    否则一行常态预警会训练用户忽略它。 */
 .forecastHot {

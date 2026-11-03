@@ -107,18 +107,6 @@ test.describe("Round DD · 第二批十功能", () => {
     expect(Math.round(box!.height)).toBe(260);
   });
 
-  test("D6 烧钱仪表：72×40 的 viewBox 与 0% 读数一致", async ({ page }) => {
-    await openUsage(page);
-    const row = page.locator("[data-probe='forecast-row']");
-    await expect(row).toContainText(/预计用到限额的 \d+% · (安静|巡航|偏热|烧穿)/);
-    const gauge = row.locator("[data-probe='burn-gauge']");
-    await expect(gauge).toHaveAttribute("viewBox", "0 0 72 40");
-    const box = await gauge.boundingBox();
-    expect(box).not.toBeNull();
-    expect(Math.round(box!.width)).toBe(44);
-    expect(Math.round(box!.height)).toBe(24);
-  });
-
   test("D7 会话甘特：12 行封顶，另外 1 个会话写进脚注，并行行带 ∥", async ({ page }) => {
     await openUsage(page);
     const card = page.getByRole("region", { name: "会话甘特" });
@@ -164,6 +152,35 @@ test.describe("Round DD · 第二批十功能", () => {
     await expect(list).toContainText("69");
     await expect(list).toContainText("克 CO₂e（估算）");
     await expect(list).toContainText("按每 3 万 token ≈1g 生命周期排放的公开研究量级");
+  });
+});
+
+/**
+ * D6 的活窗口版本：`roundDDScenario` 的最晚活动是「昨天 22:00」，白天运行时
+ * 5 小时窗口已经关闭。关闭后预报行按新口径整行不渲染（不再对不存在的未来
+ * 外推），所以仪表几何只能在「现在仍在窗内」的场景里验证——quiet 场景的
+ * 两次请求落在「现在 - 10 分钟」，必然属于当前块。关闭态本身由
+ * `billing-window.spec.ts` 守着（它的夹具最新活动在昨天，任何时段都已关闭）。
+ */
+test.describe("Round DD · 烧钱仪表（活窗口）", () => {
+  test.use({ scenario: roundDDQuietScenario() });
+
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript((plan) => {
+      localStorage.setItem("cca-billing-plan", JSON.stringify(plan));
+    }, PLAN);
+  });
+
+  test("D6 烧钱仪表：72×40 的 viewBox 与 0% 读数一致", async ({ page }) => {
+    await openUsage(page);
+    const row = page.locator("[data-probe='forecast-row']");
+    await expect(row).toContainText(/预计用到限额的 \d+% · (安静|巡航|偏热|烧穿)/);
+    const gauge = row.locator("[data-probe='burn-gauge']");
+    await expect(gauge).toHaveAttribute("viewBox", "0 0 72 40");
+    const box = await gauge.boundingBox();
+    expect(box).not.toBeNull();
+    expect(Math.round(box!.width)).toBe(44);
+    expect(Math.round(box!.height)).toBe(24);
   });
 });
 

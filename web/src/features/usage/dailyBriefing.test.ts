@@ -9,7 +9,8 @@ import {
   type BriefingInput
 } from "./dailyBriefing";
 import type { AnomalyDay } from "./anomalyDays";
-import type { LimitForecast } from "./limitForecast";
+import type { BillingBlock } from "./billingWindow";
+import { buildLimitForecast, type LimitForecast } from "./limitForecast";
 import type { WeeklyDigest } from "./weeklyDigest";
 
 const NOW = Date.UTC(2026, 10, 1, 0, 0, 0); // 2026-11-01T00:00:00Z
@@ -107,6 +108,22 @@ describe("briefingOf 预算", () => {
     const item = briefingOf(baseInput({ forecast: forecast(120, hit) }), NOW).items[0];
     expect(item.headline).toBe("限额预计用到 120%");
     expect(item.detail).toContain("触顶");
+  });
+
+  it("窗口已关闭：模型层不再给预报，预算条目整条不出现", () => {
+    // NOW-6h..NOW-1h 的窗口已关闭；即使已用达到限额，也不该出现「预计用到」。
+    const closedBlock: BillingBlock = {
+      start: NOW - 6 * 3_600_000,
+      end: NOW - 3_600_000,
+      totals: { input: 100_000, output: 0, cacheCreation: 0, cacheRead: 0 },
+      messages: 1
+    };
+    const closedForecast = buildLimitForecast(closedBlock, 100_000, NOW);
+    expect(closedForecast).toBeNull();
+
+    const briefing = briefingOf(baseInput({ forecast: closedForecast }), NOW);
+    expect(briefing.items.map((item) => item.kind)).not.toContain("budget");
+    expect(JSON.stringify(briefing)).not.toContain("限额预计用到");
   });
 });
 
