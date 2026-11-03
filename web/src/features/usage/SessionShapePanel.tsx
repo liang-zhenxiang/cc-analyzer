@@ -191,6 +191,7 @@ export function SessionShapePanel({ inputs }: { inputs: readonly UsageSessionInp
               <div key={bucket.id} className={styles.col} data-probe="shape-bar" data-bucket={bucket.id}>
                 <span
                   className={styles.bar}
+                  data-zero={bucket.count === 0}
                   style={{ height: `${percents[index] ?? 0}%` }}
                   aria-hidden="true"
                 />

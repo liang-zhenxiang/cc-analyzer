@@ -37,24 +37,17 @@ function seasonOf(row: ProjectSeasonRow | undefined): {
   return { shares: tokens.map((n) => n / total) as [number, number, number, number], total };
 }
 
-/** 最重季（1–4）；并列取更早的季。 */
-function heaviestQuarter(shares: readonly number[]): number {
-  let best = 0;
-  for (let q = 1; q < shares.length; q += 1) {
-    if (shares[q] > shares[best]) best = q; // 严格大于才换 → 并列留更早的季
-  }
-  return best + 1;
-}
-
-/** 季节文字：`Q2 最重（41%）` + 空季补「· Q1 无记录」（按 Q 序升序）。 */
+/**
+ * 季节文字：四季占比全量可见（评审 P1-4：只写最重季等于把四段图压成一个
+ * 数字）。空季照旧写「无记录」——0% 与「没有记录」在同一口径下是同一件事，
+ * 但后者不会被误读成「有极少量」。
+ */
 function seasonText(shares: readonly number[]): string {
-  const heaviest = heaviestQuarter(shares);
-  const parts = [`Q${heaviest} 最重（${Math.round(shares[heaviest - 1] * 100)}%）`];
-  const empty = shares
-    .map((share, i) => (share <= 0 ? `Q${i + 1} 无记录` : null))
-    .filter((s): s is string => s !== null);
-  if (empty.length > 0) parts.push(empty.join(" · "));
-  return parts.join(" · ");
+  return shares
+    .map((share, i) =>
+      share > 0 ? `Q${i + 1} ${Math.round(share * 100)}%` : `Q${i + 1} 无记录`
+    )
+    .join(" · ");
 }
 
 /** aria-label 末尾的全量读数：`，季节性：Q1 32%、Q2 41%、Q3 19%、Q4 8%`。 */
@@ -93,8 +86,10 @@ function Sparkline({ values }: { values: number[] }) {
 /**
  * 项目卡片（Round CC / F6）：整行网格，一张卡一个项目。
  *
- * 卡片可点，但这一轮**没有**项目筛选视图可去——回调缺省时点击什么也不发生，
- * `title` 如实说明「后续版本提供」。不新造路由，也不假装已经跳转。
+ * 卡片是否可点由 `onOpenProject` 决定：传了回调才是 `<button>`（带
+ * 「后续版本提供」的 title）；缺省时渲染静态 `<article>`，去掉 hover /
+ * 指针 / 焦点语义——这一轮唯一调用方没有传回调，不能造一个点了没反应的
+ * 按钮（评审 P1-4）。不新造路由，也不假装已经跳转。
  *
  * 卡内不再套一层有底色的卡片：Panel 体里只有网格 gap 这一层语言（见
  * MilestonesPanel 的同款裁决），每格用一条上发丝线与上一行分开。
@@ -143,21 +138,14 @@ export function ProjectCardsPanel({
             const costText = card.usd === null ? "定价未知" : formatUsd(card.usd);
             const activeText = formatRelativeTime(card.lastActive, stamp);
             // G8 季节条：模型行按项目名对回卡片；total 0 → null 整块不渲染。
-            // 图形 aria-hidden（卡是 button，季节是装饰不是可聚焦控件），
-            // 文字以两个通道补读：可见的 seasonText + 卡 aria-label 末尾全量。
+            // 图形 aria-hidden（季节条是装饰，不是可聚焦控件），文字以两个
+            // 通道补读：可见的 seasonText + 卡 aria-label 末尾全量。
             const season = seasonOf(seasons.get(card.label));
-            return (
-              <button
-                key={card.label}
-                type="button"
-                className={styles.card}
-                data-probe="card-item"
-                title="项目筛选视图将在后续版本提供"
-                aria-label={`${card.displayName}：${card.sessions} 个会话，${formatTokenCount(
-                  card.tokens
-                )} token，成本 ${costText}，最近活跃 ${activeText}${season ? `，季节性：${seasonAria(season.shares)}` : ""}`}
-                onClick={() => onOpenProject?.(card.label)}
-              >
+            const ariaLabel = `${card.displayName}：${card.sessions} 个会话，${formatTokenCount(
+              card.tokens
+            )} token，成本 ${costText}，最近活跃 ${activeText}${season ? `，季节性：${seasonAria(season.shares)}` : ""}`;
+            const body = (
+              <>
                 <span className={styles.name} title={card.path ?? card.label}>
                   {card.displayName}
                 </span>
@@ -176,7 +164,9 @@ export function ProjectCardsPanel({
                 {season ? (
                   <>
                     {/* 段宽走 flex 比例（flex:32 → 32/100）；某季 0 时不渲染该段：
-                        gap 缝是按段数出的，0 宽段会多出一条假缝（design §G8）。 */}
+                        gap 缝是按段数出的，0 宽段会多出一条假缝（design §G8）。
+                        四段同色（评审 P1-4）：季度是时间序号，不是类别，图表
+                        分类色板严禁借给日期维度；顺序由位置和文字承载。 */}
                     <span className={styles.season} data-probe="card-season" data-quarters="4" aria-hidden="true">
                       {season.shares.map((share, i) =>
                         share > 0 ? (
@@ -194,7 +184,31 @@ export function ProjectCardsPanel({
                     </span>
                   </>
                 ) : null}
+              </>
+            );
+            return onOpenProject ? (
+              <button
+                key={card.label}
+                type="button"
+                className={styles.card}
+                data-probe="card-item"
+                data-interactive="true"
+                title="项目筛选视图将在后续版本提供"
+                aria-label={ariaLabel}
+                onClick={() => onOpenProject(card.label)}
+              >
+                {body}
               </button>
+            ) : (
+              <article
+                key={card.label}
+                className={styles.card}
+                data-probe="card-item"
+                data-interactive="false"
+                aria-label={ariaLabel}
+              >
+                {body}
+              </article>
             );
           })}
         </div>

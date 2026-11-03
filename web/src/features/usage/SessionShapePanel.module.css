@@ -9,11 +9,14 @@
   min-width: 0;
 }
 
+/* 5 / 6 个桶等分整条卡宽（评审 P1-1）：旧的 40px 固定列让柱图缩在中间
+   一小块、标签被省略号截断。列只设下限，宽度由 flex 均分；配方档
+   不渲染 .bars，不参与这套几何。 */
 .bars {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: var(--sp-3);
+  gap: var(--sp-2);
   height: 96px;
   min-width: 0;
 }
@@ -22,7 +25,9 @@
   display: grid;
   grid-template-rows: 1fr auto auto;
   gap: var(--sp-05);
-  width: min(40px, 18%);
+  flex: 1 1 0;
+  /* 5 列填满卡宽；3 列的切换档不让单柱夸张到一整块面板宽。 */
+  max-width: 180px;
   height: 100%;
   min-width: 0;
 }
@@ -31,9 +36,16 @@
   display: block;
   align-self: end;
   width: 100%;
+  /* 非零小值也要看得见；零值桶不画柱（见下条），否则 2px 的底线会被
+     读成「有一点数据」。 */
   min-height: 2px;
   border-radius: var(--r-xs) var(--r-xs) 0 0;
   background: var(--chart-1);
+}
+
+.bar[data-zero="true"] {
+  min-height: 0;
+  background: transparent;
 }
 
 .count {
@@ -44,14 +56,18 @@
   text-align: center;
 }
 
+/* 标签必须完整可读：允许折成两行（130% 字号下「不足 5 分钟」会换行），
+   不再用 ellipsis。line-clamp 只是上限，当前五档文案在最小卡宽下两行内放得下。 */
 .label {
+  display: -webkit-box;
   overflow: hidden;
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
   line-height: var(--lh-xs);
   text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .signatureList {

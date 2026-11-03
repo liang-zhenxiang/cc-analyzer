@@ -914,6 +914,64 @@ describe("UsageOverviewPage", () => {
       expect(storyLog.compareDocumentPosition(digest) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
   });
+
+  it("P0-1：工作日志按页面区间裁剪，窗口外的开工日不进日行", async () => {
+    const DAY_MS = 24 * 3_600_000;
+    const bridges = createUsageBridges({
+      // 100 天前的老会话：它在 `inputs` 里，但不该出现在 30 天档的工作日志里。
+      [`${PROJECTS_ROOT}/-repo-alpha/old.jsonl`]: sessionJsonl(
+        "old",
+        "claude-sonnet-4-5-20250929",
+        100 * DAY_MS
+      ),
+      // 窗口内的一段：工作日志唯一应该讲的日子。
+      [`${PROJECTS_ROOT}/-repo-alpha/new.jsonl`]: sessionJsonl(
+        "new",
+        "claude-sonnet-4-5-20250929",
+        6 * 3_600_000
+      )
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+    // 扫描落定的锚：进度行收口时两个会话都已读完，下面的断言不是「扫到一半」。
+    await screen.findByText(/近 30 天内 1 个会话纳入统计/);
+
+    // 全量 inputs 会让这里出现两天（含 100 天前那一天），与 KPI 的「1 个会话」
+    // 直接矛盾——这正是评审的 P0。
+    expect(document.querySelectorAll('[data-probe="story-day"]')).toHaveLength(1);
+  });
+
+  it("P1-3：活跃时段与会话形状并排在同一 board 行（窄窗再由 halfPanel 收整行）", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl(
+        "a2",
+        "claude-sonnet-4-5-20250929",
+        6 * 3_600_000
+      )
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+
+    const heatmap = await screen.findByRole("img", { name: "活跃时段热力图" });
+    const activityPanel = heatmap.closest("section");
+    const shape = document.querySelector('[data-probe="session-shape"]');
+    const shapePanel = shape?.closest("section");
+    expect(activityPanel).not.toBeNull();
+    expect(shapePanel).not.toBeNull();
+
+    // 两个面板各自装在一格 `.halfPanel` 里，且两格是同一父级（.board）下的
+    // 紧邻兄弟——同一行的两列；≤1080px 时 `.halfPanel` 的 grid-column: 1/-1
+    // 把它们各自收回整行（样式表规则在下一行断言里钉住）。
+    const activityCell = activityPanel!.parentElement;
+    const shapeCell = shapePanel!.parentElement;
+    expect(activityCell?.className).toMatch(/halfPanel/);
+    expect(shapeCell?.className).toMatch(/halfPanel/);
+    expect(activityCell?.parentElement).toBe(shapeCell?.parentElement);
+    expect(activityCell?.nextElementSibling).toBe(shapeCell);
+    expect(pageCss).toMatch(/@media \(max-width: 1080px\)[\s\S]*\.halfPanel\s*\{[^}]*grid-column: 1 \/ -1/);
+  });
 });
 
 it("Round II：会话形状卡挂用量档，四档切换改的是同一张卡", async () => {

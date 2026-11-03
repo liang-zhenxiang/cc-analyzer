@@ -73,6 +73,18 @@ export function currentBlock(
 }
 
 /**
+ * `end` is exclusive, so `now >= end` means the window has closed.
+ *
+ * `currentBlock` deliberately keeps returning a closed block — "what that
+ * block consumed" stays a fact. But a closed window has no future to
+ * extrapolate into, so callers must ask this before quoting a burn rate or a
+ * limit ETA, instead of projecting from a window that no longer exists.
+ */
+export function isWindowClosed(block: BillingBlock, now: number = Date.now()): boolean {
+  return now >= block.end;
+}
+
+/**
  * Average burn over the block's elapsed span. Sample honesty: a block with
  * less than `MIN_SAMPLE_MS` of elapsed time produces a rate that says more
  * about startup spikes than about the afternoon ahead, so it reports

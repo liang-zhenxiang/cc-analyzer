@@ -115,6 +115,8 @@ function dayMsOf(label: string): number | null {
 }
 
 function budgetItem(forecast: LimitForecast | null): Candidate | null {
+  // `null` 有两种来源：没设限额，或窗口已关闭（`buildLimitForecast` 的守卫）。
+  // 两种都没有「未来」可讲，预算条目整条不出现——不拿当前读数冒充预计。
   if (!forecast) return null;
   if (!Number.isFinite(forecast.projectedPct) || forecast.projectedPct < BUDGET_ALERT_PCT) {
     return null;

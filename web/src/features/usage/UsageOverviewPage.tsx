@@ -284,8 +284,10 @@ export function UsageOverviewPage({
   // 只截到近 90 天会把「弃用了半年的工具」直接截没），now 用模块缺省
   // Date.now()——月粒度下重扫的分钟级抖动无感，不占 30s tick。
   const calendarRows = useMemo(() => toolCalendar(inputs), [inputs]);
-  // 会话形状卡（Round II）：四档都只谈「窗口内的会话」，所以按页面时间控件
-  // 先把 inputs 截到窗口再喂——与 aggregateRange 的 startTs 同款口径。
+  // 窗口化输入（会话形状卡 Round II + 工作日志 P0-1）：两者都只谈「窗口内的
+  // 会话」，所以按页面时间控件先把 inputs 截到窗口再喂——与 aggregateRange
+  // 的 startTs 同款口径。**工作日志必须吃这一份**，否则 30 天档会讲出窗口外
+  // 的日子（评审 P0-1：与 KPI 数字互相矛盾）。
   const shapeInputs = useMemo(() => {
     const startTs = addLocalDays(dayStartOf(readouts.now), -(days - 1));
     return inputs.map((input) => ({
@@ -935,8 +937,10 @@ export function UsageOverviewPage({
 
           {/* G1 故事线（Round GG）：按日期倒序的日行，收起时首屏只占一列高。
               住在 KPI 与周战报之间——KPI 是量级、故事线是「这些量级落在哪些
-              日子」，读者从「多大」滑到「什么时候」再进「这周 vs 上周」。 */}
-          <StoryLogPanel inputs={inputs} />
+              日子」，读者从「多大」滑到「什么时候」再进「这周 vs 上周」。
+              吃窗口化 `shapeInputs`（P0-1）：工作日志与 KPI 必须是同一段区间，
+              面板内再默认只列 5 天、按需增量展开。 */}
+          <StoryLogPanel inputs={shapeInputs} days={days} />
 
           {/* F3 周战报（Round CC）：本周 vs 上周的四行读数住在 KPI 与两列网格
               之间——KPI 是「这 N 天」的量级，战报是「这周比上周」的方向，
@@ -1099,27 +1103,34 @@ export function UsageOverviewPage({
               <FlowDiagramPanel diagram={flow} />
             </div>
 
-            <Panel
-              title="活跃时段（周 × 小时）"
-              actions={
-                <SegmentedControl
-                  items={ACTIVITY_ITEMS}
-                  value={activityView}
-                  onChange={setActivityView}
-                  ariaLabel="活跃时段视图"
-                />
-              }
-            >
-              {activityView === "clock" ? (
-                <ActivityClockPanel clock={clock} />
-              ) : (
-                <Heatmap counts={range.hourly} ariaLabel="活跃时段热力图" />
-              )}
-            </Panel>
+            {/* P1-3：活跃时段与会话形状并排——两者都是「活动 / 会话的形状」，
+                半宽各一格；窄窗（≤1080px）由 `.halfPanel` 收回整行。此前活跃
+                时段独占半行、右侧整块空白，形状却整行，白白多一行高度。 */}
+            <div className={styles.halfPanel}>
+              <Panel
+                title="活跃时段（周 × 小时）"
+                actions={
+                  <SegmentedControl
+                    items={ACTIVITY_ITEMS}
+                    value={activityView}
+                    onChange={setActivityView}
+                    ariaLabel="活跃时段视图"
+                  />
+                }
+              >
+                {activityView === "clock" ? (
+                  <ActivityClockPanel clock={clock} />
+                ) : (
+                  <Heatmap counts={range.hourly} ariaLabel="活跃时段热力图" />
+                )}
+              </Panel>
+            </div>
 
-            {/* I1/I3/I9/I10 会话形状卡（Round II）：活跃时段之后、工具普查之前——
-                四档里最后一档就是工具配方，与工具普查相邻最顺。单列整行。 */}
-            <div className={styles.compactionRow}>
+            {/* I1/I3/I9/I10 会话形状卡（Round II）：与活跃时段同一行（P1-3）；
+                四档里最后一档就是工具配方，与下方工具普查相邻最顺。本组件
+                内部实现不改（标签 / 柱宽由另一项修复负责），这里只调整挂载
+                位置与容器 class。 */}
+            <div className={styles.halfPanel}>
               <SessionShapePanel inputs={shapeInputs} />
             </div>
 

@@ -60,6 +60,12 @@ describe("SessionShapePanel（会话形状卡）", () => {
       (bar) => bar.querySelectorAll("span")[1]?.textContent
     );
     expect(counts).toEqual(["1", "1", "1", "1", "0"]);
+
+    // 0 值桶不画柱：2px 的底线会被读成「有一点数据」（视觉审计补充）。
+    const zeros = [...document.querySelectorAll('[data-probe="shape-bar"]')].map((bar) =>
+      bar.querySelector('[aria-hidden="true"]')?.getAttribute("data-zero")
+    );
+    expect(zeros).toEqual(["false", "false", "false", "false", "true"]);
   });
 
   it("间隔档：六桶与「N 对相邻会话」读数", async () => {

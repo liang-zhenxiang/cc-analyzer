@@ -5,6 +5,7 @@ import {
   burnRateOf,
   clusterBillingBlocks,
   currentBlock,
+  isWindowClosed,
   predictLimitReach
 } from "./billingWindow";
 
@@ -87,6 +88,20 @@ describe("currentBlock", () => {
 
   it("now 早于一切活动（时钟回拨场景）→ null", () => {
     expect(currentBlock(blocks, T0 - HOUR)).toBeNull();
+  });
+});
+
+describe("isWindowClosed", () => {
+  const block = clusterBillingBlocks([record(T0)])[0];
+
+  it("窗口内 → false", () => {
+    expect(isWindowClosed(block, T0)).toBe(false);
+    expect(isWindowClosed(block, block.end - 1)).toBe(false);
+  });
+
+  it("end 为开区间：恰好到 end 已经算关闭", () => {
+    expect(isWindowClosed(block, block.end)).toBe(true);
+    expect(isWindowClosed(block, block.end + HOUR)).toBe(true);
   });
 });
 

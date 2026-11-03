@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { formatClock, formatProjectPath, formatTokenCount } from "../../lib/format";
 import type { SessionMeta } from "../sessions/metadataCache";
 import { totalsSum, type UsageSessionInput } from "./usageAggregations";
-import { burnRateOf, predictLimitReach } from "./billingWindow";
+import { burnRateOf, isWindowClosed, predictLimitReach } from "./billingWindow";
 import { buildLimitForecast, isHotBurn } from "./limitForecast";
 import { predictWeeklyLimitReach } from "./weeklyWindow";
 import { PLAN_LIMITS_AS_OF } from "./planLimits";
@@ -233,13 +233,18 @@ export function BillingWindowCard({
 
   const consumed = totalsSum(active.totals);
   const closesIn = active.end - now;
+  // 窗口已关闭时 `currentBlock` 仍返回它（「这个窗口用了多少」仍是事实），
+  // 但未来已经不存在：任何触顶时刻 / 百分比外推都必须收口。
+  const closed = isWindowClosed(active, now);
+  const atCap = plan.limitTokens !== null && plan.limitTokens > 0 && consumed >= plan.limitTokens;
   const progress =
     plan.limitTokens && plan.limitTokens > 0 ? consumed / plan.limitTokens : null;
   const prediction = predictLimitReach(active, plan.limitTokens, now);
   const rate = burnRateOf(active, now);
   // 预报（F5）与上面那格「预计到达限额」是两件事：那格回答会不会触顶，
   // 这行回答「按现在的速度，窗口关的时候会走到限额的百分之几」。没选计划时
-  // 它是 `null`，整行不渲染——没有分母就没有百分比。
+  // 它是 `null`，整行不渲染——没有分母就没有百分比；窗口关闭时模型层同样返回
+  // `null`（见 limitForecast），因为「保持此速率走到窗口结束」已经不成立。
   const forecast = buildLimitForecast(active, plan.limitTokens, now);
   const forecastHot = forecast !== null && isHotBurn(forecast, plan.limitTokens ?? 0);
   // Two judgments, both labelled: `forecastHot` is about the current *rate*,
@@ -315,26 +320,38 @@ export function BillingWindowCard({
           <span className={styles.readout}>
             <span className={styles.labelRow}>
               <span className={styles.label}>预计到达限额</span>
-              {plan.limitTokens !== null && !("insufficientSample" in prediction) ? (
+              {plan.limitTokens !== null && !closed && !("insufficientSample" in prediction) ? (
                 <ProvenanceBadge provenance="inferred" detail="线性外推" />
               ) : null}
             </span>
             <b className={styles.value}>
-              {plan.limitTokens === null
-                ? /* 缺数据的占位不跟真值同权重。 */
-                  <span className={styles.valueMuted}>未选计划</span>
-                : "insufficientSample" in prediction
-                  ? "样本不足"
-                  : "reachAt" in prediction
-                    ? formatPredictionTime(prediction.reachAt)
-                    : "—"}
+              {plan.limitTokens === null ? (
+                /* 缺数据的占位不跟真值同权重。 */
+                <span className={styles.valueMuted}>未选计划</span>
+              ) : closed ? (
+                /* 窗口已关闭：不再给未来的触顶时刻。已达预算是读出来的事实，
+                   仍照常显示；「窗口已关闭」只是状态，降一档权重。 */
+                atCap ? "已达预算" : <span className={styles.valueMuted}>窗口已关闭</span>
+              ) : "insufficientSample" in prediction ? (
+                "样本不足"
+              ) : "reachAt" in prediction ? (
+                formatPredictionTime(prediction.reachAt)
+              ) : (
+                "—"
+              )}
             </b>
           </span>
 
-          {/* 预报行（F5）：**必须**带「若保持此速率」——这是线性外推，不是事实。
-              满额一小时烧完时整行切 warning，不另画图标：这一行是句子，
-              颜色就是它的强调手段。 */}
-          {forecast === null || gaugeBandOfForecast === null ? null : (
+          {/* 窗口关闭后预言句换成事实句：这个窗口用了多少，只有这一件事可讲。
+              预测行的前提（「保持此速率到窗口结束」）已经不成立，不能留。 */}
+          {closed ? (
+            <p className={styles.closedNote} data-probe="closed-window-note">
+              {`本窗口已关闭 · 消耗 ${formatTokenCount(consumed)} token`}
+            </p>
+          ) : forecast === null || gaugeBandOfForecast === null ? null : (
+            /* 预报行（F5）：**必须**带「若保持此速率」——这是线性外推，不是事实。
+               满额一小时烧完时整行切 warning，不另画图标：这一行是句子，
+               颜色就是它的强调手段。 */
             <p
               className={`${styles.forecast} ${forecastWarning ? styles.forecastHot : ""}`}
               data-probe="forecast-row"
@@ -415,6 +432,10 @@ export function BillingWindowCard({
                 /* 90 个单位的图在这张卡里会被拉到 750px 宽、130px 高，把卡片
                    顶成首屏的三分之一；它是一条辅助趋势，不是主角。 */
                 height={72}
+                /* 72px 只有 42px 绘图区。默认的 3 档提示在 1M 轴上会落到 6 个
+                   标签（每 8.4px 一个），而 --fs-xs 在 130% 下是 14.3px——
+                   短图必须把标签数钉死：0 / 中间值 / 最大值三个，行距 21px。 */
+                yTickCount={3}
                 /* 横轴标签是窗口开始时刻、按柱位等距排布，真实间隔并不相等
                    （相邻窗口可以差 5 分钟，也可以差 7 小时）——轴上必须说明这件事，
                    否则等距的柱让人误以为时间也等距。 */

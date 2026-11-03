@@ -23,14 +23,20 @@
   color: var(--text);
   font: inherit;
   text-align: left;
+}
+
+/* 只有真的绑定了入口（onOpenProject）才是按钮外观。静态卡不设
+   cursor:pointer、不响应 hover、不显示焦点环——点击无反应的外观是
+   一次被浪费的信任（评审 P1-4）。 */
+.card[data-interactive="true"] {
   cursor: pointer;
 }
 
-.card:hover {
+.card[data-interactive="true"]:hover {
   background: var(--bg-hover);
 }
 
-.card:focus-visible {
+.card[data-interactive="true"]:focus-visible {
   outline: var(--focus-ring-width) solid var(--ring);
   outline-offset: var(--focus-ring-inset);
 }
@@ -126,7 +132,11 @@
 /* G8 季节条（Round GG）：6px 四段堆叠，段间 1px 缝由 gap 出（背景缝来自
    卡片自身的透明底——缝即「什么都没画」）。-soft 填充 + 1px 实色描边：
    Round Z 实测 -soft 单独填充在深色/高对比度下 <3:1，描边是对比度的载体。
-   段宽走 flex 比例（flexGrow = round(share×100)），0 份的季不渲染段。 */
+   段宽走 flex 比例（flexGrow = round(share×100)），0 份的季不渲染段。
+
+   四段同一色（评审 P1-4）：季度是日期/时间序号，不是类别，图表分类色板
+   严禁借给日期维度；顺序由「从左到右 Q1–Q4」与下方文字承载，颜色只负责
+   「这里有一季」。 */
 .season {
   display: flex;
   gap: 1px;
@@ -136,37 +146,18 @@
 }
 
 .seg {
-  border-radius: 1px;
-}
-
-.seg[data-q="1"] {
-  background: var(--chart-1-soft);
   border: 1px solid var(--chart-1);
+  border-radius: 1px;
+  background: var(--chart-1-soft);
 }
 
-.seg[data-q="2"] {
-  background: var(--chart-2-soft);
-  border: 1px solid var(--chart-2);
-}
-
-.seg[data-q="3"] {
-  background: var(--chart-3-soft);
-  border: 1px solid var(--chart-3);
-}
-
-.seg[data-q="4"] {
-  background: var(--chart-4-soft);
-  border: 1px solid var(--chart-4);
-}
-
-/* 季节一句话：11px 三级文字，行高 16。 */
+/* 季节读数：四季占比一次写全（评审 P1-4）。允许折行——240px 卡宽放不下
+   「Q1 29% · Q2 57% · Q3 无记录 · Q4 14%」，ellipsis 会把 Q4 重新藏掉。 */
 .seasonText {
   display: block;
-  overflow: hidden;
   min-width: 0;
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
   line-height: 16px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: break-word;
 }

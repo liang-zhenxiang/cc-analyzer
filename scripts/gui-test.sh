@@ -3600,8 +3600,12 @@ for arg in sys.argv[1:]:
                             f"季节条 data-quarters={quarters!r}，期望 {ROUNDGG_SEASON_QUARTERS}"
                         )
                 texts = seasons.get("texts") or []
-                if not texts or not re.match(r"^Q[1-4] 最重（\d+%）", texts[0] or ""):
-                    gg_problems.append(f"季节文案没有「Qn 最重（%）」形状（{texts[:1]!r}）")
+                # 视觉审计后改为四季占比全量可见（空季写「无记录」）：
+                # `Q1 12% · Q2 30% · Q3 无记录 · Q4 58%`。旧形状只报最重季。
+                if not texts or not re.match(
+                    r"^Q1 .+ · Q2 .+ · Q3 .+ · Q4 .+$", texts[0] or ""
+                ):
+                    gg_problems.append(f"季节文案不是四季占比（{texts[:1]!r}）")
             else:
                 query = gg.get("query") or {}
                 if query.get("expanded") != "true":

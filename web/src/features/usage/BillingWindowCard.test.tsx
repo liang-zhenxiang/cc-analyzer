@@ -584,3 +584,77 @@ describe("BillingWindowCard · 限额预报（F5）", () => {
     expect(row.className).toContain("forecastHot");
   });
 });
+
+/**
+ * Issue #301 / P1-6：`currentBlock` 在 `now >= end` 时仍返回最后一个窗口
+ * （「这个窗口用了多少」是事实），但预测不能跟着一起活下来——否则同一张卡
+ * 一边写「已关闭」，一边写「22:19 触顶」。
+ */
+describe("BillingWindowCard · 已关闭窗口不再预测", () => {
+  /** 窗口 T0..T0+5h 的关闭时刻之后 1 小时。 */
+  const AFTER_CLOSE = T0 + 6 * HOUR;
+
+  afterEach(() => {
+    cleanup();
+    setPlan({ id: "none", limitTokens: null, weeklyLimitTokens: null });
+  });
+
+  it("已关闭：不显示触顶时刻与「若保持此速率」，改成一句事实", () => {
+    setPlan({ id: "pro", limitTokens: 38_000, weeklyLimitTokens: null });
+    render(cardAt(inputsOf([record(T0, 19_000)]), AFTER_CLOSE));
+    const card = screen.getByLabelText("计费窗口");
+
+    expect(document.querySelector('[data-probe="forecast-row"]')).toBeNull();
+    expect(card.textContent).not.toContain("若保持此速率");
+    expect(card.textContent).not.toContain("触顶");
+
+    const note = document.querySelector<HTMLElement>('[data-probe="closed-window-note"]')!;
+    expect(note.textContent).toBe("本窗口已关闭 · 消耗 19,000 token");
+    // 「预计到达限额」那格收口成状态词，不再给未来时刻，也不挂外推徽章。
+    const cardWithin = within(card);
+    expect(cardWithin.getByText("窗口已关闭")).toBeInTheDocument();
+    expect(cardWithin.queryByText(/^\d{2}-\d{2} \d{2}:\d{2}$/)).toBeNull();
+    expect(cardWithin.queryByLabelText(/线性外推/)).toBeNull();
+  });
+
+  it("已关闭但已达预算：事实照常显示，只是不再外推", () => {
+    setPlan({ id: "pro", limitTokens: 19_000, weeklyLimitTokens: null });
+    render(cardAt(inputsOf([record(T0, 19_000)]), AFTER_CLOSE));
+    const card = screen.getByLabelText("计费窗口");
+
+    // 「已达预算」是读出来的事实，不是预测——关闭后仍应显示。
+    expect(within(card).getByText("已达预算")).toBeInTheDocument();
+    expect(document.querySelector('[data-probe="forecast-row"]')).toBeNull();
+    expect(card.textContent).not.toContain("若保持此速率");
+  });
+
+  it("窗口仍开着：预报行照常出现，不出现关闭事实句", () => {
+    setPlan({ id: "pro", limitTokens: 19_000, weeklyLimitTokens: null });
+    render(cardAt(inputsOf([record(T0, 9_500)]), T0 + 2 * HOUR));
+
+    expect(document.querySelector('[data-probe="closed-window-note"]')).toBeNull();
+    expect(document.querySelector('[data-probe="forecast-row"]')).not.toBeNull();
+  });
+
+  it("历史图 72px 高：最多 3 个纵轴刻度，130% 字号下行距不重叠", () => {
+    const inputs = inputsOf([
+      record(T0, 1_000_000),
+      record(T0 + 6 * HOUR, 500_000),
+      record(T0 + 12 * HOUR, 100_000)
+    ]);
+    render(cardAt(inputs, T0 + 13 * HOUR));
+
+    const svg = screen.getByRole("img", { name: "历史计费窗口消耗" });
+    const lines = Array.from(svg.querySelectorAll("line"));
+    expect(lines.length).toBeGreaterThanOrEqual(2);
+    expect(lines.length).toBeLessThanOrEqual(3);
+
+    const ys = lines
+      .map((line) => Number(line.getAttribute("y1")))
+      .sort((left, right) => left - right);
+    const gaps = ys.slice(1).map((y, index) => y - ys[index]);
+    // 72px 高、上下留白 8/22 → 42px 绘图区。--fs-xs 在 130% 下是 14.3px
+    // （tokens.css），两刻度间距必须大于它；21px 是 3 刻度的实测行距。
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(18);
+  });
+});

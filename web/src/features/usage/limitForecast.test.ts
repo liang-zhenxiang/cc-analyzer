@@ -29,6 +29,14 @@ describe("limitForecast · 诚实性（没有分母就不预报）", () => {
     const empty: BillingBlock = { start: T0, end: T0, totals: blockOf(1).totals, messages: 0 };
     expect(buildLimitForecast(empty, LIMIT, T0)).toBeNull();
   });
+
+  it("returns nothing for a closed window: there is no future left to project", () => {
+    // 窗口 T0..T0+5h；`end` 为开区间，恰好到 end 就已经关闭。
+    expect(buildLimitForecast(blockOf(38_000), LIMIT, T0 + 5 * HOUR)).toBeNull();
+    expect(buildLimitForecast(blockOf(38_000), LIMIT, T0 + 6 * HOUR)).toBeNull();
+    // 关闭前一毫秒仍是开放窗口——守卫不能提前一格。
+    expect(buildLimitForecast(blockOf(38_000), LIMIT, T0 + 5 * HOUR - 1)).not.toBeNull();
+  });
 });
 
 describe("limitForecast · 线性外推", () => {

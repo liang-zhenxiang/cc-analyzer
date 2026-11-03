@@ -6,7 +6,7 @@ import { Panel } from "../../components/Panel";
 import { Skeleton, SkeletonBar } from "../../components/Skeleton";
 import { formatClock, formatDuration, formatProjectPath, formatTokenCount } from "../../lib/format";
 import { billingReadoutsOf, type BillingWindowReadouts } from "../usage/billingReadouts";
-import { burnRateOf, predictLimitReach } from "../usage/billingWindow";
+import { burnRateOf, isWindowClosed, predictLimitReach } from "../usage/billingWindow";
 import { usePlan } from "../usage/planLimits";
 import { totalsSum } from "../usage/usageAggregations";
 import { ContextCurve, RateCurve } from "./pulseCharts";
@@ -326,7 +326,11 @@ function WindowReadouts({
   const consumed = totalsSum(block.totals);
   const rate = burnRateOf(block, now);
   const prediction = predictLimitReach(block, limitTokens, now);
-  const predictionOver = "reachAt" in prediction && prediction.reachAt < block.end;
+  // 窗口关闭后 `currentBlock` 仍返回这个块（已用/平均速率仍是事实），但预测
+  // 没有未来可讲：读数只报状态，不再给触顶时刻或「距现在」。
+  const closed = isWindowClosed(block, now);
+  const atCap = limitTokens !== null && limitTokens > 0 && consumed >= limitTokens;
+  const predictionOver = !closed && "reachAt" in prediction && prediction.reachAt < block.end;
 
   return (
     <div className={styles.readouts}>
@@ -367,7 +371,13 @@ function WindowReadouts({
         </b>
       </div>
 
-      <PredictionReadout prediction={prediction} over={predictionOver} now={now} />
+      <PredictionReadout
+        prediction={prediction}
+        over={predictionOver}
+        now={now}
+        closed={closed}
+        atCap={atCap}
+      />
     </div>
   );
 }
@@ -375,19 +385,33 @@ function WindowReadouts({
 function PredictionReadout({
   prediction,
   over,
-  now
+  now,
+  closed,
+  atCap
 }: {
   prediction: ReturnType<typeof predictLimitReach>;
   over: boolean;
   now: number;
+  /** 窗口已关闭：未来不存在，这一格只报事实。 */
+  closed: boolean;
+  /** 已用 ≥ 限额——窗口关闭后仍然成立的事实。 */
+  atCap: boolean;
 }) {
   // 两个退化（没有分母 / 样本不够）共用同一套 muted 版式，只有文案不同——
-  // 用户要做的下一步不同（去设置 vs 等 30 分钟）。
+  // 用户要做的下一步不同（去设置 vs 等 30 分钟）。窗口关闭后同样只报事实：
+  // 不挂未来的触顶时刻，也不写「距现在」。
   let value: ReactNode;
   let sub: string;
   if ("noLimit" in prediction) {
     value = <b className={styles.readoutValueMuted}>未设预算</b>;
     sub = "在「设置 → 阈值设置」填入 5 小时预算后可预测";
+  } else if (closed) {
+    value = atCap ? (
+      <b className={styles.readoutValue}>已达预算</b>
+    ) : (
+      <b className={styles.readoutValueMuted}>窗口已关闭</b>
+    );
+    sub = atCap ? "本窗口已结束，预算已用尽" : "等下一个窗口开启后再预测";
   } else if ("insufficientSample" in prediction) {
     value = <b className={styles.readoutValueMuted}>样本不足</b>;
     sub = "窗口开启不足 30 分钟";

@@ -16,6 +16,23 @@ export const BAR_PAD_TOP = 8;
 export const BAR_PAD_BOTTOM = 22;
 
 /**
+ * Tick values with at most `maxTicks` labels.
+ *
+ * `axisTicks`'s `steps` argument is a hint, not a promise: rounding down to
+ * 1 / 2 / 5 × 10ⁿ can overshoot it (a 1M axis asked for 3 steps returns six
+ * labels). Short charts cannot afford the overshoot, so keep lowering the hint
+ * until the count fits; a chart that cannot fit even two keeps the axis ends.
+ */
+export function cappedAxisTicks(max: number, maxTicks: number): number[] {
+  const cap = Math.max(2, Math.floor(maxTicks));
+  for (let steps = cap - 1; steps >= 1; steps -= 1) {
+    const ticks = axisTicks(max, steps);
+    if (ticks.length <= cap) return ticks;
+  }
+  return [0, max];
+}
+
+/**
  * Column chart for the daily trend and the billing-window history.
  *
  * Two deliberate choices about scale: a day with no activity still draws a
@@ -30,6 +47,7 @@ export function BarChart({
   ariaLabel,
   emptyText = "暂无数据",
   height = 220,
+  yTickCount,
   caption
 }: {
   data: { label: string; value: number }[];
@@ -37,6 +55,13 @@ export function BarChart({
   ariaLabel: string;
   emptyText?: string;
   height?: number;
+  /**
+   * Hard cap on y-axis labels. Omitted, the axis keeps the historical
+   * `axisTicks(max, 3)` hint (up to six labels) — correct at tall heights.
+   * Short charts must pass this: 72px leaves 42px of plot height, which cannot
+   * hold six 11px labels, and `--font-scale` only makes them taller.
+   */
+  yTickCount?: number;
   /** One line saying what a bar *is*, for axes whose labels cannot say it alone. */
   caption?: string;
 }) {
@@ -52,7 +77,8 @@ export function BarChart({
   const plotWidth = width - padLeft - padRight;
   const plotHeight = height - padTop - padBottom;
   const maxValue = niceAxisMax(Math.max(...data.map((point) => point.value)));
-  const ticks = axisTicks(maxValue, 3);
+  const ticks =
+    yTickCount === undefined ? axisTicks(maxValue, 3) : cappedAxisTicks(maxValue, yTickCount);
   const slot = plotWidth / data.length;
   const barWidth = Math.min(slot * 0.72, 44);
   // Every bar is at least this tall: an empty bucket keeps its position on the
