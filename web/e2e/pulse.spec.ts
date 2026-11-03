@@ -189,7 +189,7 @@ test.describe("实时脉搏 · 外部仪表盘子视图保持 #55", () => {
     await page.goto("/");
     await openPulse(page);
 
-    await page.getByRole("tab", { name: "外部仪表盘" }).click();
+    await page.getByRole("tab", { name: "外部仪表盘（需本机服务）" }).click();
     const open = page.getByRole("button", { name: "打开监控" });
     await expect(open).toBeVisible();
     await expect(page.locator("iframe")).toHaveCount(0);

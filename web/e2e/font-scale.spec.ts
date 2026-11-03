@@ -22,7 +22,7 @@ import { milestonesScenario } from "../tests/fixtures/milestones-scenario";
 
 async function openSettings(page: Page) {
   await page.getByRole("button", { name: "设置" }).click();
-  const panel = page.getByLabel("阈值设置");
+  const panel = page.getByRole("region", { name: "设置" });
   await expect(panel).toBeVisible();
   return panel;
 }

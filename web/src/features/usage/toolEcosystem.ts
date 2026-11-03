@@ -59,6 +59,12 @@ export type ToolEcosystem = {
   sessionCount: number;
   /** 符合「≥2 个会话共现」但没画出的工具对数（节点截断 + 边截断）。 */
   hiddenEdges: number;
+  /**
+   * 图上没有任何连线（与其它工具没有合格共现）的节点数。
+   * 节点总数恒等于 `min(toolCount, maxNodes)`——孤立工具照样画，只是没有边；
+   * 面板把「种工具数 ≠ 看得到的连线」解释清楚，避免读者以为节点丢了。
+   */
+  isolatedCount: number;
   emptyReason: EcosystemEmptyReason | null;
 };
 
@@ -203,6 +209,7 @@ export function buildToolEcosystem(
       toolCount,
       sessionCount,
       hiddenEdges: 0,
+      isolatedCount: 0,
       emptyReason: "too-few-tools"
     };
   }
@@ -222,6 +229,7 @@ export function buildToolEcosystem(
       toolCount,
       sessionCount,
       hiddenEdges: qualifying.length,
+      isolatedCount: 0,
       emptyReason: "no-co-occurrence"
     };
   }
@@ -244,12 +252,21 @@ export function buildToolEcosystem(
     }))
   );
 
+  // 只按**画出来的**边算孤立：被 maxEdges 截掉的边在视觉上也不存在，
+  // 把「没画边」说成「有共现」会让读者对不上图（P2-6 的教训）。
+  const connected = new Set<string>();
+  for (const edge of edges) {
+    connected.add(edge.a);
+    connected.add(edge.b);
+  }
+
   return {
     nodes,
     edges,
     toolCount,
     sessionCount,
     hiddenEdges: qualifying.length - drawn.length,
+    isolatedCount: nodes.filter((node) => !connected.has(node.id)).length,
     emptyReason: null
   };
 }

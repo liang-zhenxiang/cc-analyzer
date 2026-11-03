@@ -412,6 +412,32 @@ describe("MonitorConsolePage 窄窗与 130%", () => {
     expect(consoleCss).toMatch(/\.consoleInner\s*\{[^}]*min-width:\s*0/s);
     expect(consoleCss).toMatch(/\.board\s*\{[^}]*min-width:\s*0/s);
     expect(consoleCss).toMatch(/\.eventRow\s*\{[^}]*minmax\(0,\s*7em\)/s);
-    expect(consoleCss).toMatch(/@media\s*\(min-width:\s*1180px\)[^{]*\{[^}]*grid-template-columns/s);
+    expect(consoleCss).toMatch(/@media\s*\(min-width:\s*1080px\)[^{]*\{[^}]*grid-template-columns/s);
+  });
+
+  it("面板按内容收口，事件摘要允许两行", () => {
+    mockFeed({ snapshot: consoleSnapshot() });
+    render(<MonitorConsolePage />);
+
+    // 真实面板不再定高（骨架屏保留 --mc-board-h），同排两卡顶部对齐、
+    // 各自按内容长，不会互相拉出一片空面板。
+    const boardRule = consoleCss.match(/\.board\s*\{([^}]*)\}/s)?.[1] ?? "";
+    expect(boardRule).toContain("align-items: start");
+    const panelRule =
+      consoleCss.match(/\.projectPanel,\s*\.eventPanel\s*\{([^}]*)\}/s)?.[1] ?? "";
+    expect(panelRule).not.toContain("height:");
+
+    // 摘要两行 + 省略号；完整串仍在 title 上，悬停可读。
+    // 同一个选择器在共享截断组里也出现一次，这里取带 line-clamp 的那条。
+    const detailRule =
+      consoleCss.match(/\.eventDetail\s*\{([^}]*-webkit-line-clamp:[^}]*)\}/s)?.[1] ?? "";
+    expect(detailRule).toContain("-webkit-line-clamp: 2");
+    expect(detailRule).toContain("white-space: normal");
+
+    const row = probes("monitor-console-event-row")[0];
+    expect(row.getAttribute("title")).toBeTruthy();
+    expect(
+      row.querySelector('[data-slot="detail"]')?.getAttribute("title")
+    ).toBeTruthy();
   });
 });

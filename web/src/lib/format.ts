@@ -1,15 +1,29 @@
 import { basename } from "./path";
 
+/**
+ * 时长的人话写法。超过一天后分钟/秒不再帮助阅读（「165h6m4s」要心算才知道
+ * 是七天），所以换成「6 天 21 小时」：整天的部分先读，余下的小时第二读，
+ * 更细的两位直接丢弃。24 小时以内维持原有的 h/m/s 紧凑写法——那些时长常
+ * 出现在工具调用行里，秒级精度仍是有用的信息。
+ */
 export function formatDuration(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) return "0ms";
   if (ms < 1000) return `${Math.round(ms)}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(ms < 10_000 ? 2 : 1)}s`;
 
   const totalSeconds = Math.floor(ms / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const totalHours = Math.floor(totalMinutes / 60);
+  if (totalHours >= 24) {
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    // 正好整天时不印「0 小时」：零余量不是读数缺失。
+    return hours > 0 ? `${days} 天 ${hours} 小时` : `${days} 天`;
+  }
+
+  const minutes = totalMinutes % 60;
   const seconds = totalSeconds % 60;
-  if (hours > 0) return `${hours}h${minutes}m${seconds}s`;
+  if (totalHours > 0) return `${totalHours}h${minutes}m${seconds}s`;
   if (minutes > 0) return `${minutes}m${seconds}s`;
   return `${seconds}s`;
 }
@@ -25,6 +39,14 @@ export function formatBytes(bytes: number): string {
 }
 
 /**
+ * Token 单位的三档写法（P2-13）——按密度分档，同一屏里不要混用：
+ * - 正文句子：`token`（计数名词不加 s，写成「12,345 token」）；
+ * - 表头 / 列名：`Tokens`（标题位统一大写复数，如「Tokens 总量」）；
+ * - 密集紧凑数字（Top 会话行、KPI 脚注）：`tok`，为列宽让路。
+ * 本轮的统一范围只有 `BillingWindowCard`；其它面板按各自轮次跟进。
+ */
+
+/**
  * Compact token counts for dense tables, where four counters sit in one column
  * and their magnitudes differ by three orders. Below a million the exact value
  * is kept — those sessions are small enough to read, and the whole point of the
@@ -37,6 +59,21 @@ export function formatTokenCount(count: number): string {
   if (count >= 1_000_000_000) return `${(count / 1_000_000_000).toFixed(2)}B`;
   if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
   return count.toLocaleString("en-US");
+}
+
+/**
+ * Rates (tokens per hour) for readouts that sit next to exact integers.
+ *
+ * `formatTokenCount` keeps decimals because a token count *is* an integer
+ * fact — a rate is not. `19,929.246/时` next to `63,050` reads as two
+ * different measurement systems; rounding the rate to whole tokens keeps the
+ * readout honest about its precision (the underlying value stays available in
+ * the tooltip / model layer). Above a million the compact M/B form applies,
+ * same as counts.
+ */
+export function formatRate(tokensPerHour: number): string {
+  if (!Number.isFinite(tokensPerHour) || tokensPerHour <= 0) return "0/时";
+  return `${formatTokenCount(Math.round(tokensPerHour))}/时`;
 }
 
 /**

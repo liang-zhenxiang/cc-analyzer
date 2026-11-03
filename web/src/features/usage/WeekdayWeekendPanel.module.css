@@ -1,11 +1,20 @@
 /* I2 工作日 vs 周末：两行对照表。数值右对齐 + 等宽数字，便于纵向比。 */
 
+/* 固定布局 + 首列 30%：一行只有两行数据，自动布局会把全部余量塞进「分组」
+   列，Token 与数值之间空出几百像素。首列按标签宽度收口后，四列数字
+   才能和表头对齐着纵向比。 */
 .table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
   font-size: var(--fs-sm);
   line-height: var(--lh-sm);
+}
+
+/* table-layout: fixed 的列宽来自首行：分组 30%，其余四列各约 17.5%。 */
+.table thead th:first-child {
+  width: 30%;
 }
 
 .caption {

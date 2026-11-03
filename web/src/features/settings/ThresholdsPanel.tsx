@@ -143,7 +143,7 @@ function ArchiveSection({ bridges }: { bridges: Bridges }) {
 
   return (
     <>
-      <h3 className={styles.sectionTitle}>本地归档</h3>
+      <h4 className={styles.sectionTitle}>本地归档</h4>
       <p className={styles.note}>
         Claude Code 会清理约 30 天前的会话；归档把副本留在本机，让更早的记录仍能统计。
       </p>
@@ -449,7 +449,7 @@ function FontScaleSection() {
 
   return (
     <div className={styles.preferenceSection}>
-      <h3 className={styles.sectionTitle}>界面字号</h3>
+      <h4 className={styles.sectionTitle}>界面字号</h4>
       <p className={styles.note}>默认 100%，随时可改回。</p>
       <SegmentedControl
         role="radiogroup"
@@ -459,9 +459,14 @@ function FontScaleSection() {
         value={String(fontScale)}
         onChange={(next) => setFontScale(parseFontScale(next))}
       />
-      {/* 一行固定示例读数（真实字段形状，非真实数据）：给五档一个稳定的密度参照。 */}
-      <p className={styles.preview}>12:04:08 · LLM · claude-sonnet-4 · 3.00s</p>
-      <p className={styles.previewSub}>提示词 17 / 输出 34 · 2.7% · 正常</p>
+      {/* 一行固定示例读数（真实字段形状，非真实数据）：给五档一个稳定的密度参照。
+          必须有「字号预览」标签：没有它，这两行等宽数字会被读成设置面板里
+          漏进来的日志行（审计 P2-8）。标签只有 11px，不会和控件抢位置。 */}
+      <div className={styles.previewBlock}>
+        <span className={styles.previewLabel}>字号预览</span>
+        <p className={styles.preview}>12:04:08 · LLM · claude-sonnet-4 · 3.00s</p>
+        <p className={styles.previewSub}>提示词 17 / 输出 34 · 2.7% · 正常</p>
+      </div>
     </div>
   );
 }
@@ -481,7 +486,7 @@ function KioskSection() {
   const titleId = useId();
   return (
     <div className={styles.preferenceSection}>
-      <h3 className={styles.sectionTitle}>大屏模式</h3>
+      <h4 className={styles.sectionTitle}>大屏模式</h4>
       <p className={styles.note}>
         收起顶栏并把界面字号提到 130%，适合把窗口挂在第二块屏幕上看；Esc 退出。
       </p>
@@ -526,7 +531,7 @@ function ContrastSection() {
 
   return (
     <div className={styles.preferenceSection}>
-      <h3 className={styles.sectionTitle}>界面对比度</h3>
+      <h4 className={styles.sectionTitle}>界面对比度</h4>
       <p className={styles.note}>
         提高文字、边框与图形的对比度，不改字号与间距。默认跟随系统设置。
       </p>
@@ -556,7 +561,7 @@ function TrayReadoutSection() {
   const titleId = useId();
   return (
     <>
-      <h3 className={styles.sectionTitle}>常驻读数</h3>
+      <h4 className={styles.sectionTitle}>常驻读数</h4>
       <div className={styles.grid}>
         {/* aria-labelledby 锁住可见标题本身（照「启用本地归档」）：包一层 label 时
             说明文字会一起进可访问名，视觉名与朗读名就此分叉。 */}
@@ -689,25 +694,102 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <section className={styles.panel} aria-label="阈值设置">
+    <section className={styles.panel} aria-label="设置">
       <header className={styles.header}>
-        <h2>阈值设置</h2>
+        <h2>设置</h2>
         <IconButton label="关闭" onClick={onClose}>
           <Icon name="close" size={16} />
         </IconButton>
       </header>
       <p className={styles.note}>
-        控制报告与日志表的规模，改动立即生效并保存在本机。
+        显示、数据阈值与计费窗口的偏好，改动立即生效并保存在本机。
       </p>
+
+      {/* 三组依次回答「看得清」「统计口径」「花了多少」——标题用「设置」之后，
+          面板里不再只有阈值，分组是让第一屏的字号/对比度不再是「跑题的顶部」。
+          组标题用 h3，组内的既有小节降为 h4：层级与视觉都由标题承载。 */}
+      <h3 className={styles.groupTitle}>显示</h3>
       <FontScaleSection />
       <ContrastSection />
       <KioskSection />
+      <TrayReadoutSection />
+
+      <h3 className={styles.groupTitle}>数据与阈值</h3>
       <div className={styles.grid}>
         {THRESHOLD_KEYS.map((key) => (
           <ThresholdField key={key} thresholdKey={key} />
         ))}
       </div>
-      <h3 className={styles.sectionTitle}>计费窗口</h3>
+      <h4 className={styles.sectionTitle}>软件更新</h4>
+      <p className={styles.note}>
+        更新检查只是读取 GitHub 发布页的一次下载请求，不上传任何数据。稳定版
+        由维护者人工验证后发布；Beta 是每轮功能自动构建的先行版。
+      </p>
+      <div className={styles.grid}>
+        <label className={styles.field}>
+          <span className={styles.label}>更新渠道</span>
+          <span className={styles.control}>
+            <select
+              aria-label="更新渠道"
+              className={styles.select}
+              value={channel}
+              onChange={(event) => {
+                const next = event.target.value as UpdateChannel;
+                setChannel(next);
+                storeChannel(next);
+              }}
+            >
+              <option value="stable">{CHANNEL_LABELS.stable}</option>
+              <option value="beta">{CHANNEL_LABELS.beta}</option>
+            </select>
+          </span>
+          <span className={styles.hint}>当前版本 {appVersion ?? "…"}</span>
+        </label>
+        <label className={styles.field}>
+          <span className={styles.label}>启动时自动检查</span>
+          <span className={styles.control}>
+            <input
+              type="checkbox"
+              aria-label="启动时自动检查更新"
+              checked={autoCheck}
+              onChange={(event) => {
+                setAutoCheck(event.target.checked);
+                storeAutoCheck(event.target.checked);
+              }}
+            />
+          </span>
+          <span className={styles.hint}>关闭后仍可随时手动检查。</span>
+        </label>
+      </div>
+      <div className={styles.updateRow}>
+        <Button type="button" onClick={() => void runCheck()} disabled={checking}>
+          {checking ? "检查中…" : "立即检查更新"}
+        </Button>
+        {checkResult ? (
+          checkResult.available ? (
+            <span className={styles.updateResult}>
+              发现新版本 {checkResult.version}{" "}
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => void installAndRelaunch()}
+                disabled={installing}
+              >
+                {installing ? "安装中…" : "安装并重启"}
+              </Button>
+            </span>
+          ) : (
+            <span className={styles.updateResult}>已是最新（{checkResult.currentVersion}）</span>
+          )
+        ) : checkError ? (
+          <span className={styles.updateError}>{checkError}</span>
+        ) : null}
+      </div>
+      <ArchiveSection bridges={bridges} />
+
+      {/* 计费窗口放最后：它只影响「用量总览」的读数刻度，不改任何统计口径；
+          放在阈值之后，先口径、后换算，和用量页的阅读顺序一致。 */}
+      <h3 className={styles.groupTitle}>计费窗口</h3>
       <p className={styles.note}>
         订阅计划决定「用量总览」里 5 小时窗口的限额刻度。限额是社区整理的
         估算值（非官方），选「不选」则只看消耗、不显示百分比。周预算与计划
@@ -801,73 +883,6 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
           </span>
         </label>
       </div>
-      <TrayReadoutSection />
-      <h3 className={styles.sectionTitle}>软件更新</h3>
-      <p className={styles.note}>
-        更新检查只是读取 GitHub 发布页的一次下载请求，不上传任何数据。稳定版
-        由维护者人工验证后发布；Beta 是每轮功能自动构建的先行版。
-      </p>
-      <div className={styles.grid}>
-        <label className={styles.field}>
-          <span className={styles.label}>更新渠道</span>
-          <span className={styles.control}>
-            <select
-              aria-label="更新渠道"
-              className={styles.select}
-              value={channel}
-              onChange={(event) => {
-                const next = event.target.value as UpdateChannel;
-                setChannel(next);
-                storeChannel(next);
-              }}
-            >
-              <option value="stable">{CHANNEL_LABELS.stable}</option>
-              <option value="beta">{CHANNEL_LABELS.beta}</option>
-            </select>
-          </span>
-          <span className={styles.hint}>当前版本 {appVersion ?? "…"}</span>
-        </label>
-        <label className={styles.field}>
-          <span className={styles.label}>启动时自动检查</span>
-          <span className={styles.control}>
-            <input
-              type="checkbox"
-              aria-label="启动时自动检查更新"
-              checked={autoCheck}
-              onChange={(event) => {
-                setAutoCheck(event.target.checked);
-                storeAutoCheck(event.target.checked);
-              }}
-            />
-          </span>
-          <span className={styles.hint}>关闭后仍可随时手动检查。</span>
-        </label>
-      </div>
-      <div className={styles.updateRow}>
-        <Button type="button" onClick={() => void runCheck()} disabled={checking}>
-          {checking ? "检查中…" : "立即检查更新"}
-        </Button>
-        {checkResult ? (
-          checkResult.available ? (
-            <span className={styles.updateResult}>
-              发现新版本 {checkResult.version}{" "}
-              <Button
-                type="button"
-                variant="primary"
-                onClick={() => void installAndRelaunch()}
-                disabled={installing}
-              >
-                {installing ? "安装中…" : "安装并重启"}
-              </Button>
-            </span>
-          ) : (
-            <span className={styles.updateResult}>已是最新（{checkResult.currentVersion}）</span>
-          )
-        ) : checkError ? (
-          <span className={styles.updateError}>{checkError}</span>
-        ) : null}
-      </div>
-      <ArchiveSection bridges={bridges} />
       <footer className={styles.footer}>
         <Button
           type="button"

@@ -20,6 +20,17 @@ describe("format helpers", () => {
     expect(formatDuration(12_064_754)).toBe("3h21m4s");
   });
 
+  it("switches to days above 24 hours and drops seconds", () => {
+    const hour = 3_600_000;
+    // 24 小时整：一天就是一天，不印「1 天 0 小时」。
+    expect(formatDuration(24 * hour)).toBe("1 天");
+    // 25h30m：整天的部分先读，余下小时第二读；分钟/秒不再进入文案。
+    expect(formatDuration(25.5 * hour)).toBe("1 天 1 小时");
+    // 正好整天（审计里的 165h6m4s 归到 6 天 21 小时；72h 是纯整天）。
+    expect(formatDuration(72 * hour)).toBe("3 天");
+    expect(formatDuration((165 * 3600 + 6 * 60 + 4) * 1000)).toBe("6 天 21 小时");
+  });
+
   it("formats bytes", () => {
     expect(formatBytes(512)).toBe("512B");
     expect(formatBytes(2048)).toBe("2KB");

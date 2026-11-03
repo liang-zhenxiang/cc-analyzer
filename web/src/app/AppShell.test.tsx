@@ -42,7 +42,7 @@ const bridges = {
  */
 async function openMonitor(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("tab", { name: "实时监控" }));
-  await user.click(screen.getByRole("tab", { name: "外部仪表盘" }));
+  await user.click(screen.getByRole("tab", { name: "外部仪表盘（需本机服务）" }));
   await user.click(screen.getByRole("button", { name: "打开监控" }));
   await screen.findByTitle("实时监控仪表盘");
 }
@@ -115,7 +115,9 @@ test("设置里开大屏模式：根容器带上 data-kiosk，Esc 退出", async
   expect(localStorage.getItem("cca-kiosk")).toBe("on");
 
   // 设置浮层随大屏一起收起：顶栏（连同唯一的「设置」按钮）已经藏了。
-  expect(screen.queryByLabelText("阈值设置")).not.toBeInTheDocument();
+  // 用元素选择器而不是 getByLabelText：按钮的 aria-label 也是「设置」，
+  // 按标签查会撞上它，测不到浮层是否真的关掉。
+  expect(document.querySelector('section[aria-label="设置"]')).toBeNull();
 
   // 现在一次 Esc 就能退出，并把字号还回去。
   fireEvent.keyDown(window, { key: "Escape" });
@@ -163,7 +165,7 @@ test("监控默认停在脉搏档，并持久化子视图选择", async () => {
   await user.click(screen.getByRole("tab", { name: "监控台" }));
   expect(localStorage.getItem("cca-monitor-view")).toBe("console");
 
-  await user.click(screen.getByRole("tab", { name: "外部仪表盘" }));
+  await user.click(screen.getByRole("tab", { name: "外部仪表盘（需本机服务）" }));
   expect(localStorage.getItem("cca-monitor-view")).toBe("dashboard");
 });
 
@@ -345,10 +347,10 @@ test("opens and closes the threshold settings panel", async () => {
   render(<AppShell bridges={bridges} />);
 
   await user.click(screen.getByRole("button", { name: "设置" }));
-  expect(screen.getByRole("heading", { name: "阈值设置" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "设置" })).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "关闭" }));
-  expect(screen.queryByRole("heading", { name: "阈值设置" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "设置" })).not.toBeInTheDocument();
 });
 
 /**

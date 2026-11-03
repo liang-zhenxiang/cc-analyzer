@@ -4,8 +4,12 @@
   min-width: 0;
 }
 
+/* 固定布局是这张表可扫读的前提：auto 布局会把所有多余宽度都塞给首列，
+   「Tokens」标签和数值被拉开几百像素，眼睛每读一行都要横跳。首列给 38%
+   足够放下「缓存读取」这类四字标签，其余三列均分，数字仍在同一条竖线上。 */
 .table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: var(--fs-sm);
   line-height: var(--lh-sm);
@@ -37,7 +41,9 @@
   border-bottom: none;
 }
 
+/* table-layout: fixed 下第一行决定列宽百分比；首列 38%，其余三列各约 20.7%。 */
 .metricHead {
+  width: 38%;
   text-align: left;
 }
 

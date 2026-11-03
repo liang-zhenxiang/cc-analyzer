@@ -82,6 +82,21 @@ describe("ConstellationPanel", () => {
     expect(container.querySelector('[data-probe="lab-galaxy"]')).not.toBeNull();
   });
 
+  it("marks the window's leading edge so the latest hour has a date anchor", () => {
+    const container = render(
+      <ConstellationPanel inputs={inputsFixture()} days={7} now={NOW} />
+    ).container;
+
+    const marker = container.querySelector('[data-probe="constellation-now"]');
+    expect(marker).not.toBeNull();
+    const line = marker?.querySelector("line");
+    const x = Number(line?.getAttribute("x1"));
+    // 右端线在绘图区内，且落在最后一个固定刻度（今天 0 点）之后。
+    expect(x).toBeGreaterThan(132);
+    expect(x).toBeLessThan(944);
+    expect(marker?.textContent).toContain("现在");
+  });
+
   it("labels every lane, star and model legend", () => {
     const container = render(
       <ConstellationPanel inputs={inputsFixture()} days={7} now={NOW} />

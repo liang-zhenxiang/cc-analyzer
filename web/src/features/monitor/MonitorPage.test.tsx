@@ -111,7 +111,7 @@ describe("MonitorPage", () => {
 
     expect(screen.getByRole("tab", { name: "脉搏" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "监控台" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "外部仪表盘" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "外部仪表盘（需本机服务）" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "脉搏" })).toHaveAttribute("aria-selected", "true");
   });
 
@@ -136,7 +136,7 @@ describe("MonitorPage", () => {
       const pingMonitor = vi.fn(async () => false);
       renderMonitor(createBridges({ monitorPort, pingMonitor }), undefined, "pulse");
 
-      fireEvent.click(screen.getByRole("tab", { name: "外部仪表盘" }));
+      fireEvent.click(screen.getByRole("tab", { name: "外部仪表盘（需本机服务）" }));
       await act(async () => {
         await vi.advanceTimersByTimeAsync(0);
       });

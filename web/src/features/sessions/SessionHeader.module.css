@@ -212,8 +212,9 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 一句人话：不换行、超宽截断。完整句子在 role="group" 的 aria 里，
-   也在 title 上——截断的是版式，不是信息。 */
+/* 只放结论（健康 / 偏紧 / 紧张）：最长的一句约 13 个汉字，200px 留足。
+   完整摘要（平均水位 / 压缩 / 出血）在 role="group" 的 title 与 srOnly 里，
+   截断的只会是「版式」不会丢信息。 */
 .healthNote {
   overflow: hidden;
   max-width: 200px;
@@ -224,12 +225,8 @@
   white-space: nowrap;
 }
 
-/* 窄窗（含 960 的三栏布局）先舍这一句：数字与色带留住，页头不长高。 */
-@media (max-width: 1280px) {
-  .healthNote {
-    display: none;
-  }
-}
+/* 窄窗不再整句隐藏：结论本身就是这一块存在的理由，藏掉它等于只剩一个
+   没有含义的分数（审计 P2-3）。数字、色带与结论三者一起保留。 */
 
 /* H5 重启徽章（§4.5）：读数带内的补充读数，紧挨总耗时。高 20（lh-xs 16 +
    上下 2），流式排布不加高读数带；不可聚焦（span，无独立动作），

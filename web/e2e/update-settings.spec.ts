@@ -10,7 +10,7 @@ import type { Page } from "@playwright/test";
 async function openUpdateSection(page: Page) {
   await page.goto("/");
   await page.getByRole("button", { name: "设置" }).click();
-  const panel = page.getByLabel("阈值设置");
+  const panel = page.getByRole("region", { name: "设置" });
   await expect(panel).toBeVisible();
   return panel;
 }

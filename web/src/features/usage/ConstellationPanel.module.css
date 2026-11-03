@@ -15,9 +15,10 @@
   overflow: visible;
 }
 
-/* 泳道分隔线：普通档透明，高对比度才显形——普通档多十条横线会抢走星点。 */
+/* 泳道分隔线：普通档用 --border-strong（发丝线里较实的一档），够分清泳道
+   又不抢星点；高对比度档仍走 --border（该主题里它是实色深灰，更重）。 */
 .laneRule {
-  stroke: transparent;
+  stroke: var(--border-strong);
   stroke-width: 1px;
 }
 
@@ -37,6 +38,19 @@
 }
 
 .tickLabel {
+  fill: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 窗口右端的「现在」线：虚线区别于刻度实线，颜色仍是结构线那一档。 */
+.nowLine {
+  stroke: var(--border-strong);
+  stroke-width: 1px;
+  stroke-dasharray: 2 4;
+}
+
+.nowLabel {
   fill: var(--text-tertiary);
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;

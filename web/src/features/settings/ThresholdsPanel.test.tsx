@@ -114,13 +114,34 @@ describe("ThresholdsPanel", () => {
   test("shows every budget with its current value and unit", () => {
     renderPanel(createBridges().bridges);
 
-    expect(screen.getByRole("heading", { name: "阈值设置" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "设置" })).toBeInTheDocument();
     expect(screen.getByLabelText("Prompt 上限")).toHaveValue(96);
     expect(screen.getByLabelText("记录明细行数")).toHaveValue(300);
     expect(screen.getByLabelText("最慢工具条数")).toHaveValue(10);
     expect(screen.getByLabelText("子 agent 条数")).toHaveValue(30);
     expect(screen.getByLabelText("解析分块行数")).toHaveValue(2000);
     expect(screen.getByLabelText("列表窗口行数")).toHaveValue(120);
+  });
+
+  test("标题是「设置」，内容按显示 / 数据与阈值 / 计费窗口三组分区", () => {
+    renderPanel(createBridges().bridges);
+
+    const panel = screen.getByLabelText("设置");
+    const groups = [...panel.querySelectorAll("h3")].map((node) => node.textContent);
+    expect(groups).toEqual(["显示", "数据与阈值", "计费窗口"]);
+
+    // 第一屏的字号/对比度归在「显示」组下，不再直接挂在「阈值」标题下。
+    const displayGroup = screen.getByRole("heading", { name: "显示", level: 3 });
+    expect(displayGroup).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "界面字号", level: 4 })).toBeInTheDocument();
+  });
+
+  test("两行示例读数带「字号预览」标签，不再像漏进来的日志行", () => {
+    renderPanel(createBridges().bridges);
+
+    expect(screen.getByText("字号预览")).toBeInTheDocument();
+    expect(screen.getByText(/12:04:08 · LLM · claude-sonnet-4 · 3\.00s/)).toBeInTheDocument();
+    expect(screen.getByText(/提示词 17 \/ 输出 34 · 2\.7% · 正常/)).toBeInTheDocument();
   });
 
   test("writes edits through to the store and to storage", async () => {
@@ -539,12 +560,14 @@ describe("界面字号 section", () => {
     expect(after.isSameNode(before)).toBe(true);
   });
 
-  test("是面板内的第一个分区标题，位于「Prompt 上限」之前", () => {
+  test("是「显示」组里的第一个小节标题，位于「Prompt 上限」之前", () => {
     resetFontScaleForTest();
     renderPanel(createBridges().bridges);
 
-    const panel = screen.getByLabelText("阈值设置");
-    const firstTitle = panel.querySelectorAll("h3")[0];
+    const panel = screen.getByLabelText("设置");
+    // 组标题是 h3（显示 / 数据与阈值 / 计费窗口），组内小节是 h4。
+    expect(panel.querySelectorAll("h3")[0]).toHaveTextContent("显示");
+    const firstTitle = panel.querySelectorAll("h4")[0];
     expect(firstTitle).toHaveTextContent("界面字号");
 
     const promptField = screen.getByLabelText("Prompt 上限");
@@ -715,12 +738,12 @@ describe("界面对比度 section", () => {
     expect(screen.queryAllByRole("dialog")).toHaveLength(0);
   });
 
-  test("是面板内的第二个分区标题，位于「界面字号」之后、「Prompt 上限」之前", () => {
+  test("是「显示」组里的第二个小节，位于「界面字号」之后、「Prompt 上限」之前", () => {
     resetContrastForTest();
     renderPanel(createBridges().bridges);
 
-    const panel = screen.getByLabelText("阈值设置");
-    const titles = [...panel.querySelectorAll("h3")];
+    const panel = screen.getByLabelText("设置");
+    const titles = [...panel.querySelectorAll("h4")];
     expect(titles[0]).toHaveTextContent("界面字号");
     expect(titles[1]).toHaveTextContent("界面对比度");
 

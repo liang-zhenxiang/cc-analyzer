@@ -64,6 +64,19 @@ export function ConstellationPanel({
 
   const plotBottom = CONSTELLATION_HEIGHT - CONSTELLATION_PLOT_BOTTOM;
   const plotRight = CONSTELLATION_WIDTH - CONSTELLATION_PLOT_RIGHT;
+  // 刻度是固定节奏（逐日 / 每周一 / 每月 1 日），窗口右端往往落在两个刻度
+  // 之间，最新时刻因此没有日期标签。用一条「现在」淡竖线补上窗口的右边界。
+  const span = Math.max(1, constellation.windowEnd - constellation.windowStart);
+  const xOf = (ts: number) =>
+    CONSTELLATION_PLOT_LEFT +
+    Math.min(1, Math.max(0, (ts - constellation.windowStart) / span)) *
+      (plotRight - CONSTELLATION_PLOT_LEFT);
+  const nowX = xOf(now);
+  // 与最近刻度标签太近时只画线不写字，避免两个月份/日期叠在一起。
+  const nearestTickGap = constellation.ticks.reduce(
+    (gap, tick) => Math.min(gap, Math.abs(xOf(tick.ts) - nowX)),
+    Number.POSITIVE_INFINITY
+  );
   const allWithoutUsage = constellation.noUsageCount === constellation.sessions.length;
   // 悬停的星提到最后绘制（SVG 没有 z-index，绘制顺序就是层级）。
   const stars = hovered
@@ -153,6 +166,32 @@ export function ConstellationPanel({
               </g>
             );
           })}
+
+          {/* 「现在」是窗口右端的事实：没有它，固定节奏刻度会让读者以为
+              最后一条刻度之后没有数据。线条只是位置提示，读屏仍由整图摘要承担。 */}
+          <g
+            data-probe="constellation-now"
+            data-now-x={nowX.toFixed(1)}
+            aria-hidden="true"
+          >
+            <line
+              x1={nowX}
+              x2={nowX}
+              y1={CONSTELLATION_PLOT_TOP}
+              y2={plotBottom}
+              className={styles.nowLine}
+            />
+            {nearestTickGap > 48 ? (
+              <text
+                x={nowX}
+                y={TICK_LABEL_Y}
+                textAnchor={nowX >= plotRight - 12 ? "end" : "middle"}
+                className={styles.nowLabel}
+              >
+                现在
+              </text>
+            ) : null}
+          </g>
 
           {constellation.links.map((link) => {
             const from = constellation.sessions.find((session) => session.id === link.from);

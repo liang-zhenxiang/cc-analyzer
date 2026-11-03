@@ -42,8 +42,8 @@ test.describe("计费窗口", () => {
   test("设置里选择计划后，仪表刻度出现且口径说明可见", async ({ page }) => {
     await openUsage(page);
 
-    await page.getByRole("button", { name: "设置" }).click();
-    const panel = page.getByLabel("阈值设置");
+    await page.getByRole("button", { name: "设置", exact: true }).click();
+    const panel = page.getByRole("region", { name: "设置" });
     await expect(panel).toBeVisible();
     await panel.getByLabel("订阅计划").selectOption("pro");
     await page.getByRole("button", { name: "关闭" }).click();
@@ -81,8 +81,8 @@ test.describe("周用量（滚动 7 天）", () => {
   test("设置里填周预算 → 出现对照与日均推算；清掉 → 退回只显示消耗", async ({ page }) => {
     await openUsage(page);
 
-    await page.getByRole("button", { name: "设置" }).click();
-    const panel = page.getByLabel("阈值设置");
+    await page.getByRole("button", { name: "设置", exact: true }).click();
+    const panel = page.getByRole("region", { name: "设置" });
     await panel.getByLabel("周预算（可选）").fill("300000");
     await page.getByRole("button", { name: "关闭" }).click();
 
@@ -91,8 +91,8 @@ test.describe("周用量（滚动 7 天）", () => {
     // 4 个活动日 ≥ 2 → 可推算；具体时刻随运行时间走，锁体例不锁值。
     await expect(weekly.getByText(/按日均推算 \d{2}-\d{2} \d{2}:\d{2} 触达/)).toBeVisible();
 
-    await page.getByRole("button", { name: "设置" }).click();
-    await page.getByLabel("阈值设置").getByLabel("周预算（可选）").fill("");
+    await page.getByRole("button", { name: "设置", exact: true }).click();
+    await page.getByRole("region", { name: "设置" }).getByLabel("周预算（可选）").fill("");
     await page.getByRole("button", { name: "关闭" }).click();
 
     await expect(weekly.getByText(/未设周预算/)).toBeVisible();

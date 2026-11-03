@@ -10,6 +10,7 @@ import {
   formatDuration,
   formatFullDate,
   formatProjectPath,
+  formatRate,
   formatTokenCount
 } from "../../lib/format";
 import { billingReadoutsOf, type BillingWindowReadouts } from "../usage/billingReadouts";
@@ -439,13 +440,13 @@ function ProjectPanel({
                     data-project={project.projectLabel}
                     data-selected={isSelected ? "true" : "false"}
                     aria-pressed={isSelected}
-                    aria-label={`${label}，近 15 分钟 ${formatTokenCount(project.ratePerHour)}/时，今日 ${formatTokenCount(project.todayTokens)} token，${project.activeSessions} 个活跃会话`}
+                    aria-label={`${label}，近 15 分钟 ${formatRate(project.ratePerHour)}，今日 ${formatTokenCount(project.todayTokens)} token，${project.activeSessions} 个活跃会话`}
                     title={isSelected ? `取消筛选 ${label}` : `筛选 ${label} 的事件`}
                     onClick={() => onSelect(project.projectLabel)}
                   >
                     <span className={styles.projectTop}>
                       <span className={styles.projectName}>{label}</span>
-                      <span className={styles.projectMetric}>{`${formatTokenCount(project.ratePerHour)}/时`}</span>
+                      <span className={styles.projectMetric}>{formatRate(project.ratePerHour)}</span>
                       <span className={styles.projectMetric}>
                         {`今日 ${formatTokenCount(project.todayTokens)}`}
                       </span>

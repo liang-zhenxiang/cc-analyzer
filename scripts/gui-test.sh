@@ -3187,10 +3187,13 @@ for arg in sys.argv[1:]:
             count = briefing.get("count")
             tones = briefing.get("tones") or []
             texts = briefing.get("texts") or []
-            # 未选订阅计划时预算项按设计不渲染 → 2 条（注意/警报）；选了计划才是 3 条。
-            if count not in (2, GG_BRIEFING_COUNT):
+            # 业务规则是「最多 3 条、不足不凑数、0 条整条不渲染」：未选计划时
+            # 预算项不渲染，真实工作区在凌晨还常常只剩「陡增」或「安静」一条。
+            # 门禁只锁范围与结构，具体优先级由单元测试覆盖——写死 2/3 会随
+            # 运行时刻假红（本轮 01:20 复现：合法地只有 1 条）。
+            if not isinstance(count, int) or not 1 <= count <= GG_BRIEFING_COUNT:
                 hh_problems.append(
-                    f"三件事 {count!r} 条，期望 2（未选计划）或 {GG_BRIEFING_COUNT}"
+                    f"三件事 {count!r} 条，期望 1–{GG_BRIEFING_COUNT}（0 条应整条不渲染）"
                 )
             # 档位组合取决于真实工作区（无计划 / 无错误簇时只有注意+中性），
             # 这里只锁「每条都在合法档位内」，具体优先级由单元测试覆盖。

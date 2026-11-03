@@ -17,6 +17,15 @@ import { SkeletonBar } from "../../components/Skeleton";
 import { FreshnessBadge } from "../usage/FreshnessBadge";
 import styles from "./SessionHeader.module.css";
 
+/**
+ * 从摘要里取结论（`——` 之后那一句）。摘要由 `buildContextHealth` 统一拼，
+ * 这里不另写一份 verdict 文案，避免两处措辞漂移；格式万一变了就退回整句。
+ */
+function verdictOf(summary: string): string {
+  const index = summary.lastIndexOf("——");
+  return index < 0 ? summary : summary.slice(index + 2);
+}
+
 /** 四档色带（规格 §2.7）：分数越低越靠近警示，缺失态不发颜色。 */
 function healthTone(score: number | null): "none" | "healthy" | "tight" | "risky" | "bad" {
   if (score === null || !Number.isFinite(score)) return "none";
@@ -180,6 +189,10 @@ export function SessionHeader({
           // 数字优先、色带辅助（§2.7）：颜色只上左侧 3px 竖条，数字本身用
           // --text，保证在任何档位下都是最高对比。分数算不出时印「—」，
           // 不印 0——0 分是一个断言，缺失不是。
+          //
+          // 可见行只留结论：标题行宽度有限，完整摘要的第一句是「平均水位 N%」，
+          // 排在结论前面会把真正有用的「健康，余量充足」挤出可视区（审计 P2-3）。
+          // 细节不丢——title 供鼠标悬停，srOnly 供读屏，后者同时是 e2e 的文本锚点。
           <div
             className={styles.health}
             data-probe="health-score"
@@ -190,15 +203,15 @@ export function SessionHeader({
                 ? "健康分不可用"
                 : `健康分 ${contextHealth.score}`
             }
+            title={contextHealth.summary}
           >
             <span className={styles.healthBar} aria-hidden="true" />
             <span className={styles.healthValue} aria-hidden="true">
               {contextHealth.score === null ? "—" : contextHealth.score}
             </span>
-            <span className={styles.healthNote}>
-              {contextHealth.score === null
-                ? `不可用 · ${contextHealth.summary}`
-                : contextHealth.summary}
+            <span className={styles.srOnly}>{contextHealth.summary}</span>
+            <span className={styles.healthNote} data-probe="health-verdict" aria-hidden="true">
+              {contextHealth.score === null ? "不可用" : verdictOf(contextHealth.summary)}
             </span>
           </div>
         ) : null}

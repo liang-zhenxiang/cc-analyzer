@@ -31,13 +31,13 @@ import { milestonesScenario } from "../tests/fixtures/milestones-scenario";
  * 那个 bundle，不是 dev server 的。
  */
 
-const PANEL = "阈值设置";
+const PANEL = "设置";
 const GROUP = "界面对比度";
 const SNAPSHOT_TITLE = "用量总览";
 
 async function openSettings(page: Page) {
   await page.getByRole("button", { name: "设置" }).click();
-  const panel = page.getByLabel(PANEL);
+  const panel = page.getByRole("region", { name: PANEL });
   await expect(panel).toBeVisible();
   return panel;
 }
