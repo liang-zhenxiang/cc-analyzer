@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.37.1-beta.1] - 2026-11-04
+
 本轮主题：**产品视觉审计**——按真实截图逐屏复核 v0.37 的用量页、会话页与监控页，修掉一组「数字互相矛盾、标签读不全、控件说了做不到的事」的问题，并把审计留下的 14 条 P2 打磨一并收口。
 
 ### Changed
