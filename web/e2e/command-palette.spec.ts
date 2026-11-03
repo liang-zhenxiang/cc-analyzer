@@ -113,7 +113,7 @@ test.describe("大屏模式（F10）", () => {
     expect(await rootFontScale(page)).toBe("1.3");
 
     // 进入大屏会把设置浮层一起收起（顶栏连同「设置」按钮都藏了，留着浮层就是死角）。
-    await expect(page.getByLabel("阈值设置")).toBeHidden();
+    await expect(page.getByRole("region", { name: "设置" })).toBeHidden();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("banner")).toBeVisible();
     expect(await rootFontScale(page)).toBe("1");

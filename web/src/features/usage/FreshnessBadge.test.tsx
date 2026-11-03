@@ -46,6 +46,61 @@ describe("FreshnessBadge（E9）", () => {
     expect(badge.dataset.state).toBe("unknown");
   });
 
+  it("59 分钟 → 分钟；60 分钟 → 小时（分档边界不重复也不跳档）", () => {
+    const at59 = render(
+      <FreshnessBadge now={NOW} lastRecordAt={NOW - 59 * MIN} lastScanAt={NOW - 59 * MIN} />
+    );
+    expect(badgeOf(at59.container).textContent).toBe("数据截至 13:33（59 分钟前）");
+
+    const at60 = render(
+      <FreshnessBadge now={NOW} lastRecordAt={NOW - 60 * MIN} lastScanAt={NOW - 60 * MIN} />
+    );
+    expect(badgeOf(at60.container).textContent).toBe("数据截至 13:32（1 小时前）");
+  });
+
+  it("23 小时 → 小时；24 小时 → 天", () => {
+    const at23 = render(
+      <FreshnessBadge now={NOW} lastRecordAt={NOW - 23 * 60 * MIN} lastScanAt={NOW - 23 * 60 * MIN} />
+    );
+    expect(badgeOf(at23.container).textContent).toBe("数据截至 15:32（23 小时前）");
+
+    const at24 = render(
+      <FreshnessBadge now={NOW} lastRecordAt={NOW - 24 * 60 * MIN} lastScanAt={NOW - 24 * 60 * MIN} />
+    );
+    expect(badgeOf(at24.container).textContent).toBe("数据截至 14:32（1 天前）");
+  });
+
+  it("6 天 → 天；7 天 → 日期（同年只写 M-D）", () => {
+    const at6 = render(
+      <FreshnessBadge
+        now={NOW}
+        lastRecordAt={NOW - 6 * 24 * 60 * MIN}
+        lastScanAt={NOW - 6 * 24 * 60 * MIN}
+      />
+    );
+    expect(badgeOf(at6.container).textContent).toBe("数据截至 14:32（6 天前）");
+
+    // 2026-01-05 往前 7 天 = 2025-12-29（跨年，补全年份）。
+    const at7 = render(
+      <FreshnessBadge
+        now={NOW}
+        lastRecordAt={NOW - 7 * 24 * 60 * MIN}
+        lastScanAt={NOW - 7 * 24 * 60 * MIN}
+      />
+    );
+    expect(badgeOf(at7.container).textContent).toBe("数据截至 14:32（2025-12-29）");
+  });
+
+  it("更旧但仍在同一年：只写 M-D，不再写分钟", () => {
+    // 3 月 20 日看 2 月 1 日的数据：同年、超过 7 天，走日期分支。
+    const laterNow = new Date(2026, 2, 20, 14, 32, 0, 0).getTime();
+    const lastRecordAt = new Date(2026, 1, 1, 9, 0, 0, 0).getTime();
+    const { container } = render(
+      <FreshnessBadge now={laterNow} lastRecordAt={lastRecordAt} lastScanAt={lastRecordAt} />
+    );
+    expect(badgeOf(container).textContent).toBe("数据截至 09:00（2-1）");
+  });
+
   it("扫描中：不显示假的「数据截至」，写刷新中与上次时刻", () => {
     const { container } = render(
       <FreshnessBadge

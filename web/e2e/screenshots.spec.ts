@@ -240,7 +240,7 @@ async function scrollMainToBottom(page: Page) {
  * 永远进不了归档（本轮新增的「常驻读数」就在最底下）。判据同样是事实而非 sleep。
  */
 async function scrollSettingsToBottom(page: Page) {
-  const panel = page.getByLabel("阈值设置");
+  const panel = page.getByRole("region", { name: "设置" });
   await panel.evaluate((el) => {
     el.scrollTop = el.scrollHeight;
   });
@@ -337,7 +337,7 @@ test.describe("截图归档", () => {
       // Issue #203 起这个标签默认是原生「脉搏」，所以先切到「外部仪表盘」子视图——
       // 这张 `monitor` 归档的仍是 dashboard 档未打开的形态（脉搏另有 `pulse` 视图）。
       await page.getByRole("tab", { name: "实时监控" }).click();
-      await page.getByRole("tab", { name: "外部仪表盘" }).click();
+      await page.getByRole("tab", { name: "外部仪表盘（需本机服务）" }).click();
       await expect(page.getByRole("button", { name: "打开监控" })).toBeVisible();
       await page.waitForTimeout(250);
       await shot(V_MONITOR);

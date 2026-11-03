@@ -78,6 +78,47 @@ describe("BillingWindowCard", () => {
     expect(within(card).getByText(/未选择订阅计划/)).toBeInTheDocument();
   });
 
+  it("未选计划：紧凑档只留一行读数与设置入口，不铺开四格读数", () => {
+    // 2h 时窗口还剩 3h（T0 开窗）。
+    render(cardAt(inputsOf([record(T0), record(T0 + HOUR)]), T0 + 2 * HOUR));
+    const card = screen.getByLabelText("计费窗口");
+
+    expect(card.querySelector('[data-probe="billing-compact"]')).not.toBeNull();
+    expect(within(card).getByText("20,000 token")).toBeInTheDocument();
+    expect(within(card).getByText("3 时 0 分")).toBeInTheDocument();
+    expect(within(card).getByText("09:00")).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: "去设置计划" })).toBeInTheDocument();
+    // 没有分母就没有「消耗速度 / 预计到达限额」这两格，正是省下来的高度。
+    expect(within(card).queryByText("消耗速度")).toBeNull();
+    expect(within(card).queryByText("预计到达限额")).toBeNull();
+  });
+
+  it("去设置计划：点击仍走顶栏那颗既有「设置」按钮", async () => {
+    // 抽屉开关只住在 AppShell，卡不复制这份状态：入口等价于用户去点顶栏按钮。
+    const topbar = document.createElement("button");
+    topbar.setAttribute("aria-label", "设置");
+    const clicked = vi.fn();
+    topbar.addEventListener("click", clicked);
+    document.body.append(topbar);
+    try {
+      render(cardAt(inputsOf([record(T0)]), T0 + HOUR));
+      await userEvent.click(screen.getByRole("button", { name: "去设置计划" }));
+      expect(clicked).toHaveBeenCalledTimes(1);
+    } finally {
+      topbar.remove();
+    }
+  });
+
+  it("选了计划：保持完整布局，不出现紧凑档", () => {
+    setPlan({ id: "pro", limitTokens: 19_000, weeklyLimitTokens: null });
+    render(cardAt(inputsOf([record(T0)]), T0 + HOUR));
+    const card = screen.getByLabelText("计费窗口");
+
+    expect(card.querySelector('[data-probe="billing-compact"]')).toBeNull();
+    expect(within(card).getByText("消耗速度")).toBeInTheDocument();
+    expect(within(card).getByText("预计到达限额")).toBeInTheDocument();
+  });
+
   it("选了计划：仪表读出限额百分比的可访问名与估算口径说明", () => {
     setPlan({ id: "pro", limitTokens: 19_000, weeklyLimitTokens: null });
     render(cardAt(inputsOf([record(T0, 19_000)]), T0 + HOUR));

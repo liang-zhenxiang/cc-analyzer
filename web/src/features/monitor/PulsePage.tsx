@@ -4,7 +4,7 @@ import { EmptyState } from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
 import { Panel } from "../../components/Panel";
 import { Skeleton, SkeletonBar } from "../../components/Skeleton";
-import { formatClock, formatDuration, formatProjectPath, formatTokenCount } from "../../lib/format";
+import { formatClock, formatDuration, formatProjectPath, formatRate, formatTokenCount } from "../../lib/format";
 import { billingReadoutsOf, type BillingWindowReadouts } from "../usage/billingReadouts";
 import { burnRateOf, isWindowClosed, predictLimitReach } from "../usage/billingWindow";
 import { usePlan } from "../usage/planLimits";
@@ -355,7 +355,7 @@ function WindowReadouts({
           <b className={styles.readoutValueMuted}>样本不足</b>
         ) : (
           <b className={styles.readoutValue} title={String(rate.tokensPerHour)}>
-            {`${formatTokenCount(rate.tokensPerHour)}/时`}
+            {formatRate(rate.tokensPerHour)}
           </b>
         )}
         <span className={styles.readoutSub}>
@@ -367,7 +367,7 @@ function WindowReadouts({
       <div className={styles.readout} data-probe="pulse-window-readout" data-readout="recent-rate">
         <span className={styles.readoutLabel}>近 15 分钟</span>
         <b className={styles.readoutValue} title={String(recentPerHour)}>
-          {`${formatTokenCount(recentPerHour)}/时`}
+          {formatRate(recentPerHour)}
         </b>
       </div>
 

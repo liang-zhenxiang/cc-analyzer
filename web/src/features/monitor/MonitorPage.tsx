@@ -17,7 +17,9 @@ export type MonitorView = "pulse" | "console" | "dashboard";
 const VIEW_ITEMS: SegmentedItem<MonitorView>[] = [
   { value: "pulse", label: "脉搏" },
   { value: "console", label: "监控台" },
-  { value: "dashboard", label: "外部仪表盘" }
+  // 这一档依赖本机另起的服务，不是应用自带能力。标签上直接写清前提，
+  // 否则没有该服务的用户点进去只会看到一个「未打开」的空态。
+  { value: "dashboard", label: "外部仪表盘（需本机服务）" }
 ];
 
 /**
@@ -188,7 +190,7 @@ function ExternalDashboard({ onEnterFloat }: { onEnterFloat?: () => void } = {})
       <EmptyState
         size="page"
         title="实时监控未打开"
-        description={`监控仪表盘是一个本机单独运行的服务，应用会连接 ${target}。先在你的终端里把它启动起来，再点「打开监控」。`}
+        description={`监控仪表盘是一个需在本机单独运行的 Prometheus 兼容服务，应用会连接 ${target}。先在你的终端里把它启动起来，再点「打开监控」。`}
         action={
           <Button type="button" variant="primary" onClick={() => void probe()}>
             打开监控

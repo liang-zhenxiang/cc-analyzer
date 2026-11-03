@@ -123,9 +123,28 @@ describe("buildToolEcosystem", () => {
     );
     expect(ecosystem.edges).toHaveLength(3);
     expect(ecosystem.edges.every((edge) => edge.sessions === 2)).toBe(true);
+    expect(ecosystem.isolatedCount).toBe(0);
     // 圆环从正上方开始：第一个节点 y 最小。
     const first = ecosystem.nodes.reduce((lowest, node) => (node.y < lowest.y ? node : lowest));
     expect(first.y).toBeCloseTo(50, 1);
+  });
+
+  it("孤立工具照样画成节点：节点数 = 工具数，孤立数单独报（P2-6）", () => {
+    const ecosystem = buildToolEcosystem(
+      [
+        inputOf(metaOf("/a"), [...bash(1), ...read(1)]),
+        inputOf(metaOf("/b"), [...bash(1), ...read(1)]),
+        // 两者各自只在一个会话出现：没有合格共现，但仍是窗口内的工具。
+        inputOf(metaOf("/c"), grep(1)),
+        inputOf(metaOf("/d"), [fact({ kind: "builtin", toolName: "Edit" })])
+      ],
+      30,
+      NOW
+    );
+    expect(ecosystem.toolCount).toBe(4);
+    expect(ecosystem.nodes).toHaveLength(4);
+    expect(ecosystem.edges).toHaveLength(1);
+    expect(ecosystem.isolatedCount).toBe(2);
   });
 
   it("窗口外的调用不参与", () => {

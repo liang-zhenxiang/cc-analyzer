@@ -220,13 +220,21 @@ describe("CompactionStatsPanel 分位行（G7）", () => {
         section!.querySelector('[data-probe="cache-hit-value"]')?.textContent
       ).toBe("45.0%");
       expect(screen.getByText("在变好")).toBeInTheDocument();
+      // 两个小标题各管一件事：数字是「最新周」的，趋势标题只谈周趋势。
+      expect(screen.getByText("缓存命中率")).toBeInTheDocument();
+      expect(screen.getByText("（最新周）")).toBeInTheDocument();
+      expect(screen.getByText("周趋势")).toBeInTheDocument();
+      expect(screen.queryByText(/样本不足/)).toBeNull();
+      // DOM 文本契约（round-hh e2e）：方向词与数值必须紧跟在「缓存命中率」后面；
+      // 「（最新周）」排在数值之后，视觉顺序由 CSS order 还原。
+      expect(section!.textContent).toContain("缓存命中率在变好45.0%");
       expect(document.querySelector('[data-probe="cache-sparkline"]')).not.toBeNull();
       expect(
         screen.getByText("按周：缓存读取 ÷（输入 + 缓存写入 + 缓存读取）")
       ).toBeInTheDocument();
     });
 
-    it("不足 3 个非 null 周：只印数值与「样本不足」，不画线", () => {
+    it("不足 3 个非 null 周：趋势标题写明样本不足，只印数值不画线", () => {
       const health = cacheHealthOf([
         week(2, 200, 800),
         week(3, 300, 700)
@@ -236,7 +244,10 @@ describe("CompactionStatsPanel 分位行（G7）", () => {
       expect(
         document.querySelector('[data-probe="cache-hit-value"]')?.textContent
       ).toBe("30.0%");
-      expect(screen.getByText("样本不足")).toBeInTheDocument();
+      expect(screen.getByText("缓存命中率")).toBeInTheDocument();
+      expect(screen.getByText("（最新周）")).toBeInTheDocument();
+      expect(screen.getByText("周趋势样本不足（<3 周）")).toBeInTheDocument();
+      expect(screen.getByText("仅 2 周有读数，不画线")).toBeInTheDocument();
       expect(document.querySelector('[data-probe="cache-sparkline"]')).toBeNull();
     });
 

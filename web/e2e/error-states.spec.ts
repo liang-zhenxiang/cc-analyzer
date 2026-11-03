@@ -129,7 +129,7 @@ test.describe("整页错误态", () => {
 
     // 这个标签的默认档是原生「脉搏」（Issue #203）；下面验的是外部仪表盘的失败态，
     // 先显式切到第二个子视图，dashboard 档本身的文案与行为一行没改。
-    await page.getByRole("tab", { name: "外部仪表盘" }).click();
+    await page.getByRole("tab", { name: "外部仪表盘（需本机服务）" }).click();
 
     // 打开之前就要写清连的是哪个地址——这是「下一步做什么」里可执行的那半句。
     await expect(page.getByText(/本机 localhost:8090/)).toBeVisible();

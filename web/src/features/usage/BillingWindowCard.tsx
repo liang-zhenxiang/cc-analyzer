@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { formatClock, formatProjectPath, formatTokenCount } from "../../lib/format";
+import { formatClock, formatProjectPath, formatRate, formatTokenCount } from "../../lib/format";
 import type { SessionMeta } from "../sessions/metadataCache";
 import { totalsSum, type UsageSessionInput } from "./usageAggregations";
 import { burnRateOf, isWindowClosed, predictLimitReach } from "./billingWindow";
@@ -27,6 +27,18 @@ function formatPredictionTime(at: number): string {
   const date = new Date(at);
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/**
+ * 打开设置抽屉（P2-1 的「去设置计划」入口）。
+ *
+ * 抽屉的开关状态住在 `AppShell`，`UsageOverviewPage` 没有把回调传下来，而本轮
+ * 只改计费卡——不为了一个入口新造全局状态或事件总线。顶栏那颗「设置」按钮就是
+ * 现成的唯一开关，点它等价于用户自己去点：既不复制状态，也不会出现两个抽屉。
+ * 找不到按钮（例如浮窗脉搏模式换了顶栏）时静默不动，脚注里仍写着设置路径。
+ */
+function openSettingsDrawer(): void {
+  document.querySelector<HTMLButtonElement>('button[aria-label="设置"]')?.click();
 }
 
 /** 分母脚注：屏幕上先读到「分母是什么」，完整口径留在 title / aria-label 里。 */
@@ -62,7 +74,8 @@ function AttributionSessionRow({
   // 完整绝对路径不出现在可见文本、title 或 aria-label 里。
   const project = formatProjectPath(row.projectLabel, row.projectPath);
   const pctText = formatShareText(row);
-  const reading = `${row.title}（项目：${project}）· 本窗口消耗 ${row.tokens.toLocaleString("en-US")} tok · 占本窗口 ${pctText}`;
+  // 可见的密集列用 `tok`（列宽优先）；这里的整句是朗读文本，走正文档的 `token`。
+  const reading = `${row.title}（项目：${project}）· 本窗口消耗 ${row.tokens.toLocaleString("en-US")} token · 占本窗口 ${pctText}`;
   const label = canOpen ? `打开会话：${reading}` : `${reading} · 当前不可打开`;
 
   return (
@@ -280,17 +293,60 @@ export function BillingWindowCard({
           : { text: "样本不足，不外推", extrapolated: false };
   const shareText =
     progress !== null ? `当前窗口已用 ${(progress * 100).toFixed(0)}%（估算限额）` : "当前窗口消耗";
+  // 未选计划时没有分母：表盘只剩空环、四格读数里三格是「未选计划 / 未设预算」的
+  // 重复占位。紧凑档把这半张卡压成一行读数 + 设置入口，把首屏让给 KPI 与趋势
+  // （P2-1）；有计划的完整布局逐字不动。
+  const compact = plan.limitTokens === null;
 
   return (
     <section className={styles.card} aria-label="计费窗口">
       <div className={styles.gaugeArea}>
-        <Gauge
-          progress={progress}
-          centerValue={formatTokenCount(consumed)}
-          centerLabel="本窗口消耗"
-          ariaLabel={shareText}
-        />
-        <div className={styles.readouts}>
+        {/* 表盘不能整个拿掉：façade 真机门禁按这张 img 断言尺寸与「当前窗口」
+            可访问名。紧凑档把它缩成辅助尺寸——没有刻度仍是这个窗口的读数。 */}
+        <div className={compact ? styles.gaugeCompact : styles.gaugeBox}>
+          <Gauge
+            progress={progress}
+            centerValue={formatTokenCount(consumed)}
+            centerLabel="本窗口消耗"
+            ariaLabel={shareText}
+          />
+        </div>
+        {compact ? (
+          <div className={styles.compactSummary} data-probe="billing-compact">
+            {/* 紧凑档也保留层名：下面还有「滚动 7 天」一层，读数不能靠位置
+                区分属于哪个窗口。 */}
+            <span className={styles.layerTitle}>5 小时窗口</span>
+            <span className={styles.compactReading}>
+              <span className={styles.label}>本窗口消耗</span>
+              <b className={styles.compactValue}>{`${formatTokenCount(consumed)} token`}</b>
+            </span>
+            <span className={styles.compactReading}>
+              <span className={styles.label}>窗口关闭</span>
+              <b className={styles.compactStatus}>
+                {closed ? "已关闭" : formatCountdown(closesIn)}
+              </b>
+            </span>
+            <span className={styles.compactReading}>
+              <span className={styles.label}>窗口开启</span>
+              <span className={styles.sub}>{formatClock(active.start)}</span>
+              <ProvenanceBadge provenance="logged" />
+            </span>
+            <span className={styles.compactReading}>
+              <span className={styles.valueMuted}>未选计划</span>
+              <button type="button" className={styles.settingsEntry} onClick={openSettingsDrawer}>
+                去设置计划
+              </button>
+            </span>
+            {/* 关闭后的事实句与完整版同一句：e2e 与用户都按这句话确认这段窗口
+                已经结束，不能因为卡片变紧凑就消失。 */}
+            {closed ? (
+              <p className={styles.closedNote} data-probe="closed-window-note">
+                {`本窗口已关闭 · 消耗 ${formatTokenCount(consumed)} token`}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <div className={styles.readouts}>
           {/* 两层限额并排后，「窗口」这个词只指 5 小时层——层名让两组读数
               不靠位置也能分清归属。 */}
           <span className={styles.layerTitle}>5 小时窗口</span>
@@ -314,7 +370,7 @@ export function BillingWindowCard({
               {"insufficientSample" in rate ? null : <ProvenanceBadge provenance="inferred" />}
             </span>
             <b className={styles.value}>
-              {"insufficientSample" in rate ? "样本不足" : `${formatTokenCount(rate.tokensPerHour)}/时`}
+              {"insufficientSample" in rate ? "样本不足" : formatRate(rate.tokensPerHour)}
             </b>
           </span>
           <span className={styles.readout}>
@@ -368,7 +424,8 @@ export function BillingWindowCard({
               </span>
             </p>
           )}
-        </div>
+          </div>
+        )}
         <section className={styles.weekly} aria-label="周用量（滚动 7 天）">
           <span className={styles.labelRow}>
             <span className={styles.label}>滚动 7 天</span>

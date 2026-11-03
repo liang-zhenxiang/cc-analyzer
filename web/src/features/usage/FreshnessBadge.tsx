@@ -4,9 +4,31 @@ import styles from "./FreshnessBadge.module.css";
 
 const TICK_MS = 30_000;
 
-function minutesText(model: FreshnessBadgeModel): string {
-  if (model.minutesAgo === null) return "";
-  return model.minutesAgo === 0 ? "刚刚" : `${model.minutesAgo} 分钟前`;
+/**
+ * 相对时刻分级：旧数据不再印「435215 分钟前」这种噪声。
+ *
+ * 分档以「人一眼能换算成时间」为准：60 分钟内保留分钟（本次会话的新鲜度），
+ * 一天内给小时，一周内给天；再旧就印日期——「7 天前」与「3 周前」对判断
+ * 「这份数据还能不能用」已经没有区别，日期反而能直接对上日历。
+ *
+ * 跨年时补全年份：只写 `1-5` 会让人分不清是今年还是去年。
+ */
+function relativeText(model: FreshnessBadgeModel, lastRecordAt: number, now: number): string {
+  const minutes = model.minutesAgo;
+  if (minutes === null) return "";
+  if (minutes === 0) return "刚刚";
+  if (minutes < 60) return `${minutes} 分钟前`;
+  if (minutes < 24 * 60) return `${Math.floor(minutes / 60)} 小时前`;
+  if (minutes < 7 * 24 * 60) return `${Math.floor(minutes / (24 * 60))} 天前`;
+
+  const date = new Date(lastRecordAt);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  if (date.getFullYear() !== new Date(now).getFullYear()) {
+    const pad = (value: number) => String(value).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(month)}-${pad(day)}`;
+  }
+  return `${month}-${day}`;
 }
 
 /**
@@ -62,9 +84,9 @@ export function FreshnessBadge({
           ? "old"
           : "stale";
   const text =
-    model.staleness === "unknown"
+    model.staleness === "unknown" || lastRecordAt === null
       ? model.label
-      : `${model.label}（${minutesText(model)}）`;
+      : `${model.label}（${relativeText(model, lastRecordAt, at)}）`;
 
   return (
     <span

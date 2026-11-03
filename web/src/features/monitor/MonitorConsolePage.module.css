@@ -5,9 +5,12 @@
 .consolePage {
   --mc-hour-plot-h: 112px;
   --mc-project-bar-h: 4px;
+  /* 仅骨架屏沿用固定板高（加载时还没有内容，需要一个稳定的形状）。
+     真实面板不再定高：项目只有三行时卡片就只占三行高，不为「对齐」
+     撑成 352px 的空面板。 */
   --mc-board-h: 352px;
-  --mc-panel-head-h: 40px;
-  --mc-list-h: calc(var(--mc-board-h) - var(--mc-panel-head-h) - var(--sp-5));
+  /* 列表的内容上限：超出才在卡片内部滚动，短列表按实际行数收口。 */
+  --mc-list-max-h: 264px;
   display: flex;
   min-width: 0;
   min-height: 100%;
@@ -189,6 +192,9 @@
 .board {
   display: grid;
   min-width: 0;
+  /* 同排两卡各自按内容定高，不互相拉齐——否则项目少的一侧会被另一侧
+     撑出一大片空白。 */
+  align-items: start;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-3);
 }
@@ -196,20 +202,17 @@
 .projectPanel,
 .eventPanel {
   min-width: 0;
-  height: var(--mc-board-h);
 }
 
 .projectPanel > *,
 .eventPanel > * {
   display: flex;
-  height: 100%;
   flex-direction: column;
 }
 
 .projectPanel > * > :last-child,
 .eventPanel > * > :last-child {
   min-height: 0;
-  flex: 1;
 }
 
 .eventPanel > * > :last-child {
@@ -218,7 +221,7 @@
 }
 
 .projectList {
-  max-height: var(--mc-list-h);
+  max-height: var(--mc-list-max-h);
   overflow-y: auto;
   margin: 0;
   padding: 0;
@@ -322,16 +325,17 @@
 }
 
 .eventList {
-  flex: 1;
-  max-height: var(--mc-list-h);
+  max-height: var(--mc-list-max-h);
   overflow-y: auto;
 }
 
+/* 单行高度是下限而非定值：摘要允许折成两行时行高跟着长，不再把第二行
+   切掉。 */
 .eventRow {
   display: grid;
   width: 100%;
   min-width: 0;
-  height: calc(var(--row-pad-y-tight) * 2 + var(--lh-xs));
+  min-height: calc(var(--row-pad-y-tight) * 2 + var(--lh-xs));
   grid-template-columns:
     max-content
     12px
@@ -403,8 +407,16 @@
   color: var(--text-secondary);
 }
 
+/* 错误摘要常带工具名 + 路径（`未知工具 · ENOENT …`），一列宽只够看到
+   开头。允许两行并保留省略号；完整串仍在 title / aria-label 里。 */
 .eventDetail {
+  display: -webkit-box;
+  overflow: hidden;
   color: var(--text-tertiary);
+  overflow-wrap: anywhere;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .skeletonStack {
@@ -464,7 +476,8 @@
   height: var(--mc-board-h);
 }
 
-@media (min-width: 1180px) {
+/* 1080px 起两列：再窄，事件行的五个槽会挤到读不出摘要。 */
+@media (min-width: 1080px) {
   .board,
   .skeletonBoard {
     grid-template-columns: minmax(0, 44fr) minmax(0, 56fr);

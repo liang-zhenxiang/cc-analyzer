@@ -24,12 +24,15 @@
   min-width: 0;
 }
 
-/* 栏头是桶身份的唯一载体（design 裁决 9）：右端类数与合计兼作量级锚。 */
+/* 栏头是桶身份的唯一载体（design 裁决 9）：类数与合计兼作量级锚。
+   两行排布（标题在上、meta 在下）而不是左右分置：后者在栏宽收窄时
+   `4 类 · 11 次` 会紧贴下一栏的 `skill`，读成「skill 有 4 类 11 次」（P2-7）。
+   换行只改栏头自身，不动四栏网格与 130% 字号下的行高。 */
 .columnHead {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--sp-2);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
   margin-bottom: var(--sp-1);
 }
 

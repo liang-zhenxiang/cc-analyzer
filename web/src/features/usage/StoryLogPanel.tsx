@@ -103,6 +103,28 @@ export function StoryLogPanel({
                   {day.sessions} 会话 · {day.projects.length} 项目 ·{" "}
                   {formatTokenCount(day.tokens)} token · {busiestLabel(day)}
                 </span>
+                {/* 整行是按钮，但之前没有任何可展开的视觉线索，只靠脚注
+                    说明。行尾 chevron：收起时朝右，展开时转 90° 朝下。
+                    aria-expanded 已在按钮上，图标本身不重复朗读。 */}
+                <span
+                  className={styles.chevron}
+                  data-probe="story-chevron"
+                  data-expanded={isOpen ? "true" : "false"}
+                  aria-hidden="true"
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="m4.5 2.5 3.5 3.5-3.5 3.5" />
+                  </svg>
+                </span>
               </button>
               {isOpen && review ? (
                 <ul className={styles.sessionList} id={`story-detail-${day.date}`} data-probe="story-detail">

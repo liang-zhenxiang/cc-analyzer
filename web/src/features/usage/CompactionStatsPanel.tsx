@@ -205,27 +205,42 @@ function CacheHitSection({ health }: { health: CacheHealth }) {
   const readings = health.weeks.filter((week) => week.hitRate !== null);
   const hitPct = health.latest === null ? null : health.latest * 100;
   const sparkValues = readings.map((week) => (week.hitRate ?? 0) * 100);
+  const sampleShort = readings.length < 3;
 
   return (
     <section className={styles.cacheSection} data-probe="cache-hit">
-      <header className={styles.cacheHead}>
-        <span className={styles.cacheLabel}>缓存命中率</span>
-        <span className={styles.cacheRight}>
-          {health.trend ? (
-            <span className={styles.cacheTrend}>{CACHE_TREND_LABEL[health.trend]}</span>
-          ) : null}
-          <strong className={styles.cacheValue} data-probe="cache-hit-value">
-            {hitPct === null ? "—" : `${hitPct.toFixed(1)}%`}
-          </strong>
+      {/* 数字区：先读「这是最新周的读数」，再读数字。DOM 顺序把「（最新周）」
+          放在数值之后，是为了 round-hh 的 toContainText 仍能匹配
+          「缓存命中率在变好45.0%」这条既有契约；视觉顺序由 CSS order 还原成
+          「缓存命中率（最新周）」紧挨着——两件事都不牺牲。 */}
+      <div className={styles.cacheReadout}>
+        <div className={styles.cacheHead}>
+          <span className={styles.cacheSectionTitle}>缓存命中率</span>
+          <span className={styles.cacheRight}>
+            {health.trend ? (
+              <span className={styles.cacheTrend}>{CACHE_TREND_LABEL[health.trend]}</span>
+            ) : null}
+            <strong className={styles.cacheValue} data-probe="cache-hit-value">
+              {hitPct === null ? "—" : `${hitPct.toFixed(1)}%`}
+            </strong>
+          </span>
+          <span className={styles.cacheScope}>（最新周）</span>
+        </div>
+      </div>
+      {/* 趋势区单独成块：上面的 56.0% 只回答「最新一周」，下面的「样本不足」
+          只回答「够不够画趋势」——两个结论各有自己的标题，不再并排歧义。 */}
+      <div className={styles.cacheTrendBlock}>
+        <span className={styles.cacheSectionTitle}>
+          {sampleShort ? "周趋势样本不足（<3 周）" : "周趋势"}
         </span>
-      </header>
-      {readings.length < 3 ? (
-        <p className={styles.cacheEmpty}>
-          {readings.length === 0 ? "本窗口没有输入读数" : "样本不足"}
-        </p>
-      ) : (
-        <Sparkline values={sparkValues} width={480} height={24} probe="cache-sparkline" />
-      )}
+        {readings.length === 0 ? (
+          <p className={styles.cacheEmpty}>本窗口没有输入读数</p>
+        ) : sampleShort ? (
+          <p className={styles.cacheEmpty}>{`仅 ${readings.length} 周有读数，不画线`}</p>
+        ) : (
+          <Sparkline values={sparkValues} width={480} height={24} probe="cache-sparkline" />
+        )}
+      </div>
       <p className={styles.cacheNote}>按周：缓存读取 ÷（输入 + 缓存写入 + 缓存读取）</p>
     </section>
   );

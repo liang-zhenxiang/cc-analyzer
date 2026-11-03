@@ -115,6 +115,11 @@ export function ToolEcosystemPanel({ inputs, days, now }: Props) {
 
   const strongest = ecosystem.edges[0];
   const summaryParts = [`工具生态：本窗口 ${ecosystem.toolCount} 种工具`];
+  if (ecosystem.isolatedCount > 0) {
+    // 孤立节点照样画、只是没有边：标题把「种类数」与「有连线的节点」分开说，
+    // 读者不会把无边的节点当成漏画（P2-6）。
+    summaryParts.push(`${ecosystem.isolatedCount} 个节点没有重复共现`);
+  }
   if (strongest) {
     summaryParts.push(
       `${labels.get(strongest.a) ?? strongest.a} 与 ${labels.get(strongest.b) ?? strongest.b} 在 ${strongest.sessions} 个会话中共现，是最强的一对`
@@ -150,7 +155,13 @@ export function ToolEcosystemPanel({ inputs, days, now }: Props) {
       title="工具生态网络"
       ariaLabel="工具生态网络"
       titleAs="h3"
-      actions={<span className={styles.scope}>{`${ecosystem.toolCount} 种工具`}</span>}
+      actions={
+        <span className={styles.scope}>
+          {ecosystem.isolatedCount > 0
+            ? `${ecosystem.toolCount} 种工具 · ${ecosystem.isolatedCount} 个无共现`
+            : `${ecosystem.toolCount} 种工具`}
+        </span>
+      }
     >
       <div className={styles.root} data-probe="lab-network">
         <svg
@@ -246,6 +257,7 @@ export function ToolEcosystemPanel({ inputs, days, now }: Props) {
 
         <p className={styles.footnote}>
           共现 = 同一会话里都出现过，不代表因果；只画在 ≥2 个会话中重复出现的工具对。
+          没有合格共现的工具照样画成节点，只是没有连线。
           MCP 工具按 server 收口，子 agent 的调用计入本会话。
           {ecosystem.hiddenEdges > 0 ? `另有 ${ecosystem.hiddenEdges} 对未画出。` : ""}
         </p>

@@ -204,23 +204,49 @@
   border-top: 1px solid var(--border);
 }
 
+.cacheReadout {
+  display: grid;
+  gap: var(--sp-05);
+}
+
 .cacheHead {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: var(--sp-3);
+  gap: var(--sp-1);
 }
 
-.cacheLabel {
+/* 数字区与趋势区各有一个小标题：读者先知道「这个数是哪一周的」，再看数字。 */
+.cacheSectionTitle {
+  order: 1;
   color: var(--text-secondary);
-  font-size: var(--fs-sm);
-  line-height: var(--lh-sm);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-weight: 600;
+}
+
+/* 视觉上紧挨「缓存命中率」；DOM 里排在数值之后，见组件内的注释。 */
+.cacheScope {
+  order: 2;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .cacheRight {
   display: inline-flex;
   align-items: baseline;
   gap: var(--sp-2);
+  order: 3;
+  margin-left: auto;
+}
+
+/* 趋势块与数字块用间距分层：两块各说各的结论，不要并排着让读者对号入座。 */
+.cacheTrendBlock {
+  display: grid;
+  gap: var(--sp-05);
+  margin-top: var(--sp-2);
 }
 
 /* 方向词只说人话、不上色：涨跌在这里没有「好坏」的通用方向。 */

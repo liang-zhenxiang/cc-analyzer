@@ -115,8 +115,16 @@ describe("StoryLogPanel", () => {
     const row = dayRow("10-30");
     expect(row.getAttribute("aria-expanded")).toBe("false");
 
+    // 行尾 chevron 是可展开的视觉线索：收起朝右，展开转 90°。
+    const chevron = row.querySelector('[data-probe="story-chevron"]');
+    expect(chevron).not.toBeNull();
+    expect(chevron?.getAttribute("data-expanded")).toBe("false");
+    // 图标不参与读屏（aria-expanded 已经承担语义）。
+    expect(chevron?.getAttribute("aria-hidden")).toBe("true");
+
     await user.click(row);
     expect(row.getAttribute("aria-expanded")).toBe("true");
+    expect(chevron?.getAttribute("data-expanded")).toBe("true");
     const detail = screen.getByRole("list", { name: "" });
     expect(detail.dataset.probe).toBe("story-detail");
     // 两个会话各一行（dayReviewOf 的 rows，与日历「一日回望」同一份账）。
@@ -125,6 +133,7 @@ describe("StoryLogPanel", () => {
 
     await user.click(row);
     expect(row.getAttribute("aria-expanded")).toBe("false");
+    expect(chevron?.getAttribute("data-expanded")).toBe("false");
     expect(screen.queryByRole("list")).toBeNull();
   });
 

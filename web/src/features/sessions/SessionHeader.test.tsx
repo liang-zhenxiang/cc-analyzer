@@ -197,7 +197,13 @@ test("健康分按水位分档：90 分亮 success 竖条，数字本身不带�
   expect(node).toHaveAttribute("data-tone", "healthy");
   expect(node.getAttribute("aria-label")).toBe("健康分 90");
   expect(node.textContent).toContain("90");
-  expect(node.textContent).toContain("健康，余量充足");
+  // 可见文字只留结论：细节在 title 里，不再把最重要的一句挤出 200px 限宽。
+  const verdict = node.querySelector('[data-probe="health-verdict"]') as HTMLElement;
+  expect(verdict).toHaveTextContent("健康，余量充足");
+  expect(verdict).not.toHaveTextContent("平均水位");
+  expect(node.getAttribute("title")).toBe(
+    "平均水位 10%，压缩 0 次，出血 0 处——健康，余量充足"
+  );
 });
 
 test("70 分是「偏紧」一档：竖条走 chart-1，不是 success", () => {
@@ -230,7 +236,8 @@ test("没有上下文读数时印「—」和「不可用」，不印 0 分", ()
   expect(node.getAttribute("aria-label")).toBe("健康分不可用");
   // 0 分是一个断言（测到了 0），缺失不是；所以这里必须是破折号。
   expect(node.textContent).toContain("—");
-  expect(node.textContent).toContain("不可用 · 没有上下文读数");
+  expect(node.querySelector('[data-probe="health-verdict"]')).toHaveTextContent("不可用");
+  expect(node.getAttribute("title")).toBe("没有上下文读数");
 });
 
 test("健康分挂在页头标题行里，会话读数行原样保留", () => {

@@ -50,6 +50,20 @@
   text-overflow: ellipsis;
 }
 
+/* 展开提示：12px chevron 固定在行尾，收起朝右、展开转 90° 朝下。
+   只用文字三级色，不新增颜色令牌。 */
+.chevron {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: var(--text-tertiary);
+  transition: transform var(--dur-hover) var(--ease-out);
+}
+
+.chevron[data-expanded="true"] {
+  transform: rotate(90deg);
+}
+
 /* 展开区：一天会话清单，最高 160px 内滚动。 */
 .sessionList {
   display: flex;

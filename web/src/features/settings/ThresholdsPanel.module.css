@@ -86,11 +86,41 @@
   padding-top: var(--sp-2);
 }
 
-.sectionTitle {
+/* 组标题（显示 / 数据与阈值 / 计费窗口）：带一条发丝线，把三组分开。
+   面板改叫「设置」后，这层是读者找东西的第一级路标。 */
+.groupTitle {
   margin: var(--sp-3) 0 0;
+  border-top: 1px solid var(--border);
+  padding-top: var(--sp-2);
   color: var(--text);
   font-size: var(--fs-base);
   font-weight: 600;
+  line-height: var(--lh-base);
+}
+
+/* 组内小节：降一级（h4 + 小一号字），否则组标题与小节标题同样大小，
+   层级只剩语义、视觉上分不出来。 */
+.sectionTitle {
+  margin: var(--sp-3) 0 0;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+/* 预览块：标签 + 两行示例。标签是 11px 的说明字，示例本身保持原字号——
+   预览要测的是读数密度，不能跟着标签一起缩小。 */
+.previewBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-top: 1px solid var(--border);
+  padding-top: var(--sp-1);
+}
+
+.previewLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
 }
 
 /* 「界面字号」与「界面对比度」两节的共同骨架：一条偏好 + 一枚分段控件，
@@ -110,11 +140,10 @@
   grid-template-columns: 1fr;
 }
 
-/* 预览行：数据墨色 + 等宽数字，上边线照 .archiveRow 的画法把示例读数与控件分开。 */
+/* 预览行：数据墨色 + 等宽数字；上边线移到 .previewBlock，把「字号预览」
+   标签、示例与控件分成三档。 */
 .preview {
   margin: 0;
-  border-top: 1px solid var(--border);
-  padding-top: var(--sp-1);
   color: var(--text);
   font-size: var(--fs-sm);
   line-height: var(--lh-sm);

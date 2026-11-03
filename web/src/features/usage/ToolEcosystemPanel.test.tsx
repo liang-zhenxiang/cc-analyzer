@@ -16,6 +16,8 @@ function fact(key: ToolBucketKey): ToolCallFact {
 
 const bash = () => fact({ kind: "builtin", toolName: "Bash" });
 const read = () => fact({ kind: "builtin", toolName: "Read" });
+const edit = () => fact({ kind: "builtin", toolName: "Edit" });
+const grep = () => fact({ kind: "builtin", toolName: "Grep" });
 
 function metaOf(path: string): SessionMeta {
   return {
@@ -99,6 +101,25 @@ describe("ToolEcosystemPanel", () => {
       />
     );
     expect(screen.getByText(/本窗口有 2 种工具、1 个会话；共现需要同一对工具在至少 2 个会话里同时出现/)).toBeVisible();
+  });
+
+  it("孤立工具照样画节点，标题把「种工具」与「个无共现」分开说（P2-6）", () => {
+    const { container } = render(
+      <ToolEcosystemPanel
+        inputs={[
+          inputOf(metaOf("/a"), [bash(), read()]),
+          inputOf(metaOf("/b"), [bash(), read()]),
+          inputOf(metaOf("/c"), [grep()]),
+          inputOf(metaOf("/d"), [edit()])
+        ]}
+        days={30}
+        now={NOW}
+      />
+    );
+    expect(container.querySelectorAll('[data-probe="ecosystem-node"]')).toHaveLength(4);
+    expect(screen.getByText("4 种工具 · 2 个无共现")).toBeVisible();
+    expect(screen.getByText(/没有合格共现的工具照样画成节点，只是没有连线/)).toBeVisible();
+    expect(screen.getByRole("img", { name: /2 个节点没有重复共现/ })).toBeVisible();
   });
 
   it("边被截断时脚注报出未画的对数", () => {

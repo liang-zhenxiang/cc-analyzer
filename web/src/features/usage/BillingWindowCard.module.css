@@ -19,6 +19,82 @@
   gap: var(--sp-3) var(--sp-5);
 }
 
+/* 表盘在完整版里仍是 gaugeArea 的直接读数字：包一层只为让紧凑档能单独改
+   它的 --gauge-size，flex 尺寸必须原样保住（否则窄窗会被压缩变形）。 */
+.gaugeBox {
+  flex: 0 0 auto;
+}
+
+/* 未选计划的紧凑档：空环退到辅助尺寸，读数从 2×2 网格压成一行。 */
+.gaugeCompact {
+  --gauge-size: 72px;
+  flex: 0 0 auto;
+}
+
+/* 紧凑读数行：消耗 / 关闭时刻 / 窗口开启 / 设置入口同一行，窄窗换行。 */
+.compactSummary {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 320px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+}
+
+.compactReading {
+  display: inline-flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--sp-1);
+}
+
+.compactValue {
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: var(--lh-md);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.compactStatus {
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: var(--lh-md);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 「去设置计划」是入口不是主操作：描边按钮与读数同档，不抢表盘的视觉重量。 */
+.settingsEntry {
+  flex: 0 0 auto;
+  padding: var(--sp-05) var(--sp-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  cursor: pointer;
+  transition: background-color var(--dur-hover) var(--ease-out);
+}
+
+.settingsEntry:hover {
+  background: var(--bg-active);
+}
+
+.settingsEntry:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* 关闭事实句在 flex 紧凑行里独占一整行（完整版那条 grid-column 在 flex 中无效）。 */
+.compactSummary .closedNote {
+  flex: 1 0 100%;
+}
+
 /* 四个窗口读数：2×2 网格。此前是 `auto-fit` 四列，`消耗速度` 那一格的标签
    被挤成两行，四格的 label→value 间距实测 92 / 54 / 53 / 103px——同一组读数
    四种间距，基线也就跟着不齐。 */
