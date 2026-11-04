@@ -196,7 +196,8 @@ export function UsageOverviewPage({
   /** 错误事件行的「跳回会话分析定位」回调（N1，与全局搜索的 onReveal 同款）。 */
   onRevealRecord?: (path: string, recordId: string | null) => void;
 } = {}) {
-  const { inputs, progress, scanning, error, skipped, refresh, scannedAt } = useUsageOverview();
+  const { inputs, progress, scanning, error, skipped, refresh, scannedAt, rootCheck } =
+    useUsageOverview();
   const [days, setDays] = useState<UsageRange>(readStoredRange);
   const [tokenClass, setTokenClass] = useState<TokenClass>("total");
   const [modelView, setModelView] = useState<"share" | "swap" | "migration">("share");
@@ -720,6 +721,13 @@ export function UsageOverviewPage({
     );
   }
 
+  // 三步引导的「选择目录」必须用真实自检结果：`ok`（有会话）与 `empty`
+  // （目录在、只是空）都算目录可用；自检尚未回来时按「没有读取错误」兜底，
+  // 避免 false → true 的闪烁。`missing` / `unreadable` 会先走上面的错误态。
+  const hasDirectory = rootCheck
+    ? rootCheck.state === "ok" || rootCheck.state === "empty"
+    : !error;
+
   // 里程碑与实验室各自承担空态（§4.1 第 3 条 / §7）：那句「还没有可统计的会话」
   // 是用量档的语言；实验室的十张卡各有自己的空态说明，不能被整页空态盖掉。
   if (
@@ -736,9 +744,9 @@ export function UsageOverviewPage({
           title="还没有可统计的会话"
           description="本机 ~/.claude/projects 下没有发现会话记录。切到「会话分析」标签确认扫描结果，产生新会话后再回到本页。"
           /* H10 三步引导：用量档的「整块没有数据」空态挂引导。
-             hasDirectory 恒 true——本页能出现就说明已经读了默认目录；
+             hasDirectory 来自根目录自检（见上方 hasDirectory）；
              scanComplete 用 !scanning；sessionCount 即 inputs 数（0）。 */
-          guide={{ hasDirectory: true, scanComplete: !scanning, sessionCount: inputs.length }}
+          guide={{ hasDirectory, scanComplete: !scanning, sessionCount: inputs.length }}
         />
       </div>
     );
@@ -792,7 +800,7 @@ export function UsageOverviewPage({
             {...(scanning ? { "data-probe-pending": true } : {})}
           >
             {scanning
-              ? `已分析 ${progress.done} / ${progress.total} 个会话`
+              ? `正在读取 ${progress.done}/${progress.total} 个会话`
               : view === "milestones"
                 ? `全部 ${milestoneReport.facts.sessionCount} 个已扫描会话纳入统计`
                 : view === "annual"

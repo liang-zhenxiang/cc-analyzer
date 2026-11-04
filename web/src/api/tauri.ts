@@ -141,6 +141,16 @@ export function installTauriBridges(): Bridges {
             directory: false,
             filters: [{ name: options.filterName, extensions: options.extensions }]
           }
+        }),
+      // 目录选择与打开文件是同一条 dialog 命令，只差 directory 开关；
+      // 权限依旧是既有的 dialog:default，不新增任何能力。
+      openDirectory: (options) =>
+        invoke<string | null>("plugin:dialog|open", {
+          options: {
+            title: options.title,
+            multiple: false,
+            directory: true
+          }
         })
     },
     archiveBundle: {

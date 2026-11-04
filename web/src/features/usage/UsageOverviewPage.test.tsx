@@ -415,7 +415,7 @@ describe("UsageOverviewPage", () => {
     const button = await screen.findByRole("button", { name: "导出用量快照（单文件 HTML）" });
     await waitFor(() => expect(button).toBeDisabled());
     expect(button).toHaveAttribute("title", "正在扫描会话，扫描完成后可导出");
-    expect(screen.getByText(/已分析 \d+ \/ 9 个会话/)).toBeInTheDocument();
+    expect(screen.getByText(/正在读取 \d+\/9 个会话/)).toBeInTheDocument();
   });
 
   it("导出快照：文件名与扩展名交给保存对话框，产物写入那个路径", async () => {

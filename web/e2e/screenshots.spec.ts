@@ -171,6 +171,9 @@ const V_CLUSTERS = declareView("clusters");
 const V_PINS = declareView("pins");
 const V_PALETTE = declareView("palette");
 const V_KIOSK = declareView("kiosk");
+// 开箱体验（Issue #306）
+const V_ONBOARDING_GATE = declareView("onboarding-gate");
+const V_DEMO_MODE = declareView("demo-mode");
 // 会话账单（Round BB）
 const V_COST = declareView("cost");
 // 第二批十功能（Round DD）
@@ -1434,6 +1437,42 @@ test.describe("截图归档 · Round II 十功能", () => {
       await center(page.locator("[data-probe='prompt-profile']"));
       await page.waitForTimeout(200);
       await shot(V_II_PROFILE);
+    });
+  }
+});
+
+// 开箱体验（Issue #306）：没有会话目录时的欢迎层，以及「先看演示数据」的模式。
+// 场景刻意让 `~/.claude/projects` 不存在——欢迎层是这两个视图的主角，真实数据
+// 会把它们顶掉。演示模式由欢迎层的按钮进入，走的正是用户会走的那条路径。
+test.describe("截图归档 · 开箱体验", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: defaultScenario({ files: { "/Users/e2e/notes.txt": "" } }) });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`开箱体验 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+      const shot = async (view: string) => {
+        await settleImages(page);
+        await page.screenshot({ path: path.join(OUT_DIR, `${view}-${theme}${suffix}.png`) });
+      };
+
+      await page.goto("/");
+      await expect(page.locator("[data-probe='claude-root-gate']")).toBeVisible();
+      await shot(V_ONBOARDING_GATE);
+
+      await page.getByRole("button", { name: "先看演示数据" }).click();
+      await expect(page.locator("[data-probe='demo-badge']")).toBeVisible();
+      await page.getByRole("tab", { name: "用量总览" }).click();
+      await expect(page.getByText("Tokens 总量").first()).toBeVisible({ timeout: 15_000 });
+      await page.waitForTimeout(300);
+      await shot(V_DEMO_MODE);
     });
   }
 });

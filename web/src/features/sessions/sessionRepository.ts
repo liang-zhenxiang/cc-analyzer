@@ -13,6 +13,11 @@ import { sessionFactsOf } from "./sessionFacts";
 import { sharedSessionParseCache } from "./sessionParseCache";
 import { archivedSessions, type ArchiveIndex } from "../archive/archiveIndex";
 import { readArchiveIndex } from "../archive/archiveStore";
+import {
+  ClaudeRootError,
+  isMissingPathError,
+  resolveClaudeRoot
+} from "../onboarding/claudeRoot";
 
 /**
  * v2 → v3：条目新增 `facts`（G2 筛选事实）。文件名跟着版本走——旧文件留在
@@ -67,10 +72,22 @@ export class SessionRepository {
 
   async listSessions(): Promise<SessionMeta[]> {
     return this.withCacheOperation(async () => {
-      const home = await this.bridges.fs.homeDir();
-      const projectsRoot = joinPath(home, ".claude", "projects");
+      // 目录来源与开箱引导共用一份解析：用户在引导里改过目录后，会话列表
+      // 必须立刻跟着改，而不是继续读默认的 ~/.claude/projects。
+      const projectsRoot = await resolveClaudeRoot(this.bridges);
       const cache = await this.readCache();
-      const projectEntries = await this.bridges.fs.readDir(projectsRoot);
+      let projectEntries;
+      try {
+        projectEntries = await this.bridges.fs.readDir(projectsRoot);
+      } catch (cause) {
+        // 根目录读失败是「没装 / 没权限」这类可识别状态，不该以原始错误串
+        // 冒到界面上：上层据此决定是引导用户，还是提示权限后重试。
+        throw new ClaudeRootError(
+          isMissingPathError(cause) ? "missing" : "unreadable",
+          projectsRoot,
+          cause
+        );
+      }
       const result: SessionMeta[] = [];
 
       for (const project of projectEntries.filter((entry) => entry.is_dir)) {

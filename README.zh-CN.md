@@ -238,6 +238,9 @@ token 消耗趋势与分布，每个数字带来源徽章。
 打开 dmg 后把 **CC Analyzer** 拖到 `Applications` 快捷方式上即可。
 macOS 产物为 ad-hoc 签名：首次打开若被 Gatekeeper 拦截，右键 →「打开」即可。
 
+第一次打开会检查 `~/.claude/projects`。如果目录不存在，欢迎层可以改选其他目录，
+或直接打开内置演示——演示全程在内存里运行，不读取、也不写入你的真实会话文件。
+
 ### 从源码构建
 
 环境要求：Node.js 22 与 npm、Rust 1.85+、Xcode Command Line Tools

@@ -4,6 +4,7 @@ import type { Bridges } from "../../api/types";
 import { toSessionMeta, type MetadataCacheEntry, type SessionMeta } from "./metadataCache";
 import { extractSessionMetadata, METADATA_HEAD_BYTES } from "./metadataScanner";
 import { SessionRepository } from "./sessionRepository";
+import { CLAUDE_ROOT_STORAGE_KEY, ClaudeRootError } from "../onboarding/claudeRoot";
 
 type FsBridgeStub = Partial<Bridges["fs"]>;
 
@@ -38,6 +39,7 @@ describe("SessionRepository", () => {
   let bridges: Bridges;
 
   beforeEach(() => {
+    window.localStorage.clear();
     bridges = createBridges({});
   });
 
@@ -341,5 +343,54 @@ describe("SessionRepository", () => {
     const archivedAfterComplete = completed.find((session) => session.path === archivePath);
     expect(archivedAfterComplete?.archived).toBe(true);
     expect(archivedAfterComplete?.metadataStatus).toBe("complete");
+  });
+
+  it("reads sessions from the user-selected root instead of the default home", async () => {
+    window.localStorage.setItem(CLAUDE_ROOT_STORAGE_KEY, "/Volumes/backup/projects");
+    bridges = createBridges({
+      readDir: vi.fn(async (path: string) => {
+        if (path === "/Volumes/backup/projects") {
+          return [{ name: "repo-backup", is_dir: true, is_file: false }];
+        }
+        if (path === "/Volumes/backup/projects/repo-backup") {
+          return [{ name: "session.jsonl", is_dir: false, is_file: true }];
+        }
+        return [];
+      })
+    });
+
+    const sessions = await new SessionRepository(bridges).listSessions();
+
+    expect(sessions[0]?.path).toBe("/Volumes/backup/projects/repo-backup/session.jsonl");
+    expect(bridges.fs.readDir).not.toHaveBeenCalledWith("/home/tester/.claude/projects");
+  });
+
+  it("throws a recognizable ClaudeRootError when the root cannot be read", async () => {
+    bridges = createBridges({
+      readDir: vi.fn(async () => {
+        throw new Error("No such file or directory (os error 2)");
+      })
+    });
+
+    await expect(new SessionRepository(bridges).listSessions()).rejects.toMatchObject({
+      name: "ClaudeRootError",
+      state: "missing",
+      path: "/home/tester/.claude/projects"
+    });
+    await expect(new SessionRepository(bridges).listSessions()).rejects.toBeInstanceOf(
+      ClaudeRootError
+    );
+  });
+
+  it("permission failures are marked unreadable, not missing", async () => {
+    bridges = createBridges({
+      readDir: vi.fn(async () => {
+        throw new Error("Permission denied (os error 13)");
+      })
+    });
+
+    await expect(new SessionRepository(bridges).listSessions()).rejects.toMatchObject({
+      state: "unreadable"
+    });
   });
 });

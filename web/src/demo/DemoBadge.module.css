@@ -1,0 +1,44 @@
+/* 右下角浮标：顶栏下方右侧会压住用量页的「导出快照 / 对比快照」，
+   内容区顶部也没有一块稳定的空白。右下角在四个主界面里都没有常驻控件，
+   标记又能一直看得见——「演示数据」不能因为切页就消失。 */
+.badge {
+  position: fixed;
+  bottom: var(--sp-4);
+  right: var(--sp-4);
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-1) var(--sp-1) var(--sp-3);
+  border: 1px solid var(--warning);
+  border-radius: var(--r-md);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.text {
+  font-weight: 600;
+}
+
+.exit {
+  appearance: none;
+  padding: 0 var(--sp-2);
+  border: 1px solid currentColor;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.exit:hover {
+  background: var(--bg-elevated);
+}
+
+.exit:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}

@@ -10,6 +10,7 @@ import { SessionAnalyzerPage } from "../features/sessions/SessionAnalyzerPage";
 import { MonitorPage, type MonitorView } from "../features/monitor/MonitorPage";
 import { PulseFloatHeader } from "../features/monitor/PulseFloatHeader";
 import { UsageOverviewPage } from "../features/usage/UsageOverviewPage";
+import { ClaudeRootGate } from "../features/onboarding/ClaudeRootGate";
 import { ThresholdsPanel } from "../features/settings/ThresholdsPanel";
 import { WorkspaceTabs } from "./WorkspaceTabs";
 import { Button, IconButton } from "../components/Button";
@@ -507,39 +508,43 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
               {settingsOpen ? <ThresholdsPanel onClose={() => setSettingsOpen(false)} /> : null}
               <main className={styles.content}>
                 <ErrorBoundary>
-                  {tab === "analyzer" ? (
-                    <SessionAnalyzerPage
-                      revealRequest={revealRequest}
-                      onRevealHandled={() => setRevealRequest(null)}
-                    />
-                  ) : tab === "usage" ? (
-                    <UsageOverviewPage
-                      // 压缩统计 top3 行的握手：切回会话分析并打开该会话
-                      // （recordId 为 null = 只落到会话，不定位记录）。
-                      onOpenSession={(session) => {
-                        setTab("analyzer");
-                        setRevealRequest({ path: session.path, recordId: null, nonce: Date.now() });
-                      }}
-                      // 错误事件行的握手（N1）：与全局搜索的 onReveal 同款——sidechain
-                      // 事件 recordId=null，reveal 的既有语义就是「只落到会话」。
-                      onRevealRecord={(path, recordId) => {
-                        setTab("analyzer");
-                        setRevealRequest({ path, recordId, nonce: Date.now() });
-                      }}
-                    />
-                  ) : (
-                    <MonitorPage
-                      view={monitorView}
-                      onViewChange={setMonitorView}
-                      compact={floating}
-                      onEnterFloat={enterFloatMode}
-                      // 脉搏会话行的「打开会话」握手：与压缩统计 top3 行逐字同款。
-                      onOpenSession={(path) => {
-                        setTab("analyzer");
-                        setRevealRequest({ path, recordId: null, nonce: Date.now() });
-                      }}
-                    />
-                  )}
+                  {/* 目录自检只包住主内容：顶栏、设置抽屉与浮层在「还没有数据」
+                      时仍然可用。自检 ok 时原样渲染当前标签页，不改变布局。 */}
+                  <ClaudeRootGate>
+                    {tab === "analyzer" ? (
+                      <SessionAnalyzerPage
+                        revealRequest={revealRequest}
+                        onRevealHandled={() => setRevealRequest(null)}
+                      />
+                    ) : tab === "usage" ? (
+                      <UsageOverviewPage
+                        // 压缩统计 top3 行的握手：切回会话分析并打开该会话
+                        // （recordId 为 null = 只落到会话，不定位记录）。
+                        onOpenSession={(session) => {
+                          setTab("analyzer");
+                          setRevealRequest({ path: session.path, recordId: null, nonce: Date.now() });
+                        }}
+                        // 错误事件行的握手（N1）：与全局搜索的 onReveal 同款——sidechain
+                        // 事件 recordId=null，reveal 的既有语义就是「只落到会话」。
+                        onRevealRecord={(path, recordId) => {
+                          setTab("analyzer");
+                          setRevealRequest({ path, recordId, nonce: Date.now() });
+                        }}
+                      />
+                    ) : (
+                      <MonitorPage
+                        view={monitorView}
+                        onViewChange={setMonitorView}
+                        compact={floating}
+                        onEnterFloat={enterFloatMode}
+                        // 脉搏会话行的「打开会话」握手：与压缩统计 top3 行逐字同款。
+                        onOpenSession={(path) => {
+                          setTab("analyzer");
+                          setRevealRequest({ path, recordId: null, nonce: Date.now() });
+                        }}
+                      />
+                    )}
+                  </ClaudeRootGate>
                 </ErrorBoundary>
               </main>
               {/* 浮层在 shell 之外顶层渲染；跳转先切回会话分析页再发请求。 */}

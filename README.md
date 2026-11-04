@@ -340,6 +340,11 @@ Open the dmg and drag **CC Analyzer** onto the `Applications` shortcut.
 macOS bundles are ad-hoc signed: on first launch, right-click the app and
 choose **Open** to pass Gatekeeper.
 
+On first launch the app looks for `~/.claude/projects`. If that folder is
+missing, the welcome screen offers to pick another folder or open a built-in
+demo with sample sessions — the demo runs entirely in memory and never reads
+or writes your own session files.
+
 ### Build from source
 
 Requirements: Node.js 22 & npm, Rust 1.85+, Xcode Command Line Tools

@@ -97,6 +97,13 @@ export interface DialogBridge {
   ): Promise<string | null>;
   /** 弹「打开文件」对话框并返回选中的路径；用户取消时为 null。 */
   openFile(options: { title: string; filterName: string; extensions: string[] }): Promise<string | null>;
+  /**
+   * 弹「选择目录」对话框并返回目录路径；用户取消时为 null。
+   *
+   * 开箱引导用来选 Claude 会话目录。可选：老宿主 / 老测试的假 bridge 没有它，
+   * 调用点必须走可选链并给出降级说明，而不是让引导层崩掉。
+   */
+  openDirectory?(options: { title: string }): Promise<string | null>;
 }
 
 /**
