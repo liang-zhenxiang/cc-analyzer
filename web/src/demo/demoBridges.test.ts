@@ -60,7 +60,7 @@ describe("installDemoBridges", () => {
     // 演示会话里有中文：选一个落在多字节字符中间的上限，结果不能出现替换符。
     const head = await bridges.fs.readHead(path, 37);
     expect(new TextEncoder().encode(head).length).toBeLessThanOrEqual(37);
-    expect(head).not.toContain("�");
+    expect(head).not.toContain("\uFFFD");
     expect(text.startsWith(head)).toBe(true);
   });
 
