@@ -83,7 +83,7 @@ describe("ClaudeRootGate", () => {
     expect(screen.getByRole("button", { name: "先看演示数据" })).toHaveClass(/primary/);
   });
 
-  it("目录可读但没有 jsonl：说「这个目录里没有会话」", async () => {
+  it("目录可读但没有 jsonl：放行主界面，空态交给用量页的三步引导", async () => {
     const bridges = createBridges({
       readDir: vi.fn(async (path: string) =>
         path === DEFAULT_ROOT ? [dir("-repo-demo")] : [file("readme.md")]
@@ -92,11 +92,13 @@ describe("ClaudeRootGate", () => {
 
     renderGate(bridges);
 
-    expect(await screen.findByText("这个目录里没有会话")).toBeInTheDocument();
-    expect(screen.getByText(/还没有 .jsonl 会话文件/)).toBeInTheDocument();
+    // 不重复拦一次：目录存在只是没有会话，主界面的 H10 引导才是这件事的
+    // 正确位置（它还会告诉用户「检查目录」而不是「去装 Claude Code」）。
+    await waitFor(() => expect(screen.getByText("主内容")).toBeInTheDocument());
+    expect(screen.queryByText("这个目录里没有会话")).toBeNull();
   });
 
-  it("权限错误：区分于「没装」，给出权限说明", async () => {
+  it("权限错误：放行主界面，交给可重试的错误态而不是欢迎层", async () => {
     const bridges = createBridges({
       readDir: vi.fn(async () => {
         throw new Error("Permission denied (os error 13)");
@@ -105,8 +107,9 @@ describe("ClaudeRootGate", () => {
 
     renderGate(bridges);
 
-    expect(await screen.findByText("还没有找到会话目录")).toBeInTheDocument();
-    expect(screen.getByText(/权限/)).toBeInTheDocument();
+    // 用户明明有目录，需要的是错误详情与「重试」，不是劝他去装 Claude Code。
+    await waitFor(() => expect(screen.getByText("主内容")).toBeInTheDocument());
+    expect(screen.queryByText("还没有找到会话目录")).toBeNull();
   });
 
   it("自检 ok：直接渲染 children，不出现引导层", async () => {

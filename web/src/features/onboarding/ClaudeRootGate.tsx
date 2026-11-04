@@ -94,13 +94,18 @@ export function ClaudeRootGate({ children }: { children: ReactNode }) {
   }
 
   // 自检还没回来时照常渲染主内容：有数据的用户不该为一次检查看到空白闪烁；
-  // 没数据的用户会在检查回来后切到引导层。
-  if (!check || check.state === "ok") return <>{children}</>;
+  // 只有「连目录都找不到」才换成整页欢迎层：
+  // - `empty`（有目录、没会话）放行——用量页已有 H10 三步引导，整页再拦一次
+  //   就是同一件事说两遍，而且会把「会话分析」等正常入口一起关掉；
+  // - `unreadable`（权限 / IO 故障）放行——用户需要的是带「重试」的错误态，
+  //   不是一份劝他去装 Claude Code 的引导。
+  if (!check || check.state !== "missing") {
+    return <>{children}</>;
+  }
 
-  const title = check.state === "empty" ? "这个目录里没有会话" : "还没有找到会话目录";
-  // 主按钮跟着「用户现在最可能想做什么」走：连目录都没有的人（多半还没装
-  // Claude Code）最该看到产品长什么样；目录里有会话只是空的，才轮到换目录。
-  const demoLeads = check.state !== "empty";
+  const title = "还没有找到会话目录";
+  // 连目录都没有的人（多半还没装 Claude Code）最该先看到产品长什么样，
+  // 所以演示是主按钮；「选择其他目录」只对已经有一份备份目录的人有意义。
   const hasCustomRoot = readStoredClaudeRoot() !== null;
 
   return (
@@ -124,14 +129,11 @@ export function ClaudeRootGate({ children }: { children: ReactNode }) {
         ) : null}
 
         <div className={styles.actions}>
-          {demoLeads ? (
-            <Button type="button" variant="primary" onClick={handleDemo}>
-              先看演示数据
-            </Button>
-          ) : null}
+          <Button type="button" variant="primary" onClick={handleDemo}>
+            先看演示数据
+          </Button>
           <Button
             type="button"
-            variant={demoLeads ? "secondary" : "primary"}
             disabled={checking || !openDirectory}
             title={!openDirectory ? "当前运行环境不支持选择目录" : undefined}
             onClick={() => void handlePickDirectory()}
@@ -146,11 +148,6 @@ export function ClaudeRootGate({ children }: { children: ReactNode }) {
               按默认目录继续
             </Button>
           ) : null}
-          {demoLeads ? null : (
-            <Button type="button" variant="ghost" onClick={handleDemo}>
-              先看演示数据
-            </Button>
-          )}
         </div>
       </section>
     </div>

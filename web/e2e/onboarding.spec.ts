@@ -54,13 +54,13 @@ test.describe("开箱体验 · 目录存在但没有会话", () => {
     })
   });
 
-  test("标题写「这个目录里没有会话」", { tag: "@onboarding" }, async ({ page }) => {
+  test("主界面放行，用量页给出三步引导与演示入口", { tag: "@onboarding" }, async ({ page }) => {
     await page.goto("/");
-    const gate = page.locator("[data-probe='claude-root-gate']");
-    await expect(gate).toBeVisible();
-    await expect(gate).toContainText("这个目录里没有会话");
-    // 两个空态互斥：目录可读时不能再说「找不到目录」。
-    await expect(gate).not.toContainText("还没有找到会话目录");
-    await expect(gate).toContainText("/Users/e2e/.claude/projects");
+    // 目录存在只是没有会话：不整页拦截，交给用量页既有的 H10 引导。
+    await expect(page.locator("[data-probe='claude-root-gate']")).toHaveCount(0);
+
+    await page.getByRole("tab", { name: "用量总览" }).click();
+    await expect(page.locator("[data-probe='empty-steps']")).toBeVisible();
+    await expect(page.getByRole("button", { name: "先看演示数据" })).toBeVisible();
   });
 });

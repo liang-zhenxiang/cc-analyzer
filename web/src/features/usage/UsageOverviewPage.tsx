@@ -747,6 +747,17 @@ export function UsageOverviewPage({
              hasDirectory 来自根目录自检（见上方 hasDirectory）；
              scanComplete 用 !scanning；sessionCount 即 inputs 数（0）。 */
           guide={{ hasDirectory, scanComplete: !scanning, sessionCount: inputs.length }}
+          /* 目录存在但没有会话（多半还没跑过 Claude Code）的人，也应该能
+             先看到产品长什么样——入口与欢迎层同一个事件，不重复实现。 */
+          action={
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => window.dispatchEvent(new Event("cca-demo-enter"))}
+            >
+              先看演示数据
+            </Button>
+          }
         />
       </div>
     );
