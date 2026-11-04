@@ -1,0 +1,89 @@
+/* 引导层占满主内容区，但不盖顶栏 / 设置抽屉：它只替换 <main> 里的页面。
+   min-height 而不是固定高度——主区在 AppShell 里是 flex 剩余高度，百分比
+   高度在这个上下文里能解析，固定高度会在不同窗口尺寸下露出底部空白。 */
+.gate {
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+  padding: var(--sp-6);
+}
+
+.card {
+  display: grid;
+  gap: var(--sp-3);
+  width: min(560px, 100%);
+  padding: var(--sp-6);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+  text-align: left;
+}
+
+.title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  line-height: var(--lh-lg);
+}
+
+.description,
+.privacy {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+}
+
+/* 隐私说明是一条「事实」而不是警示：用凹槽底把它和操作区分开，不借危险色。 */
+.privacy {
+  padding: var(--sp-2);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.pathRow {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.pathLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 等宽 + 可选中：路径是给人复制去终端里核对的，不是装饰。 */
+.path {
+  display: block;
+  padding: var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.hint {
+  margin: 0;
+  padding: var(--sp-2);
+  border-radius: var(--r-sm);
+  background: var(--warning-soft);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}

@@ -19,7 +19,13 @@ const bridges = {
   fs: {
     homeDir: vi.fn(async () => "/home/tester"),
     appDataDir: vi.fn(async () => "/app-data"),
-    readDir: vi.fn(async () => []),
+    // 开箱自检（ClaudeRootGate）要求根目录里至少有一个 .jsonl 才放行；
+    // 给一份最小的假会话，模板才不会被引导层整个替换掉。
+    readDir: vi.fn(async (target: string) =>
+      target === "/home/tester/.claude/projects"
+        ? [{ name: "-repo-demo", is_dir: true, is_file: false }]
+        : [{ name: "session.jsonl", is_dir: false, is_file: true }]
+    ),
     readText: vi.fn(async () => "{}"),
     readHead: vi.fn(async () => "{}"),
     writeText: vi.fn(async () => undefined),
@@ -99,7 +105,7 @@ test("命令面板过滤后用 Enter 执行：直接切到用量总览", async (
   // 执行完就关：面板不该盖住它刚切过去的页面。
   expect(screen.queryByRole("dialog", { name: "命令面板" })).not.toBeInTheDocument();
   expect(localStorage.getItem("cca-workspace-tab")).toBe("usage");
-  expect(await screen.findByText("还没有可统计的会话")).toBeInTheDocument();
+  expect(await screen.findByRole("region", { name: "用量总览" })).toBeInTheDocument();
 });
 
 test("设置里开大屏模式：根容器带上 data-kiosk，Esc 退出", async () => {
@@ -142,8 +148,8 @@ test("switches to the usage overview tab and persists the choice", async () => {
   await user.click(screen.getByRole("tab", { name: "用量总览" }));
   expect(screen.getByRole("tab", { name: "用量总览", selected: true })).toBeInTheDocument();
   expect(localStorage.getItem("cca-workspace-tab")).toBe("usage");
-  // 没有会话可统计时给引导，而不是空白仪表盘。
-  expect(await screen.findByText("还没有可统计的会话")).toBeInTheDocument();
+  // 假目录里有一份会话，页面进仪表盘而不是空态。
+  expect(await screen.findByRole("region", { name: "用量总览" })).toBeInTheDocument();
 });
 
 test("falls back to the analyzer when the stored tab is unknown", () => {

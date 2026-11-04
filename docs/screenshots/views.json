@@ -70,6 +70,8 @@
     "ii-shape",
     "ii-weekday",
     "ii-compare",
-    "ii-profile"
+    "ii-profile",
+    "onboarding-gate",
+    "demo-mode"
   ]
 }

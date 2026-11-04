@@ -927,6 +927,9 @@ export function brokenScanScenario(overrides: Partial<MockScenario> = {}): MockS
     home: HOME,
     appData: APP_DATA,
     files: {},
+    // 「目录在、但读不了」而不是「目录不存在」：开箱自检会把后者换成欢迎层，
+    // 而本场景要验证的是主界面上那条可重试的读取错误。
+    unreadablePaths: [`${HOME}/.claude/projects`],
     monitor: { port: 8090, alive: false },
     updater: { currentVersion: APP_VERSION },
     ...overrides

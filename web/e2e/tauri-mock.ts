@@ -32,6 +32,13 @@ export type MockScenario = {
   /** `plugin:dialog|open` 返回的路径；null 表示用户取消 */
   openPath?: string | null;
   /**
+   * 这些目录读起来会报「权限不足」而不是「不存在」。
+   *
+   * 开箱自检对两者分档：不存在 → 欢迎层（引导去装 / 去看演示），不可读 →
+   * 保留主界面与可重试的错误态。真实世界两种都会发生，夹具必须能分别触发。
+   */
+  unreadablePaths?: string[];
+  /**
    * 导入归档包时 Rust 侧应当交回的清单与解出的文件。
    *
    * `stagedPath` 由桩按前端现传的 `stagingDir` 现算——真实 Rust 也只会往那个
@@ -202,14 +209,23 @@ export function installTauriMock(scenario: MockScenario): void {
         }
         case "read_dir": {
           const dir = norm(String(a.path));
+          if ((scenario.unreadablePaths ?? []).some((p) => norm(p) === dir)) {
+            const denied = new Error(
+              `EACCES: permission denied, scandir '${dir}'`
+            ) as NodeJS.ErrnoException;
+            denied.code = "EACCES";
+            throw denied;
+          }
           // 开关式故障注入：`window.__CCA_E2E_FAIL_SCAN__ = true` 之后，任何一次
           // 目录读取都失败——用来复现「已经有一份列表、刷新却失败了」这条真实路径
           // （首屏就失败是另一条路径，用 brokenScanScenario 的未声明目录触发）。
           if ((window as unknown as Record<string, unknown>).__CCA_E2E_FAIL_SCAN__) {
-            throw new Error(
+            const error = new Error(
               `E2E 虚拟文件系统：readDir 遇到未声明的路径 ${dir}。` +
                 `请在夹具里声明它——静默返回空数组会把夹具错误伪装成功能缺陷。`
-            );
+            ) as NodeJS.ErrnoException;
+            error.code = "ENOENT";
+            throw error;
           }
           const prefix = dir === "/" ? "/" : `${dir}/`;
           const out: Array<{ name: string; is_dir: boolean; is_file: boolean }> = [];
@@ -236,10 +252,14 @@ export function installTauriMock(scenario: MockScenario): void {
               Object.keys(files).some((f) => f.startsWith(prefix)) ||
               Array.from(emptyDirs).some((d) => d.startsWith(prefix));
             if (!known) {
-              throw new Error(
+              // 与真实文件系统一致：不存在就是 ENOENT，而不是「未知错误」。
+              // 开箱自检靠这个码区分「还没装 / 没数据」与「权限坏了」。
+              const error = new Error(
                 `E2E 虚拟文件系统：readDir 遇到未声明的路径 ${dir}。` +
                   `请在夹具里声明它——静默返回空数组会把夹具错误伪装成功能缺陷。`
-              );
+              ) as NodeJS.ErrnoException;
+              error.code = "ENOENT";
+              throw error;
             }
           }
           return out.sort((x, y) => x.name.localeCompare(y.name));

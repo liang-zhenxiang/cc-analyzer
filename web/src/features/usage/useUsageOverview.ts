@@ -17,6 +17,7 @@ import type { HealthInput } from "../sessions/dataHealth";
 import { extractErrorEvents } from "./errorStats";
 import { extractToolCalls } from "./toolCensus";
 import { extractFileFacts } from "./projectFootprint";
+import { checkClaudeRoot, type RootCheck } from "../onboarding/claudeRoot";
 
 // 解析缓存与全局搜索共享同一单例（见 sessionParseCache.ts 的注释）：
 // 一个文件只解析一次，消费方再多也不重复付费。
@@ -48,6 +49,9 @@ export function useUsageOverview() {
   const [progress, setProgress] = useState<UsageScanProgress>({ done: 0, total: 0 });
   const [scanning, setScanning] = useState(true);
   const [skipped, setSkipped] = useState(0);
+  // 根目录自检结果：空态的三步引导要拿真实值判断「目录是否可用」，
+  // 而不是像旧代码那样恒定报 true。与扫描共用 `claudeRoot.ts` 的口径。
+  const [rootCheck, setRootCheck] = useState<RootCheck | null>(null);
   // E9：最后一次**完成**扫描的本地时刻。新鲜度徽章要区分「记录旧」与
   // 「刚扫过、目录没变」，没有这个时刻就只能猜。
   const [scannedAt, setScannedAt] = useState<number | null>(null);
@@ -63,6 +67,22 @@ export function useUsageOverview() {
     missingUsage: 0
   });
   const scanIdRef = useRef(0);
+
+  // 自检独立于扫描：它只回答「目录在不在、是不是空的」，不做解析。
+  // 跟着 bridges / refresh 走，重试扫描时也重查一次目录。
+  useEffect(() => {
+    let cancelled = false;
+    void checkClaudeRoot(bridges)
+      .then((next) => {
+        if (!cancelled) setRootCheck(next);
+      })
+      .catch(() => {
+        // checkClaudeRoot 自己兜住读目录错误；这里只防意外，保持旧值。
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bridges, refresh]);
 
   // `loading` gates the target to the final list: metadata batches replace the
   // `sessions` array while loading, and none of those identities should start a
@@ -206,6 +226,7 @@ export function useUsageOverview() {
     skipped,
     refresh,
     scannedAt,
-    healthStats
+    healthStats,
+    rootCheck
   };
 }
