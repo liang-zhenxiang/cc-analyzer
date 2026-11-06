@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [0.38.0-beta.1] - 2026-11-05
+## [0.38.0] - 2026-11-06
 
 本轮主题：**开箱体验**——让第一次安装的人不用先面对空页面：启动自检会话目录、可改选目录、失败时给出可执行的下一步，并内置一份演示数据，打开就能看到所有功能长什么样。
 
