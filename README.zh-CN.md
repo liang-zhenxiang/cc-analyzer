@@ -297,6 +297,7 @@ cargo run --manifest-path src-tauri/Cargo.toml
 npm --prefix web test                   # 单元 / 组件测试（Vitest）
 npm --prefix web run test:e2e           # 端到端测试（Playwright，Chromium + WebKit）
 npm --prefix web run build              # 类型检查 + 生产构建
+node scripts/report-bundle-size.mjs     # 构建后查看每个 chunk 的原始 / gzip 体积（`--json` 为机器可读输出）
 cargo fmt --manifest-path src-tauri/Cargo.toml --check
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo check --manifest-path src-tauri/Cargo.toml

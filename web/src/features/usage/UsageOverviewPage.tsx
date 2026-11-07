@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useBridges } from "../../api/bridges";
 import { useNotifications } from "../../app/NotificationProvider";
 import { Button } from "../../components/Button";
@@ -23,14 +23,12 @@ import { cacheHealthOf } from "./cacheHealth";
 import { CompactionStatsPanel } from "./CompactionStatsPanel";
 import { compactionStats } from "./compactionStats";
 import { mergeErrorStats } from "./errorStats";
-import { ErrorOverviewSection } from "./ErrorOverviewSection";
 import { ActivityClockPanel } from "./ActivityClockPanel";
 import { buildActivityClock } from "./activityClock";
 import { buildFlowDiagram } from "./flowDiagram";
 import { FlowDiagramPanel } from "./FlowDiagramPanel";
 import { ModelSeesawPanel } from "./ModelSeesawPanel";
 import { MilestonesPanel } from "./MilestonesPanel";
-import { AnnualReportPanel } from "./AnnualReportPanel";
 import { milestonesOf } from "./milestones";
 import { toolCensus } from "./toolCensus";
 import { ToolCensusPanel } from "./ToolCensusPanel";
@@ -64,14 +62,50 @@ import { ModelMigrationBars } from "./ModelMigrationBars";
 import { FreshnessBadge } from "./FreshnessBadge";
 import { Sparkline } from "./Sparkline";
 import { FingerprintPanel } from "./FingerprintPanel";
-import { LabView } from "./LabView";
 import { usePlan } from "./planLimits";
 import { WorkHabitsPanel } from "./WorkHabitsPanel";
 import { SessionGanttPanel } from "./SessionGanttPanel";
 import { PosterPanel } from "./PosterPanel";
 import { ProjectArenaPanel } from "./ProjectArenaPanel";
 import { ProjectCardsPanel } from "./ProjectCardsPanel";
+import { Skeleton } from "../../components/Skeleton";
 import styles from "./UsageOverviewPage.module.css";
+
+/**
+ * 非缺省档按需加载。
+ *
+ * 「用量」档是页面的常态视图，它的面板全部留在本 chunk；错误 / 年报 /
+ * 实验室只在用户显式切过去时才需要——尤其实验室一档要拉十四张卡，把它的
+ * 代码留在用量档会白白压住每一次进入。里程碑只多一块排版（逻辑层照旧在
+ * 本 chunk 里算，页头也要用它的读数），拆出去收益不足，保持静态。
+ *
+ * 引用写在模块级：加载一次即缓存，切回已访问档位不会再出现骨架。
+ */
+const ErrorOverviewSection = lazy(() =>
+  import("./ErrorOverviewSection").then((module) => ({
+    default: module.ErrorOverviewSection
+  }))
+);
+
+const AnnualReportPanel = lazy(() =>
+  import("./AnnualReportPanel").then((module) => ({ default: module.AnnualReportPanel }))
+);
+
+const LabView = lazy(() =>
+  import("./LabView").then((module) => ({ default: module.LabView }))
+);
+
+/**
+ * 切档占位：页头保持不动，只有档位主体在等代码。`min-height` 与一张通栏
+ * 面板同档，避免骨架出现/撤走时整页高度跳两次。
+ */
+function ViewFallback() {
+  return (
+    <div className={styles.viewFallback} data-probe-pending>
+      <Skeleton variant="table" rows={5} label="正在加载视图" />
+    </div>
+  );
+}
 
 const RANGE_KEY = "cca-usage-range";
 const RANGE_OPTIONS = [7, 30, 90] as const;
@@ -858,32 +892,40 @@ export function UsageOverviewPage({
       ) : null}
 
       {view === "errors" ? (
-        <ErrorOverviewSection
-          stats={errorStats}
-          days={days}
-          sessionsInWindow={range.kpi.sessions}
-          projectPaths={projectPaths}
-          onRevealRecord={onRevealRecord}
-        />
+        /* 档位主体才需要等代码：页头、进度与导出按钮已在 Suspense 外面，
+           切档时它们不会跟着消失。 */
+        <Suspense fallback={<ViewFallback />}>
+          <ErrorOverviewSection
+            stats={errorStats}
+            days={days}
+            sessionsInWindow={range.kpi.sessions}
+            projectPaths={projectPaths}
+            onRevealRecord={onRevealRecord}
+          />
+        </Suspense>
       ) : view === "annual" ? (
         /* 用量年报（E4）：吃同一份全历史 inputs、同一次扫描，零新增 I/O。
            窗口控件在这一档隐藏——年报的窗口是「那一年」，页头的「近 N 天」
            对它不生效，摆一个不起作用的控件比缺一个控件更坏。 */
-        <AnnualReportPanel inputs={inputs} onDrillMonth={handleDrillMonth} />
+        <Suspense fallback={<ViewFallback />}>
+          <AnnualReportPanel inputs={inputs} onDrillMonth={handleDrillMonth} />
+        </Suspense>
       ) : view === "lab" ? (
         /* 数据实验室（Round FF）：同一份窗口化 inputs 的十种看法。区间控件在这
            一档保留（9 张卡吃「近 N 天」，跑道在卡内声明自然周口径）；导出按钮
            仍只在用量档出现——本轮不为实验室做快照。 */
-        <LabView
-          inputs={inputs}
-          days={days}
-          now={labNow}
-          plan={plan}
-          onOpenSession={onOpenSession}
-          hourlyTokens={range.hourlyTokens}
-          sampleDays={sampleDays}
-          scanning={scanning}
-        />
+        <Suspense fallback={<ViewFallback />}>
+          <LabView
+            inputs={inputs}
+            days={days}
+            now={labNow}
+            plan={plan}
+            onOpenSession={onOpenSession}
+            hourlyTokens={range.hourlyTokens}
+            sampleDays={sampleDays}
+            scanning={scanning}
+          />
+        </Suspense>
       ) : view === "milestones" ? (
         /* 里程碑（Round Y）：同一份全历史 inputs、同一次扫描，零新增 I/O。
            `onOpenSession` 缺省（单测直挂页面）时不传，入口退成静态行而不是空按钮。 */

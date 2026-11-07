@@ -302,6 +302,9 @@ test.describe("截图归档", () => {
       };
 
       await page.goto("/");
+      // 页面 chunk 现在是按需加载的：等会话列表就绪再截，否则首张图会截到
+      // 路由骨架（`settleImages` 只等图片，等不到动态 import）。
+      await expect(page.getByLabel("会话列表", { exact: true })).toBeVisible({ timeout: 15_000 });
       // 会话分析 · 空态
       await shot(V_ANALYZER_EMPTY);
 
