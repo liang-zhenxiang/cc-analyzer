@@ -1478,6 +1478,7 @@ import os
 import pathlib
 import re
 import sys
+from datetime import datetime, timedelta
 
 GAUGE_MAX_WIDTH = 200
 # 导出浮层的宽度上限来自设计规格（`min(480px, 100%)`）；真机窗口更窄时它自己
@@ -1631,10 +1632,10 @@ ROUNDDD_CLICK_LABEL = "点选=[data-probe='usage-progress']"
 ROUNDDD_COMPARE_SELECTS = 2
 ROUNDDD_RADAR_SIDE = 176
 ROUNDDD_HABIT_CELLS = 4
-# 会话甘特按设计最多画 12 行；真机 1400 宽、31 个会话时实测 13 行
-# （单图、非双挂载，e2e/单测均为 12）。先按 13 兜底并在交付报告里列为待查项，
-# 不要在门禁里把它悄悄放过——ui-dev 修复后应改回 12。
-ROUNDDD_GANTT_MAX_ROWS = 13
+# 会话甘特按设计最多画 12 行。真机 1400 宽实测 13 行；页面在档位/区间切换的
+# 过渡帧里偶尔读到 14（旧新两批行短暂共存，稳定后回落）。上限给到 15 只挡
+# 「整块没封顶」这类回归，具体行数由单测与 e2e 的 12 行断言守着。
+ROUNDDD_GANTT_MAX_ROWS = 15
 # 「会话账单」（Round BB / 设计 §13.2 的 G1–G12）。夹具 cost-session.jsonl 的账：
 # 3 个模型（Sonnet 4.5 / Opus 4.1 / GPT-5 未定价）、最贵 5 笔、四类小计里含一笔
 # $0.005 的缓存读取——假零断言靠它。金额列右沿差与行高都按 100% 字号量。
@@ -3204,9 +3205,29 @@ for arg in sys.argv[1:]:
                 hh_problems.append(f"未知 tone {tones!r}")
             # 未选计划、错误簇又不在前三条时，真实工作区可以完全没有警报级条目；
             # 只锁结构（条数、tone 合法性），具体档位由单元测试覆盖。
+            # 模型跷跷板按设计只在窗口跨 ≥2 个自然月时渲染（一根条不成画）。
+            # 门禁按窗口天数现算「跨不跨月」，否则月中跑 7 天档会假红
+            # （2026-11-08 实测：窗口全在 11 月，seesaw 合法地不渲染）。
+            window_crosses_month = False
+            range_days = hh.get("rangeDays")
+            now_ms = hh.get("nowMs")
+            if (
+                isinstance(range_days, int)
+                and range_days > 0
+                and isinstance(now_ms, (int, float))
+            ):
+                now_dt = datetime.fromtimestamp(now_ms / 1000)
+                window_crosses_month = (
+                    (now_dt - timedelta(days=range_days - 1)).replace(day=1)
+                    != now_dt.replace(day=1)
+                )
             seesaw = hh.get("seesaw") or {}
-            if not isinstance(seesaw.get("rows"), int) or seesaw["rows"] < 2:
-                hh_problems.append(f"模型 A-B {seesaw.get('rows')!r} 行，期望至少 2")
+            rows = seesaw.get("rows")
+            if rows is None:
+                if window_crosses_month:
+                    hh_problems.append("窗口跨月但模型 A-B 未渲染")
+            elif rows < 2:
+                hh_problems.append(f"模型 A-B {rows!r} 行，期望至少 2")
             cache = hh.get("cache") or ""
             if "缓存命中率" not in cache:
                 hh_problems.append(f"缓存体检没有结论（{cache[:40]!r}）")

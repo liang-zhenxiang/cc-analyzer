@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ThemeProvider, useTheme } from "./ThemeProvider";
 import { CommandPalette } from "./CommandPalette";
 import { ShortcutSheet } from "./ShortcutSheet";
@@ -6,10 +6,8 @@ import type { CommandAction } from "./commandRegistry";
 import { KioskRoot, getKiosk, setKiosk, useKiosk } from "./KioskMode";
 import { parseContrast, setContrast, useContrast } from "../features/settings/contrast";
 import { NotificationProvider, useNotifications } from "./NotificationProvider";
-import { SessionAnalyzerPage } from "../features/sessions/SessionAnalyzerPage";
-import { MonitorPage, type MonitorView } from "../features/monitor/MonitorPage";
+import type { MonitorView } from "../features/monitor/MonitorPage";
 import { PulseFloatHeader } from "../features/monitor/PulseFloatHeader";
-import { UsageOverviewPage } from "../features/usage/UsageOverviewPage";
 import { ClaudeRootGate } from "../features/onboarding/ClaudeRootGate";
 import { ThresholdsPanel } from "../features/settings/ThresholdsPanel";
 import { WorkspaceTabs } from "./WorkspaceTabs";
@@ -23,9 +21,35 @@ import { loadAutoCheck, loadChannel } from "../features/settings/updateChannel";
 import { BridgesProvider, useBridges } from "../api/bridges";
 import { useTrayReadout } from "../features/usage/useTrayReadout";
 import type { Bridges } from "../api/types";
+import { RouteFallback } from "./RouteFallback";
 import styles from "./AppShell.module.css";
 
 export type WorkspaceTab = "analyzer" | "usage" | "monitor";
+
+/**
+ * 三个主页面按路由拆分：只有当前标签的代码进入首屏。
+ *
+ * 页面是命名导出，`lazy` 需要 `default`——`.then` 只做一次形状转换，不在
+ * 加载路径上加包装组件。定义写在模块级：组件引用一旦生成就固定，标签来回
+ * 切换不会重新触发 import，已加载的页面也不会再闪一次骨架。
+ */
+const SessionAnalyzerPage = lazy(() =>
+  import("../features/sessions/SessionAnalyzerPage").then((module) => ({
+    default: module.SessionAnalyzerPage
+  }))
+);
+
+const UsageOverviewPage = lazy(() =>
+  import("../features/usage/UsageOverviewPage").then((module) => ({
+    default: module.UsageOverviewPage
+  }))
+);
+
+const MonitorPage = lazy(() =>
+  import("../features/monitor/MonitorPage").then((module) => ({
+    default: module.MonitorPage
+  }))
+);
 
 const TAB_KEY = "cca-workspace-tab";
 const MONITOR_VIEW_KEY = "cca-monitor-view";
@@ -511,39 +535,46 @@ export function AppShell({ bridges }: { bridges: Bridges }) {
                   {/* 目录自检只包住主内容：顶栏、设置抽屉与浮层在「还没有数据」
                       时仍然可用。自检 ok 时原样渲染当前标签页，不改变布局。 */}
                   <ClaudeRootGate>
-                    {tab === "analyzer" ? (
-                      <SessionAnalyzerPage
-                        revealRequest={revealRequest}
-                        onRevealHandled={() => setRevealRequest(null)}
-                      />
-                    ) : tab === "usage" ? (
-                      <UsageOverviewPage
-                        // 压缩统计 top3 行的握手：切回会话分析并打开该会话
-                        // （recordId 为 null = 只落到会话，不定位记录）。
-                        onOpenSession={(session) => {
-                          setTab("analyzer");
-                          setRevealRequest({ path: session.path, recordId: null, nonce: Date.now() });
-                        }}
-                        // 错误事件行的握手（N1）：与全局搜索的 onReveal 同款——sidechain
-                        // 事件 recordId=null，reveal 的既有语义就是「只落到会话」。
-                        onRevealRecord={(path, recordId) => {
-                          setTab("analyzer");
-                          setRevealRequest({ path, recordId, nonce: Date.now() });
-                        }}
-                      />
-                    ) : (
-                      <MonitorPage
-                        view={monitorView}
-                        onViewChange={setMonitorView}
-                        compact={floating}
-                        onEnterFloat={enterFloatMode}
-                        // 脉搏会话行的「打开会话」握手：与压缩统计 top3 行逐字同款。
-                        onOpenSession={(path) => {
-                          setTab("analyzer");
-                          setRevealRequest({ path, recordId: null, nonce: Date.now() });
-                        }}
-                      />
-                    )}
+                    {/* Suspense 只包住当前标签页：顶栏与标签始终在它外面，
+                        首次打开时外壳先出来，页面到达是「内容补上」而不是整屏
+                        替换。三个 lazy 引用是模块级的，切回已访问标签同步完成。 */}
+                    <Suspense
+                      fallback={<RouteFallback variant={tab === "usage" ? "table" : "list"} />}
+                    >
+                      {tab === "analyzer" ? (
+                        <SessionAnalyzerPage
+                          revealRequest={revealRequest}
+                          onRevealHandled={() => setRevealRequest(null)}
+                        />
+                      ) : tab === "usage" ? (
+                        <UsageOverviewPage
+                          // 压缩统计 top3 行的握手：切回会话分析并打开该会话
+                          // （recordId 为 null = 只落到会话，不定位记录）。
+                          onOpenSession={(session) => {
+                            setTab("analyzer");
+                            setRevealRequest({ path: session.path, recordId: null, nonce: Date.now() });
+                          }}
+                          // 错误事件行的握手（N1）：与全局搜索的 onReveal 同款——sidechain
+                          // 事件 recordId=null，reveal 的既有语义就是「只落到会话」。
+                          onRevealRecord={(path, recordId) => {
+                            setTab("analyzer");
+                            setRevealRequest({ path, recordId, nonce: Date.now() });
+                          }}
+                        />
+                      ) : (
+                        <MonitorPage
+                          view={monitorView}
+                          onViewChange={setMonitorView}
+                          compact={floating}
+                          onEnterFloat={enterFloatMode}
+                          // 脉搏会话行的「打开会话」握手：与压缩统计 top3 行逐字同款。
+                          onOpenSession={(path) => {
+                            setTab("analyzer");
+                            setRevealRequest({ path, recordId: null, nonce: Date.now() });
+                          }}
+                        />
+                      )}
+                    </Suspense>
                   </ClaudeRootGate>
                 </ErrorBoundary>
               </main>

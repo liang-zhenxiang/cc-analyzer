@@ -48,8 +48,9 @@ const bridges = {
  */
 async function openMonitor(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("tab", { name: "实时监控" }));
-  await user.click(screen.getByRole("tab", { name: "外部仪表盘（需本机服务）" }));
-  await user.click(screen.getByRole("button", { name: "打开监控" }));
+  // 主页面按路由懒加载：切标签后页面代码才到，档位控件不在同一帧里。
+  await user.click(await screen.findByRole("tab", { name: "外部仪表盘（需本机服务）" }));
+  await user.click(await screen.findByRole("button", { name: "打开监控" }));
   await screen.findByTitle("实时监控仪表盘");
 }
 
@@ -105,7 +106,11 @@ test("命令面板过滤后用 Enter 执行：直接切到用量总览", async (
   // 执行完就关：面板不该盖住它刚切过去的页面。
   expect(screen.queryByRole("dialog", { name: "命令面板" })).not.toBeInTheDocument();
   expect(localStorage.getItem("cca-workspace-tab")).toBe("usage");
-  expect(await screen.findByRole("region", { name: "用量总览" })).toBeInTheDocument();
+  // 用量页是路由级懒加载：首次进入要等它的 chunk 到位（测试环境里首次
+  // transform 也比一次同步渲染慢）。给足超时，不用固定 sleep。
+  expect(
+    await screen.findByRole("region", { name: "用量总览" }, { timeout: 5000 })
+  ).toBeInTheDocument();
 });
 
 test("设置里开大屏模式：根容器带上 data-kiosk，Esc 退出", async () => {
@@ -148,8 +153,10 @@ test("switches to the usage overview tab and persists the choice", async () => {
   await user.click(screen.getByRole("tab", { name: "用量总览" }));
   expect(screen.getByRole("tab", { name: "用量总览", selected: true })).toBeInTheDocument();
   expect(localStorage.getItem("cca-workspace-tab")).toBe("usage");
-  // 假目录里有一份会话，页面进仪表盘而不是空态。
-  expect(await screen.findByRole("region", { name: "用量总览" })).toBeInTheDocument();
+  // 假目录里有一份会话，页面进仪表盘而不是空态。懒加载页面给足首次到达时间。
+  expect(
+    await screen.findByRole("region", { name: "用量总览" }, { timeout: 5000 })
+  ).toBeInTheDocument();
 });
 
 test("falls back to the analyzer when the stored tab is unknown", () => {
@@ -164,14 +171,16 @@ test("监控默认停在脉搏档，并持久化子视图选择", async () => {
   render(<AppShell bridges={bridges} />);
 
   await user.click(screen.getByRole("tab", { name: "实时监控" }));
-  // 挂载即渲染原生脉搏（不探测外部服务）。
-  expect(document.querySelector('[data-probe="pulse-page"]')).not.toBeNull();
+  // 挂载即渲染原生脉搏（不探测外部服务）。页面是懒加载的，等它到达再断言。
+  await waitFor(() =>
+    expect(document.querySelector('[data-probe="pulse-page"]')).not.toBeNull()
+  );
   expect(localStorage.getItem("cca-monitor-view")).toBe("pulse");
 
-  await user.click(screen.getByRole("tab", { name: "监控台" }));
+  await user.click(await screen.findByRole("tab", { name: "监控台" }));
   expect(localStorage.getItem("cca-monitor-view")).toBe("console");
 
-  await user.click(screen.getByRole("tab", { name: "外部仪表盘（需本机服务）" }));
+  await user.click(await screen.findByRole("tab", { name: "外部仪表盘（需本机服务）" }));
   expect(localStorage.getItem("cca-monitor-view")).toBe("dashboard");
 });
 
@@ -181,7 +190,7 @@ test("未知的监控子视图存值回落到脉搏", async () => {
   render(<AppShell bridges={bridges} />);
 
   await user.click(screen.getByRole("tab", { name: "实时监控" }));
-  expect(screen.getByRole("tab", { name: "脉搏", selected: true })).toBeInTheDocument();
+  expect(await screen.findByRole("tab", { name: "脉搏", selected: true })).toBeInTheDocument();
 });
 
 test("已保存的监控台子视图会被恢复", async () => {
@@ -190,7 +199,7 @@ test("已保存的监控台子视图会被恢复", async () => {
   render(<AppShell bridges={bridges} />);
 
   await user.click(screen.getByRole("tab", { name: "实时监控" }));
-  expect(screen.getByRole("tab", { name: "监控台", selected: true })).toBeInTheDocument();
+  expect(await screen.findByRole("tab", { name: "监控台", selected: true })).toBeInTheDocument();
 });
 
 test("浮窗态（脉搏档）收起顶栏、换成可拖动的细头，退出后恢复", async () => {
@@ -210,8 +219,8 @@ test("浮窗态（脉搏档）收起顶栏、换成可拖动的细头，退出�
   );
 
   await user.click(screen.getByRole("tab", { name: "实时监控" }));
-  // 默认就是脉搏档：页头的「悬浮」按钮直接可点。
-  await user.click(screen.getByRole("button", { name: "悬浮" }));
+  // 默认就是脉搏档：页头的「悬浮」按钮直接可点。页面代码懒加载，等它到达。
+  await user.click(await screen.findByRole("button", { name: "悬浮" }));
 
   // 进浮窗 = 窗口命令 + 版式切换，缺一不可（2026-10-15 真机门禁抓到过
   // 「只切版式、窗口没变」的那一版）。
@@ -254,7 +263,7 @@ test("进入浮窗失败时保持常规窗口版式", async () => {
   );
 
   await user.click(screen.getByRole("tab", { name: "实时监控" }));
-  await user.click(screen.getByRole("button", { name: "悬浮" }));
+  await user.click(await screen.findByRole("button", { name: "悬浮" }));
 
   await waitFor(() => expect(enterFloatMode).toHaveBeenCalledTimes(1));
   expect(screen.getByRole("tab", { name: "实时监控" })).toBeInTheDocument();
@@ -278,7 +287,7 @@ test("退出浮窗失败时保持浮窗版式，便于重试", async () => {
   );
 
   await user.click(screen.getByRole("tab", { name: "实时监控" }));
-  await user.click(screen.getByRole("button", { name: "悬浮" }));
+  await user.click(await screen.findByRole("button", { name: "悬浮" }));
   await screen.findByRole("button", { name: "退出浮窗" });
   await user.click(screen.getByRole("button", { name: "退出浮窗" }));
 

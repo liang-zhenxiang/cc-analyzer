@@ -403,6 +403,7 @@ summary kept in sync with that source.
 npm --prefix web test                   # unit / component tests (Vitest)
 npm --prefix web run test:e2e           # end-to-end tests (Playwright, Chromium + WebKit)
 npm --prefix web run build              # type-check + production build
+node scripts/report-bundle-size.mjs     # per-chunk raw / gzip sizes after a build (`--json` for machine output)
 cargo fmt --manifest-path src-tauri/Cargo.toml --check
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo check --manifest-path src-tauri/Cargo.toml

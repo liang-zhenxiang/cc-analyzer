@@ -1,0 +1,32 @@
+/* 撑满主区：`.content` 是确定高度的滚动容器，100% 在这里解析得出来。
+   padding 与主页面镜头留白同档，页面到达时不产生一次位置跳动。
+
+   多出的 1px 是刻意的：主页面都是纵向长文档，加载期间先把滚动条占住，
+   数据到达时它不会突然出现、把内容横向推开 15px（Windows 的经典滚动条
+   会；macOS 的浮层滚动条不受影响）。 */
+.page {
+  display: flex;
+  min-height: calc(100% + 1px);
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+}
+
+/* 一条页头剪影：左侧是视图/时间分段，右侧留白给进度与动作按钮。 */
+.header {
+  display: flex;
+  min-height: var(--topbar-h);
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.pill {
+  width: calc(var(--sp-4) * 5);
+  height: var(--lh-md);
+  border-radius: var(--r-sm);
+  background: var(--bg-hover);
+}
+
+.body {
+  flex: 1;
+}

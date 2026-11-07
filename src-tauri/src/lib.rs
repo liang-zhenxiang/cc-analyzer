@@ -2220,11 +2220,26 @@ mod gui_probe {
     var seesaw = document.querySelector("[data-probe='model-seesaw']");
     var rows = seesaw ? Array.prototype.slice.call(seesaw.querySelectorAll("[data-probe='seesaw-row']")) : [];
     var cache = document.querySelector("[data-probe='cache-hit']");
+    /* 时间范围读数：跷跷板按设计只在窗口跨 ≥2 个自然月时渲染（一根条不成画）。
+       门禁要知道「当前窗口跨不跨月」，否则月中跑 7 天档会假红——2026-11-08
+       实测过一次。只读 localStorage 与 Date.now，不碰任何会话内容。 */
+    var rangeDays = null;
+    try {
+      var rawRange = window.localStorage.getItem('cca-usage-range');
+      if (rawRange !== null) {
+        var parsedRange = Number(rawRange);
+        if (isFinite(parsedRange) && parsedRange > 0) rangeDays = parsedRange;
+      }
+    } catch (e) {
+      rangeDays = null;
+    }
     var body = document.querySelector("[data-probe='session-query-body']");
     var share = document.querySelector("[data-probe='share-card']");
     var rhythm = document.querySelector("[data-probe='rhythm']");
     facts.roundhh = {
       present: !!(briefing || seesaw || cache || share || rhythm || body),
+      rangeDays: rangeDays,
+      nowMs: Date.now(),
       briefing: briefing
         ? {
             count: items.length,
