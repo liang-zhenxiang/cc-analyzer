@@ -16,6 +16,7 @@ import {
   roundHHScenario,
   roundIIScenario,
   defaultScenario,
+  recentActivityScenario,
   errorScenario,
   changedFilesScenario,
   calendarScenario,
@@ -141,6 +142,7 @@ const V_SETTINGS = declareView("settings");
 const V_SETTINGS_BELOW = declareView("settings-below");
 const V_MONITOR = declareView("monitor");
 const V_USAGE = declareView("usage");
+const V_CHRONICLE = declareView("chronicle");
 const V_USAGE_BELOW = declareView("usage-below");
 const V_ANALYZER_LOG_COMPACT = declareView("analyzer-log-compact");
 const V_CONTEXT = declareView("context");
@@ -1476,6 +1478,38 @@ test.describe("截图归档 · 开箱体验", () => {
       await expect(page.getByText("Tokens 总量").first()).toBeVisible({ timeout: 15_000 });
       await page.waitForTimeout(300);
       await shot(V_DEMO_MODE);
+    });
+  }
+});
+
+// 数据故事（Chronicle，Issue #313）：整页叙事，需要窗口内真有数据才画得出章节。
+// 默认场景的夹具日期是固定的，跑在窗口外会得到空故事，所以这里整体平移到
+// 「最新活动在昨天」——与 billing-window 用的是同一套场景构造。
+test.describe("截图归档 · 数据故事", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: recentActivityScenario() });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`数据故事 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+
+      await page.goto("/");
+      await page.getByRole("tab", { name: "用量总览" }).click();
+      await page.getByRole("tab", { name: "故事" }).click();
+      await expect(page.getByRole("region", { name: "数据故事" })).toBeVisible({
+        timeout: 15_000
+      });
+      await expect(page.locator("[data-chapter-id]").first()).toBeVisible();
+      await page.waitForTimeout(300);
+      await settleImages(page);
+      await page.screenshot({ path: path.join(OUT_DIR, `${V_CHRONICLE}-${theme}${suffix}.png`) });
     });
   }
 });

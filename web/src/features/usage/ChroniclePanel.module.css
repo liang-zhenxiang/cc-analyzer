@@ -1,0 +1,180 @@
+/* 数据故事（Chronicle）——杂志式纵向叙事。
+   这里刻意不使用 Panel：故事是整页档位，卡片框会把章节切成一格格报表。
+   章节之间只用留白 + 一条发丝线分隔；颜色、间距、圆角、时长一律走 token。 */
+
+.chronicle {
+  display: flex;
+  min-width: 0;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+
+.chapters {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.chapter {
+  min-width: 0;
+}
+
+/* 章间留白 = 上一章底部 32 + 下一章顶部 32 = 64px（≥ 48px），
+   两条 --sp-6 档位相加，不新造一个 48px 的字面量。发丝线画在后一章的
+   上边缘，所以第一章不会莫名其妙多一条顶线。 */
+.chapter + .chapter {
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-6);
+  border-top: 1px solid var(--border);
+}
+
+/* 章节节奏：kicker → title → 大数字 → 正文 → 图 → 脚注。
+   kicker 只做「这是什么」的路标：小、疏、弱，不与标题争夺第一眼。 */
+.kicker {
+  margin: 0 0 var(--sp-2);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: var(--lh-xs);
+  letter-spacing: 0.08em;
+}
+
+.title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  line-height: var(--lh-lg);
+}
+
+/* 大数字：全篇唯一的显示级字号。
+   令牌最高只到 --fs-lg（20px），年报 / 项目卡片的「大字」也在那一档；
+   故事需要一个明显更大的主角，所以这里显式写 48–56px。clamp 让它跟随
+   --font-scale 放大，但封顶 56px——130% 下数字连同单位仍能留在版心里，
+   不会把标题挤成两行。等宽数字让相邻章节的大数字在纵向扫读时对得上。 */
+.stat {
+  display: flex;
+  margin: var(--sp-2) 0 0;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: var(--sp-1);
+  row-gap: var(--sp-05);
+  color: var(--text);
+  font-size: clamp(48px, calc(52px * var(--font-scale)), 56px);
+  font-weight: 600;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+
+.statValue {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 单位跟在大数字后面、基线对齐，但降回正文档：读者读「12.4M」时
+   不需要 unit 也同大小。 */
+.statUnit {
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  line-height: var(--lh-sm);
+}
+
+/* 正文的版心 56ch：宽屏上不跟着容器一路拉长，否则回到「一屏一长句」。 */
+.body {
+  margin: var(--sp-3) 0 0;
+  max-width: 56ch;
+  color: var(--text-secondary);
+  font-size: var(--fs-md);
+  line-height: var(--lh-md);
+}
+
+.chart {
+  margin: var(--sp-4) 0 0;
+}
+
+/* 走势图复用共享的 Sparkline（描边已是 --chart-1、fill: none、aria-hidden）。
+   它按 width/height 属性画 100×48 的坐标盒，这里用 CSS 把它铺满版心；
+   `.chart svg`（0,1,1）的优先级高于组件自己的 `.spark`（0,1,0），
+   所以尺寸覆盖只发生在故事的版式里，不影响 KPI 卡的默认 48×14。 */
+.chart svg {
+  display: block;
+  width: 100%;
+  height: 48px;
+}
+
+/* 柱图：等宽轨道、底对齐；柱身只是 --chart-1-soft 的面积，
+   轮廓由顶部 1px 的 --chart-1 承担（大面积填充只用 soft）。 */
+.bars {
+  display: flex;
+  align-items: stretch;
+  gap: var(--sp-1);
+}
+
+.barColumn {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+/* 40px 是图形尺寸，不是间距——不受 --sp-* 档位约束。 */
+.barTrack {
+  display: flex;
+  height: 40px;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.bar {
+  display: block;
+  width: 100%;
+  max-width: 28px;
+  border-top: 1px solid var(--chart-1);
+  background: var(--chart-1-soft);
+}
+
+.barLabel {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 脚注：与正文分开——它说的是「这个数字的边界条件」，不是故事的下一句。
+   同样限宽，免得一句短注释被拉成一条横线。 */
+.footnote {
+  margin: var(--sp-2) 0 0;
+  max-width: 56ch;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 结尾：summary 用比正文大一档的字号，上下各一条发丝线收束整篇。 */
+.ending {
+  margin-top: var(--sp-6);
+}
+
+.summary {
+  margin: 0;
+  padding: var(--sp-4) 0;
+  max-width: 56ch;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: var(--fs-lg);
+  font-weight: 500;
+  line-height: var(--lh-lg);
+}
+
+/* 导出按钮独占一行、左对齐；窄屏与 130% 字号下允许换行。 */
+.actions {
+  display: flex;
+  margin-top: var(--sp-4);
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
