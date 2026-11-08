@@ -578,14 +578,16 @@ describe("UsageOverviewPage", () => {
     renderPage(bridges);
     await screen.findByRole("region", { name: "用量总览" });
 
-    // 顺序即契约（R1）：视图身份在前，四档并列；实验室是「读法的集合」，排最后。
+    // 顺序即契约（R1）：视图身份在前，其余档并列；实验室是「读法的集合」，
+    // 故事是把读数串起来的叙事，两者依次排在最后。
     const viewTabs = within(screen.getByRole("tablist", { name: "总览视图" })).getAllByRole("tab");
     expect(viewTabs.map((tab) => tab.textContent)).toEqual([
       "用量",
       "里程碑",
       "错误",
       "年报",
-      "实验室"
+      "实验室",
+      "故事"
     ]);
     // 区间控件与扫描进度行两档共用；里程碑档把它撤掉（摆一个不起作用的控件更坏）。
     expect(screen.getByRole("tablist", { name: "时间范围" })).toBeInTheDocument();
@@ -629,6 +631,27 @@ describe("UsageOverviewPage", () => {
     expect(screen.queryByRole("button", { name: /导出用量快照/ })).toBeNull();
     // 切档不触发重扫（R1）。
     expect(readDir.mock.calls.length).toBe(before);
+  });
+
+  it("故事档（Chronicle）：章节与导出入口在场，区间控件保留", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("c1", "claude-sonnet-4-5-20250929", 3 * 86_400_000),
+      [`${PROJECTS_ROOT}/-repo-beta/bbb.jsonl`]: sessionJsonl("c2", "claude-sonnet-4-5-20250929", 2 * 86_400_000),
+      [`${PROJECTS_ROOT}/-repo-alpha/ccc.jsonl`]: sessionJsonl("c3", "claude-opus-4-1", 86_400_000)
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+
+    await userEvent.click(screen.getByRole("tab", { name: "故事" }));
+
+    const story = await screen.findByRole("region", { name: "数据故事" });
+    // 三个会话跨两天、两个项目、两种模型：足够撑起一篇文章（<3 章会走空态）。
+    expect(story.querySelectorAll("[data-chapter-id]").length).toBeGreaterThanOrEqual(3);
+    expect(within(story).getAllByRole("heading", { level: 3 }).length).toBeGreaterThanOrEqual(3);
+    // 故事吃「近 N 天」，区间控件保留；导出入口在结尾。
+    expect(screen.getByRole("tablist", { name: "时间范围" })).toBeInTheDocument();
+    expect(document.querySelector('[data-probe="chronicle-export"]')).not.toBeNull();
   });
 
   it("实验室档（Round II）：十四张卡都在、区间控件保留、进度行写明 14 个视角", async () => {

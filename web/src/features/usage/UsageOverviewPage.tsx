@@ -28,6 +28,8 @@ import { buildActivityClock } from "./activityClock";
 import { buildFlowDiagram } from "./flowDiagram";
 import { FlowDiagramPanel } from "./FlowDiagramPanel";
 import { ModelSeesawPanel } from "./ModelSeesawPanel";
+import { ChroniclePanel } from "./ChroniclePanel";
+import { buildChronicle, buildChronicleMarkdown } from "./chronicle";
 import { MilestonesPanel } from "./MilestonesPanel";
 import { milestonesOf } from "./milestones";
 import { toolCensus } from "./toolCensus";
@@ -117,7 +119,7 @@ type UsageRange = (typeof RANGE_OPTIONS)[number];
  * 零新增 I/O）。
  */
 const VIEW_KEY = "cca-usage-view";
-type UsageView = "usage" | "milestones" | "errors" | "annual" | "lab";
+type UsageView = "usage" | "milestones" | "errors" | "annual" | "lab" | "chronicle";
 
 const VIEW_ITEMS: SegmentedItem<UsageView>[] = [
   { value: "usage", label: "用量" },
@@ -128,7 +130,10 @@ const VIEW_ITEMS: SegmentedItem<UsageView>[] = [
   { value: "annual", label: "年报" },
   // 实验室（Round FF）排在最末：前四档是「一种读法」，实验室是「十种读法
   // 的集合」——它是读法的容器，理应最后。
-  { value: "lab", label: "实验室" }
+  { value: "lab", label: "实验室" },
+  // 故事（Chronicle）排在最后：它不是一种「读数档」，而是一篇把前几档
+  // 的数字串起来的叙事——读者看完读数再来读它，顺序才对。
+  { value: "chronicle", label: "故事" }
 ];
 
 const RANGE_ITEMS: SegmentedItem<string>[] = RANGE_OPTIONS.map((option) => ({
@@ -161,6 +166,7 @@ function readStoredView(): UsageView {
     if (stored === "milestones") return "milestones";
     if (stored === "annual") return "annual";
     if (stored === "lab") return "lab";
+    if (stored === "chronicle") return "chronicle";
   } catch {
     // See readStoredRange: persistence is optional.
   }
@@ -524,6 +530,13 @@ export function UsageOverviewPage({
     }));
     return { ...modelTimeline(windowed), start: windowStart, end: windowEnd, windowed };
   }, [inputs, days, readouts.now]);
+
+  // Chronicle（故事）：与工作日志、会话形状吃**同一份窗口化输入**，保证
+  // 故事里的数字和同屏 KPI 是同一段区间；模型层还会按 days 再裁一次。
+  const chronicle = useMemo(
+    () => buildChronicle(shapeInputs, days, readouts.now),
+    [shapeInputs, days, readouts.now]
+  );
   // 与占比图共用同一个索引：图例第 N 个模型在这里也是 --chart-N。
   const modelColors = useMemo(
     () => new Map(range.topModels.map((slice, index) => [slice.label, (index % 6) + 1])),
@@ -706,6 +719,33 @@ export function UsageOverviewPage({
    * 按钮导出的必须是同一段窗口，否则「对比」比的是两个用户以为相同的区间。
    * 落盘走 `dialog.saveText`（一段文本），与其它单文件导出同一条路径。
    */
+  /**
+   * 导出「数据故事」Markdown。
+   *
+   * 内容由 `buildChronicleMarkdown` 生成——它只拼模型层算好的字段（项目名
+   * 是 basename、错误签名已归一），不读原文，所以导出物出不了本机也不会
+   * 带出绝对路径或消息内容。取消保存（null）不是失败。
+   */
+  async function handleExportChronicle() {
+    if (exporting || chronicle.empty) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const path = await bridges.dialog.saveMarkdown(
+        `数据故事-近${days}天.md`,
+        buildChronicleMarkdown(chronicle, days)
+      );
+      if (path === null) return;
+      notify("已导出数据故事", "success");
+    } catch (cause) {
+      const message = `导出失败：${String(cause)}`;
+      setExportError(message);
+      notify(message, "error");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function handleExportSnapshotJson() {
     if (scanning || exporting) return;
     setExporting(true);
@@ -769,7 +809,8 @@ export function UsageOverviewPage({
     inputs.length === 0 &&
     progress.total === 0 &&
     view !== "milestones" &&
-    view !== "lab"
+    view !== "lab" &&
+    view !== "chronicle"
   ) {
     return (
       <div className={`${styles.page} ${styles.stage}`}>
@@ -926,6 +967,14 @@ export function UsageOverviewPage({
             scanning={scanning}
           />
         </Suspense>
+      ) : view === "chronicle" ? (
+        /* 数据故事（Chronicle）：不是读数档，是把前几档的数字串成一篇叙事。
+           组件只排版，数字全部来自 `buildChronicle`；导出走 Markdown。 */
+        <ChroniclePanel
+          chronicle={chronicle}
+          onExport={() => void handleExportChronicle()}
+          exporting={exporting}
+        />
       ) : view === "milestones" ? (
         /* 里程碑（Round Y）：同一份全历史 inputs、同一次扫描，零新增 I/O。
            `onOpenSession` 缺省（单测直挂页面）时不传，入口退成静态行而不是空按钮。 */

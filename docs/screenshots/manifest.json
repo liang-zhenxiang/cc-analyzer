@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-07T16:15:58.503Z",
-  "commit": "bb819dd+dirty",
+  "generatedAt": "2026-11-08T17:20:32.603Z",
+  "commit": "7d5c2b1+dirty",
   "dirty": true,
   "files": [
     "analyzer-empty-dark-webkit.png",
@@ -47,6 +47,10 @@
     "changed-files-dark.png",
     "changed-files-light-webkit.png",
     "changed-files-light.png",
+    "chronicle-dark-webkit.png",
+    "chronicle-dark.png",
+    "chronicle-light-webkit.png",
+    "chronicle-light.png",
     "clock-dark-webkit.png",
     "clock-dark.png",
     "clock-light-webkit.png",
