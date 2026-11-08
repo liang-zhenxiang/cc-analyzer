@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.38.1-beta.1] - 2026-11-08
+
 本轮主题：**首屏效率**——三个主页面与用量页的重型档位改为按需加载，主包从 988.86 kB 降到 352.66 kB（gzip 315.33 → 114.55 kB）。
 
 ### Changed
