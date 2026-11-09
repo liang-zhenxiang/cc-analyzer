@@ -143,6 +143,7 @@ const V_SETTINGS_BELOW = declareView("settings-below");
 const V_MONITOR = declareView("monitor");
 const V_USAGE = declareView("usage");
 const V_CHRONICLE = declareView("chronicle");
+const V_MEMORY = declareView("memory");
 const V_USAGE_BELOW = declareView("usage-below");
 const V_ANALYZER_LOG_COMPACT = declareView("analyzer-log-compact");
 const V_CONTEXT = declareView("context");
@@ -1510,6 +1511,36 @@ test.describe("截图归档 · 数据故事", () => {
       await page.waitForTimeout(300);
       await settleImages(page);
       await page.screenshot({ path: path.join(OUT_DIR, `${V_CHRONICLE}-${theme}${suffix}.png`) });
+    });
+  }
+});
+
+// 项目记忆（Project Memory，Issue #317）：按项目收口的档案页。夹具用 Round DD——
+// 它锚定「现在」且带 Bash / Edit / Read，命令、热文件与坑三块都有内容。
+test.describe("截图归档 · 项目记忆", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: roundDDScenario() });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`项目记忆 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+
+      await page.goto("/");
+      await page.getByRole("tab", { name: "用量总览" }).click();
+      await page.getByRole("tab", { name: "项目", exact: true }).click();
+      await expect(page.getByRole("region", { name: "项目记忆" })).toBeVisible({
+        timeout: 15_000
+      });
+      await page.waitForTimeout(300);
+      await settleImages(page);
+      await page.screenshot({ path: path.join(OUT_DIR, `${V_MEMORY}-${theme}${suffix}.png`) });
     });
   }
 });

@@ -30,6 +30,8 @@ import { FlowDiagramPanel } from "./FlowDiagramPanel";
 import { ModelSeesawPanel } from "./ModelSeesawPanel";
 import { ChroniclePanel } from "./ChroniclePanel";
 import { buildChronicle, buildChronicleMarkdown } from "./chronicle";
+import { ProjectMemoryPanel } from "./ProjectMemoryPanel";
+import { buildProjectMemories } from "./projectMemory";
 import { MilestonesPanel } from "./MilestonesPanel";
 import { milestonesOf } from "./milestones";
 import { toolCensus } from "./toolCensus";
@@ -119,7 +121,14 @@ type UsageRange = (typeof RANGE_OPTIONS)[number];
  * 零新增 I/O）。
  */
 const VIEW_KEY = "cca-usage-view";
-type UsageView = "usage" | "milestones" | "errors" | "annual" | "lab" | "chronicle";
+type UsageView =
+  | "usage"
+  | "milestones"
+  | "errors"
+  | "annual"
+  | "lab"
+  | "chronicle"
+  | "memory";
 
 const VIEW_ITEMS: SegmentedItem<UsageView>[] = [
   { value: "usage", label: "用量" },
@@ -131,9 +140,12 @@ const VIEW_ITEMS: SegmentedItem<UsageView>[] = [
   // 实验室（Round FF）排在最末：前四档是「一种读法」，实验室是「十种读法
   // 的集合」——它是读法的容器，理应最后。
   { value: "lab", label: "实验室" },
-  // 故事（Chronicle）排在最后：它不是一种「读数档」，而是一篇把前几档
-  // 的数字串起来的叙事——读者看完读数再来读它，顺序才对。
-  { value: "chronicle", label: "故事" }
+  // 故事（Chronicle）排在实验室之后：它不是一种「读数档」，而是一篇把
+  // 前几档的数字串起来的叙事——读者看完读数再来读它，顺序才对。
+  { value: "chronicle", label: "故事" },
+  // 项目记忆（Project Memory）：按项目收口的可检索档案，是「回到某个项目
+  // 前该知道什么」的入口，放在最后与故事相邻。
+  { value: "memory", label: "项目" }
 ];
 
 const RANGE_ITEMS: SegmentedItem<string>[] = RANGE_OPTIONS.map((option) => ({
@@ -167,6 +179,7 @@ function readStoredView(): UsageView {
     if (stored === "annual") return "annual";
     if (stored === "lab") return "lab";
     if (stored === "chronicle") return "chronicle";
+    if (stored === "memory") return "memory";
   } catch {
     // See readStoredRange: persistence is optional.
   }
@@ -537,6 +550,12 @@ export function UsageOverviewPage({
     () => buildChronicle(shapeInputs, days, readouts.now),
     [shapeInputs, days, readouts.now]
   );
+
+  // 项目记忆：同一份窗口化输入按项目收口；模型层自己再按 days 裁一次。
+  const projectMemories = useMemo(
+    () => buildProjectMemories(shapeInputs, days, readouts.now),
+    [shapeInputs, days, readouts.now]
+  );
   // 与占比图共用同一个索引：图例第 N 个模型在这里也是 --chart-N。
   const modelColors = useMemo(
     () => new Map(range.topModels.map((slice, index) => [slice.label, (index % 6) + 1])),
@@ -810,7 +829,8 @@ export function UsageOverviewPage({
     progress.total === 0 &&
     view !== "milestones" &&
     view !== "lab" &&
-    view !== "chronicle"
+    view !== "chronicle" &&
+    view !== "memory"
   ) {
     return (
       <div className={`${styles.page} ${styles.stage}`}>
@@ -975,6 +995,10 @@ export function UsageOverviewPage({
           onExport={() => void handleExportChronicle()}
           exporting={exporting}
         />
+      ) : view === "memory" ? (
+        /* 项目记忆（Project Memory）：按项目收口的命令 / 热文件 / 坑，自带
+           section 与切换条，不再套 Panel。 */
+        <ProjectMemoryPanel memories={projectMemories} />
       ) : view === "milestones" ? (
         /* 里程碑（Round Y）：同一份全历史 inputs、同一次扫描，零新增 I/O。
            `onOpenSession` 缺省（单测直挂页面）时不传，入口退成静态行而不是空按钮。 */

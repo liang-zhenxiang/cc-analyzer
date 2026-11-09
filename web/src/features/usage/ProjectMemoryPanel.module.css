@@ -1,0 +1,451 @@
+/* 项目记忆（Project Memory）——左栏项目索引 + 右栏三个笔记区块。
+   版式语言沿用数据故事 / 工具普查：区块之间只有 32px 留白与发丝线，
+   不套第二层有底色的卡片；颜色只出现在数据与状态标记上。
+   间距全部来自 --sp-* 档位；条高、竖条宽度是「形」，不受档位约束。 */
+
+.panel {
+  display: grid;
+  grid-template-columns: minmax(0, 200px) minmax(0, 1fr);
+  gap: var(--sp-5);
+  min-width: 0;
+}
+
+.empty {
+  display: flex;
+  min-width: 0;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+
+/* ---- 左栏：项目索引 ---- */
+
+.rail {
+  min-width: 0;
+  padding-right: var(--sp-2);
+  border-right: 1px solid var(--border);
+}
+
+.projectList {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-05);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.projectItem {
+  min-width: 0;
+}
+
+/* chip 是 32px 档控件（--control-h-lg）；选中态用左缘 2px 竖条 + --bg-hover
+   双信号，与全站「选中 = 竖条 + 底色」一致。竖条走 border 而不是
+   box-shadow：后者会被焦点环守卫误认为选中态竖条。 */
+.projectButton {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-h-lg);
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-left: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-hover) var(--ease-out),
+    color var(--dur-hover) var(--ease-out);
+}
+
+.projectButton:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.projectButton[aria-pressed="true"] {
+  border-left-color: var(--accent);
+  background: var(--bg-hover);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.projectButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.chipName {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 会话数做 chip 的第二读数：小、等宽、弱——只帮用户认出「哪个项目用得多」，
+   不与项目名争。 */
+.chipSessions {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 右栏：项目头 ---- */
+
+.content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.projectTitle {
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  line-height: var(--lh-lg);
+  overflow-wrap: anywhere;
+}
+
+/* 三个读数横排；窄窗与 130% 字号下 margin-left:auto 仍把它们推到右缘，
+   放不下时整体折到项目名下一行，不挤压项目名。 */
+.readouts {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+  margin: 0 0 0 auto;
+}
+
+.readout {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+  white-space: nowrap;
+}
+
+.readoutLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.readoutValue {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 搜索 ---- */
+
+.searchRow {
+  display: flex;
+  min-width: 0;
+  margin-top: var(--sp-3);
+}
+
+.searchInput {
+  max-width: 320px;
+  flex: 0 1 320px;
+}
+
+.noMatch {
+  margin: var(--sp-4) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+/* ---- 三个区块 ---- */
+
+.sections {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-6);
+  margin-top: var(--sp-4);
+}
+
+.section {
+  min-width: 0;
+}
+
+.sectionTitle {
+  margin: 0 0 var(--sp-1);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-sm);
+}
+
+/* 真列表：block + 零 gap，行距全部收进行自己的 min-height；行间只用发丝线。 */
+.rows {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rows > li + li {
+  border-top: 1px solid var(--border);
+}
+
+.commandRow,
+.fileRow,
+.pitfallRow {
+  display: grid;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--control-h-lg);
+  padding: var(--sp-15) 0;
+}
+
+/* 首页行高 = 32px（--control-h-lg）；130% 字号下行盒长高，
+   min-height + 上下衬距让行自己撑开，不裁字。 */
+
+/* ---- 常用命令 ---- */
+
+.commandRow {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.command {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commandMeta {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+/* 失败标记只占一个字宽：三角是提醒，不是警报。颜色用 --warning 而不是
+   --danger——「有失败」不等于「现在坏了」，整行染红会盖过恢复状态。 */
+.failureMark {
+  flex: 0 0 auto;
+  color: var(--warning);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.countBadge {
+  flex: 0 0 auto;
+  min-width: 28px;
+  padding: var(--sp-05) var(--sp-15);
+  border-radius: var(--r-xs);
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* ---- 热文件 ---- */
+
+/* 文件名 flex｜热度条固定 96px（跨行同尺度可比）｜读写读数。 */
+.fileRow {
+  grid-template-columns: minmax(0, 1fr) 96px auto;
+}
+
+.fileName {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 轨道用凹陷台阶声明「这是一把尺」；0 次的项目不画填充，只留空轨。
+   填充只允许 -soft 面积，轮廓由 1px 实色收（BarChart / 工具普查同款）。 */
+.heatTrack {
+  display: block;
+  overflow: hidden;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--bg-inset);
+}
+
+.heatFill {
+  display: block;
+  height: 100%;
+  border: 1px solid var(--chart-1);
+  border-radius: 1px;
+  background: var(--chart-1-soft);
+}
+
+.fileMeta {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---- 坑与恢复 ---- */
+
+.pitfallRow {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+/* 引文式签名：左缘一条发丝线 + 等宽字，两行截断；全量留在 title 里。
+   截断是版式选择，不是信息丢失——悬停仍能读到完整签名。 */
+.signature {
+  display: -webkit-box;
+  overflow: hidden;
+  min-width: 0;
+  padding-left: var(--sp-2);
+  border-left: 2px solid var(--border);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.pitfallMeta {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--sp-05);
+}
+
+.pitfallTool {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.pitfallCount {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 恢复状态是**标记**不是整行底色：已恢复退到第三级文字，未恢复只用
+   --warning 点出「这件事还没有结论」。 */
+.recovered,
+.unrecovered {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+.recovered {
+  color: var(--text-tertiary);
+}
+
+.unrecovered {
+  color: var(--warning);
+}
+
+.emptyNote {
+  margin: var(--sp-4) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.srOnly {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* 窄窗：左栏折到顶部，项目 chip 变横向滚动条；
+   选中信号从「左缘竖条」换成「下缘竖条」，保持同一个「当前项」记号。 */
+@media (max-width: 1080px) {
+  .panel {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-4);
+  }
+
+  .rail {
+    padding-right: 0;
+    padding-bottom: var(--sp-2);
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .projectList {
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: var(--sp-05);
+  }
+
+  .projectItem {
+    flex: 0 0 auto;
+    max-width: 220px;
+  }
+
+  .projectButton {
+    width: auto;
+    max-width: 220px;
+    border-left-color: transparent;
+    border-bottom-color: transparent;
+  }
+
+  .projectButton[aria-pressed="true"] {
+    border-left-color: transparent;
+    border-bottom-color: var(--accent);
+  }
+}
