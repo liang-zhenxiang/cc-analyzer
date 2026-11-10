@@ -156,7 +156,10 @@ function seasonAriaOf(cwd: string): string {
 
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-const activeText = "(刚刚|\\d+小时前|昨天)";
+// 「最近活跃」用两套相对时间口径：卡片走分钟/小时/天，故事线走更细的分级。
+// 只写「刚刚 / N 小时前 / 昨天」会在夹具活动落在 1 小时内时假红（2026-11-10
+// CI 实测：46 分钟前）；分钟与 N 天前也要接受。
+const activeText = "(刚刚|\\d+分钟前|\\d+小时前|昨天|\\d+天前|\\d{1,2}-\\d{1,2})";
 
 async function openUsage(page: Page): Promise<void> {
   await page.goto("/");
