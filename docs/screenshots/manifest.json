@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-08T17:20:32.603Z",
-  "commit": "7d5c2b1+dirty",
+  "generatedAt": "2026-11-09T16:55:19.878Z",
+  "commit": "3390304+dirty",
   "dirty": true,
   "files": [
     "analyzer-empty-dark-webkit.png",
@@ -207,6 +207,10 @@
     "lab-terrain-dark.png",
     "lab-terrain-light-webkit.png",
     "lab-terrain-light.png",
+    "memory-dark-webkit.png",
+    "memory-dark.png",
+    "memory-light-webkit.png",
+    "memory-light.png",
     "migration-dark-webkit.png",
     "migration-dark.png",
     "migration-light-webkit.png",
