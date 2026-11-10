@@ -587,7 +587,8 @@ describe("UsageOverviewPage", () => {
       "错误",
       "年报",
       "实验室",
-      "故事"
+      "故事",
+      "项目"
     ]);
     // 区间控件与扫描进度行两档共用；里程碑档把它撤掉（摆一个不起作用的控件更坏）。
     expect(screen.getByRole("tablist", { name: "时间范围" })).toBeInTheDocument();
@@ -652,6 +653,24 @@ describe("UsageOverviewPage", () => {
     // 故事吃「近 N 天」，区间控件保留；导出入口在结尾。
     expect(screen.getByRole("tablist", { name: "时间范围" })).toBeInTheDocument();
     expect(document.querySelector('[data-probe="chronicle-export"]')).not.toBeNull();
+  });
+
+  it("项目档（Project Memory）：项目记忆、搜索框与项目切换都在场", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("m1", "claude-sonnet-4-5-20250929", 3 * 86_400_000),
+      [`${PROJECTS_ROOT}/-repo-beta/bbb.jsonl`]: sessionJsonl("m2", "claude-sonnet-4-5-20250929", 2 * 86_400_000)
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+
+    await userEvent.click(screen.getByRole("tab", { name: "项目" }));
+
+    const memory = await screen.findByRole("region", { name: "项目记忆" });
+    expect(memory).toBeInTheDocument();
+    // 两个项目 → 切换条有 2 个 chip；搜索框始终在场。
+    expect(memory.querySelectorAll("[data-probe='memory-project']").length).toBe(2);
+    expect(document.querySelector('[data-probe="memory-search"]')).not.toBeNull();
   });
 
   it("实验室档（Round II）：十四张卡都在、区间控件保留、进度行写明 14 个视角", async () => {
