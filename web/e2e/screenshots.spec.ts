@@ -1544,3 +1544,41 @@ test.describe("截图归档 · 项目记忆", () => {
     });
   }
 });
+
+// 个性化强调色（Issue #322）：在设置抽屉里选中「紫罗兰」，整页截图要能同时
+// 看到选择器的选中态与页面主按钮 / 选中态换色——只截控件本身证明不了「已生效」。
+const V_ACCENT = declareView("accent");
+
+test.describe("截图归档 · 强调色", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`强调色 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+
+      await page.goto("/");
+      await expect(page.getByLabel("会话列表", { exact: true })).toBeVisible({ timeout: 15_000 });
+      await page.getByRole("button", { name: "设置" }).click();
+      const panel = page.getByRole("region", { name: "设置" });
+      await expect(panel).toBeVisible();
+      await panel
+        .getByRole("group", { name: "强调色" })
+        .getByRole("button", { name: "紫罗兰" })
+        .click();
+      await expect(page.locator("html")).toHaveAttribute("data-accent", "violet");
+      // 点击选项时浏览器可能为聚焦把面板滚走几行；归档图要的是面板从标题开始的构图。
+      await panel.evaluate((el) => {
+        el.scrollTop = 0;
+      });
+      await page.waitForTimeout(250);
+      await settleImages(page);
+      await page.screenshot({ path: path.join(OUT_DIR, `${V_ACCENT}-${theme}${suffix}.png`) });
+    });
+  }
+});

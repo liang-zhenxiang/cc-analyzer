@@ -52,6 +52,21 @@
         }
       })();
     </script>
+    <script>
+      // 预绘制强调色：在模块脚本之前把用户选的强调色写到根元素，刷新时第一帧
+      // 就是那个颜色，不会先按品牌蓝画一帧再跳（与字号 / 对比度同一个理由）。
+      // blue 是默认档：不写属性。只接受白名单，其余值（含存储不可用）一律不写。
+      (() => {
+        try {
+          const saved = localStorage.getItem("cca-accent");
+          if (["teal", "violet", "amber", "rose", "green"].includes(saved)) {
+            document.documentElement.dataset.accent = saved;
+          }
+        } catch {
+          // storage 不可用时停在品牌蓝：与 readAccent 的兜底一致。
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
