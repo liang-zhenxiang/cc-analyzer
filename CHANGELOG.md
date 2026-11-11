@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [0.39.0-beta.1] - 2026-11-11
+## [0.39.0] - 2026-11-11
 
 本轮主题：**叙事与记忆**——把窗口内的日志写成一篇可读的故事，再按项目收成一张可检索的档案；两者都从同一份本地日志出发，不新增任何 I/O。
 
