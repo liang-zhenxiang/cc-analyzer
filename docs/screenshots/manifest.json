@@ -1,8 +1,12 @@
 {
-  "generatedAt": "2026-11-09T16:55:19.878Z",
-  "commit": "3390304+dirty",
+  "generatedAt": "2026-11-11T15:26:22.100Z",
+  "commit": "85a719d+dirty",
   "dirty": true,
   "files": [
+    "accent-dark-webkit.png",
+    "accent-dark.png",
+    "accent-light-webkit.png",
+    "accent-light.png",
     "analyzer-empty-dark-webkit.png",
     "analyzer-empty-dark.png",
     "analyzer-empty-light-webkit.png",

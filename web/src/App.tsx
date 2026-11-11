@@ -3,6 +3,7 @@ import { AppShell } from "./app/AppShell";
 import { installTauriBridges } from "./api/tauri";
 import { initFontScale } from "./features/settings/fontScale";
 import { initContrast } from "./features/settings/contrast";
+import { initAccent } from "./features/settings/accent";
 import { initKiosk } from "./app/KioskMode";
 import { DemoBadge } from "./demo/DemoBadge";
 import { installDemoBridges } from "./demo/demoBridges";
@@ -17,6 +18,8 @@ import {
 initFontScale();
 // 界面对比度：解析持久化、没写过才跟随系统偏好，把结果写到根元素并同步内存 store。
 initContrast();
+// 强调色：与字号 / 对比度同款，先落地持久化再渲染；index.html 的预绘制负责第一帧。
+initAccent();
 // 大屏模式：与字号/对比度同款，先落地持久化再渲染，避免第一帧先闪一下常规外壳。
 initKiosk();
 

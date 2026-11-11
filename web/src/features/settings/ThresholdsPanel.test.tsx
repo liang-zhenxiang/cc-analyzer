@@ -10,6 +10,7 @@ import { getPlan, setPlan } from "../usage/planLimits";
 import { getThresholds, resetThresholds, setThreshold } from "./thresholds";
 import { resetFontScaleForTest } from "./fontScale";
 import { applyContrast, initContrast, resetContrastForTest } from "./contrast";
+import { ACCENT_PRESETS, ACCENT_STORAGE_KEY, applyAccent } from "./accent";
 
 type BridgeOptions = {
   /** Source transcripts keyed by file name, as the fake ~/.claude scan sees them. */
@@ -770,5 +771,78 @@ describe("界面对比度 section", () => {
     expect(radios[1]).toHaveAttribute("aria-checked", "true");
     expect(document.activeElement).toBe(radios[1]);
     expect(contrastGroup().isSameNode(before)).toBe(true);
+  });
+});
+
+/**
+ * 「强调色」一节（Issue #322）：选择即写根元素 `data-accent` 并落盘；
+ * 品牌蓝是默认档，切回它时**移除属性**而不是留下 `data-accent="blue"`。
+ */
+describe("强调色 section", () => {
+  /** 选择器是 group + 原生按钮（aria-pressed），不是 radiogroup。 */
+  function accentGroup() {
+    return screen.getByRole("group", { name: "强调色" });
+  }
+
+  /** 默认档文案由 ACCENT_PRESETS 决定，避免测试把文案钉死成第二份真相。 */
+  const blueLabel = ACCENT_PRESETS[0]!.label;
+
+  beforeEach(() => {
+    applyAccent("blue");
+    localStorage.removeItem(ACCENT_STORAGE_KEY);
+  });
+
+  afterEach(() => {
+    applyAccent("blue");
+    resetContrastForTest();
+    applyContrast("normal");
+    localStorage.removeItem(ACCENT_STORAGE_KEY);
+  });
+
+  test("是六个选项，默认第一个（蓝）选中且根元素没有 data-accent", () => {
+    renderPanel(createBridges().bridges);
+
+    const options = within(accentGroup()).getAllByRole("button");
+    expect(options).toHaveLength(6);
+    expect(options[0]).toHaveAccessibleName(blueLabel);
+    expect(options[0]).toHaveAttribute("aria-pressed", "true");
+    expect(options.filter((option) => option.getAttribute("aria-pressed") === "true")).toHaveLength(
+      1
+    );
+    expect(document.documentElement.hasAttribute("data-accent")).toBe(false);
+  });
+
+  test("选「紫罗兰」写根属性与持久化；切回默认蓝把属性删掉", async () => {
+    const user = userEvent.setup();
+    renderPanel(createBridges().bridges);
+
+    await user.click(within(accentGroup()).getByRole("button", { name: "紫罗兰" }));
+
+    expect(document.documentElement.getAttribute("data-accent")).toBe("violet");
+    expect(localStorage.getItem(ACCENT_STORAGE_KEY)).toBe("violet");
+    expect(within(accentGroup()).getByRole("button", { name: "紫罗兰" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+
+    await user.click(within(accentGroup()).getByRole("button", { name: blueLabel }));
+
+    expect(document.documentElement.hasAttribute("data-accent")).toBe(false);
+    expect(localStorage.getItem(ACCENT_STORAGE_KEY)).toBe("blue");
+    expect(within(accentGroup()).getByRole("button", { name: blueLabel })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+  });
+
+  test("高对比度档仍显示选择器，并说明强调色此刻不生效", async () => {
+    // useContrast 读的是内存 store；只改根属性不够，要把 store 也拉进高对比度档。
+    resetContrastForTest("high");
+    renderPanel(createBridges().bridges);
+
+    expect(accentGroup()).toBeVisible();
+    expect(screen.getByText(/高对比度档固定使用最高对比色/)).toBeInTheDocument();
+    // 选择器不禁用：切回普通档即可用，不该逼用户先改档。
+    expect(within(accentGroup()).getByRole("button", { name: "紫罗兰" })).toBeEnabled();
   });
 });

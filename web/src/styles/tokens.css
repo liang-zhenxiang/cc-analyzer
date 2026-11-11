@@ -340,6 +340,97 @@
   --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
+/* 个性化强调色（Issue #322）：用户选择的色板只覆盖四个强调色令牌，
+   其余颜色一律不动——强调色的职责是焦点环、链接、选中底，换色不该把
+   语义色（成功 / 警告 / 危险）与类别色一起带走。
+
+   **这几块必须写在两块 `[data-contrast="high"]` 之前**：同特异性下后者
+   靠源码顺序胜出，高对比度档于是永远拿默认的最高对比色板。个性化是
+   「审美」，高对比度是「能不能看见」——后者优先，且不需要在每个选择器里
+   写 `:not([data-contrast="high"])` 去维护第二条真相。
+
+   每套四值的取法：
+   - --accent 在浅色 --bg(#f4f5f7) / 深色 --bg(#0d0f12) 上均 ≥4.5:1
+     （实算 5.08–12.43），与默认蓝同一档，不是「颜色深一点就安全」；
+   - --accent-hover 是 accent 的同色相更远离背景的一档（浅色更深、深色更亮），
+     实测 7.32:1 以上；
+   - --accent-soft 浅色 0.12 / 深色 0.20：大面积底只给氛围，具体取值理由
+     同 --chart-*-soft（浅底浓度低、深底同比例提高）；
+   - --ring 浅色 0.45 / 深色 0.55：与默认蓝完全一致，焦点环视觉重量不随
+     选色变化。
+   默认蓝不在此列：`applyAccent("blue")` 移除属性，直接落回 :root 的默认值。 */
+[data-accent="teal"] {
+  --accent: #0f6f7f;
+  --accent-hover: #0a5866;
+  --accent-soft: rgba(15, 111, 127, 0.12);
+  --ring: rgba(15, 111, 127, 0.45);
+}
+
+[data-accent="violet"] {
+  --accent: #6d3bd4;
+  --accent-hover: #57289f;
+  --accent-soft: rgba(109, 59, 212, 0.12);
+  --ring: rgba(109, 59, 212, 0.45);
+}
+
+[data-accent="amber"] {
+  --accent: #8a6100;
+  --accent-hover: #6b4b00;
+  --accent-soft: rgba(138, 97, 0, 0.12);
+  --ring: rgba(138, 97, 0, 0.45);
+}
+
+[data-accent="rose"] {
+  --accent: #b0285f;
+  --accent-hover: #8d1f4b;
+  --accent-soft: rgba(176, 40, 95, 0.12);
+  --ring: rgba(176, 40, 95, 0.45);
+}
+
+[data-accent="green"] {
+  --accent: #1a6f43;
+  --accent-hover: #145733;
+  --accent-soft: rgba(26, 111, 67, 0.12);
+  --ring: rgba(26, 111, 67, 0.45);
+}
+
+/* 深色档：同色相提明度（与类别色 / 图表色深色版同一策略），否则深底上的
+   强调色会糊掉。soft / ring 随深底提浓度，理由同默认蓝的 0.16 / 0.55。 */
+[data-theme="dark"][data-accent="teal"] {
+  --accent: #5fd0dd;
+  --accent-hover: #8ee4ee;
+  --accent-soft: rgba(95, 208, 221, 0.2);
+  --ring: rgba(95, 208, 221, 0.55);
+}
+
+[data-theme="dark"][data-accent="violet"] {
+  --accent: #c398ec;
+  --accent-hover: #d9bdf6;
+  --accent-soft: rgba(195, 152, 236, 0.2);
+  --ring: rgba(195, 152, 236, 0.55);
+}
+
+[data-theme="dark"][data-accent="amber"] {
+  --accent: #edc14e;
+  --accent-hover: #ffd97a;
+  --accent-soft: rgba(237, 193, 78, 0.2);
+  --ring: rgba(237, 193, 78, 0.55);
+}
+
+[data-theme="dark"][data-accent="rose"] {
+  --accent: #ef8ab3;
+  --accent-hover: #ffaecb;
+  --accent-soft: rgba(239, 138, 179, 0.2);
+  --ring: rgba(239, 138, 179, 0.55);
+}
+
+[data-theme="dark"][data-accent="green"] {
+  --accent: #6ee7a0;
+  --accent-hover: #92e9b9;
+  --accent-soft: rgba(110, 231, 160, 0.2);
+  --ring: rgba(110, 231, 160, 0.55);
+}
+
 /* 高对比度（浅色底）：把「氛围」全部换成「边界」。
    表面塌成纯白，层级交给 --border / --border-strong 的发丝线与更深的边框；
    文字提到纯黑，次要文字也过 7:1；所有 -soft 从半透明改成不透明的浅色——

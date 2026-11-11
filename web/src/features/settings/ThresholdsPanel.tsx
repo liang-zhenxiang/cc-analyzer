@@ -48,6 +48,8 @@ import {
   useFontScale
 } from "./fontScale";
 import { CONTRAST_MODES, parseContrast, setContrast, useContrast } from "./contrast";
+import { readAccent, setAccent, type AccentId } from "./accent";
+import { AccentPicker } from "./AccentPicker";
 import { setTrayEnabled, useTrayEnabled } from "../usage/useTrayReadout";
 import type { Bridges, UpdateCheck } from "../../api/types";
 import styles from "./ThresholdsPanel.module.css";
@@ -552,6 +554,37 @@ function ContrastSection() {
 }
 
 /**
+ * 「强调色」一节：六种预设，只写根元素上的 `data-accent`，颜色由 `tokens.css`
+ * 按属性选择器接管——组件 CSS 一行都不用改（与对比度同一套约定）。
+ *
+ * 高对比度档仍显示选择器但不禁用：高对比度色板固定使用最高对比色，此时
+ * 强调色不生效；用户随时可以切回普通档，所选的强调色立刻恢复，不该为此
+ * 强迫他先改档再回来选颜色。
+ */
+function AccentSection() {
+  const [accent, setAccentState] = useState<AccentId>(() => readAccent());
+  const contrast = useContrast();
+  return (
+    <div className={styles.preferenceSection}>
+      <h4 className={styles.sectionTitle}>强调色</h4>
+      <p className={styles.note}>用于焦点环、链接与选中态；只保存在本机。</p>
+      <AccentPicker
+        value={accent}
+        onChange={(id) => {
+          setAccent(id);
+          setAccentState(id);
+        }}
+      />
+      {contrast === "high" ? (
+        <p className={styles.hint}>
+          高对比度档固定使用最高对比色；切回普通档后所选强调色生效。
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * 「常驻读数」小节：托盘 / 菜单栏读数的开关。紧挨产生读数的「计费窗口」，
  * 用户为「从哪来 / 怎么关」而来时顺手就能找到。关掉只隐藏读数，统计口径不变。
  * 默认开（见 useTrayReadout.ts 的 TRAY_ENABLED_KEY）。
@@ -711,6 +744,7 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
       <h3 className={styles.groupTitle}>显示</h3>
       <FontScaleSection />
       <ContrastSection />
+      <AccentSection />
       <KioskSection />
       <TrayReadoutSection />
 

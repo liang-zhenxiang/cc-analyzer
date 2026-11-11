@@ -1,0 +1,73 @@
+/* 强调色选择器：一行六个「色块 + 名称」。
+   flex-wrap 是 130% 字号档的兜底：名称不缩放色块，但字宽会涨，放不下时
+   整行换到下一行，而不是把最后一个名称挤出面板。 */
+.group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* 选项：竖直排列的色块 + 名称。min-width 让六个选项在 100% 档下等距，
+   而 130% 档靠 flex-wrap 而不是压缩名称。 */
+.option {
+  display: inline-flex;
+  min-width: 44px;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-05) var(--sp-1);
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-hover) var(--ease-out),
+    color var(--dur-hover) var(--ease-out);
+}
+
+.option:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* 焦点环走全站令牌：高对比度档会自动加粗并让环离开控件。 */
+.option:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* 32px 是「形」不是「距」：色块要足够大到能分辨色相，又不抢设置面板的
+   信息层级。内描边给浅色块（琥珀）在纯白面板上留一圈轮廓。 */
+.swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+/* 选中态 = 色块外 2px 的 --ring 描边，与焦点环内外分离：
+   键盘焦点在外的按钮上，选中态在内的色块上，两者同时出现也读得清。
+   --ring 是强调色的半透明版，换色时选中描边自动跟着换。 */
+.option[aria-pressed="true"] .swatch {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* 名称是唯一可访问文本，选中项给正文墨色 + 600，与色块描边一起构成
+   第二重（非颜色依赖的）选中信号。 */
+.name {
+  color: inherit;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+.option[aria-pressed="true"] .name {
+  color: var(--text);
+  font-weight: 600;
+}
