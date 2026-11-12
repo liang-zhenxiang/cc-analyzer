@@ -1,0 +1,120 @@
+/* 时间胶囊：一条一句话的记录，不是卡片。
+   唯一的边界是左侧 3px `--accent` 竖线（图形尺寸，不受 --sp-* 档位约束）。
+   刻意不画卡片框、不加背景、不画上下发丝线：用量页的相邻面板自己已经带了
+   `--border`，再叠两条横线会在 sp-3 的间距里形成三道平行线，比没有边界更吵。 */
+
+.capsule {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-4);
+  padding: var(--sp-3);
+  border-left: 3px solid var(--accent);
+}
+
+/* 正文承担高度：kicker + sentence 两行在 100% 下是 90px（12 + 16 + 6 + 44 + 12），
+   留在 96px 的预算内。这里**不设 max-height**——130% 字号时行高会跟着
+   --font-scale 长到约 108px，硬裁会把字切掉；「不超 96px」是 100% 档的版式目标，
+   不是一条会牺牲可读性的硬约束。 */
+.body {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 260px;
+  flex-direction: column;
+  gap: var(--sp-15);
+}
+
+/* kicker：日期 + 标签。小、疏、弱——它是「这是什么时候」的路标，不是标题。 */
+.kicker {
+  display: flex;
+  margin: 0;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: var(--lh-xs);
+  letter-spacing: 0.08em;
+}
+
+/* 日期用等宽数字：多张胶囊纵向排布时日期列宽恒定，扫读不抖。 */
+.date {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.separator {
+  color: var(--text-faint);
+}
+
+.label {
+  min-width: 0;
+}
+
+/* 一句话是卡片的主语。两行是上限而不是切割：DOM 里始终是完整句子，
+   屏幕阅读器与测试读到的都不会是省略号。 */
+.sentence {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-md);
+  line-height: var(--lh-md);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* 右端读数：tokens 在上、会话数在下，整簇贴右。
+   tokens 是全卡唯一的大数字，沿用 KPI「读数行」语言（--fs-lg / 600 / 等宽）。 */
+.readouts {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--sp-05);
+}
+
+.tokens {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+  white-space: nowrap;
+}
+
+.tokenValue {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  line-height: var(--lh-lg);
+  font-variant-numeric: tabular-nums;
+}
+
+.tokenUnit {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  letter-spacing: 0.08em;
+}
+
+.sessions {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 窄窗口：读数整簇落到下一行，横向排成一行，而不是把正文挤成窄条。 */
+@media (max-width: 720px) {
+  .readouts {
+    width: 100%;
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--sp-3);
+  }
+}

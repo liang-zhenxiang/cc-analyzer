@@ -32,6 +32,8 @@ import { ChroniclePanel } from "./ChroniclePanel";
 import { buildChronicle, buildChronicleMarkdown } from "./chronicle";
 import { ProjectMemoryPanel } from "./ProjectMemoryPanel";
 import { buildProjectMemories } from "./projectMemory";
+import { TimeCapsuleCard } from "./TimeCapsuleCard";
+import { buildTimeCapsule } from "./timeCapsule";
 import { MilestonesPanel } from "./MilestonesPanel";
 import { milestonesOf } from "./milestones";
 import { toolCensus } from "./toolCensus";
@@ -556,6 +558,13 @@ export function UsageOverviewPage({
     () => buildProjectMemories(shapeInputs, days, readouts.now),
     [shapeInputs, days, readouts.now]
   );
+
+  // 时间胶囊吃**全历史** inputs（不是页面区间）：它回看的是去年/上月/100 天前
+  // 的同一天，跟着区间控件伸缩就失去了「看看过去」的意义。
+  const timeCapsule = useMemo(
+    () => buildTimeCapsule(inputs, readouts.now),
+    [inputs, readouts.now]
+  );
   // 与占比图共用同一个索引：图例第 N 个模型在这里也是 --chart-N。
   const modelColors = useMemo(
     () => new Map(range.topModels.map((slice, index) => [slice.label, (index % 6) + 1])),
@@ -1021,6 +1030,9 @@ export function UsageOverviewPage({
           {!scanning && briefing.items.length > 0 ? (
             <BriefingStrip items={briefing.items} onNavigate={(target) => setView(target)} />
           ) : null}
+          {/* 时间胶囊（Issue #325）：晨报之后的一张小卡——「去年的今天你在做什么」。
+              没有可比的历史日时整卡不渲染，不拿空壳占版面。 */}
+          {!scanning && timeCapsule ? <TimeCapsuleCard capsule={timeCapsule} /> : null}
           {/* 归因行与压缩统计 top3 共用同一个「打开会话」握手，不新开跳转路径。 */}
           <BillingWindowCard inputs={inputs} readouts={readouts} onOpenSession={onOpenSession} />
 
