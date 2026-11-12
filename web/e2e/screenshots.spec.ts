@@ -144,6 +144,7 @@ const V_MONITOR = declareView("monitor");
 const V_USAGE = declareView("usage");
 const V_CHRONICLE = declareView("chronicle");
 const V_MEMORY = declareView("memory");
+const V_CAPSULE = declareView("capsule");
 const V_USAGE_BELOW = declareView("usage-below");
 const V_ANALYZER_LOG_COMPACT = declareView("analyzer-log-compact");
 const V_CONTEXT = declareView("context");
@@ -1579,6 +1580,83 @@ test.describe("截图归档 · 强调色", () => {
       await page.waitForTimeout(250);
       await settleImages(page);
       await page.screenshot({ path: path.join(OUT_DIR, `${V_ACCENT}-${theme}${suffix}.png`) });
+    });
+  }
+});
+
+// 时间胶囊（Issue #325）：卡片只在「去年同日 / 上月同日 / 100 天前」有记录时出现，
+// 所以截图夹具必须相对现在构造一条 100 天前的会话。
+test.describe("截图归档 · 时间胶囊", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  const DAY = 86_400_000;
+  const at = Date.now() - 100 * DAY;
+  const iso = new Date(at).toISOString();
+  const jsonl =
+    JSON.stringify({
+      type: "user",
+      sessionId: "capsule-shot",
+      cwd: "/repo/capsule",
+      uuid: "capsule-shot-u",
+      parentUuid: null,
+      timestamp: iso,
+      version: "2.1.0",
+      message: { role: "user", content: "一百天前的那次调试" }
+    }) +
+    "\n" +
+    JSON.stringify({
+      type: "assistant",
+      sessionId: "capsule-shot",
+      cwd: "/repo/capsule",
+      uuid: "capsule-shot-a",
+      parentUuid: "capsule-shot-u",
+      timestamp: new Date(at + 30_000).toISOString(),
+      version: "2.1.0",
+      message: {
+        role: "assistant",
+        model: "claude-sonnet-4-5",
+        content: [{ type: "text", text: "好" }],
+        usage: {
+          input_tokens: 1200,
+          output_tokens: 300,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0
+        }
+      }
+    }) +
+    "\n";
+
+  // 近期数据（平移后的默认场景）保证页面本身是「正常使用」的样子；
+  // 额外那条 100 天前的记录才是胶囊的来源。只放后者会让整页 KPI 全 0。
+  const base = recentActivityScenario();
+  test.use({
+    scenario: {
+      ...base,
+      files: {
+        ...base.files,
+        "/Users/e2e/.claude/projects/-repo-capsule/capsule-shot.jsonl": jsonl
+      }
+    }
+  });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`时间胶囊 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+
+      await page.goto("/");
+      await page.getByRole("tab", { name: "用量总览" }).click();
+      await expect(page.locator("[data-probe='time-capsule']")).toBeVisible({
+        timeout: 15_000
+      });
+      await page.waitForTimeout(300);
+      await settleImages(page);
+      await page.screenshot({ path: path.join(OUT_DIR, `${V_CAPSULE}-${theme}${suffix}.png`) });
     });
   }
 });

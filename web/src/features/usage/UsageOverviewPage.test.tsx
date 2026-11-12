@@ -673,6 +673,24 @@ describe("UsageOverviewPage", () => {
     expect(document.querySelector('[data-probe="memory-search"]')).not.toBeNull();
   });
 
+  it("时间胶囊：有 100 天前的记录时渲染胶囊卡", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/cap.jsonl`]: sessionJsonl(
+        "cap1",
+        "claude-sonnet-4-5-20250929",
+        100 * 86_400_000
+      )
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+
+    // 胶囊吃全历史：这条记录在 30 天窗口之外，仍然可以回看到。
+    const capsule = await screen.findByRole("region", { name: "时间胶囊" });
+    expect(capsule).toBeInTheDocument();
+    expect(capsule.textContent).toContain("100 天前");
+  });
+
   it("实验室档（Round II）：十四张卡都在、区间控件保留、进度行写明 14 个视角", async () => {
     const bridges = createUsageBridges({
       [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 3_600_000)

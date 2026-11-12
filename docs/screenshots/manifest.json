@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-11T15:26:22.100Z",
-  "commit": "85a719d+dirty",
+  "generatedAt": "2026-11-12T08:15:55.447Z",
+  "commit": "5a242c2+dirty",
   "dirty": true,
   "files": [
     "accent-dark-webkit.png",
@@ -43,6 +43,10 @@
     "bleed-dark.png",
     "bleed-light-webkit.png",
     "bleed-light.png",
+    "capsule-dark-webkit.png",
+    "capsule-dark.png",
+    "capsule-light-webkit.png",
+    "capsule-light.png",
     "cards-dark-webkit.png",
     "cards-dark.png",
     "cards-light-webkit.png",
