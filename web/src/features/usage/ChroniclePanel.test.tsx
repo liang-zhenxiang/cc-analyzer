@@ -165,6 +165,61 @@ describe("ChroniclePanel · 结尾与导出", () => {
     await user.click(button);
     expect(onExport).not.toHaveBeenCalled();
   });
+
+  it("长图按钮与 Markdown 并列，点击各自回调一次", async () => {
+    const user = userEvent.setup();
+    const onExport = vi.fn();
+    const onExportCard = vi.fn();
+    render(
+      <ChroniclePanel
+        chronicle={story(THREE)}
+        onExport={onExport}
+        onExportCard={onExportCard}
+      />
+    );
+
+    const cardButton = screen.getByRole("button", { name: "导出长图（PNG）" });
+    expect(cardButton).toHaveAttribute("data-probe", "chronicle-export-card");
+    // 两个出口同在一行结尾，顺序固定：Markdown 在前，长图在后。
+    const markdownButton = screen.getByRole("button", { name: "导出这篇故事（Markdown）" });
+    expect(markdownButton.compareDocumentPosition(cardButton)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+
+    await user.click(cardButton);
+    expect(onExportCard).toHaveBeenCalledTimes(1);
+    expect(onExport).not.toHaveBeenCalled();
+  });
+
+  it("onExportCard 未接入时按钮留在原位但禁用", () => {
+    render(<ChroniclePanel chronicle={story(THREE)} />);
+    const cardButton = screen.getByRole("button", { name: "导出长图（PNG）" });
+    expect(cardButton).toBeDisabled();
+    expect(cardButton).toHaveAttribute("title", "导出功能尚未接入");
+  });
+
+  it("长图导出中改写文案并禁用，Markdown 同时避让", async () => {
+    const user = userEvent.setup();
+    const onExport = vi.fn();
+    const onExportCard = vi.fn();
+    render(
+      <ChroniclePanel
+        chronicle={story(THREE)}
+        onExport={onExport}
+        onExportCard={onExportCard}
+        exportingCard
+      />
+    );
+
+    const cardButton = screen.getByRole("button", { name: "正在导出长图…" });
+    expect(cardButton).toBeDisabled();
+    expect(cardButton).toHaveAttribute("aria-busy", "true");
+    // Markdown 按钮文案不变，但同一次导出期间不可再点。
+    expect(screen.getByRole("button", { name: "导出这篇故事（Markdown）" })).toBeDisabled();
+    await user.click(cardButton);
+    expect(onExportCard).not.toHaveBeenCalled();
+    expect(onExport).not.toHaveBeenCalled();
+  });
 });
 
 describe("ChroniclePanel · 空态", () => {
