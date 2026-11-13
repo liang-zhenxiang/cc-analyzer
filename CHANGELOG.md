@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.40.0-beta.1] - 2026-11-13
+
 本轮主题：**个性化与回望**——6 套强调色让界面像自己的；「时间胶囊」让你偶尔看看去年、上个月的今天在忙什么。
 
 ### Added
