@@ -32,11 +32,16 @@ const MAX_BAR_LABELS = 8;
 export function ChroniclePanel({
   chronicle,
   onExport,
-  exporting = false
+  exporting = false,
+  onExportCard,
+  exportingCard = false
 }: {
   chronicle: Chronicle;
   onExport?: () => void;
   exporting?: boolean;
+  /** 导出整篇故事的长图（PNG）；缺省（单测直挂面板）时按钮禁用。 */
+  onExportCard?: () => void;
+  exportingCard?: boolean;
 }) {
   const empty = chronicle.empty || chronicle.chapters.length === 0;
 
@@ -73,11 +78,25 @@ export function ChroniclePanel({
             variant="secondary"
             data-probe="chronicle-export"
             onClick={onExport}
-            disabled={exporting || !onExport}
+            disabled={exporting || exportingCard || !onExport}
             aria-busy={exporting || undefined}
             title={onExport ? undefined : "导出功能尚未接入"}
           >
             {exporting ? "正在导出…" : "导出这篇故事（Markdown）"}
+          </Button>
+          {/* 长图是同一篇故事的第二种出口：一句话发出去比一个文件更常被要。
+              它与 Markdown 并列而不是收进菜单——两种出口在读者眼里是同一层选择。
+              没接上时同样留在原位并禁用，结尾版式不随接线状态忽有忽无。 */}
+          <Button
+            type="button"
+            variant="secondary"
+            data-probe="chronicle-export-card"
+            onClick={onExportCard}
+            disabled={exportingCard || exporting || !onExportCard}
+            aria-busy={exportingCard || undefined}
+            title={onExportCard ? undefined : "导出功能尚未接入"}
+          >
+            {exportingCard ? "正在导出长图…" : "导出长图（PNG）"}
           </Button>
         </div>
       </footer>

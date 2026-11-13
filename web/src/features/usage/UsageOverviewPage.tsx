@@ -30,6 +30,12 @@ import { FlowDiagramPanel } from "./FlowDiagramPanel";
 import { ModelSeesawPanel } from "./ModelSeesawPanel";
 import { ChroniclePanel } from "./ChroniclePanel";
 import { buildChronicle, buildChronicleMarkdown } from "./chronicle";
+import {
+  chronicleCardFileName,
+  chronicleCardLayout,
+  drawChronicleCard
+} from "./chronicleCard";
+import type { PosterPalette } from "./posterCanvas";
 import { ProjectMemoryPanel } from "./ProjectMemoryPanel";
 import { buildProjectMemories } from "./projectMemory";
 import { TimeCapsuleCard } from "./TimeCapsuleCard";
@@ -211,6 +217,27 @@ function readStoredActivityView(): ActivityView {
 }
 
 /**
+ * 长图调色板：从根元素的令牌现值取色，长图因此跟随主题（含强调色预设），
+ * 这一层不出现任何颜色字面量。与海报的 `readPalette` 同一做法；这里用
+ * `--text-tertiary` 作为次要文字色——故事正文的层级低于海报标题，长图里
+ * 注释 / 脚注也应是这一档。
+ */
+function readChroniclePalette(): PosterPalette {
+  if (typeof window === "undefined") {
+    return { bg: "", text: "", muted: "", accent: "", border: "" };
+  }
+  const computed = getComputedStyle(document.documentElement);
+  const read = (name: string) => computed.getPropertyValue(name).trim();
+  return {
+    bg: read("--bg"),
+    text: read("--text"),
+    muted: read("--text-tertiary"),
+    accent: read("--accent"),
+    border: read("--border")
+  };
+}
+
+/**
  * The trend's token selector. "全部" is the four counters summed — the KPI
  * headline figure — while the other four isolate one counter, because a day
  * dominated by cache reads and a day dominated by output look identical under
@@ -259,6 +286,10 @@ export function UsageOverviewPage({
   const [view, setView] = useState<UsageView>(readStoredView);
   const [activityView, setActivityView] = useState<ActivityView>(readStoredActivityView);
   const [exporting, setExporting] = useState(false);
+  // 长图导出与 Markdown 导出是两件事（一个走文本落盘、一个走二进制），
+  // 各自的状态避免一边忙碌时把另一边的按钮文案改成「正在导出」；
+  // 两个处理函数互相在入口处挡一次，按钮也交叉禁用——不会双触发。
+  const [exportingCard, setExportingCard] = useState(false);
   // G10：对比浮层是纯前端产物，开关状态住页面（浮层本身无状态可存）。
   const [compareOpen, setCompareOpen] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -755,7 +786,9 @@ export function UsageOverviewPage({
    * 带出绝对路径或消息内容。取消保存（null）不是失败。
    */
   async function handleExportChronicle() {
-    if (exporting || chronicle.empty) return;
+    // 长图导出进行中时同样不接：两种出口只是格式不同，同时在跑只会互相覆盖
+    // 用户对「刚才那次点击」的预期（按钮已交叉禁用，这里再挡一次）。
+    if (exporting || exportingCard || chronicle.empty) return;
     setExporting(true);
     setExportError(null);
     try {
@@ -771,6 +804,58 @@ export function UsageOverviewPage({
       notify(message, "error");
     } finally {
       setExporting(false);
+    }
+  }
+
+  /**
+   * 导出「数据故事」长图（PNG）。
+   *
+   * 排版在 `chronicleCard.ts`（纯函数给出图元列表，SVG 与 canvas 共用同一份
+   * layout），页面只负责：读主题令牌 → 画到离屏 canvas → 转 base64 → 让宿主
+   * 写二进制。canvas 上限与 draw 细节都不在这一层，避免页面又长出一套图元坐标。
+   *
+   * 取消保存（`savePath` 返回 null）不是失败：不写文件、不报错、不提示——
+   * 用户按下「取消」就是他的意图，把它算成错误会让一次正常操作弹出红字。
+   */
+  async function handleExportChronicleCard() {
+    if (exportingCard || exporting || chronicle.empty) return;
+    // 老宿主没有 writeBinary：先给可读说明，不做一次白费功夫的离屏渲染。
+    const writeBinary = bridges.fs.writeBinary;
+    if (typeof writeBinary !== "function") {
+      const message = "当前版本不支持导出长图（缺少二进制写入）";
+      setExportError(message);
+      notify(message, "error");
+      return;
+    }
+    setExportingCard(true);
+    setExportError(null);
+    try {
+      const palette = readChroniclePalette();
+      const layout = chronicleCardLayout(chronicle, days, palette);
+      const canvas = document.createElement("canvas");
+      canvas.width = layout.width;
+      canvas.height = layout.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("当前环境不支持画布，无法导出长图");
+      drawChronicleCard(ctx, layout);
+      const base64 = canvas.toDataURL("image/png").split(",")[1];
+      if (!base64) throw new Error("画布没有产出图像数据");
+      const theme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+      const path = await bridges.dialog.savePath(chronicleCardFileName(new Date(), theme), {
+        title: "导出故事长图（PNG）",
+        filterName: "PNG 图片",
+        extensions: ["png"]
+      });
+      // 取消不是失败：不写文件、不报错、不提示。
+      if (path === null) return;
+      await writeBinary(path, base64);
+      notify("已导出故事长图", "success");
+    } catch (cause) {
+      const message = `导出失败：${String(cause)}`;
+      setExportError(message);
+      notify(message, "error");
+    } finally {
+      setExportingCard(false);
     }
   }
 
@@ -1003,6 +1088,8 @@ export function UsageOverviewPage({
           chronicle={chronicle}
           onExport={() => void handleExportChronicle()}
           exporting={exporting}
+          onExportCard={() => void handleExportChronicleCard()}
+          exportingCard={exportingCard}
         />
       ) : view === "memory" ? (
         /* 项目记忆（Project Memory）：按项目收口的命令 / 热文件 / 坑，自带

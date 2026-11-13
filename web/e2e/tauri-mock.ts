@@ -199,6 +199,11 @@ export function installTauriMock(scenario: MockScenario): void {
         case "write_text":
           files[norm(String(a.path))] = String(a.contents);
           return null;
+        case "write_binary":
+          // 前端交来的是 base64（PNG 等二进制）。桩不解码——用例断言的是
+          // 「交给宿主的内容」，原样存下来即可；解码正确性属于 Rust 命令的职责。
+          files[norm(String(a.path))] = String(a.contentsBase64);
+          return null;
         case "stat": {
           const content = readFile(a.path as unknown as string);
           return {

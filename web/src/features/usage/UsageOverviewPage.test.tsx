@@ -11,6 +11,19 @@ import type { SessionMeta } from "../sessions/metadataCache";
 import { UsageOverviewPage } from "./UsageOverviewPage";
 
 /**
+ * 长图排版由 `chronicleCard.test.ts` 自己覆盖；页面用例只关心「接线」——
+ * canvas 在 jsdom 里没有真实实现，这里把 layout / draw 换成确定性桩，
+ * 断言落在页面真正负责的那几步：读令牌、取值、交给 `fs.writeBinary`。
+ */
+vi.mock("./chronicleCard", () => ({
+  CHRONICLE_CARD_WIDTH: 1080,
+  chronicleCardLayout: vi.fn(() => ({ width: 1080, height: 1920, items: [] })),
+  chronicleCardSvg: vi.fn(() => "<svg/>"),
+  drawChronicleCard: vi.fn(),
+  chronicleCardFileName: vi.fn(() => "故事长图-light.png")
+}));
+
+/**
  * The page is tested through the whole hook + aggregation stack on a fake
  * `~/.claude/projects` tree, with session timestamps placed a few hours before
  * `Date.now()` so they always land inside the 7-day window regardless of when
@@ -84,6 +97,11 @@ function createUsageBridges(files: Record<string, string>): Bridges {
   const writeText = vi.fn(async (path: string, contents: string) => {
     files[path] = contents;
   });
+  // 长图导出走「savePath 拿路径 → writeBinary 写 base64」，与海报同一条路；
+  // 这里只记账，不解码——用例断言的是交给宿主的那段 base64。
+  const writeBinary = vi.fn(async (path: string, contentsBase64: string) => {
+    files[path] = `base64:${contentsBase64}`;
+  });
 
   return {
     fs: {
@@ -105,6 +123,7 @@ function createUsageBridges(files: Record<string, string>): Bridges {
       }),
       readHead: vi.fn(async (path: string) => files[path] ?? ""),
       writeText,
+      writeBinary,
       stat: vi.fn(async (path: string) => ({
         is_file: true,
         size: (files[path] ?? "").length,
@@ -653,6 +672,94 @@ describe("UsageOverviewPage", () => {
     // 故事吃「近 N 天」，区间控件保留；导出入口在结尾。
     expect(screen.getByRole("tablist", { name: "时间范围" })).toBeInTheDocument();
     expect(document.querySelector('[data-probe="chronicle-export"]')).not.toBeNull();
+    // 长图出口与 Markdown 并列（按钮禁用与否取决于桥接能力，不在这一条断言）。
+    expect(document.querySelector('[data-probe="chronicle-export-card"]')).not.toBeNull();
+  });
+
+  it("故事档：导出长图把 PNG base64 交给 writeBinary", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("d1", "claude-sonnet-4-5-20250929", 3 * 86_400_000),
+      [`${PROJECTS_ROOT}/-repo-beta/bbb.jsonl`]: sessionJsonl("d2", "claude-sonnet-4-5-20250929", 2 * 86_400_000),
+      [`${PROJECTS_ROOT}/-repo-alpha/ccc.jsonl`]: sessionJsonl("d3", "claude-opus-4-1", 86_400_000)
+    });
+    // jsdom 没有真实 canvas：桩住「取上下文」与「导出 dataURL」，让页面走过
+    // 与生产一致的那几步（创建画布 → draw → toDataURL → savePath → writeBinary）。
+    const PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB";
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      {} as unknown as CanvasRenderingContext2D
+    );
+    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue(
+      `data:image/png;base64,${PNG_BASE64}`
+    );
+    vi.mocked(bridges.dialog.savePath).mockResolvedValueOnce("/tmp/story-light.png");
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+    await userEvent.click(screen.getByRole("tab", { name: "故事" }));
+    await screen.findByRole("region", { name: "数据故事" });
+
+    await userEvent.click(screen.getByRole("button", { name: "导出长图（PNG）" }));
+
+    await waitFor(() => expect(bridges.fs.writeBinary).toHaveBeenCalledTimes(1));
+    const [path, base64] = vi.mocked(bridges.fs.writeBinary!).mock.calls[0];
+    expect(path).toBe("/tmp/story-light.png");
+    // PNG 魔数：交给宿主的必须是图片，不是一段文本。
+    expect(base64.startsWith("iVBORw0KGgo")).toBe(true);
+    expect(await screen.findByText("已导出故事长图")).toBeInTheDocument();
+    // 对话框拿到的是 PNG 过滤项与文件名（主题后缀由 chronicleCardFileName 决定）。
+    expect(vi.mocked(bridges.dialog.savePath)).toHaveBeenCalledWith(
+      "故事长图-light.png",
+      { title: "导出故事长图（PNG）", filterName: "PNG 图片", extensions: ["png"] }
+    );
+  });
+
+  it("故事档：取消保存不是失败——不写文件、不报错", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("e1", "claude-sonnet-4-5-20250929", 3 * 86_400_000),
+      [`${PROJECTS_ROOT}/-repo-beta/bbb.jsonl`]: sessionJsonl("e2", "claude-sonnet-4-5-20250929", 2 * 86_400_000),
+      [`${PROJECTS_ROOT}/-repo-alpha/ccc.jsonl`]: sessionJsonl("e3", "claude-opus-4-1", 86_400_000)
+    });
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      {} as unknown as CanvasRenderingContext2D
+    );
+    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue(
+      "data:image/png;base64,iVBORw0KGgo="
+    );
+    vi.mocked(bridges.dialog.savePath).mockResolvedValueOnce(null);
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+    await userEvent.click(screen.getByRole("tab", { name: "故事" }));
+    await screen.findByRole("region", { name: "数据故事" });
+
+    await userEvent.click(screen.getByRole("button", { name: "导出长图（PNG）" }));
+
+    await waitFor(() => expect(bridges.dialog.savePath).toHaveBeenCalled());
+    // 给异步链路一个落点：取消后不应留下写入或错误提示。
+    await waitFor(() => expect(bridges.fs.writeBinary).not.toHaveBeenCalled());
+    expect(screen.queryByText(/导出失败/)).toBeNull();
+    expect(screen.queryByText("已导出故事长图")).toBeNull();
+  });
+
+  it("故事档：宿主没有 writeBinary 时给出可读错误，不静默", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("f1", "claude-sonnet-4-5-20250929", 3 * 86_400_000),
+      [`${PROJECTS_ROOT}/-repo-beta/bbb.jsonl`]: sessionJsonl("f2", "claude-sonnet-4-5-20250929", 2 * 86_400_000),
+      [`${PROJECTS_ROOT}/-repo-alpha/ccc.jsonl`]: sessionJsonl("f3", "claude-opus-4-1", 86_400_000)
+    });
+    delete (bridges.fs as { writeBinary?: unknown }).writeBinary;
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+    await userEvent.click(screen.getByRole("tab", { name: "故事" }));
+    await screen.findByRole("region", { name: "数据故事" });
+
+    await userEvent.click(screen.getByRole("button", { name: "导出长图（PNG）" }));
+
+    // 就地那行 role="alert" 与 toast 都会出现同一句话：两处都要在。
+    expect((await screen.findAllByText(/当前版本不支持导出长图/)).length).toBeGreaterThan(0);
+    expect(screen.getByRole("alert")).toHaveTextContent("当前版本不支持导出长图");
+    expect(bridges.dialog.savePath).not.toHaveBeenCalled();
   });
 
   it("项目档（Project Memory）：项目记忆、搜索框与项目切换都在场", async () => {
