@@ -8,6 +8,13 @@ import {
 } from "./fixtures";
 import type { Page } from "@playwright/test";
 import { sessionItems } from "./selectors";
+import {
+  roundGgContextQuantiles,
+  roundGgProjectCard,
+  roundGgStoryDays,
+  storyDayMetaText,
+  type GgFixtureRecord
+} from "./round-gg-expectations";
 
 /**
  * Round GG（第五批十功能）端到端：
@@ -36,23 +43,14 @@ test.use({
  * 时区漂移的唯一解法：期望的时刻一律从夹具记录**在 Node 里现算**，用与界面
  * 相同的本地时区格式化。CI runner 是 UTC、开发机是 Asia/Shanghai，写死
  * `11-01` 这类绝对日期在两边必然只能对一边（PR #285 首轮红）。
+ *
+ * 同样的道理适用于「窗口里恰好有几条」：默认窗口是最近 30 个本地日，夹具的
+ * Q4 会话钉在 10-15，同一份夹具在 11-13 运行时 Q4 还在窗内、11-14 起就滑到
+ * 窗外。期望值因此全部走 `round-gg-expectations.ts`（内部调用界面同一条
+ * 纯函数链），spec 里不再出现 `toHaveCount(4)` / `1.1M` / `330k` 这类把某个
+ * 运行日写死的数字（Issue #331）。
  */
-type GgRecord = {
-  type?: string;
-  cwd?: string;
-  timestamp?: string;
-  message?: {
-    usage?: {
-      input_tokens?: number;
-      output_tokens?: number;
-      cache_creation_input_tokens?: number;
-      cache_read_input_tokens?: number;
-    };
-    content?: Array<{ type?: string; is_error?: boolean; content?: unknown }> | string;
-  };
-};
-
-const ggRecords = roundGGRecords() as unknown as GgRecord[];
+const ggRecords = roundGGRecords() as unknown as GgFixtureRecord[];
 
 const pad2 = (value: number): string => String(value).padStart(2, "0");
 
@@ -71,12 +69,6 @@ function hhmmOf(iso: string): string {
 function timeOf(iso: string): number {
   return Date.parse(iso);
 }
-
-/** G1：最近一条记录落在哪个本地自然日——就是故事线第一行。 */
-const latestRecord = ggRecords.reduce((latest, record) =>
-  timeOf(record.timestamp as string) > timeOf(latest.timestamp as string) ? record : latest
-);
-const latestDayLabel = monthDayOf(latestRecord.timestamp as string);
 
 /** G5：Bash 失败（`exit code`）的最早/最晚时刻，档案行的时间跨度。 */
 const bashErrorTimes = ggRecords
@@ -108,7 +100,7 @@ const ggMonthCount =
   1;
 
 /** G4：当前月的 token 合计（usage 四计数之和，含工具调用记录）。 */
-function usageTokensOf(record: GgRecord): number {
+function usageTokensOf(record: GgFixtureRecord): number {
   const usage = record.message?.usage;
   if (!usage) return 0;
   return (
@@ -139,19 +131,26 @@ const currentMonthLabel = `${ggNow.getFullYear()} 年 ${ggNow.getMonth() + 1} �
   currentMonthTokens
 )}`;
 
-/** G8：项目四季占比（与 projectSeasons 同口径：本地自然季、usage 四计数）。 */
-function seasonAriaOf(cwd: string): string {
-  const totals = [0, 0, 0, 0];
-  for (const record of ggRecords) {
-    if (record.cwd !== cwd) continue;
-    const tokens = usageTokensOf(record);
-    if (tokens === 0) continue;
-    totals[Math.floor(new Date(record.timestamp as string).getMonth() / 3)] += tokens;
-  }
-  const total = totals.reduce((sum, value) => sum + value, 0);
-  return totals
-    .map((value, index) => `Q${index + 1} ${total > 0 ? Math.round((value / total) * 100) : 0}%`)
-    .join("、");
+/**
+ * G1/G8/G7 的期望值：全部由 `round-gg-expectations.ts` 从同一份夹具现算。
+ * 这些数字随「运行日相对 Q4 的 10-15 落在窗口哪一侧」变化，不要写死。
+ */
+const ggStoryDays = roundGgStoryDays(ggRecords, roundGGNow());
+const ggLatestDay = ggStoryDays[0];
+const ggLatestDayLabel = ggLatestDay.date.slice(5);
+const ggAlphaCard = roundGgProjectCard(ggRecords, roundGGNow(), "/repo/gg-alpha");
+const ggBetaCard = roundGgProjectCard(ggRecords, roundGGNow(), "/repo/gg-beta");
+const ggQuantiles = roundGgContextQuantiles(ggRecords, roundGGNow());
+
+/** 卡片的完整 aria-label，字段顺序与 `ProjectCardsPanel` 一致。 */
+function cardAriaLabel(card: typeof ggAlphaCard): RegExp {
+  return new RegExp(
+    `^${escapeRegExp(card.displayName)}：${card.sessions} 个会话，${escapeRegExp(
+      card.tokensText
+    )} token，成本 ${escapeRegExp(card.costText)}，最近活跃 ${activeText}，季节性：${escapeRegExp(
+      card.seasonAria
+    )}$`
+  );
 }
 
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -172,19 +171,21 @@ test.describe("Round GG 十功能", () => {
   test("G1 工作日志按天聚合，点开某天看到当天会话", { tag: "@round-gg" }, async ({ page }) => {
     await openUsage(page);
     const days = page.locator("[data-probe='story-day']");
-    // P0-1：工作日志按页面区间裁剪。夹具全历史 7 个有活动的日，但默认 30 天
-    // 窗口里只剩 4 个——Q1–Q3 的季度会话在 30 天之外（Q4 在 10-15，仍在窗内），
-    // 最近三天是今天 / 昨天 / 三天前。窗口外那些日子正是修复前的越界来源。
-    await expect(days).toHaveCount(4);
-    // 4 天不足一页（默认 5 天），所以不出现「再显示」入口；增量展开由
-    // StoryLogPanel 的单测覆盖（12 天夹具：5 → 10 → 12）。
-    await expect(page.locator("[data-probe='story-more']")).toHaveCount(0);
-    // 夹具：今天 2 个会话（595,400 token），两个会话分别在 09:10 / 14:30。
-    await expect(days.first()).toContainText(latestDayLabel);
-    await expect(days.first()).toContainText("2 会话 · 1 项目 · 595,400 token · 最忙 09:00");
+    // 期望值必须从夹具现算：默认 30 天窗口的起点随运行日漂移，夹具的 Q4
+    // 10-15 在 11-13 还在窗内、11-14 起就在窗外。写死「4 天」等于把某个
+    // 运行日钉死，换到 12 月 / 1 月 / 4 月会再红一次（Issue #331）。
+    await expect(days).toHaveCount(ggStoryDays.length);
+    // 不足一页（默认 5 天）时没有「再显示」入口；增量展开由 StoryLogPanel
+    // 的单测覆盖（12 天夹具：5 → 10 → 12）。
+    await expect(page.locator("[data-probe='story-more']")).toHaveCount(
+      ggStoryDays.length > 5 ? 1 : 0
+    );
+    // 第一行永远是最近一天；会话数 / token / 最忙整点也由同一份 storyLog 现算。
+    await expect(days.first()).toContainText(ggLatestDayLabel);
+    await expect(days.first()).toContainText(storyDayMetaText(ggLatestDay));
     await days.first().click();
     const detail = page.locator("[data-probe='story-detail']").first();
-    await expect(detail.locator("li")).toHaveCount(2);
+    await expect(detail.locator("li")).toHaveCount(ggLatestDay.sessions);
     await expect(detail).toContainText("今天上午：把对比视图的读数对一遍");
   });
 
@@ -212,29 +213,17 @@ test.describe("Round GG 十功能", () => {
     const cards = page.locator("[data-probe='card-item']");
     await expect(cards).toHaveCount(2);
     await expect(cards.first()).toContainText("gg-alpha");
-    await expect(cards.first()).toHaveAttribute(
-      "aria-label",
-      new RegExp(
-        `^gg-alpha：4 个会话，1\\.1M token，成本 \\$7\\.68，最近活跃 ${activeText}，季节性：${escapeRegExp(
-          seasonAriaOf("/repo/gg-alpha")
-        )}$`
-      )
-    );
-    await expect(cards.nth(1)).toHaveAttribute(
-      "aria-label",
-      new RegExp(
-        `^gg-beta：3 个会话，137,600 token，成本 \\$0\\.42，最近活跃 ${activeText}，季节性：${escapeRegExp(
-          seasonAriaOf("/repo/gg-beta")
-        )}$`
-      )
-    );
+    // 会话数 / token / 成本是 30 天窗口内的读数：Q4 会话滑出窗口时三者一起
+    // 变化。由 buildProjectCards 现算，不写死「4 个会话 / 1.1M / $7.68」。
+    await expect(cards.first()).toHaveAttribute("aria-label", cardAriaLabel(ggAlphaCard));
+    await expect(cards.nth(1)).toHaveAttribute("aria-label", cardAriaLabel(ggBetaCard));
     const seasons = page.locator("[data-probe='card-season']");
     await expect(seasons).toHaveCount(2);
     await expect(seasons.first()).toHaveAttribute("data-quarters", "4");
-    // 文字从「只写最重季」改为四季全量占比；空季写「无记录」。
+    // 文字从「只写最重季」改为四季全量占比；空季写「无记录」。季节是
+    // projectSeasons 的全历史月几何，与 30 天窗口正交，但仍从夹具现算。
     const seasonText = page.locator("[data-probe='card-season-text']").first();
-    await expect(seasonText).toHaveText(/^Q1 .+ · Q2 .+ · Q3 .+ · Q4 .+$/);
-    await expect(seasonText).toContainText("Q4 64%");
+    await expect(seasonText).toHaveText(ggAlphaCard.seasonText);
   });
 
   test("G2 筛选栏：错误条件把 13 个会话收窄到 4 个", { tag: "@round-gg" }, async ({ page }) => {
@@ -277,13 +266,19 @@ test.describe("Round GG 十功能", () => {
     await expect(similar).toContainText("100%");
   });
 
-  test("G7 上下文峰值分位数：5 档，最大值等于 330k", { tag: "@round-gg" }, async ({ page }) => {
+  test("G7 上下文峰值分位数：5 档，最大值由窗口内会话现算", { tag: "@round-gg" }, async ({ page }) => {
     await openUsage(page);
     const quantiles = page.locator("[data-probe='ctx-quantiles']");
     await expect(quantiles).toHaveAttribute("aria-label", "会话上下文峰值分位数");
     await expect(page.locator("[data-probe='ctx-q']")).toHaveCount(5);
-    await expect(page.locator("[data-probe='ctx-q'][data-q='max']")).toHaveText("最大330k");
-    await expect(page.locator("[data-probe='ctx-q'][data-q='p90']")).toHaveText("P90240k");
+    // 分位样本里含窗口外会话（峰值 0 参与统计，与页面一致），所以 Q4 滑出
+    // 窗口时 max 会从 330k 掉到 240k、P90 也随之变化——必须现算。
+    await expect(page.locator("[data-probe='ctx-q'][data-q='max']")).toHaveText(
+      `最大${ggQuantiles.maxText}`
+    );
+    await expect(page.locator("[data-probe='ctx-q'][data-q='p90']")).toHaveText(
+      `P90${ggQuantiles.p90Text}`
+    );
   });
 
   test("G4 年报逐月卡下钻回用量档并选中当月最活跃日", { tag: "@round-gg" }, async ({ page }) => {
@@ -297,7 +292,9 @@ test.describe("Round GG 十功能", () => {
       "aria-selected",
       "true"
     );
-    await expect(page.locator("[data-probe='day-summary']")).toContainText("595,400");
+    await expect(page.locator("[data-probe='day-summary']")).toContainText(
+      formatTokenCount(ggLatestDay.tokens)
+    );
   });
 
   test("G3 会话档案导出：说明、记录数与保护性提示", { tag: "@round-gg" }, async ({ page }) => {

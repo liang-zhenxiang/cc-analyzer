@@ -11,6 +11,13 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./e2e",
+  // e2e/ 下的 `*.test.ts` 是 **Vitest 单测**（如 round-gg-expectations.test.ts），
+  // 不是 Playwright 用例。Playwright 默认匹配
+  // `**/*.@(spec|test).?(c|m)[jt]s?(x)`——不显式 ignore 就会把 `.test` 也收进
+  // 来，加载时因缺少 Playwright 测试上下文直接崩（Issue #331 的 CI 教训：
+  // 只跑 round-gg 单文件时完全看不见，全量/CI 才炸）。Vitest 侧只收
+  // `*.test.*`、不收 `*.spec.*`，两边按后缀分工，互不越界。
+  testIgnore: "**/*.test.{ts,tsx}",
   // 截图归档跑完写一份清单（视图 × 主题 × 引擎 + 生成 SHA），供
   // scripts/check-screenshots.sh 在本地与 CI 上核对。用 globalTeardown 而非某个
   // 测试的 afterAll：出图是并行的，afterAll 会在别的 worker 还没写完时落盘。
