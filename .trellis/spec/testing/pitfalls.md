@@ -71,11 +71,15 @@ macOS 自带 bash 3.2 会把该多字节字符的首字节吞进变量名，于�
 **修法**：在 `web/vite.config.ts` 里显式收窄：
 
 ```ts
-test: { include: ["src/**/*.test.{ts,tsx}"] }
+test: { include: ["src/**/*.test.{ts,tsx}", "e2e/**/*.test.{ts,tsx}"] }
 ```
 
+（`e2e/` 下确实有属于 vitest 的纯函数单测，例如给 e2e 现算期望值的
+`round-gg-expectations.test.ts`——所以不是整个 `e2e/` 都排除，而是按后缀分工：
+vitest 只收 `.test.*`，Playwright 只收 `.spec.*`。）
+
 **防复发**：两套测试用同名后缀是业界惯例，冲突是必然的——
-**靠显式收窄，不要靠默认值**。
+**靠显式收窄，不要靠默认值**。反方向的那次撞车见第 16 条。
 
 ---
 
@@ -360,3 +364,40 @@ Round W 换到 4317 后同一份代码 **5.2 分钟 310/0**。
 **一个反过来的教训**：这条坑的价值在于**它教你什么时候可以放过红色**。判据是那三条，
 不是「我觉得是环境」。Round W 也踩过同一类（当时 9 条），Round Y 又踩了一次
 （11 条）——同样的形态第三次出现时，别再从零排查。
+
+---
+
+## 16. 反过来也会发生：Playwright 把 vitest 的 `*.test.ts` 捡去跑
+
+**现象**（2026-11-14）：新增 `web/e2e/round-gg-expectations.test.ts`（纯函数单测，
+给 e2e 现算期望值用）后，本地 `npx playwright test e2e/round-gg.spec.ts` **24 条全绿**，
+CI 的「端到端测试」却 **52 秒就挂**，整份日志只有一行
+`TypeError: Cannot read properties of undefined (reading 'config')`。
+
+**根因**：Playwright 的默认 `testMatch` 是
+`**/*.@(spec|test).?(c|m)[jt]s?(x)`——**`.test.ts` 也在里面**。那份文件 import 的是
+vitest 的 `describe` / `it` / `expect`，被 Playwright 收集后拿不到 Playwright 的测试
+上下文，在**加载阶段**就崩。报错与真正的原因（后缀撞车）隔了好几层。
+
+**为什么本地看不出来**：只跑单个 `*.spec.ts` 时 Playwright 根本不会去加载兄弟文件，
+**全量或 CI 才会**。这与第 3 条是同一次撞车的两个方向：vitest 默认收 `.spec`，
+Playwright 默认收 `.test`。两边都得显式收窄。
+
+**修法**：
+
+```ts
+// web/playwright.config.ts
+testIgnore: "**/*.test.{ts,tsx}"
+
+// web/vite.config.ts（vitest）——只收 .test.*，不收 .spec.*
+include: ["src/**/*.test.{ts,tsx}", "e2e/**/*.test.{ts,tsx}"]
+```
+
+**防复发**：
+
+- 新增 `e2e/` 下的文件先问「这是给谁跑的」：Playwright 用例用 `.spec.ts`，
+  vitest 单测用 `.test.ts`。
+- **验收时不要只跑相关文件**。改了 e2e 配置或新加 e2e 侧文件，至少先跑
+  `npx playwright test --list` 看一眼清单里有没有不该出现的文件，再跑全量。
+- 判据组合：本地单文件绿 + CI/全量 52 秒内挂 + 报错是 `reading 'config'` 这类
+  与代码无关的加载期异常 → 先查后缀撞车，别去读被测代码。
