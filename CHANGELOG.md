@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-11-15
+
 本轮主题：**故事长图**——把 Chronicle 排成一张可分享的竖版 PNG，别人不装应用也能看懂。
 
 ### Added
