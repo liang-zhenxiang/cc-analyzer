@@ -47,6 +47,17 @@
   line-height: var(--lh-xs);
 }
 
+/* 视图组与范围组之间的竖分隔线（Issue #342）：两组都是分段控件、各有一枚
+   填充选中态，单靠间距分不开——新用户会把「近 30 天」读成第八个视图。
+   纯装饰：aria-hidden、不可聚焦；两侧各 12px gap，合计 24px 的分组间距。 */
+.controlDivider {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+}
+
 /* 页头右簇：进度文本在前、导出按钮在后（按钮是最后一个子元素）。整簇靠
    `justify-content: flex-end` 贴右，进度文本变长时向左生长；窄窗口 / 放大
    字号下整簇换行，按钮仍留在右端点，不裁切、不缩成图标。 */
@@ -69,10 +80,11 @@
 
 /* KPI 读数行：设计 §6 的「读数行语言」——数值并排站在浅台阶上，
    标签小字、数值 --fs-lg/600 + tabular-nums，来源徽章收在标签行上。
-   免责说明跨列收在底部，不再撑高单列。 */
+   免责说明跨列收在底部，不再撑高单列。
+   五列：第一格是固定的「今天」（Issue #342），后四格才是所选范围。 */
 .kpiRow {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
@@ -116,6 +128,21 @@
   font-weight: 600;
   line-height: var(--lh-lg);
   font-variant-numeric: tabular-nums;
+}
+
+/* 「今天」格的副行（Issue #342）：会话数与消息数是佐证，不是主角——
+   字号与标签同档（--fs-xs / --text-tertiary），但独占数值下一行，不与标签
+   混排。跨满整行，五列的格高由网格自动拉平。 */
+.kpiSub {
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 来源圆点显式钉在第一行右列。只靠源码顺序（标签 → 数值 → 圆点）时，

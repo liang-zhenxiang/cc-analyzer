@@ -44,9 +44,11 @@ export type StoryDay = {
   busiestHourShare: number;
 };
 
-/** 本地日 YYYY-MM-DD（补零）。与快照文件名同款的手动拼法，无 locale 依赖。 */
-function dateLabelOf(dayStart: number): string {
-  const date = new Date(dayStart);
+/** 本地日 YYYY-MM-DD（补零）。与快照文件名同款的手动拼法，无 locale 依赖。
+ *  `StoryDay.date` 与页面「今天」判断（`todayReading.ts`）共用这一份格式，
+ *  避免两处各拼一套、在补零或时区上悄悄分叉。 */
+export function localDayKey(ts: number): string {
+  const date = new Date(ts);
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
@@ -140,7 +142,7 @@ export function storyLog(sessions: readonly UsageSessionInput[]): StoryDay[] {
       }
     }
     days.push({
-      date: dateLabelOf(acc.dayStart),
+      date: localDayKey(acc.dayStart),
       sessions: acc.sessions,
       projects: [...acc.projects].sort(),
       tokens: acc.tokens,

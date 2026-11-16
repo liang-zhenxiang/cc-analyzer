@@ -45,14 +45,23 @@ function busiestLabel(day: StoryDay): string {
 
 export function StoryLogPanel({
   inputs,
-  days
+  days,
+  storyDays
 }: {
   /** 已按页面时间范围裁剪过的会话（与 KPI / 会话形状同一份窗口化输入）。 */
   inputs: readonly UsageSessionInput[];
   /** 页面当前区间（天）：写进脚注，并在档位切换时把展开量收回 5 天。 */
   days: number;
+  /**
+   * 页面级已算好的 `storyLog(inputs)`（Issue #342）。首屏「今天」KPI 也要
+   * 这份结果，页面先算一次再传进来，两个消费者共用同一份输出——面板给了
+   * 它就不再自己遍历一遍。缺省时照旧自行计算，单测/独立挂载不受影响。
+   */
+  storyDays?: readonly StoryDay[];
 }) {
-  const allDays = useMemo(() => storyLog(inputs), [inputs]);
+  // 二选一：有预计算结果就**直接返回它**（factory 里不调用 storyLog），
+  // 保证一次全量遍历而不是两次。
+  const allDays = useMemo(() => storyDays ?? storyLog(inputs), [storyDays, inputs]);
   const [openDate, setOpenDate] = useState<string | null>(null);
   // 「再显示 5 天」的增量只对当前区间有效：档位一换，窗口里就是另一批日行，
   // 展开量必须回到 5。这里把区间一起存进快照，渲染时比较——不用 effect

@@ -39,6 +39,14 @@ test.describe("用量总览", () => {
     const dashboard = page.getByLabel(DASHBOARD);
     await expect(dashboard).toBeVisible();
 
+    // 首格固定是「今天」（Issue #342），今天没有记录时也是 0 而不是空白。
+    const todayTile = kpiTile(page, "今天");
+    await expect(todayTile).toBeVisible();
+    await expect(todayTile.getByText(/\d+ 个会话 · \d+ 条消息/)).toBeVisible();
+    await expect(
+      dashboard.locator("div[class*='kpiRow']").locator(":scope > div").first()
+    ).toHaveText(/今天/);
+
     // KPI：tokens / 会话 / 消息读自日志，成本按快照估算并带快照日期。
     // 246,130 同时是周层「滚动 7 天」的消耗（同一份日志），圈进 KPI 瓦片再断言。
     await expect(kpiTile(page, "Tokens 总量").getByText("246,130")).toBeVisible();
@@ -202,7 +210,7 @@ test.describe("用量总览", () => {
     expect(Math.abs(usage.width - analyzer.width)).toBeLessThanOrEqual(1);
   });
 
-  test("周战报首列贴面板左缘、四列各 25%，数字列与 KPI 四列右对齐（Issue #339）", async ({ page }) => {
+  test("周战报是内容宽度的紧凑表：行名贴左、数字列紧邻（Issue #339 / #342）", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("tab", { name: DASHBOARD }).click();
     await expect(page.getByText(/纳入统计/)).toBeVisible({ timeout: 15_000 });
@@ -217,34 +225,64 @@ test.describe("用量总览", () => {
       await table.locator("tbody td").first().evaluate((element) => getComputedStyle(element).textAlign)
     ).toBe("right");
 
-    // 表满宽、首列 25%：行名回到面板左缘，而不是被整表右推留出 230px 空白。
-    const { tableLeft, tableWidth, labelLeft, labelWidth, tableRight } = await table.evaluate(
-      (element) => {
-        const tableRect = element.getBoundingClientRect();
-        const labelRect = element.querySelector("tbody th")!.getBoundingClientRect();
-        return {
-          tableLeft: tableRect.left,
-          tableWidth: tableRect.width,
-          tableRight: tableRect.right,
-          labelLeft: labelRect.left,
-          labelWidth: labelRect.width
-        };
-      }
-    );
+    const { rows } = await table.evaluate((element) => {
+      const cells = (row: Element) => {
+        const label = row.querySelector("th")!.getBoundingClientRect();
+        const firstValue = row.querySelector("td")!.getBoundingClientRect();
+        return { labelLeft: label.left, labelRight: label.right, firstValueRight: firstValue.right };
+      };
+      return {
+        rows: Array.from(element.querySelectorAll("tbody tr")).map(cells)
+      };
+    });
     const panelLeft = await page
       .locator("[data-probe='digest-root']")
       .evaluate((element) => element.getBoundingClientRect().left);
     // 面板边框 1px + 卡片内边距 12px：行名格左缘距面板左缘约 13px。
-    expect(labelLeft - panelLeft).toBeLessThanOrEqual(16);
-    // table-layout: fixed 下四列等分——首列 25%（允许 8px 的边框/取整误差）。
-    expect(Math.abs(labelWidth - tableWidth * 0.25)).toBeLessThanOrEqual(8);
-    expect(tableLeft - panelLeft).toBeLessThanOrEqual(16);
+    for (const row of rows) {
+      expect(row.labelLeft - panelLeft).toBeLessThanOrEqual(16);
+    }
 
-    // 表的右缘与上方 KPI 行的右缘对齐（面板自身还有 12px 内边距）。
-    const kpiRight = await page
-      .locator("div[class*='kpiRow']")
-      .evaluate((element) => element.getBoundingClientRect().right);
-    expect(Math.abs(tableRight - kpiRight)).toBeLessThanOrEqual(20);
+    // Issue #342：表格按内容收窄（标签列 120px、数字列各 140px），不再追着
+    // KPI 的列数做百分比对齐。行名右缘到第一个数字右缘约 140px——上限 220px
+    // 防的是将来又把首列撑宽、把空白从左边挪到中间。
+    for (const row of rows) {
+      expect(row.firstValueRight - row.labelRight).toBeLessThanOrEqual(220);
+    }
+  });
+
+  test("Issue #342：视图组与范围组之间有一条 aria-hidden 的分隔线", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("tab", { name: DASHBOARD }).click();
+    await expect(page.getByText(/纳入统计/)).toBeVisible({ timeout: 15_000 });
+
+    const viewGroup = page.getByRole("tablist", { name: "总览视图" });
+    const rangeGroup = page.getByRole("tablist", { name: "时间范围" });
+    const divider = page.locator("[data-probe='usage-controls-divider']");
+    await expect(divider).toHaveAttribute("aria-hidden", "true");
+
+    // 1440 与 1100 两档都验：窄窗下页头会重新排布，分隔关系不能丢。
+    for (const width of [1440, 1100]) {
+      await page.setViewportSize({ width, height: 900 });
+
+      const [view, range, line] = await Promise.all([
+        viewGroup.boundingBox(),
+        rangeGroup.boundingBox(),
+        divider.boundingBox()
+      ]);
+      expect(view, `${width}px 下找不到视图组`).not.toBeNull();
+      expect(range, `${width}px 下找不到范围组`).not.toBeNull();
+      expect(line, `${width}px 下找不到分隔线`).not.toBeNull();
+
+      // 分隔线在两组之间，且是一条 1px 宽、约 20px 高的竖线。
+      expect(line!.x).toBeGreaterThanOrEqual(view!.x + view!.width);
+      expect(line!.x + line!.width).toBeLessThanOrEqual(range!.x);
+      expect(line!.height).toBeGreaterThanOrEqual(18);
+      expect(line!.height).toBeLessThanOrEqual(22);
+      expect(line!.width).toBeLessThanOrEqual(2);
+      // 两组之间留出约 24px（12px gap × 2 + 1px 线），一眼能看出是两件事。
+      expect(range!.x - (view!.x + view!.width)).toBeGreaterThanOrEqual(20);
+    }
   });
 });
 

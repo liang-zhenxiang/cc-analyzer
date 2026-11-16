@@ -4,12 +4,13 @@
   min-width: 0;
 }
 
-/* 固定布局是这张表可扫读的前提：auto 布局会把所有多余宽度都塞给首列，
-   「Tokens」标签和数值被拉开几百像素，眼睛每读一行都要横跳。
-   表格满宽、四列各 25%：行名贴面板左缘，三个数字列的右边界落在
-   50% / 75% / 100%，与上方 KPI 四列的分界线重合（Issue #339）。 */
+/* 表格按内容收窄（Issue #342）：不再撑满面板，也不追着 KPI 的列数做百分比
+   对齐。固定布局 + 明确列宽是这张表可扫读的前提——auto 布局会把多余宽度
+   塞给首列，「Tokens」标签与数值被拉开几百像素，眼睛每读一行都要横跳。
+   总宽 ≈ 120 + 3×140 = 540px，贴面板左缘；行名到第一个数字约 120px。
+   这个宽度与 KPI 是 4 列还是 5 列无关，以后不用再联动改。 */
 .table {
-  width: 100%;
+  width: auto;
   table-layout: fixed;
   border-collapse: collapse;
   font-size: var(--fs-sm);
@@ -47,10 +48,18 @@
   border-bottom: none;
 }
 
-/* table-layout: fixed 下第一行决定列宽：四列各 25%，与上方 KPI 四列同宽。
-   表头首格只有 sr-only 的「读数」，仍然需要一个可见宽度的声明。 */
+/* table-layout: fixed 下第一行决定列宽。表头首格只有 sr-only 的「读数」，
+   但它的宽度就是行名列的宽度：120px 让「Tokens / 估算成本」贴左、数值不被
+   推到面板中间。 */
 .metricHead {
-  width: 25%;
+  width: 120px;
+}
+
+/* 三个数字列等宽（140px），右对齐后个位上下成一条竖线。`table-layout:
+   fixed` 只读**第一行**（thead）声明的宽度，写在 tbody 上无效——所以这里
+   钉表头的数字列，数据格自然继承同一列宽。 */
+.table thead th:not(.metricHead) {
+  width: 140px;
 }
 
 /* `.table thead th` 的 (0,1,2) 高于 `.metricHead` 的 (0,1,0)：首格左对齐
