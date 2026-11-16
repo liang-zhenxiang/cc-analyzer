@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { test, expect, compactScenario } from "./fixtures";
 import { sessionItems } from "./selectors";
 
@@ -21,6 +21,26 @@ async function openContextView(page: Page, query: string) {
   await openSession(page, query);
   await page.getByRole("tab", { name: "上下文" }).click();
   await expect(page.getByLabel("会话图状态")).toContainText("会话图已加载", { timeout: 15_000 });
+}
+
+/** 一个 SVG 文本元素在 viewBox 坐标系里的包围盒（getBBox 用的就是用户单位）。 */
+async function inkBoxes(locator: Locator) {
+  return locator.evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const box = (node as SVGGraphicsElement).getBBox();
+      return { x: box.x, y: box.y, width: box.width, height: box.height };
+    })
+  );
+}
+
+/** 断言一组 bbox 完整落在 720×220 的 viewBox 内（Issue #341 的回归判据）。 */
+function expectInsideViewBox(boxes: { x: number; y: number; width: number; height: number }[]) {
+  for (const box of boxes) {
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(720);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(220);
+  }
 }
 
 test.describe("上下文标签页（含压缩会话）", () => {
@@ -79,6 +99,55 @@ test.describe("上下文标签页（含压缩会话）", () => {
     await expect(page.getByLabel("会话时间概览")).toBeVisible();
     await expect(page.getByRole("region", { name: "记录筛选" })).toBeVisible();
   });
+
+  test("x 轴刻度与 0 基线完整落在 viewBox 内（不再被面板底边裁掉）", async ({ page }) => {
+    await openContextView(page, "compact-demo");
+    const chart = page.getByRole("img", { name: /上下文压力：120 条模型消息/ });
+
+    // 刻度是真实 DOM 文本（不是画上去的像素）：bbox 以用户单位报告，直接与
+    // 720×220 的 viewBox 比较。修复前面板体只有 256px 高，y=214 的这排刻度
+    // 整排落在裁切区外——这里量的就是那排。
+    const ticks = chart.locator('[data-probe="x-axis-tick"]');
+    await expect(ticks.first()).toBeAttached();
+    const boxes = await inkBoxes(ticks);
+    expect(boxes.length).toBeGreaterThan(3);
+    expectInsideViewBox(boxes);
+
+    // 0 基线标签（y 轴唯一的「0」）与 x 轴同处一条被裁区间。
+    const zero = chart.getByText("0", { exact: true });
+    await expect(zero).toHaveCount(1);
+    expectInsideViewBox(await inkBoxes(zero));
+  });
+
+  test("压缩事件面板的最后一行可完整滚入容器（不被 overflow 裁掉）", async ({ page }) => {
+    await openContextView(page, "compact-demo");
+    const panel = page.getByRole("region", { name: "压缩事件" });
+    await panel.getByRole("button", { name: /#2 / }).click();
+
+    // 取证数字栏是面板被压缩时唯一没有滚动链的一列：把它的六行事实滚到底，
+    // 末行「幸存消息」的 bbox 必须完整落在容器可视区里。
+    const facts = panel.locator('[data-probe="context-facts"]');
+    await expect(facts).toBeVisible();
+    const lastFact = facts.locator("dl > div").last();
+    await expect(lastFact).toContainText("幸存消息");
+    await facts.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    const geometry = await facts.evaluate((el) => {
+      const last = el.querySelector("dl > div:last-child");
+      if (!last) throw new Error("取证数字栏缺少末行");
+      const container = el.getBoundingClientRect();
+      const row = last.getBoundingClientRect();
+      return {
+        containerTop: container.top,
+        containerBottom: container.bottom,
+        rowTop: row.top,
+        rowBottom: row.bottom
+      };
+    });
+    expect(geometry.rowTop).toBeGreaterThanOrEqual(geometry.containerTop - 0.5);
+    expect(geometry.rowBottom).toBeLessThanOrEqual(geometry.containerBottom + 0.5);
+  });
 });
 
 test.describe("上下文标签页（无压缩会话）", () => {
@@ -89,5 +158,15 @@ test.describe("上下文标签页（无压缩会话）", () => {
     await expect(page.getByRole("img", { name: /未发生压缩/ })).toBeVisible();
     await expect(page.getByText("本会话未发生压缩——上下文从未重置")).toBeVisible();
     await expect(page.getByRole("button", { name: /^#/ })).toHaveCount(0);
+  });
+
+  test("峰值标签完整落在 viewBox 内（右缘峰值不再被切成「峰值 2」）", async ({ page }) => {
+    await openContextView(page, "demo");
+    const chart = page.getByRole("img", { name: /未发生压缩/ });
+    const peak = chart.locator('[data-probe="peak-label"]');
+    await expect(peak).toHaveCount(1);
+    // 峰值通常在最后一条消息上（x≈708）：修复前 textAnchor="middle" 让右半截
+    // 落在 720 的 viewBox 之外，截图里只剩「峰值 2」。
+    expectInsideViewBox(await inkBoxes(peak));
   });
 });

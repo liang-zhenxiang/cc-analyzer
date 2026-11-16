@@ -155,7 +155,7 @@ export function eventMarkerGeometries(
   });
 }
 
-export type PeakLabelPlacement = { x: number; y: number; anchor: "middle" | "start" };
+export type PeakLabelPlacement = { x: number; y: number; anchor: "middle" | "start" | "end" };
 
 /**
  * The peak label's clearance from the curve stroke. It was 4 until the J2
@@ -165,10 +165,29 @@ export type PeakLabelPlacement = { x: number; y: number; anchor: "middle" | "sta
  */
 export const PEAK_LABEL_OFFSET = 7;
 
+/** Rough advance width in viewBox units — CJK glyphs are ~1em, ASCII ~0.6em. */
+function estimateTextWidth(text: string, fontSize: number): number {
+  let units = 0;
+  for (const char of text) units += /[⺀-鿿＀-￯]/.test(char) ? 1 : 0.6;
+  return units * fontSize;
+}
+
+export type PeakLabelOptions = {
+  /** Marker proximity that triggers the up-and-right dodge. */
+  clearance?: number;
+  /** The rendered label text: its measured width decides the edge flip. */
+  text?: string;
+};
+
 /**
  * The one direct label on the chart (the peak). Sits `PEAK_LABEL_OFFSET` above
  * the point; when an event marker stands within `clearance` the label dodges
  * up and to the right instead of overlapping the diamond or the hairline.
+ *
+ * The label is also kept inside the plot's horizontal band: a peak on the
+ * right edge (very common — the last message is often the largest) used to be
+ * centred at x=708, putting half the text outside the 720-wide viewBox
+ * (Issue #341). The same flip happens at the left edge, just mirrored.
  */
 export function peakLabelPlacement(
   peakIndex: number,
@@ -176,15 +195,38 @@ export function peakLabelPlacement(
   geometry: CurveGeometry,
   markers: readonly EventMarkerGeometry[],
   fontSize: number,
-  clearance = 36
+  { clearance = 36, text = "" }: PeakLabelOptions = {}
 ): PeakLabelPlacement {
-  const x = geometry.xAt(peakIndex);
+  let x = geometry.xAt(peakIndex);
   const collides = markers.some((marker) => Math.abs(marker.x - x) < clearance);
   const y = Math.max(
     geometry.yAt(peakValue) - PEAK_LABEL_OFFSET - (collides ? 6 : 0),
     geometry.padTop + fontSize
   );
-  return collides ? { x: x + 6, y, anchor: "start" } : { x, y, anchor: "middle" };
+  let anchor: PeakLabelPlacement["anchor"] = collides ? "start" : "middle";
+  if (collides) x += 6;
+
+  const plotLeft = geometry.padLeft;
+  const plotRight = geometry.padLeft + geometry.plotWidth;
+  const width = text === "" ? 0 : estimateTextWidth(text, fontSize);
+  if (anchor === "middle") {
+    if (x + width / 2 > plotRight) {
+      anchor = "end";
+      x = Math.min(x, plotRight);
+    } else if (x - width / 2 < plotLeft) {
+      anchor = "start";
+      x = Math.max(x, plotLeft);
+    }
+  } else if (anchor === "start") {
+    if (x + width > plotRight) {
+      anchor = "end";
+      x = plotRight;
+    }
+  } else if (x - width < plotLeft) {
+    anchor = "start";
+    x = plotLeft;
+  }
+  return { x, y, anchor };
 }
 
 /** Index of the position closest to `x`; `positions` must be ascending. */

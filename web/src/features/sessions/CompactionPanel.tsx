@@ -113,7 +113,7 @@ export function CompactionPanel({
       </div>
       {selected ? (
         <div className={styles.card} data-probe="forensic-card">
-          <div className={styles.numbers}>
+          <div className={styles.numbers} data-probe="context-facts">
             <h3 className={styles.cardTitle}>
               <span aria-hidden="true">◆</span>
               <span>
