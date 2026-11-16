@@ -1,5 +1,11 @@
 import type { Page } from "@playwright/test";
+import {
+  clusterBillingBlocks,
+  currentBlock,
+  isWindowClosed
+} from "../src/features/usage/billingWindow";
 import { test, expect, roundCCScenario, roundCCRecords, roundCCNow } from "./fixtures";
+import { toUsageInputs, type GgFixtureRecord } from "./round-gg-expectations";
 
 /**
  * Round CC「用量页新面板」的端到端验收。
@@ -13,7 +19,18 @@ import { test, expect, roundCCScenario, roundCCRecords, roundCCNow } from "./fix
  * 同一规则；夹具是相对 `Date.now()` 造的，所以这些数字在任何一天运行都成立。
  */
 
-test.use({ scenario: roundCCScenario() });
+/**
+ * WebKit（macOS）**不认 TZ 环境变量**，Chromium 认（同 round-gg / round-ii 的
+ * 教训）。用例里的周战报按本地自然周对数，浏览器与 Node 若不同时区，「TZ=UTC
+ * 双引擎」验证里 webkit 仍按系统时区跑、必然假红。显式把 TZ 透传给 Playwright
+ * 的 timezoneId；CI 通常不设 TZ，此时不覆盖，两边都取系统时区，仍然一致。
+ */
+const ccTzOverride = process.env.TZ?.trim() ? process.env.TZ.trim() : undefined;
+
+test.use({
+  scenario: roundCCScenario(),
+  ...(ccTzOverride ? { timezoneId: ccTzOverride } : {})
+});
 
 const DASHBOARD = "用量总览";
 const HOUR = 3_600_000;
@@ -273,42 +290,64 @@ test.describe("Round CC · 用量页", () => {
     await expect(page.getByRole("img", { name: "活跃时段热力图" })).toBeVisible();
   });
 
-  test("F5 计费卡预报：开了 5 小时块就有预报，百分比落在合理区间", async ({ page }) => {
+  test("F5 计费卡预报：块开着就报百分比，块关了就改说已关闭", async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem("cca-billing-plan", JSON.stringify({ id: "max5" }));
     });
     await openUsage(page);
+
+    // 不能假设当前块一定开着：夹具把「本周」记录钉在 `weekStart + 30min`
+    // （周一 00:30），而「最近两小时」记录是 `now - 2h`。周一 02:30–07:30
+    // 运行时，`now - 2h` 落进 `[00:30, 05:30)` 那一块、不会新开块；到 now
+    // 时该块已经关闭（05:30 后），而 `buildLimitForecast` 对已关闭窗口按设计
+    // 返回 null —— 预报行不渲染。任何「本周内的固定偏移」都会在对应时段与
+    // `now - 2h` 撞车，所以分支必须按夹具现算，不能把「此时一定开着」写死。
+    //
+    // 当前块用产品同一条 `clusterBillingBlocks` 现算（夹具 JSONL 先经
+    // `toUsageInputs` 转成产品记录），与界面切块口径一致。
+    const fixtureRecords = roundCCRecords() as unknown as GgFixtureRecord[];
+    const records = toUsageInputs(fixtureRecords)
+      .flatMap((input) => input.records)
+      .sort((a, b) => a.timestamp - b.timestamp);
+    const now = roundCCNow();
+    const active = currentBlock(clusterBillingBlocks(records), now);
+    if (!active) throw new Error("夹具应当至少产生一个计费块");
+
+    const closed = isWindowClosed(active, now);
+    // 把实际走到的分支写进 CI 日志：UTC 周一凌晨跑 closed，其它时段跑 open，
+    // 两条路径都被真实执行过才看得见。
+    console.log(`[round-cc] F5 当前计费块：${closed ? "已关闭" : "开启"}`);
+
     const forecast = page.locator("[data-probe='forecast-row']");
+    const closedNote = page.locator("[data-probe='closed-window-note']");
+
+    if (closed) {
+      // 关闭的窗口没有未来可外推：预报行整行不渲染，改说一句事实。
+      await expect(forecast).toHaveCount(0);
+      await expect(closedNote).toBeVisible();
+      await expect(closedNote).toHaveText("本窗口已关闭");
+      // 「预计到达限额」那格同样收口成状态词，不再给未来的触顶时刻。
+      await expect(
+        page.getByLabel("计费窗口").getByText("窗口已关闭", { exact: true })
+      ).toBeVisible();
+      return;
+    }
+
     await expect(forecast).toBeVisible();
     await expect(forecast).toHaveText(/^若保持此速率：预计用到限额的 \d+%/);
     const pct = Number((await forecast.innerText()).match(/限额的 (\d+)%/)![1]);
-    // 期望值不从界面读回来，从夹具按 `buildLimitForecast` 同一套口径手算。
-    // 当前块按 `clusterBillingBlocks` 的规则独立重算：第一条记录开块，落在
-    // [start, start+5h) 内的记录并入，第一条 >= start+5h 的记录开下一块；
-    // `currentBlock` 取最后一块，即使 now 已过它的 end。
-    // 不能只看「now-2h 附近那条记录」：周一凌晨运行时，块可能从周一 00:30
-    // 的周战报记录就开始了，块内用量与已用时长都与「now-2h」不同。
-    const now = roundCCNow();
-    const stamps = roundCCRecords()
-      .map((record) => Date.parse(String(record.timestamp)))
-      .sort((a, b) => a - b);
-    let blockStart = stamps[0];
-    let activeStart = stamps[0];
-    for (const at of stamps) {
-      if (at >= blockStart + 5 * HOUR) blockStart = at;
-      if (blockStart <= now) activeStart = blockStart;
-    }
-    blockStart = activeStart;
-    const blockEnd = blockStart + 5 * HOUR;
-    const consumed = roundCCRecords().reduce((sum, record) => {
+    // 期望值不从界面读回来：起止来自 `currentBlock`，块内用量仍按原始夹具
+    // 逐条手算（`usageOf`），再按 `buildLimitForecast` 同一套线性外推手算
+    // 百分比——界面读数只用来和这个独立结果对照。
+    const consumed = fixtureRecords.reduce((sum, record) => {
       const at = Date.parse(String(record.timestamp));
-      if (!(at >= blockStart && at < blockEnd)) return sum;
+      if (!(at >= active.start && at < active.end)) return sum;
       const usage = usageOf(record);
       if (!usage) return sum;
       return sum + usage.input + usage.output + usage.cacheCreation + usage.cacheRead;
     }, 0);
-    const elapsedH = Math.max(0, Math.min(now, blockEnd) - blockStart) / HOUR;
-    const remainingH = Math.max(0, blockEnd - now) / HOUR;
+    const elapsedH = Math.max(0, Math.min(now, active.end) - active.start) / HOUR;
+    const remainingH = Math.max(0, active.end - now) / HOUR;
     const burnPerHour = elapsedH > 0 ? consumed / elapsedH : 0;
     const projected = consumed + burnPerHour * remainingH;
     const expectedPct = (projected / 88_000) * 100;
