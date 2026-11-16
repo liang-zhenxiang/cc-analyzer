@@ -107,12 +107,30 @@
   padding-top: var(--sp-2);
 }
 
-/* 组标题（显示 / 数据与阈值 / 计费窗口）：带一条发丝线，把三组分开。
-   面板改叫「设置」后，这层是读者找东西的第一级路标。 */
+/* 组标题（显示 / 数据与阈值 / 计费窗口）：带一条发丝线，标出每一组的起点。
+   面板改叫「设置」后，这层是读者找东西的第一级路标。
+
+   吸顶：三组内容有 3–4 屏，标题滚出视野后读者就不知道自己在哪一组。
+   `.panel` 是滚动容器，所以 sticky 相对它生效。
+
+   `top` 必须取负的面板内边距：sticky 的偏移基准是滚动容器的**内容盒**，
+   写 `top: 0` 会让标题停在 12px 内边距之下，内边距那一条仍会透出滚动内容；
+   取 `calc(var(--sp-3) * -1)` 才正好贴在面板内边框上（实测 Chromium / WebKit
+   都不会裁掉标题）。背景必须不透明——用与面板相同的 `--bg-elevated`，
+   否则下方内容会从标题底下透出来。
+
+   发丝线挂在**下沿**：吸顶时它是标题与从下面滚过的内容之间的分隔线；
+   若留在上沿，吸顶后会与面板自己的边框叠成双线、下方反而没有分隔。
+   非吸顶时标题与上一节的间距仍由 margin-top 提供。 */
 .groupTitle {
+  position: sticky;
+  top: calc(var(--sp-3) * -1);
+  z-index: 1;
   margin: var(--sp-3) 0 0;
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   padding-top: var(--sp-2);
+  padding-bottom: var(--sp-1);
+  background: var(--bg-elevated);
   color: var(--text);
   font-size: var(--fs-base);
   font-weight: 600;
