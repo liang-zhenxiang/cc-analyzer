@@ -162,10 +162,11 @@ describe("WeeklyDigestPanel 峰值时刻（D9）", () => {
 /**
  * Issue #339：`.table tbody th` 的 `text-align: right` 特异性 (0,1,2) 压过了
  * `.metric` 的 left，注释里写的「首列左对齐」从未生效——标签被推到面板中线。
- * 只改对齐不够：首列若仍是 38%，空白只是从左边挪到中间。这里同时锁住
- * 「首列 120px + 整表 max-width 与 KPI 四列对齐」。
+ * 只改对齐不够：首列若仍是 38%，空白只是从左边挪到中间。
+ * Issue #342 起改成「按内容收窄的紧凑表」：标签列 120px、数字列各 140px，
+ * 不再追着 KPI 的列数做百分比对齐（KPI 从 4 列变 5 列时那套对齐会失效）。
  */
-describe("周战报表格对齐（Issue #339）", () => {
+describe("周战报表格对齐（Issue #339 / #342）", () => {
   function digestCss(): string {
     return readFileSync(
       resolve(process.cwd(), "src/features/usage/WeeklyDigestPanel.module.css"),
@@ -196,13 +197,13 @@ describe("周战报表格对齐（Issue #339）", () => {
     expect(metricRule![1]).toMatch(/text-align:\s*left/);
   });
 
-  it("四列各 25%：行名贴表面板左缘，数字列与 KPI 四列对齐", () => {
+  it("内容宽度紧凑表：行名贴左、三个数字列等宽（Issue #342）", () => {
     const css = digestCss();
     const headRule = /\.metricHead\s*\{([^}]*)\}/.exec(css);
     expect(headRule).not.toBeNull();
-    expect(headRule![1]).toMatch(/width:\s*25%/);
-    expect(headRule![1]).not.toContain("38%");
-    expect(headRule![1]).not.toContain("120px");
+    // 标签列固定 120px：标签到数值不再隔着面板的一大片空白。
+    expect(headRule![1]).toMatch(/width:\s*120px/);
+    expect(headRule![1]).not.toContain("25%");
     // 重复的 text-align 已收口：首格左对齐只保留高特异性那条。
     expect(headRule![1]).not.toContain("text-align");
 
@@ -210,10 +211,18 @@ describe("周战报表格对齐（Issue #339）", () => {
     expect(theadHeadRule).not.toBeNull();
     expect(theadHeadRule![1]).toMatch(/text-align:\s*left/);
 
+    // table-layout: fixed 只读第一行：数字列的 140px 必须钉在表头上。
+    const numberHeadRule = /\.table thead th:not\(\.metricHead\)\s*\{([^}]*)\}/.exec(css);
+    expect(numberHeadRule).not.toBeNull();
+    expect(numberHeadRule![1]).toMatch(/width:\s*140px/);
+
     const tableRule = /\.table\s*\{([^}]*)\}/.exec(css);
     expect(tableRule).not.toBeNull();
-    expect(tableRule![1]).toContain("width: 100%");
-    // 不再把整表右推：max-width / margin-left:auto 会把首列重新推离左缘。
+    // 按内容收窄，不再撑满、也不再追着 KPI 的列数做百分比对齐。
+    expect(tableRule![1]).toContain("width: auto");
+    expect(tableRule![1]).not.toContain("width: 100%");
+    expect(tableRule![1]).toContain("table-layout: fixed");
+    // 不把整表右推：max-width / margin-left:auto 会把首列重新推离左缘。
     expect(tableRule![1]).not.toContain("max-width");
     expect(tableRule![1]).not.toContain("margin-left");
   });

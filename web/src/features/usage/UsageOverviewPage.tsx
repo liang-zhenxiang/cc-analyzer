@@ -66,6 +66,8 @@ import { usageSnapshotFileName, usageSnapshotHtml } from "./usageSnapshot";
 import { SnapshotCompareDialog } from "./SnapshotCompareDialog";
 import { buildSnapshotJson, snapshotJsonFileName, snapshotJsonText } from "./usageSnapshotJson";
 import { StoryLogPanel } from "./StoryLogPanel";
+import { storyLog } from "./storyLog";
+import { todayReadingOf } from "./todayReading";
 import { WeeklyDigestPanel } from "./WeeklyDigestPanel";
 import { SessionComparePanel } from "./SessionComparePanel";
 import { EquivalentsToggle } from "./EquivalentsToggle";
@@ -382,6 +384,14 @@ export function UsageOverviewPage({
       records: input.records.filter((record) => record.timestamp >= startTs)
     }));
   }, [inputs, days, readouts.now]);
+  // 工作日志与首屏「今天」共用同一份日行（Issue #342）：在这里算一次，
+  // 往下传给面板，避免 StoryLogPanel 内部再遍历一遍全量记录。
+  const storyDays = useMemo(() => storyLog(shapeInputs), [shapeInputs]);
+  // 「今天」格固定本地今天，不受区间档位影响；今天没有记录时显示 0 而不是隐藏。
+  const today = useMemo(
+    () => todayReadingOf(storyDays, readouts.now),
+    [storyDays, readouts.now]
+  );
   // 会话上下文峰值分位（G7）：contextQuantiles 是纯函数（无窗口概念），这里
   // 按页面控件的时间窗先截 inputs 再喂它——窗口口径与 aggregateRange 同款
   //（usageAggregations.ts：startTs = dayStartOf(now) - (days-1) 天）。now 与
@@ -976,12 +986,22 @@ export function UsageOverviewPage({
           {/* 里程碑（R2）与年报（E4）的口径都是**全历史**，「近 N 天」对它们没有
               任何作用；摆一个不起作用的控件比缺一个控件更坏——用户会以为数字受它影响。 */}
           {view !== "milestones" && view !== "annual" ? (
-            <SegmentedControl
-              items={RANGE_ITEMS}
-              value={String(days)}
-              onChange={(next) => setDays(toRange(next))}
-              ariaLabel="时间范围"
-            />
+            <>
+              {/* 两组分段控件同一视觉语言，单靠间距分不清「去哪一档 / 看多长」
+                  （Issue #342）：中间放一条纯装饰竖线，两侧各 12px gap 合计 24px。
+                  分隔线 aria-hidden、不可聚焦，不新增 keyboard 停靠点。 */}
+              <span
+                className={styles.controlDivider}
+                data-probe="usage-controls-divider"
+                aria-hidden="true"
+              />
+              <SegmentedControl
+                items={RANGE_ITEMS}
+                value={String(days)}
+                onChange={(next) => setDays(toRange(next))}
+                ariaLabel="时间范围"
+              />
+            </>
           ) : null}
         </div>
         {/* 右簇：进度文本在前、导出按钮在后——右簇贴右，进度变长时向左生长，
@@ -1124,6 +1144,17 @@ export function UsageOverviewPage({
           <BillingWindowCard inputs={inputs} readouts={readouts} onOpenSession={onOpenSession} />
 
           <div className={styles.kpiRow}>
+            {/* 首格「今天」（Issue #342）：打开应用最想知道的是「我今天用了
+                多少」。它固定为本地今天，不随区间档位变化；今天没有记录时
+                显示 0 而不是隐藏——隐藏会让 5 列塌成 4 列、布局跳动。
+                口径复用工作日志（storyLog），所以与下方第一行逐字一致。 */}
+            <div className={styles.kpi} data-probe="kpi-today">
+              <span className={styles.kpiLabel}>今天</span>
+              <span className={styles.kpiValue}>{formatTokenCount(today.tokens)}</span>
+              <span className={styles.kpiSub}>
+                {today.sessions} 个会话 · {today.messages} 条消息
+              </span>
+            </div>
             {/* 来源圆点只标「非确定信息」：读自日志是默认事实，三张日志读数
                 瓦片不再各挂一枚同义绿点（Issue #339）。剩下的估算圆点由
                 `.kpiSource` 钉在第一行右列，不再被自动排到第三行。 */}
@@ -1159,8 +1190,8 @@ export function UsageOverviewPage({
             {/* 免责说明跨列收在卡片底部：它此前是成本那一列的第三层（列头「非账单」
             + chip「估算」+「快照日期」），把整张卡撑高、另外三列各留 60px 死白。 */}
             <p className={styles.kpiFootnote}>
-              Tokens 总量、会话数、消息数读自本机日志；估算成本按定价快照（{PRICING_AS_OF}）折算，
-              不是账单。
+              第一格固定为今天，其余为所选时间范围（近 {days} 天）。Tokens 总量、会话数、
+              消息数读自本机日志；估算成本按定价快照（{PRICING_AS_OF}）折算，不是账单。
               {cost.hasUnknown
                 ? ` 部分会话未知价 · 约 ${formatTokenCount(cost.unknownTokens)} tok 未计入`
                 : ""}{" "}
@@ -1173,7 +1204,7 @@ export function UsageOverviewPage({
               日子」，读者从「多大」滑到「什么时候」再进「这周 vs 上周」。
               吃窗口化 `shapeInputs`（P0-1）：工作日志与 KPI 必须是同一段区间，
               面板内再默认只列 5 天、按需增量展开。 */}
-          <StoryLogPanel inputs={shapeInputs} days={days} />
+          <StoryLogPanel inputs={shapeInputs} days={days} storyDays={storyDays} />
 
           {/* F3 周战报（Round CC）：本周 vs 上周的四行读数住在 KPI 与两列网格
               之间——KPI 是「这 N 天」的量级，战报是「这周比上周」的方向，

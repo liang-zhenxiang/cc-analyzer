@@ -49,22 +49,19 @@ function cssRuleBody(selector: string): string {
   return match![1];
 }
 
-function iso(msAgo: number): string {
-  return new Date(Date.now() - msAgo).toISOString();
-}
-
-function sessionJsonl(assistantId: string, model: string, msAgo: number): string {
+/** 一条会话的两条记录，时间戳为绝对本地毫秒（Issue #342 的「今天」用例用）。 */
+function sessionJsonlAt(assistantId: string, model: string, timestamp: number): string {
   return (
     JSON.stringify({
       type: "user",
-      timestamp: iso(msAgo),
+      timestamp: new Date(timestamp).toISOString(),
       uuid: `${assistantId}-u`,
       message: { role: "user", content: "hi" }
     }) +
     "\n" +
     JSON.stringify({
       type: "assistant",
-      timestamp: iso(msAgo - 5_000),
+      timestamp: new Date(timestamp + 5_000).toISOString(),
       uuid: assistantId,
       message: {
         id: `msg-${assistantId}`,
@@ -80,6 +77,18 @@ function sessionJsonl(assistantId: string, model: string, msAgo: number): string
       }
     })
   );
+}
+
+function sessionJsonl(assistantId: string, model: string, msAgo: number): string {
+  return sessionJsonlAt(assistantId, model, Date.now() - msAgo);
+}
+
+/** 本地某天的正午（daysAgo=0 即今天）：无论测试在几点跑，都不会跨自然日。 */
+function localNoon(daysAgo = 0): number {
+  const date = new Date();
+  date.setDate(date.getDate() - daysAgo);
+  date.setHours(12, 0, 0, 0);
+  return date.getTime();
 }
 
 function createUsageBridges(files: Record<string, string>): Bridges {
@@ -172,6 +181,106 @@ afterEach(() => {
 describe("UsageOverviewPage", () => {
   it("页头扫描进度使用 --text-secondary，不在浅底上掉到 4.5 以下", () => {
     expect(cssRuleBody(".progress")).toContain("color: var(--text-secondary)");
+  });
+
+  it("Issue #342：KPI 五列、今天副行与控件分隔线的样式", () => {
+    // 五列固定（四格 + 今天）；今天没有记录也不能隐藏整格，否则会塌成四列。
+    expect(cssRuleBody(".kpiRow")).toContain("repeat(5, minmax(0, 1fr))");
+    // 副行与标签同档字号、更轻颜色，但独占数值下一行。
+    expect(cssRuleBody(".kpiSub")).toContain("color: var(--text-tertiary)");
+    expect(cssRuleBody(".kpiSub")).toContain("font-size: var(--fs-xs)");
+    expect(cssRuleBody(".kpiSub")).toContain("grid-column: 1 / -1");
+    // 分隔线：1px 竖线、20px 高、--border；两侧 12px gap 合计 24px。
+    expect(cssRuleBody(".controlDivider")).toContain("width: 1px");
+    expect(cssRuleBody(".controlDivider")).toContain("height: 20px");
+    expect(cssRuleBody(".controlDivider")).toContain("background: var(--border)");
+    expect(cssRuleBody(".headerControls")).toContain("gap: var(--sp-3)");
+  });
+
+  it("Issue #342：今天格读今天的会话/消息，后四格仍按所选范围", async () => {
+    const bridges = createUsageBridges({
+      // 今天正午：永远落在本地今天（不依赖测试运行的时刻）。
+      // 路径/会话 id 必须独一份：解析缓存以 path+size+mtime 为键，复用别的
+      // 用例的 path 会让缓存把「今天」的时间戳喂给那条用例（实测踩过）。
+      [`${PROJECTS_ROOT}/-repo-today-kpi/today.jsonl`]: sessionJsonlAt(
+        "today-kpi",
+        "claude-sonnet-4-5-20250929",
+        localNoon()
+      ),
+      // 三天前正午：在 30 天窗口内，但不属于今天。
+      [`${PROJECTS_ROOT}/-repo-today-kpi/three-days-ago.jsonl`]: sessionJsonlAt(
+        "three-days-ago",
+        "claude-sonnet-4-5-20250929",
+        localNoon(3)
+      )
+    });
+
+    renderPage(bridges);
+    const dashboard = await screen.findByRole("region", { name: "用量总览" });
+
+    const kpiRow = dashboard.querySelector("div[class*='kpiRow']") as HTMLElement;
+    // 五格：今天 + 原四格；脚注是 p，不是格。
+    expect(kpiRow.querySelectorAll(":scope > div")).toHaveLength(5);
+
+    await waitFor(() =>
+      expect(within(kpiTile("今天")).getByText("44,200")).toBeInTheDocument()
+    );
+    expect(within(kpiTile("今天")).getByText("1 个会话 · 2 条消息")).toBeInTheDocument();
+    // 后四格口径不变：30 天窗口把两段都算进去。
+    await waitFor(() =>
+      expect(within(kpiTile("Tokens 总量")).getByText("88,400")).toBeInTheDocument()
+    );
+    expect(within(kpiTile("会话数")).getByText("2", { exact: true })).toBeInTheDocument();
+  });
+
+  it("Issue #342：今天没有记录时第一格显示 0，而不是空白或隐藏", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-today-kpi/yesterday.jsonl`]: sessionJsonlAt(
+        "yesterday-only",
+        "claude-sonnet-4-5-20250929",
+        localNoon(1)
+      )
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+
+    // 窗口总量有数（昨天那段），但今天格必须是诚实的 0。
+    await waitFor(() =>
+      expect(within(kpiTile("Tokens 总量")).getByText("44,200")).toBeInTheDocument()
+    );
+    const today = kpiTile("今天");
+    expect(within(today).getByText("0", { exact: true })).toBeInTheDocument();
+    expect(within(today).getByText("0 个会话 · 0 条消息")).toBeInTheDocument();
+  });
+
+  it("Issue #342：视图组与范围组之间是 aria-hidden 的纯装饰分隔线", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl(
+        "a2",
+        "claude-sonnet-4-5-20250929",
+        6 * 3_600_000
+      )
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+
+    const divider = document.querySelector('[data-probe="usage-controls-divider"]');
+    expect(divider).not.toBeNull();
+    expect(divider!.tagName).toBe("SPAN");
+    expect(divider!.getAttribute("aria-hidden")).toBe("true");
+    // 纯装饰不可聚焦，也不新增 Tab 停靠点。
+    expect(divider!.hasAttribute("tabindex")).toBe(false);
+
+    const viewGroup = screen.getByRole("tablist", { name: "总览视图" });
+    const rangeGroup = screen.getByRole("tablist", { name: "时间范围" });
+    expect(
+      viewGroup.compareDocumentPosition(divider!) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      divider!.compareDocumentPosition(rangeGroup) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 
   it("renders the KPI readouts with provenance badges and the snapshot date", async () => {

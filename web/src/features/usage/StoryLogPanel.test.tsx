@@ -55,6 +55,32 @@ describe("StoryLogPanel", () => {
     expect(screen.queryByRole("button", { name: /10-/ })).toBeNull();
   });
 
+  it("预计算结果优先：给了 storyDays 就不再从 inputs 重算", () => {
+    // Issue #342：页面先算一份给「今天」KPI，再传给本面板；空 inputs 仍能
+    // 照常渲染证明面板直接用了这份结果，没有回退去遍历 inputs。
+    render(
+      <StoryLogPanel
+        inputs={[]}
+        days={30}
+        storyDays={[
+          {
+            date: "2026-10-31",
+            sessions: 1,
+            projects: ["-repo-demo"],
+            tokens: 1234,
+            messages: 2,
+            busiestHour: 9,
+            busiestHourShare: 1
+          }
+        ]}
+      />
+    );
+    const row = dayRow("10-31");
+    expect(row.textContent).toContain("1 会话");
+    expect(row.textContent).toContain("1,234");
+    expect(screen.queryByText(/这个窗口没有可讲的日志/)).toBeNull();
+  });
+
   it("日期倒序：最新的一天排第一行", () => {
     render(
       <StoryLogPanel
