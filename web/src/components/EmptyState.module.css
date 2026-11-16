@@ -55,7 +55,9 @@
 .inline {
   margin: 0;
   padding: var(--sp-4);
-  color: var(--text-faint);
+  /* 这是一行要读的提示，不是装饰：--text-faint 只有 2.6:1，下面这一档
+     --text-tertiary 在浅色主底上是 4.38:1（Issue #339）。 */
+  color: var(--text-tertiary);
   font-size: var(--fs-xs);
   line-height: var(--lh-xs);
   text-align: center;

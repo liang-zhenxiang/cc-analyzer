@@ -44,8 +44,8 @@ test.describe("用量总览", () => {
     await expect(kpiTile(page, "Tokens 总量").getByText("246,130")).toBeVisible();
     await expect(kpiTile(page, "消息数").getByText("16", { exact: true })).toBeVisible();
     await expect(kpiTile(page, "会话数").getByText("2", { exact: true })).toBeVisible();
-    // 计费窗口卡的「窗口开启」也标「读自日志」，按 KPI 行作用域数 3 枚。
-    await expect(dashboard.locator("div[class*='kpiRow']").getByText("读自日志")).toHaveCount(3);
+    // 读自日志是默认事实：Issue #339 起 KPI 行不再挂三枚同义绿点。
+    await expect(dashboard.locator("div[class*='kpiRow']").getByText("读自日志")).toHaveCount(0);
     // 「按定价快照估算」四枚：KPI 的估算成本瓦片、消耗日历的色深口径徽章，
     // 加上 Round CC 的周战报与项目卡片两个面板头（整块面板共一枚，不是每行/每卡一枚）。
     // exact 只数档位本身；周战报那枚的 detail 是另一段文字（「成本按定价快照估算」），
@@ -200,6 +200,51 @@ test.describe("用量总览", () => {
 
     expect(Math.abs(usage.left - analyzer.left)).toBeLessThanOrEqual(1);
     expect(Math.abs(usage.width - analyzer.width)).toBeLessThanOrEqual(1);
+  });
+
+  test("周战报首列贴面板左缘、四列各 25%，数字列与 KPI 四列右对齐（Issue #339）", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("tab", { name: DASHBOARD }).click();
+    await expect(page.getByText(/纳入统计/)).toBeVisible({ timeout: 15_000 });
+
+    const table = page.locator("[data-probe='digest-root'] table");
+    await expect(table).toBeVisible();
+
+    // 行名（th）左对齐、数字（td）右对齐——真实计算样式，不是类名。
+    const labelCell = table.locator("tbody th").first();
+    expect(await labelCell.evaluate((element) => getComputedStyle(element).textAlign)).toBe("left");
+    expect(
+      await table.locator("tbody td").first().evaluate((element) => getComputedStyle(element).textAlign)
+    ).toBe("right");
+
+    // 表满宽、首列 25%：行名回到面板左缘，而不是被整表右推留出 230px 空白。
+    const { tableLeft, tableWidth, labelLeft, labelWidth, tableRight } = await table.evaluate(
+      (element) => {
+        const tableRect = element.getBoundingClientRect();
+        const labelRect = element.querySelector("tbody th")!.getBoundingClientRect();
+        return {
+          tableLeft: tableRect.left,
+          tableWidth: tableRect.width,
+          tableRight: tableRect.right,
+          labelLeft: labelRect.left,
+          labelWidth: labelRect.width
+        };
+      }
+    );
+    const panelLeft = await page
+      .locator("[data-probe='digest-root']")
+      .evaluate((element) => element.getBoundingClientRect().left);
+    // 面板边框 1px + 卡片内边距 12px：行名格左缘距面板左缘约 13px。
+    expect(labelLeft - panelLeft).toBeLessThanOrEqual(16);
+    // table-layout: fixed 下四列等分——首列 25%（允许 8px 的边框/取整误差）。
+    expect(Math.abs(labelWidth - tableWidth * 0.25)).toBeLessThanOrEqual(8);
+    expect(tableLeft - panelLeft).toBeLessThanOrEqual(16);
+
+    // 表的右缘与上方 KPI 行的右缘对齐（面板自身还有 12px 内边距）。
+    const kpiRight = await page
+      .locator("div[class*='kpiRow']")
+      .evaluate((element) => element.getBoundingClientRect().right);
+    expect(Math.abs(tableRight - kpiRight)).toBeLessThanOrEqual(20);
   });
 });
 

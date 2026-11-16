@@ -152,7 +152,7 @@ function ArchiveSection({ bridges }: { bridges: Bridges }) {
       <div className={styles.grid}>
         {/* aria-labelledby keeps the checkbox's name exactly the visible title,
             even though the trust hints sit inside the same label. */}
-        <label className={styles.field}>
+        <label className={`${styles.field} ${styles.fieldCheck}`}>
           <span className={styles.label} id={titleId}>
             启用本地归档
           </span>
@@ -493,7 +493,7 @@ function KioskSection() {
         收起顶栏并把界面字号提到 130%，适合把窗口挂在第二块屏幕上看；Esc 退出。
       </p>
       <div className={styles.grid} data-probe="kiosk-toggle">
-        <label className={styles.field}>
+        <label className={`${styles.field} ${styles.fieldCheck}`}>
           <span className={styles.label} id={titleId}>
             启用大屏模式
           </span>
@@ -598,7 +598,7 @@ function TrayReadoutSection() {
       <div className={styles.grid}>
         {/* aria-labelledby 锁住可见标题本身（照「启用本地归档」）：包一层 label 时
             说明文字会一起进可访问名，视觉名与朗读名就此分叉。 */}
-        <label className={styles.field}>
+        <label className={`${styles.field} ${styles.fieldCheck}`}>
           <span className={styles.label} id={titleId}>
             显示用量读数
           </span>
@@ -779,7 +779,7 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
           </span>
           <span className={styles.hint}>当前版本 {appVersion ?? "…"}</span>
         </label>
-        <label className={styles.field}>
+        <label className={`${styles.field} ${styles.fieldCheck}`}>
           <span className={styles.label}>启动时自动检查</span>
           <span className={styles.control}>
             <input

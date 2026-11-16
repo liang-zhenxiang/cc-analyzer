@@ -25,10 +25,10 @@ test.describe("计费窗口", () => {
     await expect(card.getByText("窗口开启", { exact: true })).toBeVisible();
     // exact：关闭后底部还有一句「本窗口已关闭 · 消耗 N token」，子串匹配会撞成两个元素。
     await expect(card.getByText("已关闭", { exact: true })).toBeVisible();
-    // 5h 层与周层各有一枚「读自日志」圆点，取其一证明徽章在场即可。
-    await expect(card.getByText("读自日志").first()).toBeVisible();
-    // 关闭后没有未来：预报行整行消失，改报这个窗口用了多少（不再给触顶时刻）。
-    await expect(card).toContainText("本窗口已关闭 · 消耗");
+    // 5h 层与周层都是读自日志的默认事实；Issue #339 起不再挂绿点。
+    await expect(card.getByText("读自日志")).toHaveCount(0);
+    // 关闭后没有未来：预报行整行消失，改报这个窗口已经结束（消耗只在表盘中心）。
+    await expect(card.getByText("本窗口已关闭", { exact: true })).toBeVisible();
     await expect(page.locator("[data-probe='forecast-row']")).toHaveCount(0);
   });
 

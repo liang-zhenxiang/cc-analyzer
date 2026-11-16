@@ -13,8 +13,13 @@ import styles from "./ProvenanceBadge.module.css";
  * is still legible — colour separates the three confidence levels, `title`
  * shows the sentence on hover, and the words stay in the accessibility tree
  * (visually hidden), so nothing was silenced, only re-weighted.
+ *
+ * Issue #339：`logged` 档不再渲染——首屏 8 枚圆点里 6 枚是同一个同义绿点，
+ * 「读自日志」是默认事实，不值得每处都占一个视觉标记。只有非确定信息
+ * （`estimated` / `inferred` / `snapshot`）才需要这枚圆点提醒读者。
  */
 export function ProvenanceBadge({ provenance, detail }: { provenance: Provenance; detail?: string }) {
+  if (provenance === "logged") return null;
   const label = PROVENANCE_LABELS[provenance];
   const sentence = `${label}${detail ? `，${detail}` : ""}`;
   const accessibleName = `数据来源：${sentence}`;

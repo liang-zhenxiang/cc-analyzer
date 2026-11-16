@@ -123,3 +123,19 @@ test("高对比度只叠一条内描边，不用 border、不改尺寸", () => {
     );
   }
 });
+
+/**
+ * Issue #339：未选中分段落在 --bg-inset 上必须读得清。
+ * --text-tertiary 实算 4.30:1，低于 12–13px 正文的 4.5 门槛；
+ * --text-secondary 是 7.08:1。静态守卫，真实对比度由设计令牌审计算。
+ */
+test("未选中分段用 --text-secondary，而不是 4.30:1 的 --text-tertiary", () => {
+  const css = readFileSync(
+    resolve(process.cwd(), "src/components/SegmentedControl.module.css"),
+    "utf8"
+  ).replace(/\/\*[\s\S]*?\*\//g, "");
+  const itemRule = /\.item\s*\{([^}]*)\}/.exec(css);
+  expect(itemRule).not.toBeNull();
+  expect(itemRule![1]).toMatch(/color:\s*var\(--text-secondary\)/);
+  expect(itemRule![1]).not.toMatch(/color:\s*var\(--text-tertiary\)/);
+});

@@ -47,6 +47,11 @@
 }
 
 .content {
+  /* 必须是定位祖先：全站 `.srOnly` 是 `position: absolute` 的 1px 节点，
+     包含块若退到文档，它们的静态位置会把 `documentElement.scrollHeight`
+     撑到内容总高（实测 2095 vs 视口 900），`scrollIntoView` 会连整个外壳
+     一起滚走、且 main.scrollTop = 0 也复位不回来（Issue #339）。 */
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow: auto;

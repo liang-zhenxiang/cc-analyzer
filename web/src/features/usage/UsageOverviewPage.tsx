@@ -1124,8 +1124,9 @@ export function UsageOverviewPage({
           <BillingWindowCard inputs={inputs} readouts={readouts} onOpenSession={onOpenSession} />
 
           <div className={styles.kpiRow}>
-            {/* 来源徽章是标签行末尾的一枚圆点（`.kpi` 的两列网格把它放在第一行的
-            右端），数值独占第二行——瓦片里先看到数字，再看标签与出处。 */}
+            {/* 来源圆点只标「非确定信息」：读自日志是默认事实，三张日志读数
+                瓦片不再各挂一枚同义绿点（Issue #339）。剩下的估算圆点由
+                `.kpiSource` 钉在第一行右列，不再被自动排到第三行。 */}
             <div className={styles.kpi}>
               <span className={styles.kpiLabel}>Tokens 总量</span>
               <span className={styles.kpiValue}>
@@ -1134,12 +1135,10 @@ export function UsageOverviewPage({
                   <Sparkline values={sparkTokens} />
                 </span>
               </span>
-              <ProvenanceBadge provenance="logged" />
             </div>
             <div className={styles.kpi}>
               <span className={styles.kpiLabel}>会话数</span>
               <span className={styles.kpiValue}>{range.kpi.sessions.toLocaleString("en-US")}</span>
-              <ProvenanceBadge provenance="logged" />
             </div>
             <div className={styles.kpi}>
               <span className={styles.kpiLabel}>消息数</span>
@@ -1149,12 +1148,13 @@ export function UsageOverviewPage({
                   <Sparkline values={sparkMessages} />
                 </span>
               </span>
-              <ProvenanceBadge provenance="logged" />
             </div>
             <div className={styles.kpi}>
               <span className={styles.kpiLabel}>估算成本</span>
               <span className={styles.kpiValue}>{formatUsd(cost.usd)}</span>
-              <ProvenanceBadge provenance="estimated" detail={`快照日期 ${PRICING_AS_OF}`} />
+              <span className={styles.kpiSource}>
+                <ProvenanceBadge provenance="estimated" detail={`快照日期 ${PRICING_AS_OF}`} />
+              </span>
             </div>
             {/* 免责说明跨列收在卡片底部：它此前是成本那一列的第三层（列头「非账单」
             + chip「估算」+「快照日期」），把整张卡撑高、另外三列各留 60px 死白。 */}

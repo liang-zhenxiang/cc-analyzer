@@ -188,12 +188,14 @@ describe("UsageOverviewPage", () => {
     expect(within(kpiTile("会话数")).getByText("2")).toBeInTheDocument();
     expect(within(kpiTile("消息数")).getByText("4")).toBeInTheDocument();
 
-    // Logged figures say so; the cost says how it was estimated and against
-    // which snapshot — the acceptance criteria make these labels load-bearing.
-    // 计费窗口卡的「窗口开启」也是读自日志，因此按 KPI 行的作用域数 3 枚。
+    // 读自日志是默认事实：Issue #339 起 KPI 行不再挂三枚同义绿点。
     const kpiRow = dashboard.querySelector("div[class*='kpiRow']");
     expect(kpiRow).not.toBeNull();
-    expect(await within(kpiRow as HTMLElement).findAllByText("读自日志")).toHaveLength(3);
+    expect(within(kpiRow as HTMLElement).queryAllByText("读自日志")).toHaveLength(0);
+    // 唯一保留的估算圆点必须钉在第一行右列（`.kpiSource`），不能落到第三行。
+    expect(
+      (kpiRow as HTMLElement).querySelector('[class*="kpiSource"] [aria-label^="数据来源：按定价快照估算"]')
+    ).not.toBeNull();
     // 「按定价快照估算」的徽章至少一枚（KPI 的估算成本）；消耗日历的色深
     // 口径也是估算（Round V），面板 actions 上会再多一枚——这里只锁「在场」。
     expect((await within(dashboard).findAllByText("按定价快照估算")).length).toBeGreaterThanOrEqual(1);
@@ -1047,6 +1049,9 @@ describe("UsageOverviewPage", () => {
     // 数值行用 flex 把线贴到右端；14px 的线不改变 28px 数值行/76px 卡高。
     expect(cssRuleBody(".kpiValue")).toContain("display: flex");
     expect(cssRuleBody(".kpiSpark")).toContain("margin-left: auto");
+    // Issue #339：来源圆点显式占第一行右列，而不是被跨列数值挤到第三行。
+    expect(cssRuleBody(".kpiSource")).toContain("grid-row: 1");
+    expect(cssRuleBody(".kpiSource")).toContain("grid-column: 2");
 
     // E6 迁移：两个模型 → 两行起止条。
     await user.click(screen.getByRole("tab", { name: "迁移" }));

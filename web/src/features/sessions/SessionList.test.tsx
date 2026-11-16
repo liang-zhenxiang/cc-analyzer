@@ -155,9 +155,9 @@ test("shows fallback titles and failed metadata status in project view", async (
   await user.click(screen.getByRole("tab", { name: "项目" }));
   expect(screen.getByText("Agent title")).toBeInTheDocument();
   expect(screen.getByText("AI title")).toBeInTheDocument();
-  // I8：每行都有一条预览；没有 aiTitle 的会话，标题兜底也是这段文本，
-  // 所以同一句话会在标题与预览里各出现一次（不是重复渲染）。
-  expect(document.querySelectorAll('[data-probe="session-preview"]')).toHaveLength(3);
+  // I8：只有「标题与预览不同源」的两行才有副标题；第三行没有自定义/AI 标题，
+  // 标题兜底就是 userPrompt，再写一遍会变成重复行（Issue #339）。
+  expect(document.querySelectorAll('[data-probe="session-preview"]')).toHaveLength(2);
   expect(screen.getAllByText("User prompt").length).toBeGreaterThanOrEqual(2);
   expect(screen.getByText("标题提取失败")).toBeInTheDocument();
 });
@@ -1142,7 +1142,7 @@ test("I8：预览行显示脱敏后的首条消息，用户主目录不外泄", 
   expect(preview?.querySelector('[aria-label="已脱敏"]')).not.toBeNull();
 });
 
-test("I8：没有首条消息与 AI 标题时写占位，不编造内容", () => {
+test("I8：没有额外信息时整行不渲染副标题，不写占位也不重复标题", () => {
   render(
     <SessionList
       sessions={[
@@ -1163,13 +1163,57 @@ test("I8：没有首条消息与 AI 标题时写占位，不编造内容", () =>
     />
   );
 
-  const preview = document.querySelector<HTMLElement>('[data-probe="session-preview"]');
-  expect(preview?.textContent).toBe("这条会话没有用户消息");
-  expect(preview?.querySelector('[aria-label="已脱敏"]')).toBeNull();
+  expect(document.querySelector('[data-probe="session-preview"]')).toBeNull();
+  expect(screen.getByText("只有自定义标题")).toBeInTheDocument();
+});
+
+test("Issue #339：标题来自首条消息时，副标题不再把同一句话写第二遍", () => {
+  render(
+    <SessionList
+      sessions={[
+        {
+          path: "/sessions/dup.jsonl",
+          projectLabel: "ansi",
+          mtimeMs: 1,
+          sizeBytes: 1,
+          hasRecords: true,
+          userPrompt: "跑一下构建脚本"
+        }
+      ]}
+      selected={null}
+      loading={false}
+      error={null}
+      onSelect={() => undefined}
+      onRefresh={() => undefined}
+    />
+  );
+
+  // 标题兜底到 userPrompt；副标题与它同源，于是整行不渲染。
+  expect(screen.getAllByText("跑一下构建脚本")).toHaveLength(1);
+  expect(document.querySelector('[data-probe="session-preview"]')).toBeNull();
 });
 
 test("I8：预览行是纯文本 span——行本体已是 role=button，不能再嵌按钮", () => {
-  renderList();
+  render(
+    <SessionList
+      sessions={[
+        {
+          path: "/sessions/plain.jsonl",
+          projectLabel: "p",
+          mtimeMs: 1,
+          sizeBytes: 1,
+          hasRecords: true,
+          customTitle: "标题",
+          userPrompt: "首条消息"
+        }
+      ]}
+      selected={null}
+      loading={false}
+      error={null}
+      onSelect={() => undefined}
+      onRefresh={() => undefined}
+    />
+  );
 
   const preview = document.querySelector<HTMLElement>('[data-probe="session-preview"]');
   expect(preview?.tagName).toBe("SPAN");

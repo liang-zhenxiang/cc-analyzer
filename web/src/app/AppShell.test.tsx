@@ -61,8 +61,10 @@ test("顶栏版本徽章显示真实版本并可点击复制", async () => {
   // 版本取自 Rust 的 package_info（mock 桩为非零值），是升级生效的第一眼证据
   const badge = await screen.findByRole("button", { name: /当前版本 v0\.0\.0-test/ });
   expect(badge).toBeInTheDocument();
-  // 版本号里带 `-` 即为先行版：徽章显式标 Beta，一眼区分装的是哪种渠道
+  // 版本号里带 `-` 即为先行版：徽章显式标 Beta，一眼区分装的是哪种渠道。
+  // Issue #339：Beta 只出现一次——版本号去掉 `-test` 后缀，完整版本留在可访问名与复制内容里。
   expect(within(badge).getByText("Beta")).toBeInTheDocument();
+  expect(badge.textContent).toBe("v0.0.0Beta");
 
   await user.click(badge);
   await waitFor(() =>

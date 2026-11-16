@@ -48,15 +48,7 @@
   gap: var(--sp-1);
 }
 
-.compactValue {
-  color: var(--text);
-  font-size: var(--fs-md);
-  font-weight: 600;
-  line-height: var(--lh-md);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
+/* 紧凑档的读数只保留状态；消耗数字由表盘中心承担，不再另起一行（Issue #339）。 */
 .compactStatus {
   color: var(--text);
   font-size: var(--fs-md);

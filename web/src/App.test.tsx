@@ -32,10 +32,9 @@ test("localStorage 为 on 时进入演示模式并常驻显示演示徽章", asy
 
   expect(screen.getByText("演示数据 · 不会读取你的会话")).toBeInTheDocument();
   expect(document.querySelector('[data-probe="demo-badge"]')).not.toBeNull();
-  // 演示桥的版本号带 `-demo`，顶栏徽章因此不会冒充某一版真实安装。
-  expect(
-    await screen.findByRole("button", { name: /当前版本 v0\.0\.0-demo/ })
-  ).toBeInTheDocument();
+  // 演示桥的版本号 `0.0.0-demo` 不冒充真实安装：顶栏徽章显示「演示数据」。
+  expect(screen.getByText("演示数据", { selector: '[data-probe="version-badge-demo"]' })).toBeInTheDocument();
+  expect(screen.queryByText(/0\.0\.0-demo/)).toBeNull();
   // 内存文件系统 → 扫描 → 会话列表这条链真的通了：不是只换了一份假 bridges。
   expect(
     (await screen.findAllByText(/缓存命中率/, {}, { timeout: 5000 })).length

@@ -496,12 +496,13 @@ describe("UsageCalendarPanel · 一日回望（Round V2）", () => {
     expect(itemOf("model")).toHaveAttribute("title", "claude-sonnet-4-5 · 900,000 tok");
     expect(itemOf("projects")).toHaveAttribute("title", "当天涉及的项目数（按项目标签去重）");
 
-    // 徽章：双数格取较弱的一侧（成本估算），其余五项读自日志；一格最多一枚。
+    // 徽章：双数格取较弱的一侧（成本估算）；读自日志的五项是默认事实，
+    // Issue #339 起不再挂圆点。
     expect(
       itemOf("cost").querySelector('[aria-label^="数据来源：按定价快照估算"]')
     ).not.toBeNull();
     for (const key of ["sessions", "messages", "span", "model", "projects"]) {
-      expect(itemOf(key).querySelector('[aria-label^="数据来源：读自日志"]')).not.toBeNull();
+      expect(itemOf(key).querySelector('[aria-label^="数据来源：读自日志"]')).toBeNull();
     }
     expect(itemOf("cost").querySelectorAll("[aria-label]")).toHaveLength(1);
   });
