@@ -139,6 +139,29 @@ describe("ThresholdsPanel", () => {
     expect(screen.getByRole("heading", { name: "界面字号", level: 4 })).toBeInTheDocument();
   });
 
+  test("三个组标题吸顶：sticky、贴住面板内边框、背景不透明", () => {
+    // jsdom 不解析 CSS Module 的层叠，直接锁住源码里的吸顶规则（同下方 120px 守卫）。
+    const css = readFileSync(
+      resolve(process.cwd(), "src/features/settings/ThresholdsPanel.module.css"),
+      "utf8"
+    ).replace(/\/\*[\s\S]*?\*\//g, "");
+    const group = /\.groupTitle\s*\{([^}]*)\}/.exec(css);
+    expect(group).not.toBeNull();
+    const groupBody = group?.[1] ?? "";
+    expect(groupBody).toMatch(/position:\s*sticky/);
+    expect(groupBody).toMatch(/z-index:\s*1/);
+    // 背景必须不透明：与面板同色，否则滚动内容会从标题底下透出。
+    expect(groupBody).toMatch(/background:\s*var\(--bg-elevated\)/);
+
+    // 负的 top 是在抵消面板内边距。两者一旦脱钩，吸顶标题与面板顶边之间
+    // 会留出一条能透出内容的缝——这里把「偏移 = 内边距」锁成一条契约。
+    const panel = /\.panel\s*\{([^}]*)\}/.exec(css);
+    expect(panel).not.toBeNull();
+    expect(panel?.[1] ?? "").toMatch(/overflow:\s*auto/);
+    expect(panel?.[1] ?? "").toMatch(/padding:\s*var\(--sp-3\)/);
+    expect(groupBody).toMatch(/top:\s*calc\(var\(--sp-3\)\s*\*\s*-1\)/);
+  });
+
   test("两行示例读数带「字号预览」标签，不再像漏进来的日志行", () => {
     renderPanel(createBridges().bridges);
 
