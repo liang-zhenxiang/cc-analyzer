@@ -9,6 +9,7 @@
 /* 事件 chip 条：横向滚动即可，不分页（事件 ≤ 数十个，design §7）。 */
 .chipBar {
   display: flex;
+  flex: 0 0 auto;
   gap: var(--sp-2);
   overflow-x: auto;
   padding-bottom: var(--sp-1);
@@ -56,12 +57,15 @@
   line-height: var(--lh-sm);
 }
 
-/* 取证卡：数字栏固定宽，清单栏吃剩余；两栏之间一条发丝线，不另套卡（design §2.1）。 */
+/* 取证卡：数字栏固定宽，清单栏吃剩余；两栏之间一条发丝线，不另套卡（design §2.1）。
+   `minmax(0, 1fr)` 让行轨跟着卡片高度收缩：不写它时 grid 行按内容撑到 206px，
+   被面板裁掉的是第三行之后的事实（Issue #341）。行轨定高后数字栏自己滚动。 */
 .card {
   display: grid;
   flex: 1 1 auto;
   min-height: 0;
   grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: var(--sp-4);
 }
 
@@ -76,8 +80,27 @@
   line-height: var(--lh-base);
 }
 
+/* 数字栏在自己的轨道里滚动：事件面板被压缩时，六行事实仍然可达，而不是
+   被 Panel 的 overflow: hidden 从中间切断。 */
 .numbers {
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-faint) transparent;
+}
+
+.numbers::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+}
+
+.numbers::-webkit-scrollbar-thumb {
+  border-radius: var(--r-xs);
+  background: var(--text-faint);
+}
+
+.numbers::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .facts {

@@ -6,6 +6,18 @@
   flex: 1 1 auto;
   flex-direction: column;
   gap: var(--sp-3);
+  /* 窗口比设计稿矮时的兜底：两块面板都保持各自的内容高度，整列在 pane 内
+     滚动。比让 Panel 的 overflow: hidden 把内容切掉要好——裁掉的是事实
+     （x 轴、0 基线、取证数字），滚出去的至少还能找回来。 */
+  overflow-y: auto;
+}
+
+/* 上面板（压力曲线）拿固有高度：SVG 是宽度驱动的，一旦被 flex 压缩，
+   Panel 的 overflow: hidden 就会把底部的 x 轴刻度与 0 基线整段切掉
+   （Issue #341：面板体 292px vs 画布 328px）。下方事件面板负责吸收
+   剩余高度并内部滚动（.eventsHost）。 */
+.stack > section:first-of-type {
+  flex: 0 0 auto;
 }
 
 /* 面板 actions 里的读数（峰值 / 次数）：KPI 同构降一级，配一枚来源圆点。 */
@@ -20,11 +32,13 @@
 }
 
 /* 事件面板的 flex 链：Panel 的 .body 默认按内容高，这里从外向内把
-   「撑满 + 内部滚动」接上（.body 自带 min-height: 0，只缺 flex 增长）。 */
+   「撑满 + 内部滚动」接上（.body 自带 min-height: 0，只缺 flex 增长）。
+   140 是 1400×900 下的实测预算：上面板 308（表头 40 + 图 220 + 说明与
+   内距 48）+ 间距 12 之后还剩 170；窗口再矮就由 .stack 滚动兜底。 */
 .eventsHost {
   display: flex;
   flex: 1 1 0;
-  min-height: 180px;
+  min-height: 140px;
   flex-direction: column;
 }
 
@@ -40,8 +54,14 @@
   flex-direction: column;
 }
 
+/* 画布按 viewBox 的 720 宽、220 高落地：卡片更宽时不再把 SVG 等比放大到
+   328px（那会把下方事件面板挤没），而是让画布居中、字号保持 --fs-xs 的
+   原尺寸。hover 的坐标换算也依赖这块盒子的真实宽度（wrapRef）。 */
 .chartWrap {
   position: relative;
+  width: 100%;
+  max-width: 720px;
+  margin-inline: auto;
   outline: none;
 }
 
@@ -165,7 +185,9 @@
 }
 
 .caption {
-  margin: var(--sp-2) 0 0;
+  /* 与画布同宽、同一居中轴：说明文字属于图，不属于卡片。 */
+  max-width: 720px;
+  margin: var(--sp-2) auto 0;
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
   line-height: var(--lh-xs);

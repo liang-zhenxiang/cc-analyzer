@@ -192,24 +192,59 @@ describe("peakLabelPlacement", () => {
     count: 11,
     maxValue: 100
   });
+  const wideGeometry = curveGeometry({
+    width: 720,
+    height: 220,
+    padLeft: 56,
+    padRight: 12,
+    padTop: 22,
+    padBottom: 22,
+    count: 101,
+    maxValue: 100
+  });
   const markers = [
     { eventId: "e", x: geometry.xAt(5), y: 0, hitX: 0, hitWidth: 24, hitY: 0, hitHeight: 100 }
   ];
+  const text = "峰值 167.5K";
 
   it("sits 7px above the peak, centred, when no marker is near", () => {
     // 峰值取 70（不是 90）：7px 的避让在 90 的几何下会撞上 padTop + fontSize
     // 的 clamp 下限，量出来的就不是「离点一档」而是「clamp 后的地板」。
-    const placement = peakLabelPlacement(2, 70, geometry, [], 11);
+    const placement = peakLabelPlacement(2, 70, geometry, [], 11, { text });
     // 字面量 7 而不是引用 PEAK_LABEL_OFFSET：有人把避让距离改回去（或改错档）时，
     // 这条断言要红——「标签与描边之间留一档呼吸」正是 J2 评审定的回归本体。
     expect(placement).toEqual({ x: geometry.xAt(2), y: geometry.yAt(70) - 7, anchor: "middle" });
   });
 
   it("dodges up and to the right when an event marker collides", () => {
-    const placement = peakLabelPlacement(5, 70, geometry, markers, 11);
+    const placement = peakLabelPlacement(5, 70, geometry, markers, 11, { text });
     expect(placement.anchor).toBe("start");
     expect(placement.x).toBeGreaterThan(geometry.xAt(5));
     expect(placement.y).toBeLessThan(geometry.yAt(70) - 7);
+  });
+
+  it("flips to the left of the anchor when the peak sits on the right edge", () => {
+    // 最后一条消息常常就是峰值：x=708，居中的标签右半截会落在 720 的 viewBox 外。
+    const placement = peakLabelPlacement(100, 70, wideGeometry, [], 11, { text });
+    expect(placement.anchor).toBe("end");
+    expect(placement.x).toBe(708);
+  });
+
+  it("flips to start when the peak sits on the left edge", () => {
+    const placement = peakLabelPlacement(0, 70, wideGeometry, [], 11, { text });
+    expect(placement.anchor).toBe("start");
+    expect(placement.x).toBe(56);
+  });
+
+  it("flips a collided dodge back inside when it would run past the right edge", () => {
+    // 峰值在 100（x=708），避让把它推到 714；start 锚点会越界，于是改 end 并
+    // 收回绘图区右边界（708），文字向左展开。
+    const rightMarkers = [
+      { eventId: "e", x: 708, y: 0, hitX: 0, hitWidth: 24, hitY: 0, hitHeight: 100 }
+    ];
+    const placement = peakLabelPlacement(100, 70, wideGeometry, rightMarkers, 11, { text });
+    expect(placement.anchor).toBe("end");
+    expect(placement.x).toBe(708);
   });
 });
 

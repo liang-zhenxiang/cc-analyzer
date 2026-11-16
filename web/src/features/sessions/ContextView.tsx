@@ -120,7 +120,12 @@ export function ContextView({
     );
     const kept = downsampleCurve(samples, [...forced, peakIndex]);
     const markers = eventMarkerGeometries(anchors, events, samples, geometry);
-    const peakLabel = peakLabelPlacement(peakIndex, peakValue, geometry, markers, TICK_FONT_SIZE);
+    // 标签文本参与边缘夹取：右缘的峰值（常见于最后一条消息）以前用
+    // textAnchor="middle" 画在 x=708，右半截直接落在 viewBox 外（Issue #341）。
+    const peakLabelText = `峰值 ${formatAxisValue(peakValue)}`;
+    const peakLabel = peakLabelPlacement(peakIndex, peakValue, geometry, markers, TICK_FONT_SIZE, {
+      text: peakLabelText
+    });
     const xs = kept.map((index) => geometry.xAt(index));
     const linePath = kept
       .map((index, position) =>
@@ -147,6 +152,7 @@ export function ContextView({
       xs,
       markers,
       peakLabel,
+      peakLabelText,
       linePath,
       areaPath,
       baseline,
@@ -299,8 +305,12 @@ export function ContextView({
           onClick={(event) => selectEventAt(event.clientX)}
           onKeyDown={onChartKeyDown}
         >
+          {/* 画布按 720×220 的固有尺寸居中（容器 max-width 与 viewBox 同宽，
+              见 .chartWrap）；显式写出 meet，保证窄窗时整张图等比缩进盒内，
+              而不是裁掉底部的 x 轴。 */}
           <svg
             viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
+            preserveAspectRatio="xMidYMid meet"
             className={primitiveStyles.chart}
             aria-hidden="true"
           >
@@ -317,6 +327,7 @@ export function ContextView({
             {chart.xTicks.map((tick) => (
               <text
                 key={tick}
+                data-probe="x-axis-tick"
                 x={geometry.xAt(tick - 1)}
                 y={VIEWBOX_HEIGHT - 6}
                 textAnchor="middle"
@@ -329,12 +340,13 @@ export function ContextView({
             <path d={chart.linePath} className={styles.line} />
             {chart.peakLabel ? (
               <text
+                data-probe="peak-label"
                 x={chart.peakLabel.x}
                 y={chart.peakLabel.y}
                 textAnchor={chart.peakLabel.anchor}
                 className={styles.peakLabel}
               >
-                峰值 {formatAxisValue(chart.peakValue)}
+                {chart.peakLabelText}
               </text>
             ) : null}
             {hover?.kind === "point" ? (
