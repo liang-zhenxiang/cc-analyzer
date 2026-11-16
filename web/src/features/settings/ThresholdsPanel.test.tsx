@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ThresholdsPanel } from "./ThresholdsPanel";
@@ -226,6 +228,33 @@ describe("本地归档 section", () => {
     expect(label?.textContent).toContain("关闭只停止后续归档，已归档的副本会保留。");
     // 开关是 checkbox，不是自定义 switch 控件。
     expect(screen.queryByRole("switch")).toBeNull();
+  });
+
+  test("复选框不再被拉成 120px：标签与方框同行，宽度只给数字/文本输入", () => {
+    renderPanel(createBridges().bridges);
+
+    const toggle = screen.getByRole("checkbox", { name: "启用本地归档" });
+    const field = toggle.closest("label");
+    // DOM 断言：这个 label 走 `fieldCheck` 两列网格，方框与标签同一行。
+    expect(field?.className).toContain("fieldCheck");
+    expect(field?.querySelector('[class*="control"]')).not.toBeNull();
+    // 静态守卫：jsdom 不解析 CSS Module 的布局，直接锁住源码里的宽度选择器。
+    const css = readFileSync(
+      resolve(process.cwd(), "src/features/settings/ThresholdsPanel.module.css"),
+      "utf8"
+    ).replace(/\/\*[\s\S]*?\*\//g, "");
+    const widthRule = /\.control input(?:\[type="[^"]+"\])?[^{]*\{([^}]*)\}/g;
+    const selectors: string[] = [];
+    let match: RegExpExecArray | null;
+    while ((match = widthRule.exec(css)) !== null) {
+      selectors.push(match[0].slice(0, match[0].indexOf("{")));
+      expect(match[1]).toMatch(/width:\s*120px/);
+    }
+    // 命中的每条都必须收窄到 number/text，绝不能有裸 `.control input`。
+    expect(selectors.length).toBeGreaterThan(0);
+    for (const selector of selectors) {
+      expect(selector).toMatch(/input\[type="(number|text)"\]/);
+    }
   });
 
   test("enabling runs a full archive and reports the completion summary", async () => {

@@ -203,6 +203,48 @@ test.describe("视口与布局", () => {
     expect(overflow.document).toBeLessThanOrEqual(1);
     expect(overflow.content).toBeLessThanOrEqual(1);
   });
+
+  test("未选中分段颜色取自 --text-secondary（浅色对比度 4.30→7.08，Issue #339）", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("tab", { name: "用量总览" })).toBeVisible();
+
+    // 用根元素上的令牌现算期望色，深/浅主题下都成立；不写死 rgb。
+    const { expected, actual } = await page.evaluate(() => {
+      const root = getComputedStyle(document.documentElement);
+      const probe = document.createElement("span");
+      probe.style.color = root.getPropertyValue("--text-secondary").trim();
+      document.body.append(probe);
+      const expected = getComputedStyle(probe).color;
+      probe.remove();
+      const unselected = document.querySelector<HTMLElement>('[role="tab"][aria-selected="false"]');
+      return { expected, actual: unselected ? getComputedStyle(unselected).color : null };
+    });
+    expect(actual).toBe(expected);
+  });
+
+  test("任一主页面挂载后根元素没有可滚动溢出（Issue #339）", async ({ page }) => {
+    // 全站 .srOnly 是 position:absolute 的 1px 节点；`.content` 若是 static，
+    // 它们的包含块退到文档，把 documentElement.scrollHeight 撑到内容总高
+    // （实测 2095 vs 视口 900），scrollIntoView / 定位日志会连整个外壳一起滚走。
+    const documentOverflow = () =>
+      page.evaluate(
+        () => document.documentElement.scrollHeight - document.documentElement.clientHeight
+      );
+
+    await page.goto("/");
+    await expect(page.getByLabel("会话列表", { exact: true })).toBeVisible();
+    expect(await documentOverflow()).toBe(0);
+
+    await sessionItems(page).first().click();
+    await expect(page.getByLabel("会话图状态")).toContainText("会话图已加载", { timeout: 15_000 });
+    expect(await documentOverflow()).toBe(0);
+
+    // 用量页是纵向文档流，内容比视口高——它必须由主区自己吸收滚动。
+    await page.getByRole("tab", { name: "用量总览" }).click();
+    await expect(page.getByRole("region", { name: "用量总览" })).toBeVisible({ timeout: 15_000 });
+    expect(await documentOverflow()).toBe(0);
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  });
 });
 
 test.describe("夹具健全性", () => {

@@ -1,4 +1,6 @@
 import { render } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { EmptyState } from "./EmptyState";
 
@@ -69,5 +71,19 @@ describe("EmptyState · H10 三步引导", () => {
   it("page 档不传 guide：不渲染列表（既有调用零变化）", () => {
     render(<EmptyState size="page" title="正在扫描会话列表…" />);
     expect(document.querySelector('[data-probe="empty-steps"]')).toBeNull();
+  });
+
+  it("inline 档是要读的提示：用 --text-tertiary，不用 2.6:1 的 --text-faint（Issue #339）", () => {
+    const { container } = render(<EmptyState size="inline" title="没有数据" />);
+    expect(container.querySelector("p")?.className).toContain("inline");
+
+    const css = readFileSync(
+      resolve(process.cwd(), "src/components/EmptyState.module.css"),
+      "utf8"
+    ).replace(/\/\*[\s\S]*?\*\//g, "");
+    const inlineRule = /\.inline\s*\{([^}]*)\}/.exec(css);
+    expect(inlineRule).not.toBeNull();
+    expect(inlineRule![1]).toMatch(/color:\s*var\(--text-tertiary\)/);
+    expect(inlineRule![1]).not.toMatch(/color:\s*var\(--text-faint\)/);
   });
 });

@@ -196,6 +196,10 @@
   /* 置顶图钉绝对定位在本按钮上，不占网格行。 */
   position: relative;
   width: 100%;
+  /* 没有副标题时内容只有 54px。撑满整行（72 / 90px），整块行仍是可点区域，
+     不会在底部留一条点不到的空白。align-content 保持内容贴顶，不把两行拉开。 */
+  height: 100%;
+  align-content: start;
   gap: var(--sp-05);
   padding: 8px 10px;
   /* 没有边框：选中态用的是内嵌阴影，而 1px 边框会让按钮比 72px 的行高多出 2px，
@@ -377,14 +381,6 @@
 .previewText {
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.previewEmpty {
-  display: block;
-  overflow: hidden;
-  color: var(--text-tertiary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

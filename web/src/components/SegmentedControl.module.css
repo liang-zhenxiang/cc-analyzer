@@ -17,7 +17,10 @@
   border: 0;
   border-radius: var(--r-xs);
   background: transparent;
-  color: var(--text-tertiary);
+  /* 未选中态用 --text-secondary（7.08:1）：--text-tertiary 落在 --bg-inset 上
+     只有 4.30:1，低于 12–13px 正文的 4.5 门槛（浅色主题；深色本来就达标）。
+     分段控件是全站最高频控件，这个差距不能只出现在浅色下（Issue #339）。 */
+  color: var(--text-secondary);
   font: inherit;
   font-size: var(--fs-sm);
   line-height: var(--lh-sm);

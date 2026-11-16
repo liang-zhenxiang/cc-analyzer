@@ -25,29 +25,19 @@ async function openUsage(page: import("@playwright/test").Page) {
   await page.getByText("Tokens 总量").first().waitFor({ timeout: 15_000 });
 }
 
-test("I8 首条消息预览已脱敏：渲染文本不含主目录用户名，行高 72", async ({ page }) => {
+test("I8/Issue #339 会话行：标题来自首条消息时不再重复为副标题，行高 72", async ({ page }) => {
   await page.goto("/");
   const rows = sessionItems(page);
   await rows.first().waitFor();
 
-  const previews = page.locator("[data-probe='session-preview']");
-  await expect(previews).toHaveCount(9);
-
-  const texts = await previews.allInnerTexts();
-  expect(texts.join("\n")).not.toContain("e2e");
-  expect(texts[0]).toContain("~");
-  expect(texts[0]).toContain("<路径>");
+  // 夹具没有任何 custom / agent / AI 标题，标题兜底就是首条用户消息；
+  // 再把同一条消息写成副标题就是审计里的「标题与副标题完全相同」。
+  // 脱敏预览本身的规则由 SessionList.test.tsx 的 customTitle + userPrompt 用例覆盖。
+  await expect(page.locator("[data-probe='session-preview']")).toHaveCount(0);
 
   const firstRow = rows.first();
   const height = await firstRow.evaluate((element) => element.getBoundingClientRect().height);
   expect(Math.round(height)).toBe(72);
-
-  // 脱敏标记不进入正文：正文是 `~`/`<路径>`，标记只以图标出现。
-  await expect(firstRow.locator("[data-probe='session-preview']")).toHaveAttribute(
-    "title",
-    "看看 ~<路径> 里的构建日志"
-  );
-  await expect(firstRow.getByLabel("已脱敏")).toBeVisible();
 });
 
 test("I1 会话时长五桶：9 个会话、中位 15m0s、无单记录会话", async ({ page }) => {

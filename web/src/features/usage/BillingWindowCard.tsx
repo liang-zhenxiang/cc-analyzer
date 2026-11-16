@@ -316,10 +316,8 @@ export function BillingWindowCard({
             {/* 紧凑档也保留层名：下面还有「滚动 7 天」一层，读数不能靠位置
                 区分属于哪个窗口。 */}
             <span className={styles.layerTitle}>5 小时窗口</span>
-            <span className={styles.compactReading}>
-              <span className={styles.label}>本窗口消耗</span>
-              <b className={styles.compactValue}>{`${formatTokenCount(consumed)} token`}</b>
-            </span>
+            {/* 消耗读数只由表盘中心承担：同一张 200px 宽的卡里再写一行
+                「本窗口消耗 N token」是第三次出现同一个数（Issue #339）。 */}
             <span className={styles.compactReading}>
               <span className={styles.label}>窗口关闭</span>
               <b className={styles.compactStatus}>
@@ -341,7 +339,7 @@ export function BillingWindowCard({
                 已经结束，不能因为卡片变紧凑就消失。 */}
             {closed ? (
               <p className={styles.closedNote} data-probe="closed-window-note">
-                {`本窗口已关闭 · 消耗 ${formatTokenCount(consumed)} token`}
+                本窗口已关闭
               </p>
             ) : null}
           </div>
@@ -398,11 +396,11 @@ export function BillingWindowCard({
             </b>
           </span>
 
-          {/* 窗口关闭后预言句换成事实句：这个窗口用了多少，只有这一件事可讲。
-              预测行的前提（「保持此速率到窗口结束」）已经不成立，不能留。 */}
+          {/* 窗口关闭后预言句换成事实句：这个窗口用了多少，表盘中心已经写着，
+              这里只保留「已关闭」这个状态事实（Issue #339）。 */}
           {closed ? (
             <p className={styles.closedNote} data-probe="closed-window-note">
-              {`本窗口已关闭 · 消耗 ${formatTokenCount(consumed)} token`}
+              本窗口已关闭
             </p>
           ) : forecast === null || gaugeBandOfForecast === null ? null : (
             /* 预报行（F5）：**必须**带「若保持此速率」——这是线性外推，不是事实。

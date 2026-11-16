@@ -591,6 +591,25 @@ export function SessionList({
   );
 }
 
+/**
+ * 副标题的预览源，必须与标题不同源。
+ *
+ * `sessionTitle` 的兜底链是 customTitle → agentName → aiTitle → userPrompt →
+ * projectLabel；没有前三种时标题就是首条用户消息。此时再把同一条消息渲染成
+ * 副标题，用户看到的是「跑一下构建脚本 / 跑一下构建脚本」（Issue #339）。
+ * 返回 null 表示没有额外信息——调用点整行不渲染，而不是写一句占位。
+ */
+function previewDistinctFromTitle(session: SessionMeta) {
+  const titleSource =
+    session.customTitle ?? session.agentName ?? session.aiTitle ?? session.userPrompt ?? null;
+  const previewSource = session.userPrompt ?? session.aiTitle ?? null;
+  if (previewSource === null || previewSource === titleSource) return null;
+  const preview = firstMessagePreview(previewSource);
+  // 同源之外再比一次文本：自定义标题恰好等于首条消息时也不该出现两遍。
+  if (preview === null || preview.preview === sessionTitle(session)) return null;
+  return preview;
+}
+
 function SessionButton({
   session,
   selected,
@@ -614,8 +633,10 @@ function SessionButton({
   // 只渲染 > 0：用「0」占满列表是一条噪音，不是信息。
   const showBleed = typeof bleedCount === "number" && Number.isFinite(bleedCount) && bleedCount > 0;
   // 预览源：用户首条消息优先，其次 AI 标题（老会话可能没有 userPrompt）。
-  // 两者都没有 → null，界面写一句诚实的占位，不编造。
-  const preview = firstMessagePreview(session.userPrompt ?? session.aiTitle ?? null);
+  // 副标题必须提供标题之外的信息：若标题本身就是这段文本（没有 custom/agent/
+  // AI 标题时 `sessionTitle` 会兜底到 userPrompt），再写一遍就是 Issue #339
+  // 里「标题与副标题完全相同」的渲染 bug。没有额外信息时整行不渲染。
+  const preview = previewDistinctFromTitle(session);
   return (
     /* 行的本体是 `role="button"` 的 <div>，不是 <button>——因为出血点徽章是一个**真的
        <button>**，而按钮不能嵌按钮（React 会报 validateDOMNesting，HTML 里也是非法结构）。
@@ -691,11 +712,7 @@ function SessionButton({
             </span>
           ) : null}
         </span>
-      ) : (
-        <span className={`${styles.preview} ${styles.previewEmpty}`} data-probe="session-preview">
-          这条会话没有用户消息
-        </span>
-      )}
+      ) : null}
       <span className={styles.meta}>
         {formatRelativeTime(session.mtimeMs)} · {formatBytes(session.sizeBytes)} ·{" "}
         {/* 项目名取会话真实 cwd 的末段；没有 cwd 时退回目录名（去掉编码用的前导 `-`）。 */}

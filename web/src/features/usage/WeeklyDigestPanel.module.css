@@ -5,8 +5,9 @@
 }
 
 /* 固定布局是这张表可扫读的前提：auto 布局会把所有多余宽度都塞给首列，
-   「Tokens」标签和数值被拉开几百像素，眼睛每读一行都要横跳。首列给 38%
-   足够放下「缓存读取」这类四字标签，其余三列均分，数字仍在同一条竖线上。 */
+   「Tokens」标签和数值被拉开几百像素，眼睛每读一行都要横跳。
+   表格满宽、四列各 25%：行名贴面板左缘，三个数字列的右边界落在
+   50% / 75% / 100%，与上方 KPI 四列的分界线重合（Issue #339）。 */
 .table {
   width: 100%;
   table-layout: fixed;
@@ -27,13 +28,18 @@
   white-space: nowrap;
 }
 
-/* 第一列是行名，左对齐；数字列一律右对齐，个位才会上下成一条线。 */
+/* 数字列一律右对齐，个位才会上下成一条线。这里**只选 td**：行名是 th，
+   早先 `.table tbody th` 一起写 right 时，特异性 (0,1,2) 把 `.metric` 的
+   left 压掉了——「首列左对齐」的注释从未生效（Issue #339）。 */
 .table tbody th,
 .table tbody td {
   padding: var(--sp-1) var(--sp-2);
   border-bottom: 1px solid var(--border);
-  text-align: right;
   white-space: nowrap;
+}
+
+.table tbody td {
+  text-align: right;
 }
 
 .table tbody tr:last-child th,
@@ -41,9 +47,15 @@
   border-bottom: none;
 }
 
-/* table-layout: fixed 下第一行决定列宽百分比；首列 38%，其余三列各约 20.7%。 */
+/* table-layout: fixed 下第一行决定列宽：四列各 25%，与上方 KPI 四列同宽。
+   表头首格只有 sr-only 的「读数」，仍然需要一个可见宽度的声明。 */
 .metricHead {
-  width: 38%;
+  width: 25%;
+}
+
+/* `.table thead th` 的 (0,1,2) 高于 `.metricHead` 的 (0,1,0)：首格左对齐
+   必须用同特异性更强的选择器写，否则会被表头的统一右对齐压回去。 */
+.table thead th.metricHead {
   text-align: left;
 }
 

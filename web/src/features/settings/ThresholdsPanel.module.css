@@ -63,8 +63,29 @@
   gap: var(--sp-2);
 }
 
-.control input {
+/* 输入框宽 120px 只给需要输数字/文本的控件。早先裸 `input` 选择器把
+   checkbox 也拉成 120px，方框离标签 57px 还独占一行（Issue #339）。 */
+.control input[type="number"],
+.control input[type="text"] {
   width: 120px;
+}
+
+/* 开关型字段：标签与方框同行（label 占左列，control 贴右列），
+   说明文字另起一行跨满整行——不再出现「标题一行、空方框一行」。 */
+.fieldCheck {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--sp-2);
+}
+
+.fieldCheck .control {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.fieldCheck .hint {
+  grid-column: 1 / -1;
 }
 
 .unit {

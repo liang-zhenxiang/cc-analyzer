@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { SessionRecord } from "../sessions/types";
@@ -154,5 +156,65 @@ describe("WeeklyDigestPanel 峰值时刻（D9）", () => {
 
     const row = screen.getByText("峰值时刻").closest('[data-probe="peak-minute"]') as HTMLElement;
     expect(row).toHaveTextContent("窗口内只有这 1 分钟有消耗");
+  });
+});
+
+/**
+ * Issue #339：`.table tbody th` 的 `text-align: right` 特异性 (0,1,2) 压过了
+ * `.metric` 的 left，注释里写的「首列左对齐」从未生效——标签被推到面板中线。
+ * 只改对齐不够：首列若仍是 38%，空白只是从左边挪到中间。这里同时锁住
+ * 「首列 120px + 整表 max-width 与 KPI 四列对齐」。
+ */
+describe("周战报表格对齐（Issue #339）", () => {
+  function digestCss(): string {
+    return readFileSync(
+      resolve(process.cwd(), "src/features/usage/WeeklyDigestPanel.module.css"),
+      "utf8"
+    ).replace(/\/\*[\s\S]*?\*\//g, "");
+  }
+
+  it("行名单元格是 th.metric，数字单元格是 td.value", () => {
+    renderPanel([inputOf(recordOf(at(10, 21, 9)))]);
+
+    const labelCell = rowOf("Tokens").querySelector("th");
+    expect(labelCell?.className).toContain("metric");
+    expect(labelCell?.getAttribute("scope")).toBe("row");
+    expect(rowOf("Tokens").querySelector("td")?.className).toContain("value");
+  });
+
+  it("tbody th 不再右对齐；只有 td 与 .metric 各自声明对齐", () => {
+    const css = digestCss();
+    const tbodyRule = /\.table tbody th,\s*\.table tbody td\s*\{([^}]*)\}/.exec(css);
+    expect(tbodyRule).not.toBeNull();
+    expect(tbodyRule![1]).not.toMatch(/text-align:\s*right/);
+
+    const tdRule = /\.table tbody td\s*\{[^}]*text-align:\s*right/;
+    expect(css).toMatch(tdRule);
+
+    const metricRule = /\.metric\s*\{([^}]*)\}/.exec(css);
+    expect(metricRule).not.toBeNull();
+    expect(metricRule![1]).toMatch(/text-align:\s*left/);
+  });
+
+  it("四列各 25%：行名贴表面板左缘，数字列与 KPI 四列对齐", () => {
+    const css = digestCss();
+    const headRule = /\.metricHead\s*\{([^}]*)\}/.exec(css);
+    expect(headRule).not.toBeNull();
+    expect(headRule![1]).toMatch(/width:\s*25%/);
+    expect(headRule![1]).not.toContain("38%");
+    expect(headRule![1]).not.toContain("120px");
+    // 重复的 text-align 已收口：首格左对齐只保留高特异性那条。
+    expect(headRule![1]).not.toContain("text-align");
+
+    const theadHeadRule = /\.table thead th\.metricHead\s*\{([^}]*)\}/.exec(css);
+    expect(theadHeadRule).not.toBeNull();
+    expect(theadHeadRule![1]).toMatch(/text-align:\s*left/);
+
+    const tableRule = /\.table\s*\{([^}]*)\}/.exec(css);
+    expect(tableRule).not.toBeNull();
+    expect(tableRule![1]).toContain("width: 100%");
+    // 不再把整表右推：max-width / margin-left:auto 会把首列重新推离左缘。
+    expect(tableRule![1]).not.toContain("max-width");
+    expect(tableRule![1]).not.toContain("margin-left");
   });
 });

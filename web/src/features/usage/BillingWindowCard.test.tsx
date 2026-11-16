@@ -62,13 +62,14 @@ describe("BillingWindowCard", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("读出窗口开启时刻与关闭倒计时，读数标注读自日志", () => {
+  it("读出窗口开启时刻与关闭倒计时；logged 档不再挂来源圆点", () => {
     render(cardAt(inputsOf([record(T0), record(T0 + HOUR)]), T0 + 2 * HOUR));
     const card = screen.getByLabelText("计费窗口");
     expect(within(card).getByText("09:00")).toBeInTheDocument();
     // 5h 窗口已过 2h → 还剩 3 小时
     expect(within(card).getByText("3 时 0 分")).toBeInTheDocument();
-    expect(within(card).getAllByText("读自日志").length).toBeGreaterThan(0);
+    // Issue #339：「读自日志」是默认事实，不再渲染绿点。
+    expect(within(card).queryAllByText("读自日志")).toHaveLength(0);
   });
 
   it("未选计划：只有消耗没有百分比，提示去设置选择", () => {
@@ -84,7 +85,11 @@ describe("BillingWindowCard", () => {
     const card = screen.getByLabelText("计费窗口");
 
     expect(card.querySelector('[data-probe="billing-compact"]')).not.toBeNull();
-    expect(within(card).getByText("20,000 token")).toBeInTheDocument();
+    // 消耗只在表盘中心出现一次：紧凑读数行不再重复「本窗口消耗 N token」。
+    const gauge = card.querySelector('[data-probe="gauge"]');
+    expect(gauge?.textContent).toContain("20,000");
+    expect(within(card).getAllByText("本窗口消耗")).toHaveLength(1);
+    expect(card.textContent).not.toContain("20,000 token");
     expect(within(card).getByText("3 时 0 分")).toBeInTheDocument();
     expect(within(card).getByText("09:00")).toBeInTheDocument();
     expect(within(card).getByRole("button", { name: "去设置计划" })).toBeInTheDocument();
@@ -281,8 +286,8 @@ describe("BillingWindowCard · 本窗口消耗 Top 会话", () => {
     expect(bars).toHaveLength(2);
     expect(bars[0].style.width).toBe("75%");
     expect(bars[1].style.width).toBe("25%");
-    // 整块只有一枚来源圆点，读自日志
-    expect(within(panel).getByLabelText("数据来源：读自日志")).toBeInTheDocument();
+    // 分母是读自日志的默认事实：Issue #339 起整块不再挂来源圆点。
+    expect(within(panel).queryByLabelText("数据来源：读自日志")).toBeNull();
   });
 
   it("分母脚注：屏幕上只有分母定义这一句，完整口径在 title 与 aria-label", () => {
@@ -650,7 +655,8 @@ describe("BillingWindowCard · 已关闭窗口不再预测", () => {
     expect(card.textContent).not.toContain("触顶");
 
     const note = document.querySelector<HTMLElement>('[data-probe="closed-window-note"]')!;
-    expect(note.textContent).toBe("本窗口已关闭 · 消耗 19,000 token");
+    // 消耗数字已由表盘中心承担：事实句只说状态，不再报第二遍数字。
+    expect(note.textContent).toBe("本窗口已关闭");
     // 「预计到达限额」那格收口成状态词，不再给未来时刻，也不挂外推徽章。
     const cardWithin = within(card);
     expect(cardWithin.getByText("窗口已关闭")).toBeInTheDocument();
@@ -667,6 +673,18 @@ describe("BillingWindowCard · 已关闭窗口不再预测", () => {
     expect(within(card).getByText("已达预算")).toBeInTheDocument();
     expect(document.querySelector('[data-probe="forecast-row"]')).toBeNull();
     expect(card.textContent).not.toContain("若保持此速率");
+  });
+
+  it("紧凑档（未选计划）已关闭：状态句只说事实，消耗只留在表盘中心", () => {
+    render(cardAt(inputsOf([record(T0, 19_000)]), AFTER_CLOSE));
+    const card = screen.getByLabelText("计费窗口");
+
+    expect(card.querySelector('[data-probe="billing-compact"]')).not.toBeNull();
+    const note = document.querySelector<HTMLElement>('[data-probe="closed-window-note"]')!;
+    expect(note.textContent).toBe("本窗口已关闭");
+    // 表盘中心一次 + 任何读数行都不该再写 token 数。
+    expect(card.querySelector('[data-probe="gauge"]')?.textContent).toContain("19,000");
+    expect(card.textContent).not.toContain("19,000 token");
   });
 
   it("窗口仍开着：预报行照常出现，不出现关闭事实句", () => {

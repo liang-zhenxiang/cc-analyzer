@@ -14,12 +14,13 @@ describe("ProvenanceBadge", () => {
     expect(badge).toHaveTextContent("快照日期 2026-10-01");
   });
 
-  it("labels logged figures without inventing detail", () => {
-    render(<ProvenanceBadge provenance="logged" />);
+  it("logged 档不再渲染圆点：读自日志是默认事实，不值得每处一个标记", () => {
+    // Issue #339：首屏 8 枚圆点里 6 枚是同一个同义绿点。只保留
+    // estimated / inferred / snapshot 三种「非确定信息」的提示。
+    const { container } = render(<ProvenanceBadge provenance="logged" />);
 
-    const badge = screen.getByTitle("数据来源：读自日志");
-    expect(badge).toHaveTextContent("读自日志");
-    expect(badge.textContent).not.toContain("快照日期");
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByTitle("数据来源：读自日志")).toBeNull();
   });
 
   it("labels the snapshot tier itself", () => {
@@ -28,9 +29,8 @@ describe("ProvenanceBadge", () => {
     expect(screen.getByTitle("数据来源：定价快照，快照日期 2026-10-01")).toBeInTheDocument();
   });
 
-  it("不把档位文字铺在正文里：可见部分是空的，句子只在 title 与可访问名上", () => {
-    // 「读自日志」一屏出现五六次，实底胶囊会把最响的颜色花在信息量最低的地方。
-    const { container } = render(<ProvenanceBadge provenance="logged" />);
+  it("非 logged 档仍把档位文字藏在可访问树里，可见部分只是一枚圆点", () => {
+    const { container } = render(<ProvenanceBadge provenance="estimated" />);
 
     const badge = container.querySelector("span");
     expect(badge).not.toBeNull();
@@ -39,9 +39,9 @@ describe("ProvenanceBadge", () => {
       .map((node) => node.textContent)
       .join("");
     expect(visibleText).toBe("");
-    expect(badge).toHaveAttribute("title", "数据来源：读自日志");
+    expect(badge).toHaveAttribute("title", "数据来源：按定价快照估算");
     // 文字仍在可访问树里（藏在 sr-only 里），不是被删掉。
-    expect(badge!.textContent).toBe("读自日志");
+    expect(badge!.textContent).toBe("按定价快照估算");
   });
 
   it("画成圆点，而不是实底描边的胶囊", () => {

@@ -118,6 +118,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 来源圆点显式钉在第一行右列。只靠源码顺序（标签 → 数值 → 圆点）时，
+   跨两列的 `.kpiValue` 占满第二行，圆点被自动排到**第三行**，瓦片从
+   76px 撑到 91px（Issue #339）。显式定位也免去对 DOM 顺序的依赖。 */
+.kpiSource {
+  display: inline-flex;
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  justify-self: end;
+}
+
 /* E10：走势贴右端、与数字基线居中对齐——数字是主语，线是它的形状。
    14px 的高在 28px 的数值行内不改变 KPI 的 76px 卡高。 */
 .kpiSpark {

@@ -36,6 +36,17 @@
   padding: 0 4px;
   border-radius: var(--r-xs);
   background: var(--warning-soft, color-mix(in srgb, var(--warning) 14%, transparent));
-  font-size: 10px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.02em;
+}
+
+/* 演示模式：这不是一个可点的动作，别用 pointer 光标假装它是。 */
+.demo {
+  cursor: default;
+}
+
+/* 覆盖 `.badge:hover`：演示徽章没有点击行为，悬停不该给出可点反馈。 */
+.demo:hover {
+  background: var(--bg-inset);
+  color: var(--text-tertiary);
 }

@@ -188,11 +188,13 @@ describe("BleedView 结论文案与来源", () => {
     ).toBeInTheDocument();
   });
 
-  it("没有已定价金额时信息来源降级为「读自日志」", () => {
+  it("没有已定价金额时不挂估算圆点：读自日志是默认事实（Issue #339）", () => {
     render(<BleedView parsed={parsedWithTools()} />);
 
-    // 该夹具只有 countOnly 条目、无金额可用：来源不该自称「估算」。
-    expect(screen.getByLabelText("数据来源：读自日志")).toBeInTheDocument();
+    // 该夹具只有 countOnly 条目、无金额可用：来源不该自称「估算」；
+    // 而「读自日志」也不再渲染圆点——只有非确定信息才需要提示。
+    expect(screen.queryByLabelText(/^数据来源：按定价快照估算/)).toBeNull();
+    expect(screen.queryByLabelText("数据来源：读自日志")).toBeNull();
   });
 });
 
