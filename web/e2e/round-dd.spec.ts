@@ -132,7 +132,7 @@ test.describe("Round DD · 第二批十功能", () => {
     await openUsage(page);
     const peak = page.locator("[data-probe='peak-minute']");
     await expect(peak).toContainText("峰值时刻");
-    await expect(peak).toContainText(/1\.2M tok · 次高 209,000 tok（\d{2}-\d{2} \d{2}:\d{2}）/);
+    await expect(peak).toContainText(/1\.2M token · 次高 209,000 token（\d{2}-\d{2} \d{2}:\d{2}）/);
   });
 
   test("D10 token 等价物：展开后四条都带依据", async ({ page }) => {
@@ -190,7 +190,7 @@ test.describe("Round DD · 空态", () => {
   test("D9 单分钟：没有次高，写「只有这 1 分钟有消耗」", async ({ page }) => {
     await openUsage(page);
     await expect(page.locator("[data-probe='peak-minute']")).toContainText(
-      "140 tok · 窗口内只有这 1 分钟有消耗"
+      "140 token · 窗口内只有这 1 分钟有消耗"
     );
   });
 

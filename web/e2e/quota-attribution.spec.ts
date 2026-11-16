@@ -57,9 +57,9 @@ test.describe("按会话的配额归因", () => {
       "窗口归因夹具会话 3"
     ]);
     await expect(region.locator('[data-probe="attribution-row-token"]')).toHaveText([
-      "300,000 tok",
-      "200,000 tok",
-      "100,000 tok"
+      "300,000 token",
+      "200,000 token",
+      "100,000 token"
     ]);
     await expect(region.locator('[data-probe="attribution-row-pct"]')).toHaveText([
       "50.0%",
@@ -139,7 +139,7 @@ test.describe("按会话的配额归因 · 超过 Top 5", () => {
     const rest = listLocator.locator('[data-probe="attribution-rest"]');
     await expect(rest).toHaveCount(1);
     await expect(rest).toContainText("其余 1 个会话");
-    await expect(rest).toContainText("100,000 tok");
+    await expect(rest).toContainText("100,000 token");
     // 余项不是会话：role=button 数不到它，行内也没有 button 元素，标签就是 li。
     await expect(listLocator.getByRole("button", { name: /其余 1 个会话/ })).toHaveCount(0);
     await expect(rest.locator("button")).toHaveCount(0);

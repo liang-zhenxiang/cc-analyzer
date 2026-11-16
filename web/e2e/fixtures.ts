@@ -479,8 +479,8 @@ export function roundCCScenario(overrides: Partial<MockScenario> = {}): MockScen
  *   - D7 甘特：13 个会话（12 行上限 + 「另有 1 个会话未画出」），
  *     A 09:00–12:20 与 B 09:30–11:00 相交（并行虚线带 + ∥）；
  *   - D8 习惯：昨天到四天前连续有活动（连击 4 天），上午消息远多于晚间（早鸟）；
- *   - D9 峰值：09:15 那一分钟 6 次调用共 1,230,000 tok，次高 209,000；
- *   - D10 换算：窗口内四类计数器合计 2,089,000 tok（四条换算都 ≥1）。
+ *   - D9 峰值：09:15 那一分钟 6 次调用共 1,230,000 token，次高 209,000；
+ *   - D10 换算：窗口内四类计数器合计 2,089,000 token（四条换算都 ≥1）。
  *
  * 时间锚点：构建时取一次 `Date.now()`，之后所有记录都由 `roundDDNow()` 派生的
  * 本地日历（昨天 09:00 等）算出——用例不得再直接读 Date.now()，否则跨整点/
@@ -628,7 +628,7 @@ function buildRoundDD(): { files: Record<string, string>; records: RoundDDRecord
   const aId = idOf("alpha-main");
   const a: RoundDDRecord[] = [
     user(aId, "/repo/dd-alpha", at(1, 9, 0), "dd：把今天的 alpha 账摊开"),
-    // 09:15 这一分钟 6 次调用 × 205,000 = 1,230,000 tok（D9 冠军分钟）
+    // 09:15 这一分钟 6 次调用 × 205,000 = 1,230,000 token（D9 冠军分钟）
     ...[0, 5, 10, 15, 20, 25].map((second) =>
       assistant(
         aId,
@@ -2048,7 +2048,7 @@ export function monitorConsoleScenario(overrides: Partial<MockScenario> = {}): M
  * 数据形状（每条都有对应断言）：
  *   - 18 个自然日各一段会话（day-18 … day-1），满足 E1 的 7 天均线与
  *     14 天外推；日量在 9,000 / 11,000 之间交替，让异常判定的标准差非零；
- *   - day-13 是 60,000 tok 的异常日（约为邻近日的 6 倍，z ≥ 2，日历上也
+ *   - day-13 是 60,000 token 的异常日（约为邻近日的 6 倍，z ≥ 2，日历上也
  *     会点亮角标）；
  *   - Sonnet 只在 day-18 与 day-2 使用（间隔 16 天 > 14 天）→ E6 的回归段；
  *     其余日子用 Opus，两种模型各有一条起止条；

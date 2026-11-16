@@ -109,7 +109,7 @@ export function RecordDetailPanel({
             <dt>本次丢弃</dt>
             <dd>
               {record.compactEvent.preTokens !== null && record.compactEvent.postTokens !== null
-                ? `${(record.compactEvent.preTokens - record.compactEvent.postTokens).toLocaleString("en-US")} tok`
+                ? `${(record.compactEvent.preTokens - record.compactEvent.postTokens).toLocaleString("en-US")} token`
                 : "—"}
             </dd>
             <dt>幸存消息</dt><dd>{record.compactEvent.survivedUuids.length} 条</dd>

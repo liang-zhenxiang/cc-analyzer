@@ -155,7 +155,7 @@ test.describe("一日回望", () => {
       .locator('[data-probe="day-summary-item"]')
       .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-summary-key")));
     expect(summaryKeys).toEqual(["cost", "sessions", "messages", "span", "model", "projects"]);
-    expect(await summaryValue(page, "cost")).toBe("$3.45 · 1.1M tok");
+    expect(await summaryValue(page, "cost")).toBe("$3.45 · 1.1M token");
     expect(await summaryValue(page, "sessions")).toBe("4");
     expect(await summaryValue(page, "messages")).toBe("9");
     expect(await summaryValue(page, "span")).toBe("00:25–18:41");
@@ -237,24 +237,24 @@ test.describe("一日回望", () => {
     // 首行跨午夜（末尾追加「· 跨天」）。
     await expect(rows.first()).toHaveAttribute(
       "title",
-      "打开会话：跨午夜夹具会话 13（项目：calendar-13）· 00:25–01:10 · 时长 45m0s · 当日消耗 $0.45 · 150,000 tok · 占当日 13.0% · 跨天"
+      "打开会话：跨午夜夹具会话 13（项目：calendar-13）· 00:25–01:10 · 时长 45m0s · 当日消耗 $0.45 · 150,000 token · 占当日 13.0% · 跨天"
     );
     await expect(rows.first()).toHaveAttribute(
       "aria-label",
-      "打开会话：跨午夜夹具会话 13（项目：calendar-13）· 00:25–01:10 · 时长 45m0s · 当日消耗 $0.45 · 150,000 tok · 占当日 13.0% · 跨天"
+      "打开会话：跨午夜夹具会话 13（项目：calendar-13）· 00:25–01:10 · 时长 45m0s · 当日消耗 $0.45 · 150,000 token · 占当日 13.0% · 跨天"
     );
     // 09:20 那条与设计样例同形（占比 600K / 1.15M = 52.2%）。
     await expect(rows.nth(1)).toHaveAttribute(
       "title",
-      "打开会话：消耗日历夹具会话 10（项目：calendar-10）· 09:20–09:21 · 时长 1m30s · 当日消耗 $1.80 · 600,000 tok · 占当日 52.2%"
+      "打开会话：消耗日历夹具会话 10（项目：calendar-10）· 09:20–09:21 · 时长 1m30s · 当日消耗 $1.80 · 600,000 token · 占当日 52.2%"
     );
     await expect(rows.nth(2)).toHaveAttribute(
       "title",
-      "打开会话：消耗日历夹具会话 11（项目：calendar-11）· 13:05–13:06 · 时长 1m30s · 当日消耗 $0.90 · 300,000 tok · 占当日 26.1%"
+      "打开会话：消耗日历夹具会话 11（项目：calendar-11）· 13:05–13:06 · 时长 1m30s · 当日消耗 $0.90 · 300,000 token · 占当日 26.1%"
     );
     await expect(rows.nth(3)).toHaveAttribute(
       "title",
-      "打开会话：消耗日历夹具会话 12（项目：calendar-12）· 18:40–18:41 · 时长 1m30s · 当日消耗 $0.30 · 100,000 tok · 占当日 8.7%"
+      "打开会话：消耗日历夹具会话 12（项目：calendar-12）· 18:40–18:41 · 时长 1m30s · 当日消耗 $0.30 · 100,000 token · 占当日 8.7%"
     );
 
     // 逐小时密度块的 title：`HH:00–HH+1:00 · N 条记录`。

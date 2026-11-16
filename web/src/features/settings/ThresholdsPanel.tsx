@@ -877,7 +877,7 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
                   }
                 }}
               />
-              <span className={styles.unit}>tok/5h</span>
+              <span className={styles.unit}>token/5h</span>
             </span>
             <span className={styles.hint}>四舍五入到整数；留空表示不设上限。</span>
           </label>
@@ -910,7 +910,7 @@ export function ThresholdsPanel({ onClose }: { onClose: () => void }) {
                 }
               }}
             />
-            <span className={styles.unit}>tok/7d</span>
+            <span className={styles.unit}>token/7d</span>
           </span>
           <span className={styles.hint}>
             周限额没有可靠的社区估算值，需要对照就自己填；清空则只显示消耗。

@@ -322,7 +322,7 @@ describe("buildLogRows · 压缩边界带行", () => {
       kind: "compact",
       label: "压缩",
       action: "压缩 #1（自动）",
-      summary: "167,400 → 11,200 tok · 丢弃 156,200 · 37.5s",
+      summary: "167,400 → 11,200 token · 丢弃 156,200 · 37.5s",
       timestamp: boundary1,
       status: "na",
       tokens: null,

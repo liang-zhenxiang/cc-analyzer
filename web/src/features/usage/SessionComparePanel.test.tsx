@@ -49,7 +49,7 @@ describe("SessionComparePanel（D1 会话对比）", () => {
     const selectB = screen.getByRole("combobox", { name: "会话 B" }) as HTMLSelectElement;
     expect(selectA.value).toBe("0");
     expect(selectB.value).toBe("1");
-    expect(within(selectA).getByRole("option", { name: "alpha · 1.1M tok" })).toBeInTheDocument();
+    expect(within(selectA).getByRole("option", { name: "alpha · 1.1M token" })).toBeInTheDocument();
 
     // 五行的标签与数值都在（左右各一份）。
     expect(screen.getAllByText("消息")).toHaveLength(2);
@@ -80,7 +80,7 @@ describe("SessionComparePanel（D1 会话对比）", () => {
 
     await user.selectOptions(screen.getByRole("combobox", { name: "会话 A" }), "2");
     const selectB = screen.getByRole("combobox", { name: "会话 B" });
-    expect(within(selectB).getByRole("option", { name: "gamma · 50,000 tok" })).toBeDisabled();
+    expect(within(selectB).getByRole("option", { name: "gamma · 50,000 token" })).toBeDisabled();
   });
 
   it("只有一个会话时如实说没有对手，不画空表", () => {

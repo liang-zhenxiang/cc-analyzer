@@ -549,7 +549,7 @@ describe("LogView · 压缩边界带行", () => {
 
     const band = screen.getByText("压缩 #1（自动）").closest("tr")!;
     // 数字串是行的一部分：pre → post、丢弃与耗时都在带行上。
-    expect(within(band).getByText("167,400 → 11,200 tok · 丢弃 156,200 · 37.5s")).toBeInTheDocument();
+    expect(within(band).getByText("167,400 → 11,200 token · 丢弃 156,200 · 37.5s")).toBeInTheDocument();
     // 通栏：整行只有一个单元格。
     expect(band.querySelectorAll("td")).toHaveLength(1);
     expect(band.querySelector("td")?.colSpan).toBe(8);

@@ -72,7 +72,7 @@ describe("DailyTrendChart（E1 + E2）", () => {
     const rendered = marks(container);
     expect(rendered).toHaveLength(1);
     expect(rendered[0].className).toContain("spike");
-    expect(rendered[0].title).toMatch(/^该日 4,000 tok，相对前 7 天 z=\+[\d.]+$/);
+    expect(rendered[0].title).toMatch(/^该日 4,000 token，相对前 7 天 z=\+[\d.]+$/);
     expect(container.textContent).toContain("▲＝异常日（z ≥ 2）");
   });
 

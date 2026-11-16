@@ -74,7 +74,7 @@ function AttributionSessionRow({
   // 完整绝对路径不出现在可见文本、title 或 aria-label 里。
   const project = formatProjectPath(row.projectLabel, row.projectPath);
   const pctText = formatShareText(row);
-  // 可见的密集列用 `tok`（列宽优先）；这里的整句是朗读文本，走正文档的 `token`。
+  // 可见读数与朗读文本用同一个单位（Issue #348 起全站统一为 token）。
   const reading = `${row.title}（项目：${project}）· 本窗口消耗 ${row.tokens.toLocaleString("en-US")} token · 占本窗口 ${pctText}`;
   const label = canOpen ? `打开会话：${reading}` : `${reading} · 当前不可打开`;
 
@@ -93,7 +93,7 @@ function AttributionSessionRow({
           {row.title}
         </span>
         <span className={styles.attributionToken} data-probe="attribution-row-token">
-          {`${formatTokenCount(row.tokens)} tok`}
+          {`${formatTokenCount(row.tokens)} token`}
         </span>
         <span className={styles.attributionBarTrack} aria-hidden="true">
           {row.tokens > 0 ? (
@@ -186,7 +186,7 @@ function QuotaAttributionPanel({
               {`其余 ${attribution.remainder.sessions} 个会话`}
             </span>
             <span className={styles.attributionToken}>
-              {`${formatTokenCount(attribution.remainder.tokens)} tok`}
+              {`${formatTokenCount(attribution.remainder.tokens)} token`}
             </span>
             <span className={styles.attributionBarTrack} aria-hidden="true">
               {attribution.remainder.tokens > 0 ? (

@@ -626,11 +626,11 @@ function billingSection(
       `<dl class="window-facts">` +
       windowFact("窗口开启", formatClock(block.start)) +
       windowFact("窗口关闭", formatClock(block.end)) +
-      windowFact("本窗口消耗", `${formatTokenCount(consumed)} tok`) +
+      windowFact("本窗口消耗", `${formatTokenCount(consumed)} token`) +
       windowFact("消息数", block.messages.toLocaleString("en-US")) +
       windowFact(
         "限额",
-        hasPlanLimit ? `${formatTokenCount(planLimitTokens)} tok` : "未设置"
+        hasPlanLimit ? `${formatTokenCount(planLimitTokens)} token` : "未设置"
       ) +
       windowFact("已用", hasPlanLimit ? shareText(consumed, planLimitTokens) : "—") +
       `</dl></div>` +
@@ -708,7 +708,7 @@ function attributionBlock(attribution: QuotaAttribution | null): string {
         `<tr class="attribution-row">` +
         `<td class="session-title">${escapeHtml(row.title)}</td>` +
         `<td class="project-cell">${escapeHtml(projectName(row.projectLabel, row.projectPath))}</td>` +
-        `<td class="num">${escapeHtml(formatTokenCount(row.tokens))} tok</td>` +
+        `<td class="num">${escapeHtml(formatTokenCount(row.tokens))} token</td>` +
         shareCell(row.tokens, "var(--chart-1)") +
         `</tr>`
     )
@@ -716,7 +716,7 @@ function attributionBlock(attribution: QuotaAttribution | null): string {
   const remainder = attribution.remainder
     ? `<tr class="rest-row">` +
       `<td colspan="2">其余 ${attribution.remainder.sessions.toLocaleString("en-US")} 个会话</td>` +
-      `<td class="num">${escapeHtml(formatTokenCount(attribution.remainder.tokens))} tok</td>` +
+      `<td class="num">${escapeHtml(formatTokenCount(attribution.remainder.tokens))} token</td>` +
       shareCell(attribution.remainder.tokens, "var(--chart-1-soft)") +
       `</tr>`
     : "";
@@ -753,7 +753,7 @@ export function usageSnapshotHtml(input: UsageSnapshotInput): string {
   const costNote =
     `² 估算成本按定价快照（${PRICING_AS_OF}）折算，不是账单。` +
     (cost.hasUnknown
-      ? `部分会话未知价 · 约 ${formatTokenCount(cost.unknownTokens)} tok 未计入。`
+      ? `部分会话未知价 · 约 ${formatTokenCount(cost.unknownTokens)} token 未计入。`
       : "");
 
   const head =

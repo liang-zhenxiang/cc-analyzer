@@ -93,7 +93,7 @@ export function CompactionStatsPanel({
             </div>
             <div className={styles.reading}>
               <span className={styles.readingLabel}>累计丢弃</span>
-              <span className={styles.readingValue}>{`${formatTokenCount(stats.droppedTokens)} tok`}</span>
+              <span className={styles.readingValue}>{`${formatTokenCount(stats.droppedTokens)} token`}</span>
             </div>
             <div className={styles.reading}>
               <span className={styles.readingLabel}>触发会话</span>

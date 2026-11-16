@@ -63,7 +63,7 @@ test.describe("J3 三处集成（含压缩会话）", () => {
     const table = page.getByRole("table");
     await expect(table.getByText("压缩 #1（自动）")).toBeVisible();
     await expect(table.getByText("压缩 #2（手动）")).toBeVisible();
-    await expect(table.getByText("167,400 → 11,200 tok · 丢弃 156,200 · 37.5s")).toBeVisible();
+    await expect(table.getByText("167,400 → 11,200 token · 丢弃 156,200 · 37.5s")).toBeVisible();
 
     // 通栏带行：整行只有一个跨 8 列的单元格，不是消息行的列布局。
     const band = table.getByText("压缩 #1（自动）").locator("xpath=ancestor::tr");
@@ -105,7 +105,7 @@ test.describe("J3 三处集成（含压缩会话）", () => {
     await expect(panel.getByText("压缩次数").locator("xpath=following-sibling::span[1]")).toHaveText("2");
     await expect(
       panel.getByText("累计丢弃").locator("xpath=following-sibling::span[1]")
-    ).toHaveText("302,800 tok");
+    ).toHaveText("302,800 token");
     await expect(panel.getByText("触发会话").locator("xpath=following-sibling::span[1]")).toHaveText("1 个");
     await expect(panel.getByText("自动 1")).toBeVisible();
     await expect(panel.getByText("手动 1")).toBeVisible();

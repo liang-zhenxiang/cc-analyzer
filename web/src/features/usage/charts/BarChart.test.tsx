@@ -17,10 +17,10 @@ describe("BarChart", () => {
   });
 
   it("gives every bar a tooltip with its label and formatted value", () => {
-    render(<BarChart data={data} ariaLabel="趋势" formatValue={(value) => `${value} tok`} />);
+    render(<BarChart data={data} ariaLabel="趋势" formatValue={(value) => `${value} token`} />);
 
     const [first] = screen.getByRole("img", { name: "趋势" }).querySelectorAll("rect");
-    expect(first.querySelector("title")?.textContent).toBe("9/28：100 tok");
+    expect(first.querySelector("title")?.textContent).toBe("9/28：100 token");
   });
 
   it("draws gridlines with tick labels, the baseline strongest", () => {
