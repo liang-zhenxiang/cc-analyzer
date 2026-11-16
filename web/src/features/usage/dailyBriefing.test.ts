@@ -138,7 +138,7 @@ describe("briefingOf 异常日", () => {
     const [item] = briefing.items;
     expect(item.kind).toBe("anomaly");
     expect(item.headline).toBe("10-31 用量异常（+2.4σ）");
-    expect(item.detail).toBe("当日 80,000 tok");
+    expect(item.detail).toBe("当日 80,000 token");
     expect(ANOMALY_Z_ALERT).toBe(2);
   });
 

@@ -39,11 +39,10 @@ export function formatBytes(bytes: number): string {
 }
 
 /**
- * Token 单位的三档写法（P2-13）——按密度分档，同一屏里不要混用：
- * - 正文句子：`token`（计数名词不加 s，写成「12,345 token」）；
- * - 表头 / 列名：`Tokens`（标题位统一大写复数，如「Tokens 总量」）；
- * - 密集紧凑数字（Top 会话行、KPI 脚注）：`tok`，为列宽让路。
- * 本轮的统一范围只有 `BillingWindowCard`；其它面板按各自轮次跟进。
+ * Token 单位的两种写法（P2-13 / Issue #348）——同一屏里不要混用：
+ * - 正文与密集读数：`token`（计数名词不加 s，写成「12,345 token」）；
+ *   全站统一，不再用 `tok` 缩写——同一屏出现两种单位会让读者以为是两回事。
+ * - 表头 / 列名：`Tokens`（标题位统一大写复数，如「Tokens 总量」）。
  */
 
 /**

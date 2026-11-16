@@ -17,7 +17,7 @@
   padding: 0 var(--sp-1);
   border-bottom: 1px solid var(--border);
   color: var(--text-tertiary);
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   text-align: left;
   white-space: nowrap;
@@ -63,7 +63,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .num {
@@ -134,7 +134,7 @@
 .sample code {
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .sessions {
@@ -175,7 +175,7 @@
 .caption {
   margin: 0;
   color: var(--text-tertiary);
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 
 .emptyFact {

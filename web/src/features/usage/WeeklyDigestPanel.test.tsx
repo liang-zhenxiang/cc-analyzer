@@ -146,9 +146,9 @@ describe("WeeklyDigestPanel 峰值时刻（D9）", () => {
 
     const row = screen.getByText("峰值时刻").closest('[data-probe="peak-minute"]') as HTMLElement;
     expect(row).not.toBeNull();
-    // 同一分钟两笔 100 万：峰值 2,000,000 tok；次高是 10 点那笔。
-    expect(row).toHaveTextContent("2.0M tok");
-    expect(row).toHaveTextContent("次高 1.0M tok（10-21 10:00）");
+    // 同一分钟两笔 100 万：峰值 2,000,000 token；次高是 10 点那笔。
+    expect(row).toHaveTextContent("2.0M token");
+    expect(row).toHaveTextContent("次高 1.0M token（10-21 10:00）");
   });
 
   it("只有一分钟有消耗时，次高那半句换成说明", () => {

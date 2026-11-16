@@ -94,7 +94,7 @@ test.describe("消耗日历", () => {
   }) => {
     await openUsage(page);
 
-    // 昨天：4 会话合计 4M tok（$12）＝ 全窗最大成本 → 4 档。
+    // 昨天：4 会话合计 4M token（$12）＝ 全窗最大成本 → 4 档。
     const yesterday = dayCell(page, 1);
     await expect(yesterday).toHaveAttribute("data-cal-level", "4");
     const cal4 = await rootToken(page, "--cal-4");
@@ -199,7 +199,7 @@ test.describe("消耗日历", () => {
   // 「一年洞察」（Round V3 / #199）：图例之下的六句实事。夹具布景账
   // （calendarScenario，§0）：有成本天 = now−300 / −200 / −100 / −30 / −8 /
   // −1 / 0 共 7 天；最长连胜 2 天（昨天到今天）、最贵一天 $12.00（昨天 4 会话
-  // 合计 4M tok）、最长空白 99 天（now−199..−101 与前一段并列，取最近）。
+  // 合计 4M token）、最长空白 99 天（now−199..−101 与前一段并列，取最近）。
   // 日期随运行日漂移——断句子的稳定前缀与数字段，不断整句；环比的值随夹具
   // 活动日落进哪个月漂移，只断结构（数学由单测的固定 now 钉死）。
   test("一年洞察：六句键序与确定值（最长连胜 / 最贵一天 / 最长空白 / 活跃占比 / 当前连胜）", async ({
@@ -251,7 +251,7 @@ test.describe("消耗日历", () => {
 
     const sessions = page.locator("[data-calendar-sessions]");
     await expect(sessions).toBeVisible();
-    // 昨天的会话账：4 个 1M tok 的定档会话 + 跨午夜夹具会话的昨天段（23:40
+    // 昨天的会话账：4 个 1M token 的定档会话 + 跨午夜夹具会话的昨天段（23:40
     // 一条定标题的 user 记录，无 usage）→ 展开区头部是 5 个会话、$12.00 不变。
     await expect(sessions.getByText(/5 个会话/)).toBeVisible();
     await expect(dayCell(page, 1)).toHaveAttribute("aria-expanded", "true");

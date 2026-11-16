@@ -337,7 +337,7 @@
   overflow: hidden;
   padding: 0 var(--sp-1);
   color: var(--text-tertiary);
-  font-size: 10px;
+  font-size: var(--fs-xs);
   line-height: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -578,7 +578,7 @@
 
 .mergedText {
   color: var(--text-secondary);
-  font-size: 9px;
+  font-size: var(--fs-xs);
   line-height: 1;
 }
 

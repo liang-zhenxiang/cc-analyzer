@@ -33,8 +33,10 @@ export type ErrorCluster = {
   key: string;
   /** 展示用工具名（API 错误为 `API`）。 */
   toolName: string;
-  /** 归一化后的错误首行（≤ 80 字符）。 */
+  /** 归一化后的错误首行（≤ 80 字符），分组键与默认展示行。 */
   firstLine: string;
+  /** 未截断的展示首行（trim 后），只给 `title` / aria 用——悬停读到原文。 */
+  firstLineFull: string;
   count: number;
   firstAt: number;
   lastAt: number;
@@ -43,17 +45,29 @@ export type ErrorCluster = {
   sampleSessionPath: string;
 };
 
-/**
- * 归一化：首行 + trim + 截断。
- *
- * 截断走 `Array.from`，因为按 UTF-16 长度切会把 emoji / 生僻字劈成半个代理对，
- * 屏幕上变成 ``。80 个码点足够识别一条报错（实测报错的首行多在 30–60）。
- */
-export function normalizeFirstLine(text: string): string {
+/** 首行 + trim；空串退到占位标签。不截断——`title` 读到的应是原文。 */
+export function firstLineOf(text: string): string {
   const firstLine = text.split("\n")[0] ?? "";
   const trimmed = firstLine.trim();
-  if (trimmed === "") return EMPTY_FIRST_LINE_LABEL;
-  return Array.from(trimmed).slice(0, FIRST_LINE_MAX_CHARS).join("");
+  return trimmed === "" ? EMPTY_FIRST_LINE_LABEL : trimmed;
+}
+
+/**
+ * 截断到 80 码点。
+ *
+ * 走 `Array.from`，因为按 UTF-16 长度切会把 emoji / 生僻字劈成半个代理对，
+ * 屏幕上变成 ``。80 个码点足够识别一条报错（实测报错的首行多在 30–60）。
+ */
+export function truncateFirstLine(firstLine: string): string {
+  return Array.from(firstLine).slice(0, FIRST_LINE_MAX_CHARS).join("");
+}
+
+/**
+ * 归一化：首行 + trim + 截断。分组键与展示行共用这一份；原文另由
+ * `firstLineOf` 提供，面板在截断时补 `…`、`title` 放原文。
+ */
+export function normalizeFirstLine(text: string): string {
+  return truncateFirstLine(firstLineOf(text));
 }
 
 function toolNameOf(event: ErrorEvent): string {
@@ -83,7 +97,8 @@ export function buildErrorClusters(
     if (!Number.isFinite(event.timestamp)) continue;
 
     const toolName = toolNameOf(event);
-    const firstLine = normalizeFirstLine(event.preview);
+    const firstLineFull = firstLineOf(event.preview);
+    const firstLine = truncateFirstLine(firstLineFull);
     const key = `${toolName}\u0000${firstLine}`;
 
     let cluster = clusters.get(key);
@@ -92,6 +107,7 @@ export function buildErrorClusters(
         key,
         toolName,
         firstLine,
+        firstLineFull,
         count: 0,
         firstAt: event.timestamp,
         lastAt: event.timestamp,
@@ -123,10 +139,11 @@ export function buildErrorClusters(
       return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
     })
     .slice(0, limit)
-    .map(({ key, toolName, firstLine, count, firstAt, lastAt, sampleRecordId, sampleSessionPath }) => ({
+    .map(({ key, toolName, firstLine, firstLineFull, count, firstAt, lastAt, sampleRecordId, sampleSessionPath }) => ({
       key,
       toolName,
       firstLine,
+      firstLineFull,
       count,
       firstAt,
       lastAt,

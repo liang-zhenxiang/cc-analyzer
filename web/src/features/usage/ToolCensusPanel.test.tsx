@@ -76,7 +76,7 @@ describe("ToolCensusPanel", () => {
     // 栏头：桶身份（左）+ 类数与合计（右），分两个 span 渲染。
     expect(screen.getByText("内置工具", { exact: true })).toBeVisible();
     expect(screen.getByText("7 类 · 14 次")).toBeVisible();
-    expect(screen.getByText("skill", { exact: true })).toBeVisible();
+    expect(screen.getByText("Skill", { exact: true })).toBeVisible();
     expect(screen.getByText("1 个 · 2 次")).toBeVisible();
     expect(screen.getByText("子 agent", { exact: true })).toBeVisible();
     expect(screen.getByText("1 类 · 1 次")).toBeVisible();
@@ -84,7 +84,7 @@ describe("ToolCensusPanel", () => {
     expect(screen.getByText("2 个服务器 · 3 次")).toBeVisible();
 
     // 四栏列表的 landmark 语义（e2e 与读屏靠它定位）。
-    for (const label of ["内置工具调用排行", "skill 调用排行", "子 agent 调用排行", "MCP 服务器"]) {
+    for (const label of ["内置工具调用排行", "Skill 调用排行", "子 agent 调用排行", "MCP 服务器"]) {
       expect(screen.getByRole("list", { name: label })).toBeVisible();
     }
     expect(screen.getByText(/调用次数含子 agent 记录/)).toBeVisible();
@@ -171,7 +171,7 @@ describe("ToolCensusPanel", () => {
       NOW
     );
     const { rerender } = render(<ToolCensusPanel census={onlyBash} days={30} sessionsInWindow={1} />);
-    expect(screen.getByText("本区间没有 skill 调用")).toBeVisible();
+    expect(screen.getByText("本区间没有 Skill 调用")).toBeVisible();
     expect(screen.getByText("本区间没有子 agent 调用")).toBeVisible();
     expect(screen.getByText("本区间没有 MCP 调用")).toBeVisible();
     expect(screen.getByText("共 2 次调用 · 主链 2 · 子 agent 占 0.0%")).toBeVisible();

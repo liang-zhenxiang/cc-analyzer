@@ -173,9 +173,9 @@ export function WeeklyDigestPanel({
             <span className={styles.peakLabel}>峰值时刻</span>
             <span className={styles.peakTime}>{formatShortStamp(peak.minuteStart)}</span>
             <span className={styles.peakNote}>
-              {formatTokenCount(peak.tokens)} tok
+              {formatTokenCount(peak.tokens)} token
               {peak.runnerUp
-                ? ` · 次高 ${formatTokenCount(peak.runnerUp.tokens)} tok（${formatShortStamp(peak.runnerUp.minuteStart)}）`
+                ? ` · 次高 ${formatTokenCount(peak.runnerUp.tokens)} token（${formatShortStamp(peak.runnerUp.minuteStart)}）`
                 : " · 窗口内只有这 1 分钟有消耗"}
             </span>
           </p>

@@ -267,8 +267,8 @@ function railOf(path: string): HTMLElement {
 const percent = (value: string): number => Number.parseFloat(value);
 
 const DAY_REVIEW_LABEL =
-  "2026年10月11日 · 估算成本 $2.70 · 900,000 tok · 2 个会话 · cal";
-const YESTERDAY_LABEL = "2026年10月11日 · 估算成本 $0.11 · 36,000 tok · 8 个会话 · cal";
+  "2026年10月11日 · 估算成本 $2.70 · 900,000 token · 2 个会话 · cal";
+const YESTERDAY_LABEL = "2026年10月11日 · 估算成本 $0.11 · 36,000 token · 8 个会话 · cal";
 const DAY_FOOTNOTE =
   "活跃跨度 = 当天首条至末条记录的时刻，不是有活动的小时数；占比分母 = 当日 token 总量。成本为估算值（定价快照 2026-10-01），token、会话数、消息数读自本机日志；项目色按当日 token 降序取前 5 名，其余项目并入「其他」。";
 
@@ -303,18 +303,18 @@ describe("UsageCalendarPanel", () => {
   it("aria-label 三分支逐字一致（有消耗 / 定价未知 / 无消耗）+ 部分未知追加段", () => {
     render(<UsageCalendarPanel inputs={mixedInputs()} now={NOW} />);
 
-    // 有消耗（昨天，8 会话合计 36,000 tok × $3/MTok = $0.108 → $0.11）。
+    // 有消耗（昨天，8 会话合计 36,000 token × $3/MTok = $0.108 → $0.11）。
     expect(dayButtonByRole(YESTERDAY_LABEL)).toHaveAttribute("title", YESTERDAY_LABEL);
     // 有记录无成本（全 unknown）：token 与会话照报，不装作没有活动。
     expect(
-      dayButtonByRole("2026年10月10日 · 123 tok · 1 个会话 · 定价未知")
+      dayButtonByRole("2026年10月10日 · 123 token · 1 个会话 · 定价未知")
     ).toBeInTheDocument();
     // 无记录（今天）。
     expect(dayButtonByRole("2026年10月12日 · 无消耗")).toBeInTheDocument();
     // cost > 0 且有 unknown token：末尾追加「部分会话未知价」。
     expect(
       dayButtonByRole(
-        "2026年10月9日 · 估算成本 $3.00 · 1.0M tok · 1 个会话 · cal · 部分会话未知价"
+        "2026年10月9日 · 估算成本 $3.00 · 1.0M token · 1 个会话 · cal · 部分会话未知价"
       )
     ).toBeInTheDocument();
   });
@@ -371,14 +371,14 @@ describe("UsageCalendarPanel", () => {
     await user.keyboard("{ArrowUp}");
     expect(document.activeElement).toHaveAttribute(
       "aria-label",
-      "2026年10月10日 · 123 tok · 1 个会话 · 定价未知"
+      "2026年10月10日 · 123 token · 1 个会话 · 定价未知"
     );
 
     // ±7 越界不动：10-10 右移一周出窗（窗口末天是 10-12）。
     await user.keyboard("{ArrowRight}");
     expect(document.activeElement).toHaveAttribute(
       "aria-label",
-      "2026年10月10日 · 123 tok · 1 个会话 · 定价未知"
+      "2026年10月10日 · 123 token · 1 个会话 · 定价未知"
     );
 
     // 边界不动：窗口末天（今天）向下越界；窗口首天（2025-10-13）向上 / 左移越界。
@@ -467,7 +467,7 @@ describe("UsageCalendarPanel · 一日回望（Round V2）", () => {
 
     // 双数格：成本 + token 同行（后段降一档）。
     expect(labelOf(itemOf("cost"))).toBe("当日消耗");
-    expect(valueOf(itemOf("cost"))).toBe("$2.70 · 900,000 tok");
+    expect(valueOf(itemOf("cost"))).toBe("$2.70 · 900,000 token");
     expect(labelOf(itemOf("sessions"))).toBe("会话数");
     expect(valueOf(itemOf("sessions"))).toBe("2");
     expect(labelOf(itemOf("messages"))).toBe("消息数");
@@ -493,7 +493,7 @@ describe("UsageCalendarPanel · 一日回望（Round V2）", () => {
       "title",
       "活跃跨度：当天首条记录 09:20，末条 18:40，跨度 9 小时 20 分（不是有活动的小时数）"
     );
-    expect(itemOf("model")).toHaveAttribute("title", "claude-sonnet-4-5 · 900,000 tok");
+    expect(itemOf("model")).toHaveAttribute("title", "claude-sonnet-4-5 · 900,000 token");
     expect(itemOf("projects")).toHaveAttribute("title", "当天涉及的项目数（按项目标签去重）");
 
     // 徽章：双数格取较弱的一侧（成本估算）；读自日志的五项是默认事实，
@@ -636,15 +636,15 @@ describe("UsageCalendarPanel · 一日回望（Round V2）", () => {
     // 行可访问名 / 悬停原文是同一份格式函数（§6.4 模板）。
     expect(barOf("/sessions/a.jsonl")).toHaveAttribute(
       "aria-label",
-      "打开会话：会话 A（项目：cal）· 09:20–09:21 · 时长 1m30s · 当日消耗 $1.80 · 600,000 tok · 占当日 66.7%"
+      "打开会话：会话 A（项目：cal）· 09:20–09:21 · 时长 1m30s · 当日消耗 $1.80 · 600,000 token · 占当日 66.7%"
     );
     expect(barOf("/sessions/a.jsonl")).toHaveAttribute(
       "title",
-      "打开会话：会话 A（项目：cal）· 09:20–09:21 · 时长 1m30s · 当日消耗 $1.80 · 600,000 tok · 占当日 66.7%"
+      "打开会话：会话 A（项目：cal）· 09:20–09:21 · 时长 1m30s · 当日消耗 $1.80 · 600,000 token · 占当日 66.7%"
     );
     expect(barOf("/sessions/b.jsonl")).toHaveAttribute(
       "aria-label",
-      "打开会话：会话 B（项目：other）· 13:05–18:40 · 时长 5h35m0s · 当日消耗 $0.90 · 300,000 tok · 占当日 33.3%"
+      "打开会话：会话 B（项目：other）· 13:05–18:40 · 时长 5h35m0s · 当日消耗 $0.90 · 300,000 token · 占当日 33.3%"
     );
   });
 
@@ -691,7 +691,7 @@ describe("UsageCalendarPanel · 一日回望（Round V2）", () => {
     expect(blocksOf("/sessions/one.jsonl")).toHaveLength(1);
     expect(barOf("/sessions/one.jsonl")).toHaveAttribute(
       "aria-label",
-      "打开会话：单条（项目：cal）· 16:00–16:00 · 时长 0ms · 当日消耗 $0.30 · 100,000 tok · 占当日 100.0%"
+      "打开会话：单条（项目：cal）· 16:00–16:00 · 时长 0ms · 当日消耗 $0.30 · 100,000 token · 占当日 100.0%"
     );
   });
 
@@ -954,7 +954,7 @@ describe("UsageCalendarPanel · 一年洞察（Round V3）", () => {
   }
 
   /**
-   * 365 天几乎全有消耗（每天 1000 tok sonnet）：10−2 换成密集日（全 unknown →
+   * 365 天几乎全有消耗（每天 1000 token sonnet）：10−2 换成密集日（全 unknown →
    * 0 成本但有会话）、10−1 真空白——把「最长空白」逼成两天小段，密集日型端点
    * （可点）与真空白天端点（纯文本）在同一个区间里出现。
    */
@@ -1054,7 +1054,7 @@ describe("UsageCalendarPanel · 一年洞察（Round V3）", () => {
     expect(detail).not.toBeNull();
     expect(within(detail).getByText("10月9日 · 1 个会话")).toBeVisible();
     expect(
-      dayButton("2026年10月9日 · 估算成本 $3.00 · 1.0M tok · 1 个会话 · cal · 部分会话未知价")
+      dayButton("2026年10月9日 · 估算成本 $3.00 · 1.0M token · 1 个会话 · cal · 部分会话未知价")
     ).toHaveAttribute("aria-expanded", "true");
 
     // toggle：再点同一日期按钮收起（与格子点击同一条 state）。
@@ -1285,7 +1285,7 @@ describe("UsageCalendarPanel · 样式纪律（读 CSS 文件断言，同 Heatma
     );
     expect(dotted).not.toBeNull();
     expect(dotted?.getAttribute("aria-label")).toBe(`${YESTERDAY_LABEL}，异常`);
-    expect(dotted?.getAttribute("title")).toContain("该日 36,000 tok，相对前 7 天 z=+2.6");
+    expect(dotted?.getAttribute("title")).toContain("该日 36,000 token，相对前 7 天 z=+2.6");
     expect(dotted?.querySelector('[class*="anomalyDot"]')).not.toBeNull();
     // 只有那一天有角标。
     expect(

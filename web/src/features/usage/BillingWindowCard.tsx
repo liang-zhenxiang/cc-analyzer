@@ -74,7 +74,7 @@ function AttributionSessionRow({
   // 完整绝对路径不出现在可见文本、title 或 aria-label 里。
   const project = formatProjectPath(row.projectLabel, row.projectPath);
   const pctText = formatShareText(row);
-  // 可见的密集列用 `tok`（列宽优先）；这里的整句是朗读文本，走正文档的 `token`。
+  // 可见读数与朗读文本用同一个单位（Issue #348 起全站统一为 token）。
   const reading = `${row.title}（项目：${project}）· 本窗口消耗 ${row.tokens.toLocaleString("en-US")} token · 占本窗口 ${pctText}`;
   const label = canOpen ? `打开会话：${reading}` : `${reading} · 当前不可打开`;
 
@@ -93,7 +93,7 @@ function AttributionSessionRow({
           {row.title}
         </span>
         <span className={styles.attributionToken} data-probe="attribution-row-token">
-          {`${formatTokenCount(row.tokens)} tok`}
+          {`${formatTokenCount(row.tokens)} token`}
         </span>
         <span className={styles.attributionBarTrack} aria-hidden="true">
           {row.tokens > 0 ? (
@@ -186,7 +186,7 @@ function QuotaAttributionPanel({
               {`其余 ${attribution.remainder.sessions} 个会话`}
             </span>
             <span className={styles.attributionToken}>
-              {`${formatTokenCount(attribution.remainder.tokens)} tok`}
+              {`${formatTokenCount(attribution.remainder.tokens)} token`}
             </span>
             <span className={styles.attributionBarTrack} aria-hidden="true">
               {attribution.remainder.tokens > 0 ? (
@@ -319,7 +319,9 @@ export function BillingWindowCard({
             {/* 消耗读数只由表盘中心承担：同一张 200px 宽的卡里再写一行
                 「本窗口消耗 N token」是第三次出现同一个数（Issue #339）。 */}
             <span className={styles.compactReading}>
-              <span className={styles.label}>窗口关闭</span>
+              {/* 关闭后这格不再是倒计时，而是状态事实——换一个标签，避免
+                  「距关闭 已关闭」这种自相矛盾的读数（Issue #348）。 */}
+              <span className={styles.label}>{closed ? "窗口状态" : "距关闭"}</span>
               <b className={styles.compactStatus}>
                 {closed ? "已关闭" : formatCountdown(closesIn)}
               </b>
@@ -357,7 +359,8 @@ export function BillingWindowCard({
           </span>
           <span className={styles.readout}>
             <span className={styles.labelRow}>
-              <span className={styles.label}>窗口关闭</span>
+              {/* 同上：关闭后值变成「已关闭」，标签跟着从倒计时换成状态。 */}
+              <span className={styles.label}>{closed ? "窗口状态" : "距关闭"}</span>
             </span>
             <b className={styles.value}>{formatCountdown(closesIn)}</b>
             <span className={styles.sub}>{formatClock(active.end)}</span>

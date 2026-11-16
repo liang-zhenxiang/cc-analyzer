@@ -386,7 +386,7 @@ function costliestMinute(events: readonly ReplayEvent[]): ReplayMark | null {
     kind: "costliest-minute",
     at,
     label: "最烧一分钟",
-    detail: `${formatTokenCount(bestSum)} tok · ${bestCount} 个事件`
+    detail: `${formatTokenCount(bestSum)} token · ${bestCount} 个事件`
   };
 }
 

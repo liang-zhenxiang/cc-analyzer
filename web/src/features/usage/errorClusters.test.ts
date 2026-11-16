@@ -75,6 +75,16 @@ describe("errorClusters · 归一化首行", () => {
     expect(normalized.length).toBe(FIRST_LINE_MAX_CHARS * 2);
   });
 
+  it("keeps the untruncated first line for the row title while the key stays ≤ 80 码点", () => {
+    const longLine = "严重失败：" + "x".repeat(120);
+    const clusters = buildErrorClusters([eventOf({ preview: `${longLine}\n  at stack` })]);
+
+    // 分组键 / 展示行仍是截断后的 80 码点（不劈开代理对）。
+    expect(Array.from(clusters[0].firstLine)).toHaveLength(FIRST_LINE_MAX_CHARS);
+    // 原文另存一份给 title/aria：CSS 省略号触发之前，title 已经是完整首行。
+    expect(clusters[0].firstLineFull).toBe(longLine);
+  });
+
   it("normalizes the same way for grouping and for display", () => {
     const clusters = buildErrorClusters([
       eventOf({ preview: "  ENOENT: /a/b  \nsecond line" }),

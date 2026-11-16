@@ -947,8 +947,8 @@ export function ReplayView({ parsed }: { parsed: ParsedSession }) {
             <Read label="工具" value={passed.tools} />
             <Read label="错误" value={passed.errors} />
             <Read label="压缩" value={passed.compactions} />
-            <Read label="prompt" value={tokensMissing ? "—" : formatTokenCount(passed.tokensPrompt)} />
-            <Read label="output" value={tokensMissing ? "—" : formatTokenCount(passed.tokensOutput)} />
+            <Read label="输入" value={tokensMissing ? "—" : formatTokenCount(passed.tokensPrompt)} />
+            <Read label="输出" value={tokensMissing ? "—" : formatTokenCount(passed.tokensOutput)} />
             {tokenNote ? <span className={styles.tokenNote}>{tokenNote}</span> : null}
             <Read label="成本" value={costText} warning={passed.costUnknownEvents > 0} />
             {costNote ? <span className={styles.costNote}>{costNote}</span> : null}

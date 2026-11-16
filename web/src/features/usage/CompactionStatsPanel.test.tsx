@@ -79,7 +79,7 @@ describe("CompactionStatsPanel", () => {
     const panel = screen.getByRole("region", { name: "压缩（上下文重置）" });
     expect(within(panel).getByText("压缩次数").nextElementSibling).toHaveTextContent("2");
     // 累计丢弃 = Σ(pre − post) = 156,200 + 146,600 = 302,800。
-    expect(panel.textContent).toContain("302,800 tok");
+    expect(panel.textContent).toContain("302,800 token");
     expect(panel.textContent).toContain("1 个");
     // 触发方式是文字 + 双项图例（自动 1 / 手动 1）。
     expect(screen.getByRole("img", { name: "压缩触发方式分布" })).toBeInTheDocument();

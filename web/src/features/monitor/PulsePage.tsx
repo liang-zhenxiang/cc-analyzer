@@ -342,7 +342,7 @@ function WindowReadouts({
       </div>
 
       <div className={styles.readout} data-probe="pulse-window-readout" data-readout="closes">
-        <span className={styles.readoutLabel}>窗口关闭</span>
+        <span className={styles.readoutLabel}>关闭时刻</span>
         <b className={styles.readoutValue}>{formatClock(block.end)}</b>
         <span className={styles.readoutSub}>
           {block.end > now ? `还剩 ${formatDuration(block.end - now)}` : "已关闭"}

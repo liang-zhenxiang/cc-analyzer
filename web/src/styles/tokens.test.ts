@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -109,6 +109,60 @@ test("--row-h 是派生式而不是写死的字面量", () => {
   const root = block(":root {");
   expect(root).toMatch(/--row-h:\s*calc\(var\(--row-pad-y\)\s*\*\s*2\s*\+\s*var\(--lh-sm\)\)/);
   expect(root).not.toMatch(/--row-h:\s*30px/);
+});
+
+/**
+ * 显示级字号（Issue #348）：Chronicle 的 48–56px 大数字是全篇唯一的显示级
+ * 字号，clamp 逻辑留在令牌值里；组件只许引用令牌，不许再写一条 clamp。
+ */
+test("--fs-display 令牌存在，且 clamp 逻辑留在令牌里", () => {
+  const root = block(":root {");
+  expect(root).toMatch(
+    /--fs-display:\s*clamp\(48px,\s*calc\(52px\s*\*\s*var\(--font-scale\)\),\s*56px\)/
+  );
+});
+
+/**
+ * 9px / 10px 不是可读档位（Issue #348）：所有组件 CSS 的字号字面量必须
+ * 收口到 --fs-xs。9px 在任何缩放档都低于可读下限，10px 与 11px 只差 1px
+ * 却多出一个没有语义的档位——两条并进同一档；11px 即使数值相同也要走令牌，
+ * 否则字号缩放与未来的档位调整会漏掉这几个字面量。
+ */
+function moduleCssFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return moduleCssFiles(full);
+    return entry.name.endsWith(".module.css") ? [full] : [];
+  });
+}
+
+test("组件 CSS 不出现 9px / 10px / 11px 字号字面量", () => {
+  const src = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const offenders = moduleCssFiles(src)
+    .filter((file) => /font-size:\s*(9|10|11)px/.test(readFileSync(file, "utf8")))
+    .map((file) => path.relative(src, file));
+  expect(offenders).toEqual([]);
+});
+
+test("导出的用量快照也不写 9px 上标（独立样式表，无令牌可借）", () => {
+  const snapshot = readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "../features/usage/usageSnapshot.ts"),
+    "utf8"
+  );
+  expect(snapshot).not.toMatch(/font-size:\s*9px/);
+});
+
+/** 顺带收口的两处字面量：Button 横向内距与查询栏圆角。 */
+test("Button 内距与 SessionQueryBar 圆角走 --sp-2 / --r-md 令牌", () => {
+  const src = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const strip = (file: string) =>
+    readFileSync(path.join(src, file), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const button = strip("components/Button.module.css");
+  expect(button).toMatch(/padding:\s*0\s+var\(--sp-2\)/);
+  expect(button).not.toMatch(/padding:\s*0\s+10px/);
+  const bar = strip("features/sessions/SessionQueryBar.module.css");
+  expect(bar).toMatch(/border-radius:\s*var\(--r-md\)/);
+  expect(bar).not.toMatch(/border-radius:\s*8px/);
 });
 
 /**

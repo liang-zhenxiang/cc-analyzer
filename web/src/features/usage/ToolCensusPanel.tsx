@@ -106,7 +106,7 @@ type Selection = { kind: "bucket" | "tail"; id: string; column: ColumnKind };
 
 const COLUMN_DEFS: { kind: ColumnKind; title: string; ariaLabel: string; emptyText: string }[] = [
   { kind: "builtin", title: "内置工具", ariaLabel: "内置工具调用排行", emptyText: "本区间没有内置工具调用" },
-  { kind: "skill", title: "skill", ariaLabel: "skill 调用排行", emptyText: "本区间没有 skill 调用" },
+  { kind: "skill", title: "Skill", ariaLabel: "Skill 调用排行", emptyText: "本区间没有 Skill 调用" },
   { kind: "subagent", title: "子 agent", ariaLabel: "子 agent 调用排行", emptyText: "本区间没有子 agent 调用" },
   { kind: "mcp", title: "MCP", ariaLabel: "MCP 服务器", emptyText: "本区间没有 MCP 调用" }
 ];
@@ -226,7 +226,7 @@ function buildColumns(census: ToolCensus): Column[] {
 }
 
 /**
- * 用量总览「工具与 skill」面板（N3，design-tool-census-view.md）：分层四栏——
+ * 用量总览「工具与 Skill」面板（N3，design-tool-census-view.md）：分层四栏——
  * 主榜（内置工具，唯一条形区）＋ skill / 子 agent 紧凑清单＋ MCP 一行事实。
  * 量级差三个数量级，版式呈现差异而不是抹平（design §0）；桶身份只由栏头
  * 文字承载，数据墨水单色 --chart-1，零新增令牌、不消费 danger。
@@ -297,8 +297,8 @@ export function ToolCensusPanel({
   return (
     <div data-tool-census>
       <Panel
-        title="工具与 skill"
-        ariaLabel="工具与 skill"
+        title="工具与 Skill"
+        ariaLabel="工具与 Skill"
         actions={
           <span className={styles.actions}>
             <SegmentedControl

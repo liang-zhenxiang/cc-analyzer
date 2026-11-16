@@ -114,13 +114,13 @@ describe("FlowDiagramPanel", () => {
       (link.getAttribute("data-flow-link") ?? "").startsWith("pm:")
     );
     expect(projectModel?.querySelector("title")?.textContent).toBe(
-      "cc-analyzer → Sonnet 4.5：550 tok"
+      "cc-analyzer → Sonnet 4.5：550 token"
     );
     const modelCategory = links.find((link) =>
       (link.getAttribute("data-flow-link") ?? "").startsWith("mc:")
     );
     expect(modelCategory?.querySelector("title")?.textContent).toBe(
-      "Sonnet 4.5 → 输入：100 tok"
+      "Sonnet 4.5 → 输入：100 token"
     );
     expect(container.querySelectorAll("[data-flow-node]")).toHaveLength(8);
   });

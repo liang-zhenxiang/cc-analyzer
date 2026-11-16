@@ -1193,7 +1193,7 @@ export function UsageOverviewPage({
               第一格固定为今天，其余为所选时间范围（近 {days} 天）。Tokens 总量、会话数、
               消息数读自本机日志；估算成本按定价快照（{PRICING_AS_OF}）折算，不是账单。
               {cost.hasUnknown
-                ? ` 部分会话未知价 · 约 ${formatTokenCount(cost.unknownTokens)} tok 未计入`
+                ? ` 部分会话未知价 · 约 ${formatTokenCount(cost.unknownTokens)} token 未计入`
                 : ""}{" "}
               <EquivalentsToggle tokens={range.kpi.tokens} />
             </p>

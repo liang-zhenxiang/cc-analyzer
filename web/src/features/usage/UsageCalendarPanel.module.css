@@ -360,7 +360,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 双数格的第二段（` · 1.3M tok`）：降一档，与主数同行基线对齐。 */
+/* 双数格的第二段（` · 1.3M token`）：降一档，与主数同行基线对齐。 */
 .summarySub {
   color: var(--text-tertiary);
   font-size: var(--fs-xs);
@@ -568,7 +568,7 @@
   white-space: nowrap;
 }
 
-/* 行读数是「$X · N tok · 占比」三合一：成本口径与占比分母都在脚注写着。 */
+/* 行读数是「$X · N token · 占比」三合一：成本口径与占比分母都在脚注写着。 */
 .rowRead {
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;

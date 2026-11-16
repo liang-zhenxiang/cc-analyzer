@@ -48,10 +48,9 @@
 }
 
 /* 大数字：全篇唯一的显示级字号。
-   令牌最高只到 --fs-lg（20px），年报 / 项目卡片的「大字」也在那一档；
-   故事需要一个明显更大的主角，所以这里显式写 48–56px。clamp 让它跟随
-   --font-scale 放大，但封顶 56px——130% 下数字连同单位仍能留在版心里，
-   不会把标题挤成两行。等宽数字让相邻章节的大数字在纵向扫读时对得上。 */
+   取值住在 tokens.css 的 --fs-display 里（clamp 48–56px，跟随 --font-scale
+   放大并封顶），这里只引用令牌。等宽数字让相邻章节的大数字在纵向扫读时
+   对得上。 */
 .stat {
   display: flex;
   margin: var(--sp-2) 0 0;
@@ -60,7 +59,7 @@
   column-gap: var(--sp-1);
   row-gap: var(--sp-05);
   color: var(--text);
-  font-size: clamp(48px, calc(52px * var(--font-scale)), 56px);
+  font-size: var(--fs-display);
   font-weight: 600;
   line-height: 1.05;
   font-variant-numeric: tabular-nums;

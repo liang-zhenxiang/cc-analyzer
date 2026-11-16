@@ -114,7 +114,7 @@ function compactRow(
   id: string,
   at: number,
   durationMs: number | null,
-  summary = "1,000 → 100 tok"
+  summary = "1,000 → 100 token"
 ): LogRow {
   const event: CompactEvent = {
     id,
@@ -327,7 +327,7 @@ describe("buildReplayFilm", () => {
 
     const mark = film.marks.find((candidate) => candidate.kind === "costliest-minute");
     expect(mark?.at).toBe(T0);
-    expect(mark?.detail).toBe("200 tok · 2 个事件");
+    expect(mark?.detail).toBe("200 token · 2 个事件");
   });
 
   it("prefers the earlier window when two windows tie", () => {
@@ -341,7 +341,7 @@ describe("buildReplayFilm", () => {
 
     const mark = film.marks.find((candidate) => candidate.kind === "costliest-minute");
     expect(mark?.at).toBe(T0);
-    expect(mark?.detail).toBe("100 tok · 1 个事件");
+    expect(mark?.detail).toBe("100 token · 1 个事件");
   });
 
   it("omits the costliest minute when no window has a positive token reading", () => {
@@ -430,7 +430,7 @@ describe("buildReplayFilm", () => {
       { at: T0 + 5_000, label: "压缩 #1" },
       { at: T0 + 15_000, label: "压缩 #2" }
     ]);
-    expect(compacts[0].detail).toBe("1,000 → 100 tok");
+    expect(compacts[0].detail).toBe("1,000 → 100 token");
   });
 
   it("marks the first failure once, even when later events fail too", () => {

@@ -43,10 +43,10 @@
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
-  border-radius: 8px;
+  border-radius: var(--r-md);
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
 }
 
@@ -84,7 +84,7 @@
 
 .label {
   color: var(--text-tertiary);
-  font-size: 10px;
+  font-size: var(--fs-xs);
   line-height: 14px;
 }
 
@@ -179,7 +179,7 @@
 
 .indexNote {
   color: var(--text-tertiary);
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
 }
 

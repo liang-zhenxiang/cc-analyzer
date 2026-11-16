@@ -84,6 +84,26 @@ describe("ErrorClustersPanel", () => {
     expect(tools).toEqual(["API", "Bash"]);
   });
 
+  it("marks a truncated first line with an ellipsis and keeps the full line in the title", () => {
+    const longLine = "严重失败：" + "x".repeat(120);
+    panelOf([eventOf({ preview: `${longLine}\n  at stack` })]);
+
+    const message = document.querySelector('[data-probe="cluster-message"]') as HTMLElement | null;
+    expect(message).not.toBeNull();
+    // 80 码点硬切之后补「…」，CSS 的 ellipsis 不再是唯一提示。
+    expect(Array.from(message!.textContent ?? "")).toHaveLength(81);
+    expect(message!.textContent?.endsWith("…")).toBe(true);
+    // 悬停读到的应是原始首行，而不是截断后的字符串。
+    expect(message!.getAttribute("title")).toBe(longLine);
+  });
+
+  it("does not add an ellipsis when the first line fits", () => {
+    panelOf([eventOf({ preview: "Exit code 1" })]);
+    const message = document.querySelector('[data-probe="cluster-message"]') as HTMLElement | null;
+    expect(message!.textContent).toBe("Exit code 1");
+    expect(message!.getAttribute("title")).toBe("Exit code 1");
+  });
+
   it("says so when the window has no errors", () => {
     panelOf([]);
     expect(screen.getByText("窗口内没有错误")).toBeInTheDocument();

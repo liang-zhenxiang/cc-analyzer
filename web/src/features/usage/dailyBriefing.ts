@@ -153,7 +153,7 @@ function anomalyItem(anomalies: readonly AnomalyDay[], now: number): Candidate |
     id: `anomaly-${newest.day.date}`,
     kind: "anomaly",
     headline: `${newest.day.date.slice(5)} 用量异常（${sign}${z.toFixed(1)}σ）`,
-    detail: `当日 ${formatTokenCount(newest.day.tokens)} tok`,
+    detail: `当日 ${formatTokenCount(newest.day.tokens)} token`,
     target: targetOf.anomaly
   };
 }
@@ -182,7 +182,7 @@ function swingItem(yesterdayTokens: number, prevTokens: number): Candidate | nul
       id: "spike",
       kind: "spike",
       headline: `用量陡增：环比 +${pct}%`,
-      detail: `昨日 ${formatTokenCount(yesterdayTokens)} tok，前日 ${formatTokenCount(prevTokens)} tok`,
+      detail: `昨日 ${formatTokenCount(yesterdayTokens)} token，前日 ${formatTokenCount(prevTokens)} token`,
       target: targetOf.spike
     };
   }
@@ -192,7 +192,7 @@ function swingItem(yesterdayTokens: number, prevTokens: number): Candidate | nul
       id: "drop",
       kind: "drop",
       headline: `用量陡降：环比 −${pct}%`,
-      detail: `昨日 ${formatTokenCount(yesterdayTokens)} tok，前日 ${formatTokenCount(prevTokens)} tok`,
+      detail: `昨日 ${formatTokenCount(yesterdayTokens)} token，前日 ${formatTokenCount(prevTokens)} token`,
       target: targetOf.drop
     };
   }

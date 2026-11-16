@@ -118,7 +118,7 @@ export function SessionComparePanel({ inputs }: { inputs: readonly UsageSessionI
         {ranked.map((entry, index) => (
           // 同一段会话不能自己比自己：对面的选项是不可选的。
           <option key={entry.input.session?.path ?? `${entry.input.projectLabel}-${index}`} value={index} disabled={index === (which === "a" ? safeB : safeA)}>
-            {sessionLabel(entry.input)} · {formatTokenCount(entry.tokens)} tok
+            {sessionLabel(entry.input)} · {formatTokenCount(entry.tokens)} token
           </option>
         ))}
       </select>

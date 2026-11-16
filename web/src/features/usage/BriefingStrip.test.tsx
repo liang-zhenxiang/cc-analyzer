@@ -54,7 +54,7 @@ describe("BriefingStrip", () => {
             id: "spike",
             kind: "spike",
             headline: "用量陡增：环比 +120%",
-            detail: "昨日 2.4M tok，前日 1.0M tok"
+            detail: "昨日 2.4M token，前日 1.0M token"
           })
         ]}
         onNavigate={vi.fn()}
@@ -63,7 +63,7 @@ describe("BriefingStrip", () => {
 
     const row = screen.getByRole("button");
     expect(row.textContent).toBe("昨日用量陡增：环比 +120%");
-    expect(row.getAttribute("title")).toBe("用量陡增：环比 +120%（昨日 2.4M tok，前日 1.0M tok）");
+    expect(row.getAttribute("title")).toBe("用量陡增：环比 +120%（昨日 2.4M token，前日 1.0M token）");
     // 只有一条时按 1 列排，不留两份空位。
     expect(screen.getByRole("region").getAttribute("data-count")).toBe("1");
   });

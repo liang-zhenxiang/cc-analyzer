@@ -216,8 +216,8 @@ describe("ReplayView — honest states", () => {
 
     expect(readText("成本")).toBe("成本 定价未知");
     expect(within(stageCard()).getByText("未收录该模型定价")).toBeInTheDocument();
-    expect(readText("prompt")).toBe("prompt 1,000");
-    expect(readText("output")).toBe("output 100");
+    expect(readText("输入")).toBe("输入 1,000");
+    expect(readText("输出")).toBe("输出 100");
   });
 });
 
@@ -226,7 +226,7 @@ describe("ReplayView — readings and the stage", () => {
     render(<ReplayView parsed={standardParsed()} />);
 
     expect(readText("消息")).toBe("消息 1");
-    expect(readText("prompt")).toBe("prompt —");
+    expect(readText("输入")).toBe("输入 —");
     expect(readText("成本")).toBe("成本 —");
     expect(
       within(stageCard()).getByText("本段没有可核对的上下文读数")
@@ -245,8 +245,8 @@ describe("ReplayView — readings and the stage", () => {
     expect(readText("工具")).toBe("工具 1");
     expect(readText("错误")).toBe("错误 1");
     expect(readText("压缩")).toBe("压缩 0");
-    expect(readText("prompt")).toBe("prompt 100,000");
-    expect(readText("output")).toBe("output 10,000");
+    expect(readText("输入")).toBe("输入 100,000");
+    expect(readText("输出")).toBe("输出 10,000");
     expect(readText("成本")).toBe("成本 $0.45");
     expect(within(stageCard()).getByText("100,000 / 峰值 100,000")).toBeInTheDocument();
   });
@@ -283,8 +283,8 @@ describe("ReplayView — readings and the stage", () => {
 
     expect(within(stageCard()).getByText("重放结束 · 共 4 条 · 墙钟 1m0s")).toBeInTheDocument();
     expect(readText("成本")).toBe("成本 $0.60");
-    expect(readText("prompt")).toBe("prompt 150,000");
-    expect(readText("output")).toBe("output 10,000");
+    expect(readText("输入")).toBe("输入 150,000");
+    expect(readText("输出")).toBe("输出 10,000");
     expect(lane()).toHaveAttribute("aria-valuenow", "100");
   });
 });

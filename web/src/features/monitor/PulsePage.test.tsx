@@ -279,6 +279,12 @@ describe("PulsePage 曲线与读数", () => {
       node.getAttribute("data-readout")
     );
     expect(keys).toEqual(["used", "closes", "avg-rate", "recent-rate", "prediction"]);
+
+    // 「closes」格给的是时钟时刻，不是倒计时：标签写「关闭时刻」（Issue #348）。
+    // 事实句「已关闭」在值或副行里，不随标签改名。
+    const closes = document.querySelector('[data-readout="closes"]')!;
+    expect(closes.textContent).toContain("关闭时刻");
+    expect(closes.textContent).not.toContain("窗口关闭");
   });
 
   it("参考带：0 次自动压缩 → 不画带，只留「样本不足」文案", () => {

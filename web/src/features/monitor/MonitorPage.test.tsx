@@ -15,15 +15,18 @@ function createBridges({
   ping = true,
   monitorPort = async () => port,
   pingMonitor = async () => ping,
-  enterFloatMode = async () => undefined
+  enterFloatMode = async () => undefined,
+  writeText = vi.fn(async () => undefined)
 }: {
   port?: number;
   ping?: boolean;
   monitorPort?: () => Promise<number>;
   pingMonitor?: () => Promise<boolean>;
   enterFloatMode?: () => Promise<void>;
+  writeText?: (text: string) => Promise<void>;
 } = {}): Bridges {
   return {
+    clipboard: { writeText },
     // 脉搏档会驱动 `usePulseFeed`（列会话 → 读文件）。这里给一份「一个会话都
     // 没有」的 fs：默认档的脉搏走空态，不会把测试拖进一堆异步状态更新。
     fs: {
@@ -187,6 +190,33 @@ describe("MonitorPage", () => {
     const box = screen.getByText("实时监控未打开").closest("div")!;
     expect(box.textContent).not.toContain("不在本仓库内");
     expect(box.textContent).not.toContain("夹具");
+  });
+
+  test("空态给可复制的连接地址（不是编出来的启动命令）", async () => {
+    const writeText = vi.fn(async () => undefined);
+    renderMonitor(createBridges({ port: 8090, writeText }));
+
+    // 应用只知道自己要连哪个地址——地址就写实际探测的那个端口。
+    const address = await screen.findByText("http://localhost:8090");
+    expect(address.tagName).toBe("CODE");
+    const box = screen.getByText("实时监控未打开").closest("div")!;
+    // 仓库里没有任何可运行的外部仪表盘实现，不能给一条会静默失败的假命令。
+    expect(box.textContent).not.toContain("http.server");
+    expect(box.textContent).not.toContain("npx");
+    expect(box.textContent).not.toContain("不在本仓库内");
+
+    await userEvent.click(screen.getByRole("button", { name: "复制地址" }));
+    expect(writeText).toHaveBeenCalledWith("http://localhost:8090");
+    expect(await screen.findByText("已复制地址")).toBeInTheDocument();
+  });
+
+  test("连接地址跟随 monitor_port，不在 UI 里写死 8090", async () => {
+    renderMonitor(createBridges({ port: 9123 }));
+
+    expect(await screen.findByText("http://localhost:9123")).toBeInTheDocument();
+    const box = screen.getByText("实时监控未打开").closest("div")!;
+    expect(box.textContent).toContain("本机 localhost:9123");
+    expect(box.textContent).not.toContain("8090");
   });
 
   test("embeds the dashboard once the user opens it", async () => {

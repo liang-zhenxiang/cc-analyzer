@@ -69,7 +69,7 @@ function cellLabelOf(cell: {
     const parts = [
       dateText,
       `估算成本 ${formatUsd(cell.costUsd)}`,
-      `${formatTokenCount(cell.tokens)} tok`,
+      `${formatTokenCount(cell.tokens)} token`,
       `${cell.sessions} 个会话`
     ];
     if (cell.topProject) {
@@ -80,7 +80,7 @@ function cellLabelOf(cell: {
   }
   // 有记录无成本（只有无 usage 的记录 / 全 unknown）：token 与会话数照报，
   // 不因为成本缺失装作没有活动。
-  return `${dateText} · ${formatTokenCount(cell.tokens)} tok · ${cell.sessions} 个会话 · 定价未知`;
+  return `${dateText} · ${formatTokenCount(cell.tokens)} token · ${cell.sessions} 个会话 · 定价未知`;
 }
 
 /** 展开区日期短标（头部与 aria-label 共用）：`10月12日`。 */
@@ -252,7 +252,7 @@ function DaySummaryRow({ summary }: { summary: DaySummary }) {
       )}，跨度 ${spanWords(summary.spanMs)}（不是有活动的小时数）`
     : "当天没有可统计的记录";
   const modelTitle = summary.topModel
-    ? `${summary.topModel.id} · ${formatTokenCount(summary.topModel.tokens)} tok`
+    ? `${summary.topModel.id} · ${formatTokenCount(summary.topModel.tokens)} token`
     : "当天没有可归因的模型用量";
 
   return (
@@ -267,7 +267,7 @@ function DaySummaryRow({ summary }: { summary: DaySummary }) {
             summary.hasUnknownCost ? "；部分会话未知价" : ""
           }`}
           value={costText}
-          sub={` · ${tokenText} tok`}
+          sub={` · ${tokenText} token`}
         />
         <SummaryItem
           itemKey="sessions"
@@ -735,7 +735,7 @@ export function UsageCalendarPanel({
                     const label = cellLabelOf(cell);
                     const spoken = anomaly ? `${label}，异常` : label;
                     const anomalyTitle = anomaly
-                      ? `该日 ${formatTokenCount(anomaly.tokens)} tok，相对前 7 天 z=${
+                      ? `该日 ${formatTokenCount(anomaly.tokens)} token，相对前 7 天 z=${
                           anomaly.z !== null && anomaly.z > 0 ? "+" : ""
                         }${anomaly.z === null ? "—" : anomaly.z.toFixed(1)}`
                       : null;
@@ -933,7 +933,7 @@ export function UsageCalendarPanel({
                           row.end
                         )} · 时长 ${formatDuration(row.durationMs)} · 当日消耗 ${formatUsd(
                           row.costUsd
-                        )} · ${formatTokenCount(row.tokens)} tok · 占当日 ${shareText}` +
+                        )} · ${formatTokenCount(row.tokens)} token · 占当日 ${shareText}` +
                         (row.crossDay ? " · 跨天" : "");
                       const label = canOpen ? `打开会话：${spoken}` : `${spoken} · 当前不可打开`;
                       // 行按起点升序（数据层已排）；这里是纯几何，分母是本地日长。
@@ -1020,7 +1020,7 @@ export function UsageCalendarPanel({
                             )}–${formatClock(row.end)}`}</span>
                             <span className={styles.rowRead}>{`${formatUsd(
                               row.costUsd
-                            )} · ${formatTokenCount(row.tokens)} tok · ${shareText}`}</span>
+                            )} · ${formatTokenCount(row.tokens)} token · ${shareText}`}</span>
                           </button>
                         </li>
                       );

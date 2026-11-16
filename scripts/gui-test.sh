@@ -2716,7 +2716,7 @@ for arg in sys.argv[1:]:
             # `<span>`，少了 `display: block` 时 width/height 全部失效——轨道还在、
             # 数值也对，只是**条永远是空的**（Round R 的 e2e 抓到的真缺陷；jsdom
             # 没有布局、只看溢出的判据也漏过它）。所以这里按「有消耗就必须有条」判。
-            elif index < len(tokens_text) and tokens_text[index] not in ("", "0 tok") and fill <= 0:
+            elif index < len(tokens_text) and tokens_text[index] not in ("", "0 token") and fill <= 0:
                 problems.append(
                     f"第 {index + 1} 行有消耗（{tokens_text[index]}）但占比条填充宽度为 0"
                     "——条没画出来（行内元素缺 display: block 就是这个症状）"

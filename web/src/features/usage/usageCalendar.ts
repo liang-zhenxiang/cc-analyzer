@@ -292,7 +292,7 @@ export type CalendarSessionRow = {
   /** 当天该会话 token（四类和）。 */
   tokens: number;
   /** 当天该会话估算成本（该会话当天记录按 (day, session, model) 折算）；
-      展开区行的「$X · N tok」双数读数来自这里。 */
+      展开区行的「$X · N token」双数读数来自这里。 */
   costUsd: number;
   /** 该会话当天存在 unknownModel 的 token（行读数末尾追加「· 部分未知」）。 */
   hasUnknownCost: boolean;

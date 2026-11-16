@@ -162,7 +162,7 @@ export function ContextView({
   }, [samples, anchors, events]);
 
   const chartAriaLabel = chart
-    ? `上下文压力：${samples.length} 条模型消息，峰值 ${chart.peakValue.toLocaleString("en-US")} tok，${
+    ? `上下文压力：${samples.length} 条模型消息，峰值 ${chart.peakValue.toLocaleString("en-US")} token，${
         events.length > 0 ? `${events.length} 次压缩` : "未发生压缩"
       }`
     : "上下文压力";
@@ -434,7 +434,7 @@ export function ContextView({
               ) : (
                 <>
                   <div className={styles.tooltipLine}>
-                    <strong>{tooltip.sample.contextTokens.toLocaleString("en-US")} tok</strong>
+                    <strong>{tooltip.sample.contextTokens.toLocaleString("en-US")} token</strong>
                     <span className={styles.tooltipTertiary}> 第 {tooltip.sampleIndex + 1} 条</span>
                   </div>
                   <div className={styles.tooltipLine}>{formatClock(tooltip.sample.timestamp, true)}</div>
@@ -456,7 +456,7 @@ export function ContextView({
                   tooltip.event.preTokens !== null && tooltip.event.postTokens !== null
                     ? (tooltip.event.preTokens - tooltip.event.postTokens).toLocaleString("en-US")
                     : "未知"
-                } tok`
+                } token`
               : ""}
           </span>
         </div>

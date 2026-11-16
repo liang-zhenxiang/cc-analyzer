@@ -433,7 +433,7 @@ describe("UsageOverviewPage", () => {
       expect(within(dashboard).getByText(/部分会话未知价/)).toBeInTheDocument()
     );
     // The known model is still priced; the unknown one's tokens are named.
-    expect(within(dashboard).getByText(/约 44,200 tok 未计入/)).toBeInTheDocument();
+    expect(within(dashboard).getByText(/约 44,200 token 未计入/)).toBeInTheDocument();
   });
 
   it("guides to the analyzer when there is nothing to scan", async () => {
@@ -684,7 +684,7 @@ describe("UsageOverviewPage", () => {
     );
     const [, contents] = writeText.mock.calls.find(([path]) => path.endsWith(".html"))!;
     // 同一条 readouts 既喂表盘也喂快照：文件里的读数必须与屏幕上逐字相同。
-    expect(contents).toContain(`<dt>本窗口消耗</dt><dd>${centerValue} tok</dd>`);
+    expect(contents).toContain(`<dt>本窗口消耗</dt><dd>${centerValue} token</dd>`);
   });
 
   it("页面只装一处计费读数：useBillingReadouts 只调用一次（结构性守卫）", () => {

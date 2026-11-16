@@ -74,7 +74,7 @@ test.describe("会话重放", () => {
 
     // 两枚跃点都是真实按钮，名字里带夹具算出来的具体读数。
     await expect(
-      film.getByRole("button", { name: "最烧一分钟 · 142 tok · 6 个事件", exact: true })
+      film.getByRole("button", { name: "最烧一分钟 · 142 token · 6 个事件", exact: true })
     ).toBeVisible();
     await expect(film.getByRole("button", { name: "最长停顿 · 50.0s", exact: true })).toBeVisible();
 
@@ -87,7 +87,7 @@ test.describe("会话重放", () => {
     const reads = page.locator("[data-probe='replay-reads']");
     const readsText = await reads.innerText();
     expect(readsText).toMatch(/消息\s+6\s+工具\s+2/);
-    expect(readsText).toMatch(/prompt\s+55\s+output\s+87/);
+    expect(readsText).toMatch(/输入\s+55\s+输出\s+87/);
     expect(readsText).toMatch(/成本\s+\$0\.00/);
   });
 

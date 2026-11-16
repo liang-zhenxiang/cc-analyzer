@@ -148,7 +148,7 @@ export function CompactionPanel({
                 <dt>本次丢弃</dt>
                 <dd>
                   {droppedThisTime !== null ? (
-                    `${droppedThisTime.toLocaleString("en-US")} tok`
+                    `${droppedThisTime.toLocaleString("en-US")} token`
                   ) : (
                     <MissingValue />
                   )}
@@ -158,7 +158,7 @@ export function CompactionPanel({
                 <dt>累计丢弃</dt>
                 <dd>
                   {selected.droppedTokens !== null
-                    ? `${selected.droppedTokens.toLocaleString("en-US")} tok`
+                    ? `${selected.droppedTokens.toLocaleString("en-US")} token`
                     : <MissingValue />}
                 </dd>
               </div>

@@ -51,7 +51,12 @@ export function ErrorClustersPanel({
           <ul className={styles.list}>
             {clusters.map((cluster) => {
               const times = timeRangeText(cluster);
-              const reading = `${cluster.toolName} · ${cluster.firstLine} · ${cluster.count} 次 · ${times}`;
+              // 展示行截断时补「…」：CSS 的 ellipsis 只在容器装不下时触发，
+              // 80 码点之后的原文在这里已经消失，必须自己给出信号。title /
+              // aria 用未截断的原文——悬停能读到完整首行（Issue #348）。
+              const truncated = cluster.firstLineFull !== cluster.firstLine;
+              const displayFirstLine = truncated ? `${cluster.firstLine}…` : cluster.firstLine;
+              const reading = `${cluster.toolName} · ${cluster.firstLineFull} · ${cluster.count} 次 · ${times}`;
               return (
                 <li key={cluster.key}>
                   <button
@@ -76,8 +81,12 @@ export function ErrorClustersPanel({
                       />
                       {cluster.toolName}
                     </span>
-                    <span className={styles.message} title={cluster.firstLine}>
-                      {cluster.firstLine}
+                    <span
+                      className={styles.message}
+                      data-probe="cluster-message"
+                      title={cluster.firstLineFull}
+                    >
+                      {displayFirstLine}
                     </span>
                     <span className={styles.count} data-probe="cluster-count">
                       {`${cluster.count} 次`}

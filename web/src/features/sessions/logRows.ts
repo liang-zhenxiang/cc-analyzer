@@ -380,12 +380,12 @@ export function buildGapRows(turns: Turn[]): LogRow[] {
   return rows;
 }
 
-/** The band row's one-line reading: `422,858 → 11,359 tok · 丢弃 411,499 · 37.5s`. */
+/** The band row's one-line reading: `422,858 → 11,359 token · 丢弃 411,499 · 37.5s`. */
 function compactRowSummary(event: CompactEvent): string {
   const parts: string[] = [];
   if (event.preTokens !== null && event.postTokens !== null) {
     parts.push(
-      `${event.preTokens.toLocaleString("en-US")} → ${event.postTokens.toLocaleString("en-US")} tok · 丢弃 ${(
+      `${event.preTokens.toLocaleString("en-US")} → ${event.postTokens.toLocaleString("en-US")} token · 丢弃 ${(
         event.preTokens - event.postTokens
       ).toLocaleString("en-US")}`
     );

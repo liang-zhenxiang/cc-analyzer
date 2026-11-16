@@ -144,7 +144,7 @@ export function DailyTrendChart({
                   left: `${((centreX(index) / BAR_WIDTH) * 100).toFixed(2)}%`,
                   top: `${((top / height) * 100).toFixed(2)}%`
                 }}
-                title={`该日 ${day.tokens.toLocaleString("en-US")} tok，相对前 7 天 z=${
+                title={`该日 ${day.tokens.toLocaleString("en-US")} token，相对前 7 天 z=${
                   day.z! > 0 ? "+" : ""
                 }${day.z!.toFixed(1)}`}
               />

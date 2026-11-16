@@ -235,7 +235,7 @@ export function FlowDiagramPanel({ diagram }: { diagram: FlowDiagram }) {
       labels.set(node.id, node.label);
     }
     const titleOf = (from: string, to: string, value: number) =>
-      `${labels.get(from) ?? from} → ${labels.get(to) ?? to}：${formatTokenCount(value)} tok`;
+      `${labels.get(from) ?? from} → ${labels.get(to) ?? to}：${formatTokenCount(value)} token`;
 
     const projectLinks: RibbonLink[] = diagram.projectToModel.flatMap((link: ProjectModelLink) => {
       const out = projectOut.get(link.id);
