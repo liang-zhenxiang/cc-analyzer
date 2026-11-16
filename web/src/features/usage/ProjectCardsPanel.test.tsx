@@ -91,6 +91,9 @@ describe("ProjectCardsPanel", () => {
     const alpha = within(cardOf("alpha"));
     expect(alpha.getByText("alpha")).toBeInTheDocument();
     expect(alpha.getByText("1.1M")).toBeInTheDocument();
+    // 单位与同屏其它读数的写法一致：完整写 token，不用缩写 tok（Issue #348）。
+    expect(alpha.getByText("token")).toBeInTheDocument();
+    expect(alpha.queryByText("tok")).toBeNull();
     expect(alpha.getByText("$4.50")).toBeInTheDocument();
     expect(alpha.getByText("1 个会话 · 2 条消息")).toBeInTheDocument();
     expect(alpha.getByText("最近活跃 7小时前")).toBeInTheDocument();
@@ -164,8 +167,8 @@ describe("ProjectCardsPanel", () => {
 });
 
 /**
- * G8 项目季节：卡内 6px 四段条 + 一句话。断言五件事——段数与 flex 比例
- * （0 份季不渲染段）、四段同一色阶、四季占比文字与空季补注、
+ * G8 项目季节：卡内 6px 四段条 + 一句话。断言五件事——四段等宽
+ * （0 份季用轨道占位）、有数据段同一色阶、四季占比文字与空季补注、
  * aria-label 全量读数、无 token 卡整块不渲染。
  */
 describe("ProjectCardsPanel 季节条（G8）", () => {
@@ -195,7 +198,7 @@ describe("ProjectCardsPanel 季节条（G8）", () => {
     ];
   }
 
-  it("渲染四段条与四季占比文字，0 份季不渲染段也不出假缝", () => {
+  it("渲染四段等宽条与四季占比文字：0 份季也占位，不退化成一条分隔线", () => {
     render(<ProjectCardsPanel inputs={seasonInputs()} days={400} now={NOW} />);
 
     const alpha = cardOf("alpha");
@@ -204,21 +207,22 @@ describe("ProjectCardsPanel 季节条（G8）", () => {
     expect(bar).toHaveAttribute("data-quarters", "4");
     expect(bar?.getAttribute("aria-hidden")).toBe("true");
 
-    // 段：Q1/Q2/Q4 在，Q3 不在（0 份季不渲染段——gap 缝按段数出）。
-    // 段定位用 data-q（CSS module 类名是构建期哈希，不拿类名当探针）。
+    // 四段永远都在（0 份季用 --bg-inset 轨道占位），段定位用 data-q。
     const segs = bar?.querySelectorAll("span[data-q]");
-    expect(segs).toHaveLength(3);
-    expect(segs?.[0]).toHaveAttribute("data-q", "1");
-    expect(segs?.[1]).toHaveAttribute("data-q", "2");
-    expect(segs?.[2]).toHaveAttribute("data-q", "4");
-    // 段宽 flex 比例：Q1 200/700、Q2 400/700、Q4 100/700 → 29/57/14。
-    expect(segs?.[0]).toHaveAttribute("style", "flex-grow: 29;");
-    expect(segs?.[1]).toHaveAttribute("style", "flex-grow: 57;");
-    expect(segs?.[2]).toHaveAttribute("style", "flex-grow: 14;");
+    expect(segs).toHaveLength(4);
+    for (const [index, seg] of [...segs!].entries()) {
+      expect(seg).toHaveAttribute("data-q", String(index + 1));
+    }
+    // 四段等宽：宽度交给 CSS 的 flex: 1，不再按占比写内联 flex-grow——
+    // 按占比写会让 0 份季宽度归零，整条退化成一条与分隔线混淆的横线。
+    for (const seg of segs!) expect(seg).not.toHaveAttribute("style");
 
-    // 四段同一色阶：季度是时间序号，不是类别（评审 P1-4）。CSS module
-    // 类名是构建期哈希，断言三段用同一个类即「没有按 Q 换色」。
-    expect(new Set([...segs!].map((seg) => seg.className)).size).toBe(1);
+    // 0 份季用轨道类（--bg-inset），其余三季上色。CSS module 类名是构建期
+    // 哈希，所以按 data-empty 断言语义，再断言有数据的段共用同一个类。
+    expect(segs?.[2]).toHaveAttribute("data-empty", "true");
+    const filled = [...segs!].filter((seg) => !seg.hasAttribute("data-empty"));
+    expect(filled.map((seg) => seg.getAttribute("data-q"))).toEqual(["1", "2", "4"]);
+    expect(new Set(filled.map((seg) => seg.className)).size).toBe(1);
 
     // 文字：四季占比全量可见，不只最重季；空季写「无记录」。
     expect(
@@ -254,8 +258,11 @@ describe("ProjectCardsPanel 季节条（G8）", () => {
 
     const beta = cardOf("beta");
     const segs = beta.querySelectorAll("span[data-q]");
-    expect(segs).toHaveLength(1);
+    // 单季 100% 也是完整四段：只有 Q1 上色，其余三季以轨道占位。
+    expect(segs).toHaveLength(4);
     expect(segs[0]).toHaveAttribute("data-q", "1");
+    expect(segs[0]).not.toHaveAttribute("data-empty");
+    expect([...segs].slice(1).every((seg) => seg.hasAttribute("data-empty"))).toBe(true);
     // 单季 100%：Q2/Q3/Q4 全空 → 空季补注照样写明（诚实读数）。
     expect(
       within(beta).getByText("Q1 100% · Q2 无记录 · Q3 无记录 · Q4 无记录")

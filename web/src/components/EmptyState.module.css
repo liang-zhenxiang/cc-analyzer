@@ -34,6 +34,9 @@
 }
 
 .page p {
+  /* 70 字在 1440 宽的屏上会拉成一条 720px 的长行，读起来要来回摆头。
+     560px 大约是中文正文 40 字一行，与下面的按钮宽度也协调。 */
+  max-width: 560px;
   font-size: var(--fs-base);
   line-height: var(--lh-base);
 }
@@ -139,8 +142,11 @@
 
 /* todo：整行最弱——还没轮到的不说话。 */
 .step-todo .stepMark {
-  border-style: dashed;
-  opacity: 0.7;
+  /* dashed + 0.7 opacity 在深色下几乎看不见：虚线本来就碎，再叠一层透明
+     只剩噪点。改成与 done 同档的实线，用 --border-strong 承担「还没轮到」
+     的弱化——弱化不等于隐形。 */
+  border-color: var(--border-strong);
+  border-style: solid;
 }
 
 .step-todo .stepTitle {

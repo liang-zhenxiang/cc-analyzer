@@ -87,7 +87,7 @@ test.describe("会话重放", () => {
     const reads = page.locator("[data-probe='replay-reads']");
     const readsText = await reads.innerText();
     expect(readsText).toMatch(/消息\s+6\s+工具\s+2/);
-    expect(readsText).toMatch(/prompt\s+55\s+output\s+87/);
+    expect(readsText).toMatch(/输入\s+55\s+输出\s+87/);
     expect(readsText).toMatch(/成本\s+\$0\.00/);
   });
 

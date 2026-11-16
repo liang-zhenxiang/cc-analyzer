@@ -122,7 +122,7 @@
   --focus-ring-offset: 1px;
   --focus-ring-inset: -2px;
 
-  /* 字号：4 级 + 1 保留级。任何 font-size 必须与同级的 line-height 成对出现，
+  /* 字号：4 级 + 1 显示级 + 1 保留级。任何 font-size 必须与同级的 line-height 成对出现，
      不得依赖 body 上的全局 line-height。
      **字号与行高必须成对乘同一个 `--font-scale`**：只缩字号会让行盒装不下降部
      （130% 下 --lh-xs 会小于 --fs-base），密集表格的行会被裁、行间粘连。
@@ -138,6 +138,10 @@
   --lh-md: calc(22px * var(--font-scale));
   --fs-lg: calc(20px * var(--font-scale));
   --lh-lg: calc(28px * var(--font-scale));
+  /* 显示级：全篇唯一的大数字（Chronicle 的开篇读数）。clamp 留在令牌值里，
+     组件只引用令牌、不各自再写一条 clamp；130% 下封顶 56px，数字连同单位
+     仍留在版心内。 */
+  --fs-display: clamp(48px, calc(52px * var(--font-scale)), 56px);
 
   --sp-05: 2px;
   --sp-1: 4px;

@@ -152,7 +152,7 @@ export function ProjectCardsPanel({
                 <Sparkline values={card.sparkline} />
                 <span className={styles.headline}>
                   <span className={styles.tokens}>{formatTokenCount(card.tokens)}</span>
-                  <span className={styles.unit}>tok</span>
+                  <span className={styles.unit}>token</span>
                   <span className={card.usd === null ? styles.unknownCost : styles.cost}>
                     {costText}
                   </span>
@@ -163,21 +163,21 @@ export function ProjectCardsPanel({
                 <span className={styles.meta}>最近活跃 {activeText}</span>
                 {season ? (
                   <>
-                    {/* 段宽走 flex 比例（flex:32 → 32/100）；某季 0 时不渲染该段：
-                        gap 缝是按段数出的，0 宽段会多出一条假缝（design §G8）。
+                    {/* 四段等宽、0 份季也占位（Issue #348）：早先按 share 写
+                        flex-grow、0 份季不渲染，单季项目整条只剩一条 1px 横线，
+                        与卡片分隔线分不清。现在 0 份季用 --bg-inset 轨道占位，
+                        占比仍由下方文字给全量读数。
                         四段同色（评审 P1-4）：季度是时间序号，不是类别，图表
                         分类色板严禁借给日期维度；顺序由位置和文字承载。 */}
                     <span className={styles.season} data-probe="card-season" data-quarters="4" aria-hidden="true">
-                      {season.shares.map((share, i) =>
-                        share > 0 ? (
-                          <span
-                            key={i}
-                            className={styles.seg}
-                            data-q={i + 1}
-                            style={{ flexGrow: Math.round(share * 100) }}
-                          />
-                        ) : null
-                      )}
+                      {season.shares.map((share, i) => (
+                        <span
+                          key={i}
+                          className={share > 0 ? styles.seg : styles.segEmpty}
+                          data-q={i + 1}
+                          data-empty={share > 0 ? undefined : "true"}
+                        />
+                      ))}
                     </span>
                     <span className={styles.seasonText} data-probe="card-season-text">
                       {seasonText(season.shares)}

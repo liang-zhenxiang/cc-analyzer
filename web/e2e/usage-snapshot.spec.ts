@@ -27,7 +27,7 @@ const EXPORT_BUTTON = "导出用量快照（单文件 HTML）";
  * Round CC / #263 再补「周战报、Token 流向、项目卡片」）
  * ——写死在这里，改动必须显式，且与 usageSnapshot.ts 的 SNAPSHOT_SCOPE_NOTE 只有一个原文。 */
 const SCOPE_NOTE =
-  "本快照包含用量总览的读数与图表；不含消耗日历、工具与 skill 普查、压缩统计、错误档，也不含周战报、Token 流向与项目卡片。";
+  "本快照包含用量总览的读数与图表；不含消耗日历、工具与 Skill 普查、压缩统计、错误档，也不含周战报、Token 流向与项目卡片。";
 const EMPTY_TITLE = "所选区间内没有会话记录";
 
 function writtenFiles(page: Page) {

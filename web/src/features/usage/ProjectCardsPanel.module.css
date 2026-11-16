@@ -132,7 +132,7 @@
 /* G8 季节条（Round GG）：6px 四段堆叠，段间 1px 缝由 gap 出（背景缝来自
    卡片自身的透明底——缝即「什么都没画」）。-soft 填充 + 1px 实色描边：
    Round Z 实测 -soft 单独填充在深色/高对比度下 <3:1，描边是对比度的载体。
-   段宽走 flex 比例（flexGrow = round(share×100)），0 份的季不渲染段。
+   四段等宽；0 份的季用 --bg-inset 轨道占位（Issue #348）。
 
    四段同一色（评审 P1-4）：季度是日期/时间序号，不是类别，图表分类色板
    严禁借给日期维度；顺序由「从左到右 Q1–Q4」与下方文字承载，颜色只负责
@@ -145,10 +145,24 @@
   border-radius: 1px;
 }
 
+/* 四段等宽（Issue #348）：宽度不再按占比分配。0 份季若宽度归零，单季项目
+   整条只剩一条 1px 横线，与卡片分隔线分不清。占比由下方文字全量给出。 */
+.seg,
+.segEmpty {
+  flex: 1 1 0;
+  border-radius: 1px;
+}
+
 .seg {
   border: 1px solid var(--chart-1);
-  border-radius: 1px;
   background: var(--chart-1-soft);
+}
+
+/* 0 份季：--bg-inset 是凹槽（轨道），--border 的发丝边让它在自己那一格里
+   仍然可辨；不抢有数据段的颜色。 */
+.segEmpty {
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
 }
 
 /* 季节读数：四季占比一次写全（评审 P1-4）。允许折行——240px 卡宽放不下

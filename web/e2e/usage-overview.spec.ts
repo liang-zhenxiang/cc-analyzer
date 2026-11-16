@@ -178,7 +178,7 @@ test.describe("用量总览", () => {
     for (const title of [
       "按模型分布",
       "活跃时段（周 × 小时）",
-      "工具与 skill",
+      "工具与 Skill",
       "消耗日历（近 12 个月）",
       "Token 流向",
       "周战报"

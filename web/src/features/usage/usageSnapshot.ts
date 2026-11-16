@@ -87,7 +87,7 @@ export const SNAPSHOT_TITLE = "用量总览";
  * 一个原文。
  */
 export const SNAPSHOT_SCOPE_NOTE =
-  "本快照包含用量总览的读数与图表；不含消耗日历、工具与 skill 普查、压缩统计、错误档，也不含周战报、Token 流向与项目卡片。";
+  "本快照包含用量总览的读数与图表；不含消耗日历、工具与 Skill 普查、压缩统计、错误档，也不含周战报、Token 流向与项目卡片。";
 
 /** 空态标题与正文（设计规格 §6.2）。`{days}` 由 `snapshotEmptyText` 填。 */
 export const SNAPSHOT_EMPTY_TITLE = "所选区间内没有会话记录";
@@ -155,7 +155,7 @@ const SNAPSHOT_BEFORE_READOUTS = `.coverage {
 `;
 
 /** 读数带条目之后：上标、出处说明与区块外壳。 */
-const SNAPSHOT_BEFORE_HEADING = `.readout sup { font-size: 9px; line-height: 12px; }
+const SNAPSHOT_BEFORE_HEADING = `.readout sup { font-size: 11px; line-height: 16px; }
 .readouts-note { margin: 8px 0 0; color: var(--text-tertiary); font-size: 11px; line-height: 16px; }
 .block { margin-top: 32px; }
 `;

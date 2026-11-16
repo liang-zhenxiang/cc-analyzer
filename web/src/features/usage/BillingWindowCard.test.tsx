@@ -92,6 +92,9 @@ describe("BillingWindowCard", () => {
     expect(card.textContent).not.toContain("20,000 token");
     expect(within(card).getByText("3 时 0 分")).toBeInTheDocument();
     expect(within(card).getByText("09:00")).toBeInTheDocument();
+    // 这是剩余时间，不是一天中的时刻：标签写「距关闭」（Issue #348）。
+    expect(within(card).getByText("距关闭")).toBeInTheDocument();
+    expect(within(card).queryByText("窗口关闭")).toBeNull();
     expect(within(card).getByRole("button", { name: "去设置计划" })).toBeInTheDocument();
     // 没有分母就没有「消耗速度 / 预计到达限额」这两格，正是省下来的高度。
     expect(within(card).queryByText("消耗速度")).toBeNull();
@@ -122,6 +125,9 @@ describe("BillingWindowCard", () => {
     expect(card.querySelector('[data-probe="billing-compact"]')).toBeNull();
     expect(within(card).getByText("消耗速度")).toBeInTheDocument();
     expect(within(card).getByText("预计到达限额")).toBeInTheDocument();
+    // 完整档的同一格也是倒计时；事实句「窗口已关闭」另在他处，不在此列。
+    expect(within(card).getByText("距关闭")).toBeInTheDocument();
+    expect(within(card).queryByText("窗口关闭", { exact: true })).toBeNull();
   });
 
   it("选了计划：仪表读出限额百分比的可访问名与估算口径说明", () => {
@@ -659,6 +665,9 @@ describe("BillingWindowCard · 已关闭窗口不再预测", () => {
     expect(note.textContent).toBe("本窗口已关闭");
     // 「预计到达限额」那格收口成状态词，不再给未来时刻，也不挂外推徽章。
     const cardWithin = within(card);
+    // 倒计时格同样换成状态标签；值仍是「已关闭」。
+    expect(cardWithin.getByText("窗口状态")).toBeInTheDocument();
+    expect(cardWithin.queryByText("距关闭")).toBeNull();
     expect(cardWithin.getByText("窗口已关闭")).toBeInTheDocument();
     expect(cardWithin.queryByText(/^\d{2}-\d{2} \d{2}:\d{2}$/)).toBeNull();
     expect(cardWithin.queryByLabelText(/线性外推/)).toBeNull();
@@ -680,6 +689,9 @@ describe("BillingWindowCard · 已关闭窗口不再预测", () => {
     const card = screen.getByLabelText("计费窗口");
 
     expect(card.querySelector('[data-probe="billing-compact"]')).not.toBeNull();
+    // 关闭后不再是倒计时：标签换成状态，避免「距关闭 已关闭」。
+    expect(within(card).getByText("窗口状态")).toBeInTheDocument();
+    expect(within(card).queryByText("距关闭")).toBeNull();
     const note = document.querySelector<HTMLElement>('[data-probe="closed-window-note"]')!;
     expect(note.textContent).toBe("本窗口已关闭");
     // 表盘中心一次 + 任何读数行都不该再写 token 数。

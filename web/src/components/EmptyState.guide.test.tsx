@@ -73,6 +73,29 @@ describe("EmptyState · H10 三步引导", () => {
     expect(document.querySelector('[data-probe="empty-steps"]')).toBeNull();
   });
 
+  it("page 档正文限制行宽：70 字在 1440 下不再横贯一整行（Issue #348）", () => {
+    const css = readFileSync(
+      resolve(process.cwd(), "src/components/EmptyState.module.css"),
+      "utf8"
+    ).replace(/\/\*[\s\S]*?\*\//g, "");
+    const rule = /\.page p\s*\{([^}]*)\}/.exec(css);
+    expect(rule).not.toBeNull();
+    expect(rule![1]).toMatch(/max-width:\s*560px/);
+  });
+
+  it("todo 圆点在深色下可见：--border-strong 实线，不靠 opacity 弱化", () => {
+    const css = readFileSync(
+      resolve(process.cwd(), "src/components/EmptyState.module.css"),
+      "utf8"
+    ).replace(/\/\*[\s\S]*?\*\//g, "");
+    const rule = /\.step-todo \.stepMark\s*\{([^}]*)\}/.exec(css);
+    expect(rule).not.toBeNull();
+    expect(rule![1]).toMatch(/border-color:\s*var\(--border-strong\)/);
+    expect(rule![1]).toMatch(/border-style:\s*solid/);
+    expect(rule![1]).not.toMatch(/opacity/);
+    expect(rule![1]).not.toMatch(/dashed/);
+  });
+
   it("inline 档是要读的提示：用 --text-tertiary，不用 2.6:1 的 --text-faint（Issue #339）", () => {
     const { container } = render(<EmptyState size="inline" title="没有数据" />);
     expect(container.querySelector("p")?.className).toContain("inline");

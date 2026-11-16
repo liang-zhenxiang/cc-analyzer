@@ -319,7 +319,9 @@ export function BillingWindowCard({
             {/* 消耗读数只由表盘中心承担：同一张 200px 宽的卡里再写一行
                 「本窗口消耗 N token」是第三次出现同一个数（Issue #339）。 */}
             <span className={styles.compactReading}>
-              <span className={styles.label}>窗口关闭</span>
+              {/* 关闭后这格不再是倒计时，而是状态事实——换一个标签，避免
+                  「距关闭 已关闭」这种自相矛盾的读数（Issue #348）。 */}
+              <span className={styles.label}>{closed ? "窗口状态" : "距关闭"}</span>
               <b className={styles.compactStatus}>
                 {closed ? "已关闭" : formatCountdown(closesIn)}
               </b>
@@ -357,7 +359,8 @@ export function BillingWindowCard({
           </span>
           <span className={styles.readout}>
             <span className={styles.labelRow}>
-              <span className={styles.label}>窗口关闭</span>
+              {/* 同上：关闭后值变成「已关闭」，标签跟着从倒计时换成状态。 */}
+              <span className={styles.label}>{closed ? "窗口状态" : "距关闭"}</span>
             </span>
             <b className={styles.value}>{formatCountdown(closesIn)}</b>
             <span className={styles.sub}>{formatClock(active.end)}</span>

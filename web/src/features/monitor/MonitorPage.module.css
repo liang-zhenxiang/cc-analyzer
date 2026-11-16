@@ -42,6 +42,40 @@
   background: var(--bg-subtle);
 }
 
+/* 空态里唯一可执行的东西：连接地址 + 复制。地址用等宽字，和工具栏里
+   连上后的 `.target` 同一套读法；复制结果留一行固定高度，出现时不跳版。 */
+.emptyActions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.emptyAddress {
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.emptyButtons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
+}
+
+.copyStatus {
+  min-height: var(--lh-xs);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
 .target {
   color: var(--text-tertiary);
   font-family: var(--font-mono);

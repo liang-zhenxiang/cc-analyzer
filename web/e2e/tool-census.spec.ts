@@ -1,7 +1,7 @@
 import { test, expect, toolCensusScenario, errorScenario, recentActivityScenario } from "./fixtures";
 
 /**
- * 「工具与 skill」面板的端到端（N3）：夹具注入后四栏数字与夹具一致、
+ * 「工具与 Skill」面板的端到端（N3）：夹具注入后四栏数字与夹具一致、
  * 双口径读数（行单列含子 agent + title 主链对照）、点行下钻会话列表、
  * 点会话跳回会话分析、折尾行可下钻、桶空态与全空态。
  *
@@ -17,13 +17,13 @@ async function openUsageView(page: import("@playwright/test").Page) {
   await page.goto("/");
   await page.getByRole("tab", { name: DASHBOARD }).click();
   await expect(page.getByText(/纳入统计/)).toBeVisible({ timeout: 15_000 });
-  const panel = page.getByRole("region", { name: "工具与 skill" });
+  const panel = page.getByRole("region", { name: "工具与 Skill" });
   await expect(panel).toBeVisible();
   await expect(page.locator("[data-tool-census]")).toBeVisible();
   return panel;
 }
 
-test.describe("工具与 skill 面板", () => {
+test.describe("工具与 Skill 面板", () => {
   test.use({ scenario: toolCensusScenario() });
 
   test("四栏数字与夹具一致，双口径读数与口径脚注都在场", async ({ page }) => {
@@ -50,7 +50,7 @@ test.describe("工具与 skill 面板", () => {
     await expect(tail).toContainText("—");
 
     // skill 名整串保留（命名空间形态不拆）；sidechain-only 的 maintain-loop 也在。
-    const skillList = panel.getByRole("list", { name: "skill 调用排行" });
+    const skillList = panel.getByRole("list", { name: "Skill 调用排行" });
     await expect(skillList.getByRole("button", { name: /git-commit/ })).toBeVisible();
     await expect(skillList.getByRole("button", { name: /trellis:finish-work/ })).toBeVisible();
     await expect(skillList.getByRole("button", { name: /maintain-loop/ })).toBeVisible();
@@ -109,7 +109,7 @@ test.describe("工具与 skill 面板", () => {
   });
 });
 
-test.describe("工具与 skill 面板 · 桶空态", () => {
+test.describe("工具与 Skill 面板 · 桶空态", () => {
   // errorScenario 窗内只有 error-session 有工具调用（Bash/Read/Edit/
   // AskUserQuestion 全是内置桶成员）——skill / 子 agent / MCP 三栏恰好为空。
   test.use({ scenario: errorScenario() });
@@ -121,16 +121,16 @@ test.describe("工具与 skill 面板 · 桶空态", () => {
     await expect(panel.getByText("4 类 · 7 次")).toBeVisible();
     await expect(panel.getByRole("button", { name: /AskUserQuestion/ })).toBeVisible();
 
-    await expect(panel.getByText("本区间没有 skill 调用")).toBeVisible();
+    await expect(panel.getByText("本区间没有 Skill 调用")).toBeVisible();
     await expect(panel.getByText("本区间没有子 agent 调用")).toBeVisible();
     await expect(panel.getByText("本区间没有 MCP 调用")).toBeVisible();
     // 栏保留：空桶的列表 landmark 不渲染，栏头仍在（版式不跳）。
-    await expect(panel.getByText("skill", { exact: true })).toBeVisible();
-    await expect(panel.getByRole("list", { name: "skill 调用排行" })).toHaveCount(0);
+    await expect(panel.getByText("Skill", { exact: true })).toBeVisible();
+    await expect(panel.getByRole("list", { name: "Skill 调用排行" })).toHaveCount(0);
   });
 });
 
-test.describe("工具与 skill 面板 · 全空态", () => {
+test.describe("工具与 Skill 面板 · 全空态", () => {
   // recentActivityScenario 窗内只有两个 usage 夹具——都没有 tool_use：
   // 全空态要的是「有会话、零工具调用」，不是「没有数据」。
   test.use({ scenario: recentActivityScenario() });

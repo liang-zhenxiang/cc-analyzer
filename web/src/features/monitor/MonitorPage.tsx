@@ -98,9 +98,10 @@ function delay(ms: number) {
 }
 
 function ExternalDashboard({ onEnterFloat }: { onEnterFloat?: () => void } = {}) {
-  const { monitor } = useBridges();
+  const { monitor, clipboard } = useBridges();
   const { theme } = useTheme();
   const [state, setState] = useState<MonitorState>({ status: "closed" });
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const frameRef = useRef<HTMLIFrameElement>(null);
   const probeIdRef = useRef(0);
   const port = state.status === "ready" ? state.port : null;
@@ -182,19 +183,45 @@ function ExternalDashboard({ onEnterFloat }: { onEnterFloat?: () => void } = {})
 
   if (state.status === "closed") {
     // 「该服务不在本仓库内」是写给维护者的话，用户读到「需要另行启动」就结束了。
-    // 这里给的是两样可执行的东西：它监听哪个地址、以及要做什么。
-    // 读不到端口（或读回一个非正数）就只说「本机 localhost」——不许编一个端口号出来。
+    // 这里给的是唯一一件应用真正知道、用户真正可用的事：连接地址。
+    // 服务不在本仓库内，也没有任何可复制的启动命令——编一条静态服务器命令
+    // 只会让 monitor_ping 的 TCP 探测「成功」，把一个没有数据的目录列表当成
+    // 仪表盘内嵌进来（Issue #348 的审计结论）。读不到端口（或读回一个非正数）
+    // 就只说 `http://localhost`——不许编一个端口号出来。
     const target =
       knownPort !== null && knownPort > 0 ? `本机 localhost:${knownPort}` : "本机 localhost";
+    const address =
+      knownPort !== null && knownPort > 0 ? `http://localhost:${knownPort}` : "http://localhost";
     return (
       <EmptyState
         size="page"
         title="实时监控未打开"
-        description={`监控仪表盘是一个需在本机单独运行的 Prometheus 兼容服务，应用会连接 ${target}。先在你的终端里把它启动起来，再点「打开监控」。`}
+        description={`监控仪表盘是一个需在本机单独运行的 Prometheus 兼容服务，应用会连接 ${target}。启动方式由你使用的仪表盘文档决定；启动后点「打开监控」。`}
         action={
-          <Button type="button" variant="primary" onClick={() => void probe()}>
-            打开监控
-          </Button>
+          <div className={styles.emptyActions}>
+            <code className={styles.emptyAddress}>{address}</code>
+            <div className={styles.emptyButtons}>
+              <Button
+                type="button"
+                onClick={() => {
+                  void clipboard.writeText(address).then(
+                    () => setCopyState("copied"),
+                    () => setCopyState("failed")
+                  );
+                }}
+              >
+                复制地址
+              </Button>
+              <Button type="button" variant="primary" onClick={() => void probe()}>
+                打开监控
+              </Button>
+            </div>
+            {copyState === "idle" ? null : (
+              <span role="status" className={styles.copyStatus}>
+                {copyState === "copied" ? "已复制地址" : "复制地址失败"}
+              </span>
+            )}
+          </div>
         }
       />
     );
