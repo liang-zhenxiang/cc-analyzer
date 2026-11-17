@@ -581,7 +581,7 @@ install_fixture "${FIXTURE_SRC}/error-session.jsonl" "-repo-error-demo" "error-s
 #    「近 7 天」窗口，它那条 is_error 的 Edit 就成了错误档的第 8 条。
 #    （两个方向都是真机门禁抓到过的；13 天 > 窗口 7 天 + 舍入余量。）
 install_fixture "${FIXTURE_SRC}/changed-files-session.jsonl" "-repo-changed-demo" "changed-files-session"
-# 工具统计夹具（Round N / N3）：「工具与 skill」面板的门禁步骤靠它——主链 13 次
+# 工具统计夹具（Round N / N3）：「工具与 Skill」面板的门禁步骤靠它——主链 13 次
 # tool_use（Skill 裸名 + ns:name、MCP 3 段名 + 2 段防御名、Agent 带
 # totalToolUseCount）+ sidechain 2 次。与 web/e2e 的 toolCensusScenario 共用
 # 同一份 tests/fixtures/tool-census-session.jsonl。最新时间戳（10-03 12:00:14Z）
@@ -1152,7 +1152,7 @@ else
   # 点选目标写 `… button` 后缀：data-changes-file 挂在 li 上（行高账由 li 承载），
   # 而 toggle 的 click 在行按钮上——点 li 不会触发 React 的 onClick。
   #
-  # 工具普查点选（Round N / N3）插在「滚动=main」之后：滚到底让「工具与 skill」
+  # 工具普查点选（Round N / N3）插在「滚动=main」之后：滚到底让「工具与 Skill」
   # 面板进视口，`点选=` 榜首行（data-tool-census-row，挂行按钮上）打开下钻区
   # （下钻在场、会话行是真列表的账目在这一步判定）。榜首恒为 Bash（夹具账见
   # install_fixture 处的注释），可访问名带动态数字，按稳定属性点。下钻不切
@@ -1506,7 +1506,14 @@ BUNDLE_CANCEL_LABEL = "取消"
 # 界面字号走，不写死像素（130% 档也要对账）。
 ATTRIBUTION_CLICK_LABEL = "点选=[data-probe='attribution-row']"
 ATTRIBUTION_TOP = 5
-ATTRIBUTION_FOOTNOTE = "占比分母 = 本窗口总消耗（与表盘中心同一个数）。"
+# 分母口径的完整原文（Issue #354 起不再单独占一行屏幕文字，挂在归因列表的
+# `aria-label` / `title` 上）。断言要求这段原文逐字出现在两个可访问通道里：
+# 屏幕上看不到它，但屏幕阅读器与鼠标悬停仍必须拿得到——这正是要守住的东西。
+ATTRIBUTION_FOOTNOTE = (
+    "占比分母 = 本窗口总消耗（与表盘中心同一个数）。"
+    "精确占比之和恒为 100%；行内按 0.1% 四舍五入显示，"
+    "合计可能与 100% 相差 0.1 到 0.3 个百分点。"
+)
 # 高对比度档（Round U / #73）：`对比度=高` / `对比度=普通` 两个动作目标。
 # 事实来自根元素 `data-contrast`（普通档必须**没有**这个属性，不是留着 "normal"）。
 CONTRAST_HIGH_LABEL = "对比度=高"
@@ -1544,12 +1551,13 @@ ERROR_EVENT_COUNT = 7
 CHANGES_TAB_LABEL = "改动"
 CHANGES_FILE_COUNT = 3
 CHANGES_RECORD_COUNT = 7
-# 工具与 skill 面板（Round N / N3）。夹具账（任意区间档 7/30/90 都成立）：
+# 工具与 Skill 面板（Round N / N3）。Issue #348 起面板标题统一大写 Skill。
+# 夹具账（任意区间档 7/30/90 都成立）：
 # 窗内工具调用来自 tool-census-session 与 error-session（changed-files 只在
 # 30/90 天档入窗，且其 Edit/Read/Write 与前两者重类不重名）——内置工具恒
 # 8 类 → 主榜 7 行（Top-6 + 折尾），榜首恒为 Bash（并列 7 次时按名字稳定
 # 排序胜出）；skill 恒 3 行、子 agent 恒 1 行、MCP 恒 2 行。
-CENSUS_PANEL_TITLE = "工具与 skill"
+CENSUS_PANEL_TITLE = "工具与 Skill"
 CENSUS_RANK_LABEL = "内置工具调用排行"
 CENSUS_RANK_ROWS = 7
 CENSUS_TOP_ROW = "Bash"
@@ -2153,17 +2161,17 @@ for arg in sys.argv[1:]:
         else:
             seen_insights += 1
             print(f"OK|{label}：一年洞察在场（六键逐字，{len(INSIGHT_TEXT_WORDS)} 个稳定词齐全）")
-        # 工具与 skill 面板（N3）同档在场：面板标题 + 体首行双读数（夹具保证
+        # 工具与 Skill 面板（N3）同档在场：面板标题 + 体首行双读数（夹具保证
         # 窗内必有工具调用，全空态在这里就是失败——面板没接上聚合）。
         census = data.get("toolCensus") or {}
         census_total = census.get("total") or ""
         if census.get("view") is not True or CENSUS_PANEL_TITLE not in titles:
-            print(f"BAD|{label}：工具与 skill 面板没有渲染出来（探针锚点或面板标题缺失）")
+            print(f"BAD|{label}：工具与 Skill 面板没有渲染出来（探针锚点或面板标题缺失）")
         elif not (census_total.startswith("共 ") and " 主链 " in census_total and "子 agent 占 " in census_total):
-            print(f"BAD|{label}：工具与 skill 的体首行双读数缺失或形状不对（{census_total!r}）")
+            print(f"BAD|{label}：工具与 Skill 的体首行双读数缺失或形状不对（{census_total!r}）")
         else:
             seen_census += 1
-            print(f"OK|{label}：工具与 skill 面板在场，体首行双读数齐全（{census_total}）")
+            print(f"OK|{label}：工具与 Skill 面板在场，体首行双读数齐全（{census_total}）")
     elif label.startswith("滚动=") and prev_label in ("用量总览", "视图=用量"):
         problems = []
         main_info = data.get("main") or {}
@@ -2181,7 +2189,7 @@ for arg in sys.argv[1:]:
             # 永远到不了」。
             if isinstance(scroll_top, int) and isinstance(client_height, int) and isinstance(doc_top, (int, float)) and doc_top > scroll_top + client_height * USAGE_SCROLL_SCREENS + 1:
                 problems.append(f"「{title}」滚三次到不了（docTop {doc_top:.0f} > scrollTop {scroll_top} + clientHeight {client_height}）")
-        # 工具与 skill（N3）滚一次可达 + 主榜清单是真列表（行高测 li，账目与
+        # 工具与 Skill（N3）滚一次可达 + 主榜清单是真列表（行高测 li，账目与
         # <ul> 自己的 scrollHeight 对——被丢清单的判法）。此处不判「滚到底后
         # 在视口内」：面板常高约 300px，若上方内容把它顶出最终视口，那是页面
         # 变长的自然结果，可达性（docTop）才是这里的不变量。
@@ -2729,11 +2737,20 @@ for arg in sys.argv[1:]:
             rest_text = attribution.get("restText") or ""
             if not re.match(r"^其余 \d+ 个会话", rest_text):
                 problems.append(f"余项行文案不是「其余 N 个会话」（{rest_text!r}）")
-        if (attribution.get("footnoteText") or "") != ATTRIBUTION_FOOTNOTE:
+        list_aria = attribution.get("listAriaLabel") or ""
+        list_title = attribution.get("listTitle") or ""
+        if ATTRIBUTION_FOOTNOTE not in list_aria:
             problems.append(
-                f"分母脚注不是规定原文（实测 {attribution.get('footnoteText')!r}）"
+                f"归因列表的可访问名缺分母口径原文（实测 {list_aria!r}）"
             )
-        blob = " ".join(titles + [attribution.get("restText") or "", attribution.get("footnoteText") or ""])
+        if ATTRIBUTION_FOOTNOTE not in list_title:
+            problems.append(
+                f"归因列表的 title 缺分母口径原文（实测 {list_title!r}）"
+            )
+        blob = " ".join(
+            titles
+            + [attribution.get("restText") or "", list_aria, list_title]
+        )
         for pattern in ("/Users/", "~/.claude", "cwd", "/home/"):
             if pattern in blob:
                 problems.append(f"归因面板里出现了绝对路径或内部字段名（{pattern}）")
@@ -2757,7 +2774,7 @@ for arg in sys.argv[1:]:
             print(
                 f"OK|{label}：配额归因面板成立（{row_count} 行"
                 f"{' + 余项' if attribution.get('hasRest') else ''}，"
-                f"Σ行高 {sum(heights):.0f}px = 列表总高 {scroll_h}px，脚注逐字一致）"
+                f"Σ行高 {sum(heights):.0f}px = 列表总高 {scroll_h}px，分母口径可访问名逐字完整）"
             )
     # 记住点击前那一行的标题：点行会跳到会话分析页，那一步的探针里已经没有
     # 归因面板了，只有在这里先存下来，点击后才比得了。
@@ -3614,22 +3631,58 @@ for arg in sys.argv[1:]:
                         f"项目卡片 {cards.get('count')!r} 张，期望至少 {ROUNDGG_CARD_MIN}"
                     )
                 seasons = gg.get("seasons") or {}
-                if not isinstance(seasons.get("count"), int) or seasons["count"] < ROUNDGG_CARD_MIN:
+                # Issue #348：只有两季以上才画条，单季整条不渲染（四季文字仍在）。
+                # 逐卡对账，两种形态各自守：单季画条会读成 25%，多季不画条则是
+                # 比例图消失——不能笼统改成「条数 ≥ 0」把后者一起放走。
+                season_cards = seasons.get("cards") or []
+                single_season_cards = 0
+                multi_season_cards = 0
+                for entry in season_cards:
+                    if not isinstance(entry, dict):
+                        continue
+                    text = entry.get("text")
+                    if not text:
+                        continue
+                    # 视觉审计后改为四季占比全量可见（空季写「无记录」）：
+                    # `Q1 12% · Q2 30% · Q3 无记录 · Q4 58%`。
+                    if not re.match(r"^Q1 .+ · Q2 .+ · Q3 .+ · Q4 .+$", text):
+                        gg_problems.append(f"季节文案不是四季占比（{text!r}）")
+                        continue
+                    active = [
+                        part for part in text.split(" · ") if not part.endswith("无记录")
+                    ]
+                    if len(active) >= 2:
+                        multi_season_cards += 1
+                        if entry.get("hasBar") is not True:
+                            gg_problems.append(
+                                f"多季项目（{text!r}）没有季节条——两季以上必须画"
+                            )
+                        elif entry.get("quarters") != str(ROUNDGG_SEASON_QUARTERS):
+                            gg_problems.append(
+                                f"季节条 data-quarters={entry.get('quarters')!r}，"
+                                f"期望 {ROUNDGG_SEASON_QUARTERS}"
+                            )
+                    elif len(active) == 1:
+                        single_season_cards += 1
+                        if entry.get("hasBar") is True:
+                            gg_problems.append(
+                                f"单季项目（{text!r}）画了季节条——单季 100% 会读成 25%"
+                            )
+                    else:
+                        gg_problems.append(f"季节文案没有任何有数据的季（{text!r}）")
+                if single_season_cards + multi_season_cards == 0:
+                    gg_problems.append("没有任何项目卡片带四季文案")
+                # 条的总数必须等于多季卡数：单季不画、多季必画，两头都守住。
+                if seasons.get("count") != multi_season_cards:
                     gg_problems.append(
-                        f"季节条 {seasons.get('count')!r} 条，期望至少 {ROUNDGG_CARD_MIN}"
+                        f"季节条 {seasons.get('count')!r} 条 ≠ 多季卡片 "
+                        f"{multi_season_cards} 张（单季不画条）"
                     )
-                for quarters in seasons.get("quarters") or []:
-                    if quarters != str(ROUNDGG_SEASON_QUARTERS):
-                        gg_problems.append(
-                            f"季节条 data-quarters={quarters!r}，期望 {ROUNDGG_SEASON_QUARTERS}"
-                        )
-                texts = seasons.get("texts") or []
-                # 视觉审计后改为四季占比全量可见（空季写「无记录」）：
-                # `Q1 12% · Q2 30% · Q3 无记录 · Q4 58%`。旧形状只报最重季。
-                if not texts or not re.match(
-                    r"^Q1 .+ · Q2 .+ · Q3 .+ · Q4 .+$", texts[0] or ""
-                ):
-                    gg_problems.append(f"季节文案不是四季占比（{texts[:1]!r}）")
+                if len(seasons.get("texts") or []) != single_season_cards + multi_season_cards:
+                    gg_problems.append(
+                        f"季节文案 {len(seasons.get('texts') or [])} 条 ≠ 有季节的卡片 "
+                        f"{single_season_cards + multi_season_cards} 张"
+                    )
             else:
                 query = gg.get("query") or {}
                 if query.get("expanded") != "true":
@@ -3871,7 +3924,7 @@ if coverage and seen_billing == 0:
 if coverage and seen_usage_panels == 0:
     print("BAD|视图覆盖：没有任何视图产出三块用量面板的标题——用量页下半屏没被覆盖")
 if coverage and seen_census == 0:
-    print("BAD|视图覆盖：没有任何视图产出工具普查面板的锚点——「工具与 skill」面板没被覆盖")
+    print("BAD|视图覆盖：没有任何视图产出工具普查面板的锚点——「工具与 Skill」面板没被覆盖")
 if coverage and seen_context == 0:
     print("BAD|视图覆盖：没有任何视图产出上下文曲线几何——上下文标签页没被覆盖")
 if coverage and seen_error == 0:
