@@ -82,6 +82,12 @@
   grid-column: span 5;
 }
 
+/* 行 B2：成本树图独享整行（Issue #359）。会话块要放项目名标签，半宽会把
+   本来就近正方形的块压成条；它在 DOM 里位于成本地形之后、成本沙盘之前。 */
+.treemap {
+  grid-column: span 12;
+}
+
 /* 行 C2：收工推演独享整行（滑杆 + 三个读数 + 脚注，凑列只会挤）。 */
 .cutoff {
   grid-column: span 12;

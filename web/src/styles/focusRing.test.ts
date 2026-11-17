@@ -136,8 +136,12 @@ describe("焦点环的几何只走令牌", () => {
    * 共用一个 `:focus-visible` 规则（正偏移）。选中态的色块描边是 2px 的
    * `--ring` 选择信号，不属于焦点环，不在本台账里。
    * 重数后：环宽度 73、偏移 41 + 29（含 2 处 calc 内嵌）、消费规则 77。
+   * 成本树图（Issue #359）再加 1 条：SVG 焦点块用 `stroke-width:
+   * var(--focus-ring-width)` 叠独立描边矩形（SVG 没有 outline）。它消费令牌，
+   * 但不进 `outline` 的环宽度计数。
+   * 重数后：环宽度 73、偏移 41 + 29、消费规则 78。
    */
-  it("令牌被 77 条规则消费，环宽度 73 处、偏移 41 + 29 处、焦点竖条 7 处", () => {
+  it("令牌被 78 条规则消费，环宽度 73 处、偏移 41 + 29 处、焦点竖条 7 处", () => {
     const count = (pattern: RegExp) => ALL_SOURCE.match(pattern)?.length ?? 0;
     // 只数「消费」的规则：tokens.css 里那几块是**声明**（`--focus-ring-width: 2px;`），
     // 不含 `var(...)`，不能被算进消费方。
@@ -150,7 +154,7 @@ describe("焦点环的几何只走令牌", () => {
     const insetCalc = count(/outline-offset:\s*calc\(-1 \* var\(--focus-ring-inset\)\)/g);
     expect(insetDirect + insetCalc).toBe(29);
     expect(count(/inset\s+var\(--focus-ring-width\)\s+0\s+0\s+var\(--accent\)/g)).toBe(7);
-    expect(consumingRules.length).toBe(77);
+    expect(consumingRules.length).toBe(78);
   });
 });
 
