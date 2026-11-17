@@ -1206,8 +1206,8 @@ test.describe("截图归档 · 实验室", () => {
       await expect(page.locator("[data-probe='usage-progress']")).toBeVisible({ timeout: 15_000 });
       await page.getByRole("tab", { name: "实验室", exact: true }).click();
       // Round HH 起实验室第 11 张卡是「收工推演」（cutoff），视角数 10→11。
-      await expect(page.getByText(/纳入统计 · 14 个视角/)).toBeVisible({ timeout: 15_000 });
-      await expect(page.locator("[data-lab-card]")).toHaveCount(14);
+      await expect(page.getByText(/纳入统计 · 15 个视角/)).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("[data-lab-card]")).toHaveCount(15);
 
       for (const [card, view] of LAB_SHOTS) {
         const locator = page.locator(`[data-lab-card="${card}"]`);

@@ -941,7 +941,7 @@ describe("UsageOverviewPage", () => {
     expect(capsule.textContent).toContain("100 天前");
   });
 
-  it("实验室档（Round II）：十四张卡都在、区间控件保留、进度行写明 14 个视角", async () => {
+  it("实验室档（Round II + #359）：十五张卡都在、区间控件保留、进度行写明 15 个视角", async () => {
     const bridges = createUsageBridges({
       [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 3_600_000)
     });
@@ -951,9 +951,9 @@ describe("UsageOverviewPage", () => {
 
     await userEvent.click(screen.getByRole("tab", { name: "实验室" }));
 
-    // 第 5 档、排最后；实验室自己承担页头（h2 + 口径），十四张卡各带截图定位属性。
+    // 第 5 档、排最后；实验室自己承担页头（h2 + 口径），十五张卡各带截图定位属性。
     expect(await screen.findByRole("region", { name: "数据实验室" })).toBeInTheDocument();
-    expect(document.querySelectorAll("[data-lab-card]")).toHaveLength(14);
+    expect(document.querySelectorAll("[data-lab-card]")).toHaveLength(15);
     // Round II 的三张：多选对照、工作日对照、提问画像各占一行。
     for (const card of ["multi", "weekend", "profile"]) {
       expect(document.querySelector(`[data-lab-card="${card}"]`)).not.toBeNull();
@@ -964,7 +964,7 @@ describe("UsageOverviewPage", () => {
     expect(within(cutoff as HTMLElement).getByRole("region", { name: "收工推演" })).toBeInTheDocument();
     // 12 张卡吃「近 N 天」，所以区间控件必须留着（不是里程碑那种全历史档）。
     expect(screen.getByRole("tablist", { name: "时间范围" })).toBeInTheDocument();
-    expect(screen.getByText(/纳入统计 · 14 个视角/)).toBeInTheDocument();
+    expect(screen.getByText(/纳入统计 · 15 个视角/)).toBeInTheDocument();
     // Round HH H1：这份夹具里模型没有值得说的事，整条带子不出现（0 条不打扰）。
     // 非空的排序/前缀/跳转由 BriefingStrip.test.tsx 逐条钉住。
     expect(document.querySelector('[data-probe="briefing"]')).toBeNull();

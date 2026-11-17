@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **数据实验室新增「成本树图」**：项目 → 会话的两级面积图，面积可在估算成本与四类 token 之和之间切换；悬停浮层给出标题、读数、占比、模型与时长，点击方块直接打开会话，键盘用 roving tabindex 在一张图内走动；树图之外另有视觉隐藏的等价表格供读屏使用（Issue #359）。
+
 ## [0.41.2] - 2026-11-17
 
 本轮主题：**少说一句，看清一句**——把首屏的解释性文字收进悬停提示，让会改变数值理解的说明留在屏幕上。

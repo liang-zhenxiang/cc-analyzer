@@ -4,6 +4,7 @@ import type { UsageSessionInput } from "./usageAggregations";
 import { BudgetRunwayPanel } from "./BudgetRunwayPanel";
 import { ConstellationPanel } from "./ConstellationPanel";
 import { CostSandboxPanel } from "./CostSandboxPanel";
+import { CostTreemapPanel } from "./CostTreemapPanel";
 import { CutoffPanel } from "./CutoffPanel";
 import { WeekdayWeekendPanel } from "./WeekdayWeekendPanel";
 import type { HourlyTokens } from "./cutoffProjection";
@@ -19,18 +20,19 @@ import { ToolEcosystemPanel } from "./ToolEcosystemPanel";
 import styles from "./LabView.module.css";
 
 /**
- * 数据实验室（Round FF 十种看法 + Round HH 收工推演 + Round II 三张：共十四张卡）。
+ * 数据实验室（Round FF 十种看法 + Round HH 收工推演 + Round II 三张 +
+ * Issue #359 成本树图：共十五张卡）。
  *
- * 它是用量页的第 5 个子视图，不是新页面——十张卡吃的是同一次扫描产出的
+ * 它是用量页的第 5 个子视图，不是新页面——十五张卡吃的是同一次扫描产出的
  * `inputs`、同一个区间控件与同一个 `now`，零新增 I/O、零新增后端命令。
  *
  * 版面按阅读叙事排（设计 §1.3），不是按功能编号：
- * 星系独享整行（全景）→ 地形成对名人堂（形态 → 极值）→ 火焰成对沙盘
- * （观察 → 假设）→ 生态成对足迹（工具结构 / 项目结构）→ 心跳整行（节奏）
- * → 跑道成对散点（前瞻 → 个人节律）。
+ * 星系独享整行（全景）→ 地形成对名人堂（形态 → 极值）→ 成本树图整行
+ * （钱落在哪个会话）→ 火焰成对沙盘（观察 → 假设）→ 生态成对足迹
+ * （工具结构 / 项目结构）→ 心跳整行（节奏）→ 跑道成对散点（前瞻 → 个人节律）。
  *
  * 每张卡外面包一层 `data-lab-card`：截图脚本按它逐卡取图，e2e 按它断言
- * 「十四张卡都在」，卡片本身不重复造定位属性。
+ * 「十五张卡都在」，卡片本身不重复造定位属性。
  */
 export function LabView({
   inputs,
@@ -59,7 +61,7 @@ export function LabView({
         <div className={styles.introText}>
           <h2 className={styles.title}>数据实验室</h2>
           <p className={styles.description}>
-            十四个视角读同一份本机日志：形状、密度、极端值、前瞻与「如果早点收工」——全部现算，不出本机。
+            十五个视角读同一份本机日志：形状、密度、极端值、钱的落点、前瞻与「如果早点收工」——全部现算，不出本机。
           </p>
         </div>
         {/* 口径声明，不是第二个区间控件：窗口的唯一实例仍在页头第一行。 */}
@@ -82,6 +84,17 @@ export function LabView({
 
         <div className={`${styles.card} ${styles.hall}`} data-lab-card="hall">
           <HallOfFamePanel inputs={inputs} days={days} now={now} onOpenSession={onOpenSession} />
+        </div>
+
+        {/* Issue #359 成本树图：接在「成本地形」之后、成本沙盘之前，把成本主题
+            聚在一起；整行（会话块需要宽度来放标签，半宽会挤成碎片）。 */}
+        <div className={`${styles.card} ${styles.treemap}`} data-lab-card="treemap">
+          <CostTreemapPanel
+            inputs={inputs}
+            days={days}
+            now={now}
+            onOpenSession={onOpenSession}
+          />
         </div>
 
         <div className={`${styles.card} ${styles.flame}`} data-lab-card="flame">

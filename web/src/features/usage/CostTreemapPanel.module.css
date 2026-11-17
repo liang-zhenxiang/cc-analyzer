@@ -1,0 +1,168 @@
+/* 成本树图（Issue #359）。
+ *
+ * 色相只来自 `--chart-1..6`（项目色相），**不碰 `--cat-*`**——后者是记录类别
+ * 语义，`tokens.css` 明令两套资产不得互借。会话块直接用 `-soft`，不再叠
+ * `fill-opacity` / `opacity` / `color-mix`：最低系统版本（10.13）对应的 WebKit
+ * 不支持 `color-mix`，而 alpha 叠层会让高对比度主题的不透明 `-soft` 又变回半透明。
+ *
+ * 几何负责留缝（2px 会话缝 / 6px 项目缝，见 `.tsx` 的常量），这里只管描边与
+ * 浮层。圆角为 0：2px 圆角在 30px 的小块上啃掉的面积和面积编码本身同量级。 */
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.chartWrap {
+  position: relative;
+  min-width: 0;
+}
+
+.chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* 会话块发丝边：几何已内缩 0.5px（`.tsx`），不透明描边而不是叠 alpha。 */
+.cellEdge {
+  stroke-width: 1px;
+}
+
+/* 项目外框：实色、不随 viewBox 缩放变粗。 */
+.projectFrame {
+  stroke-width: 1px;
+}
+
+/* 项目名：只写项目名，会话块不写标题（长标题在 130% 下必溢出）。光晕让
+   文字压在会话色块上仍然可读，而不需要为标签挖一块背景。 */
+.projectLabel {
+  fill: var(--text);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: var(--bg-subtle);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+/* 「其余 N 个」：不是项目，退成次要文字、常规字重。 */
+.otherLabel {
+  fill: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-weight: 400;
+  paint-order: stroke;
+  stroke: var(--bg-subtle);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+/* 悬停 / 焦点共用一个「最上层独立描边矩形」；绝不改块本身的 fill 或重排 DOM。 */
+.hoverRing {
+  stroke: var(--text);
+  stroke-width: 1.5px;
+  pointer-events: none;
+}
+
+.focusRing {
+  stroke: var(--ring);
+  stroke-width: var(--focus-ring-width);
+  pointer-events: none;
+}
+
+/* 透明按钮层：负责 Tab 序、方向键、点击与指针进入。SVG 子元素的 Tab 可聚焦性
+   在 WKWebView 上不可靠，所以交互不交给 `<rect>`。 */
+.hits {
+  position: absolute;
+  inset: 0;
+}
+
+.hit {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* 焦点由 SVG 里的独立描边矩形承担，不再叠加浏览器默认 outline。 */
+.hit:focus,
+.hit:focus-visible {
+  outline: none;
+}
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 浮层：`position: fixed`（Panel 的 overflow: hidden 会裁掉绝对定位），portal
+   到 body；先量后定位由组件里的 useLayoutEffect 完成。 */
+.tooltip {
+  position: fixed;
+  z-index: 10;
+  display: flex;
+  max-width: 280px;
+  flex-direction: column;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  pointer-events: none;
+}
+
+.tipProject {
+  color: var(--text-tertiary);
+}
+
+.tipTitle {
+  overflow: hidden;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tipAmount {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 只有金额 / token 数走等宽字体；「占本窗口」这类中文留在正文字体里。 */
+.tipValue {
+  font-family: var(--font-mono);
+}
+
+.tipMeta,
+.tipNote {
+  color: var(--text-secondary);
+}
+
+.tipNote {
+  color: var(--text-tertiary);
+}
+
+/* 视觉隐藏但仍在可访问树里：树图对读屏不可用，等价表格才是可读层。 */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
