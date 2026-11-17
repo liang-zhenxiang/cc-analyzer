@@ -1213,7 +1213,9 @@ mod gui_probe {
     }
     var attributionList = attributionPanel.querySelector('[data-probe="attribution-list"]');
     var restEl = attributionPanel.querySelector('[data-probe="attribution-rest"]');
-    var footnoteEl = attributionPanel.querySelector('[data-probe="attribution-footnote"]');
+    /* 分母口径 Issue #354 起不再单独占一行屏幕文字：完整原文挂在归因列表的
+       `aria-label` / `title` 上。屏幕上没有对应元素可读，探针改读这两个通道
+       （`footnoteText` 字段随旧元素一起下线，判定要求原文逐字出现在两者中）。 */
     attributionFacts = {
       panelRect: rectOf(attributionPanel),
       listScrollHeight: attributionList ? attributionList.scrollHeight : null,
@@ -1228,8 +1230,8 @@ mod gui_probe {
       hasRest: !!restEl,
       restRect: restEl ? rectOf(restEl) : null,
       restText: restEl ? (restEl.textContent || '').replace(/\s+/g, ' ').trim() : '',
-      footnoteText: footnoteEl ? (footnoteEl.textContent || '').replace(/\s+/g, ' ').trim() : '',
-      footnoteTitle: footnoteEl ? footnoteEl.getAttribute('title') || '' : ''
+      listAriaLabel: attributionList ? attributionList.getAttribute('aria-label') || '' : '',
+      listTitle: attributionList ? attributionList.getAttribute('title') || '' : ''
     };
   }
   facts.attribution = attributionFacts;
@@ -2189,14 +2191,31 @@ mod gui_probe {
     }
     roundggFacts.cards = { count: ggCards.length, labels: ggCardLabels };
     var ggSeasons = document.querySelectorAll("[data-probe='card-season']");
-    var ggSeasonTexts = [];
     var ggSeasonQuarters = [];
-    var ggSeasonText = document.querySelectorAll("[data-probe='card-season-text']");
     for (var gsi = 0; gsi < ggSeasons.length; gsi += 1) {
       ggSeasonQuarters.push(ggSeasons[gsi].getAttribute('data-quarters'));
-      ggSeasonTexts.push(ggSeasonText[gsi] ? ggSeasonText[gsi].textContent.trim() : null);
     }
-    roundggFacts.seasons = { count: ggSeasons.length, quarters: ggSeasonQuarters, texts: ggSeasonTexts };
+    /* 文案与条解耦（Issue #348）：单季项目整条不画，但四季文字照旧渲染。
+       按条的数量循环会漏掉单季卡的文案，所以逐卡收集「有没有条 / 条口径 /
+       文案」三件事，脚本才能分别守护单季（不画条）与多季（画条）两种形态。 */
+    var ggSeasonCards = [];
+    var ggSeasonTexts = [];
+    for (var gci2 = 0; gci2 < ggCards.length; gci2 += 1) {
+      var ggSeasonBar = ggCards[gci2].querySelector("[data-probe='card-season']");
+      var ggSeasonTextEl = ggCards[gci2].querySelector("[data-probe='card-season-text']");
+      var ggSeasonTextValue = ggSeasonTextEl
+        ? (ggSeasonTextEl.textContent || "").replace(/\s+/g, " ").trim()
+        : null;
+      if (ggSeasonTextValue) {
+        ggSeasonTexts.push(ggSeasonTextValue);
+      }
+      ggSeasonCards.push({
+        hasBar: !!ggSeasonBar,
+        quarters: ggSeasonBar ? ggSeasonBar.getAttribute('data-quarters') : null,
+        text: ggSeasonTextValue
+      });
+    }
+    roundggFacts.seasons = { count: ggSeasons.length, quarters: ggSeasonQuarters, texts: ggSeasonTexts, cards: ggSeasonCards };
     var ggToggle = document.querySelector("[data-probe='session-query-toggle']");
     var ggNote = document.querySelector("[data-probe='session-query-index-note']");
     roundggFacts.query = ggQuery
@@ -3037,9 +3056,10 @@ mod gui_probe {
 
         #[test]
         fn the_probe_reports_quota_attribution_and_the_open_session_title() {
-            // 按会话的配额归因（Round R / #151）：面板 / 列表 / 行 / 余项 /
-            // 脚注五个锚点，行内四个字段（标题、token、占比条、百分比）分别取，
-            // 行数与行高给脚本做「真列表对账」（防假列表）。
+            // 按会话的配额归因（Round R / #151）：面板 / 列表 / 行 / 余项四个
+            // 锚点，行内四个字段（标题、token、占比条、百分比）分别取，
+            // 行数与行高给脚本做「真列表对账」（防假列表）。分母口径 Issue
+            // #354 起不再占屏幕一行，改从列表的可访问名与 title 读。
             assert!(PROBE_JS.contains("[data-probe=\"attribution-panel\"]"));
             assert!(PROBE_JS.contains("[data-probe=\"attribution-list\"]"));
             assert!(PROBE_JS.contains("[data-probe=\"attribution-row\"]"));
@@ -3048,10 +3068,10 @@ mod gui_probe {
             assert!(PROBE_JS.contains("[data-probe=\"attribution-row-bar\"]"));
             assert!(PROBE_JS.contains("[data-probe=\"attribution-row-pct\"]"));
             assert!(PROBE_JS.contains("[data-probe=\"attribution-rest\"]"));
-            assert!(PROBE_JS.contains("[data-probe=\"attribution-footnote\"]"));
             assert!(PROBE_JS.contains("rowHeights"));
             assert!(PROBE_JS.contains("barFillWidths"));
-            assert!(PROBE_JS.contains("footnoteTitle"));
+            assert!(PROBE_JS.contains("listAriaLabel"));
+            assert!(PROBE_JS.contains("listTitle"));
             assert!(PROBE_JS.contains("facts.attribution"));
             // 点行之后要比对**会话分析页当前会话的标题**——没有这条事实，
             // 门禁只能断言「页面没崩」，那就等于没验点击。
