@@ -140,22 +140,27 @@ type UsageView =
   | "chronicle"
   | "memory";
 
+/**
+ * 每一档的 `title` 回答「切过去能看什么」（Issue #354）——七个名字本身只说明
+ * 了分档，新用户读不出「实验室」「故事」「项目」各自在回答什么问题。文案必须
+ * 是一句「看什么」，不是功能清单；`aria-label="总览视图"` 与分档结构都不动。
+ */
 const VIEW_ITEMS: SegmentedItem<UsageView>[] = [
-  { value: "usage", label: "用量" },
-  { value: "milestones", label: "里程碑" },
-  { value: "errors", label: "错误" },
+  { value: "usage", label: "用量", title: "这段时间用了多少：读数、趋势与分布" },
+  { value: "milestones", label: "里程碑", title: "全历史里值得记住的第一次与最大值" },
+  { value: "errors", label: "错误", title: "工具失败的时间线与聚类档案" },
   // 年报排最后：前两档都是「这一年/这一窗口的读数」，年报是「回看整段」，
   // 它需要一个年度的上下文才读得懂，所以不插在中间。
-  { value: "annual", label: "年报" },
-  // 实验室（Round FF）排在最末：前四档是「一种读法」，实验室是「十种读法
+  { value: "annual", label: "年报", title: "按年回看：逐月卡与全年排行" },
+  // 实验室（Round FF）排在最末：前四档是「一种读法」，实验室是「十几种读法
   // 的集合」——它是读法的容器，理应最后。
-  { value: "lab", label: "实验室" },
+  { value: "lab", label: "实验室", title: "十几种额外的读法：指纹、热力、流向、擂台…" },
   // 故事（Chronicle）排在实验室之后：它不是一种「读数档」，而是一篇把
   // 前几档的数字串起来的叙事——读者看完读数再来读它，顺序才对。
-  { value: "chronicle", label: "故事" },
+  { value: "chronicle", label: "故事", title: "把窗口内的数字写成一篇可读的叙事" },
   // 项目记忆（Project Memory）：按项目收口的可检索档案，是「回到某个项目
   // 前该知道什么」的入口，放在最后与故事相邻。
-  { value: "memory", label: "项目" }
+  { value: "memory", label: "项目", title: "回到某个项目前该知道什么：命令、热文件、坑" }
 ];
 
 const RANGE_ITEMS: SegmentedItem<string>[] = RANGE_OPTIONS.map((option) => ({

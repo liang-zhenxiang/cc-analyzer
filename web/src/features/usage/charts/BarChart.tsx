@@ -48,7 +48,8 @@ export function BarChart({
   emptyText = "暂无数据",
   height = 220,
   yTickCount,
-  caption
+  caption,
+  captionTitle
 }: {
   data: { label: string; value: number }[];
   formatValue?: (value: number) => string;
@@ -64,6 +65,12 @@ export function BarChart({
   yTickCount?: number;
   /** One line saying what a bar *is*, for axes whose labels cannot say it alone. */
   caption?: string;
+  /**
+   * Full explanation behind `caption`. Kept on the caption's `title` instead of
+   * the screen so the one-line caption can stay one line (Issue #354) while the
+   * precise wording is still reachable on hover.
+   */
+  captionTitle?: string;
 }) {
   if (data.length === 0) {
     return <EmptyState size="panel" title={emptyText} />;
@@ -129,7 +136,11 @@ export function BarChart({
           ) : null
         )}
       </svg>
-      {caption ? <p className={styles.caption}>{caption}</p> : null}
+      {caption ? (
+        <p className={styles.caption} title={captionTitle}>
+          {caption}
+        </p>
+      ) : null}
     </>
   );
 }

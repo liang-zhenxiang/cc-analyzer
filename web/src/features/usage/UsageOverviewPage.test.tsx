@@ -734,6 +734,38 @@ describe("UsageOverviewPage", () => {
     expect(screen.getByText("全部 2 个已扫描会话纳入统计")).toBeInTheDocument();
   });
 
+  it("七个视图 tab 各带一句 title，说明「切过去看什么」；控件名与分档结构不变（Issue #354）", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 3_600_000)
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+
+    // 控件名仍是「总览视图」：title 只是补充说明，不替换无障碍名。
+    const group = screen.getByRole("tablist", { name: "总览视图" });
+    const tabs = within(group).getAllByRole("tab");
+    expect(tabs.map((tab) => tab.getAttribute("title"))).toEqual([
+      "这段时间用了多少：读数、趋势与分布",
+      "全历史里值得记住的第一次与最大值",
+      "工具失败的时间线与聚类档案",
+      "按年回看：逐月卡与全年排行",
+      "十几种额外的读法：指纹、热力、流向、擂台…",
+      "把窗口内的数字写成一篇可读的叙事",
+      "回到某个项目前该知道什么：命令、热文件、坑"
+    ]);
+    // 分档本身没动：仍是 7 个，名字就是可见标签。
+    expect(tabs.map((tab) => tab.textContent)).toEqual([
+      "用量",
+      "里程碑",
+      "错误",
+      "年报",
+      "实验室",
+      "故事",
+      "项目"
+    ]);
+  });
+
   it("年报档（E4）：第 4 档渲染整年卡片、隐藏时间范围控件、不新增 I/O", async () => {
     const bridges = createUsageBridges({
       [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 3_600_000)
