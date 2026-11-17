@@ -1,5 +1,8 @@
 .DS_Store
 .worktrees/
+# Claude Code 派生 agent 的隔离工作区（EnterWorktree / isolation: worktree）。
+# 每个里面都是一整套检出，误提交会变成「嵌入 git 仓库」——曾发生过两次。
+.claude/worktrees/
 node_modules/
 web/dist/
 web/tsconfig.tsbuildinfo

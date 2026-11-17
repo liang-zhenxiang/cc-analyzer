@@ -201,6 +201,7 @@ const V_MIGRATION = declareView("migration");
 const V_LAB_GALAXY = declareView("lab-galaxy");
 const V_LAB_TERRAIN = declareView("lab-terrain");
 const V_LAB_HALL = declareView("lab-hall");
+const V_LAB_TREEMAP = declareView("lab-treemap");
 const V_LAB_FLAME = declareView("lab-flame");
 const V_LAB_SANDBOX = declareView("lab-sandbox");
 const V_LAB_NETWORK = declareView("lab-network");
@@ -1175,6 +1176,7 @@ test.describe("截图归档 · 实验室", () => {
     ["galaxy", V_LAB_GALAXY],
     ["terrain", V_LAB_TERRAIN],
     ["hall", V_LAB_HALL],
+    ["treemap", V_LAB_TREEMAP],
     ["flame", V_LAB_FLAME],
     ["sandbox", V_LAB_SANDBOX],
     ["network", V_LAB_NETWORK],
