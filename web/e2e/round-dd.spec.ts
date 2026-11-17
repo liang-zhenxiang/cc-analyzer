@@ -198,7 +198,7 @@ test.describe("Round DD · 空态", () => {
     await openUsage(page);
     await expect(page.locator("[data-probe='forecast-row']")).toHaveCount(0);
     await expect(page.getByRole("region", { name: "计费窗口" })).toContainText(
-      "未选择订阅计划：只显示消耗，不显示百分比——没有分母就没有比率。"
+      "未选择订阅计划：只显示消耗，不显示百分比。去「设置 → 计费窗口」选择。"
     );
   });
 });

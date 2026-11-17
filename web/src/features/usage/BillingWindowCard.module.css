@@ -322,19 +322,6 @@
   white-space: nowrap;
 }
 
-/* 脚注只放分母定义这一句：完整口径在 title / aria-label 上。
-   宽度不够时省略号截断的是补充说明，不是分母本身。 */
-.attributionFootnote {
-  margin-left: auto;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text-tertiary);
-  font-size: var(--fs-xs);
-  line-height: var(--lh-xs);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
 /* 列表 gap 为 0、行高固定：容器高度 = 行数 × 行高（余项行同样一行高），
    真机门禁按这个等式对账，防止看起来 5 行、实际高度对不上。 */
 .attributionList {

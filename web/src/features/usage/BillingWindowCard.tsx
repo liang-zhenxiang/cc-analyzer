@@ -41,8 +41,11 @@ function openSettingsDrawer(): void {
   document.querySelector<HTMLButtonElement>('button[aria-label="设置"]')?.click();
 }
 
-/** 分母脚注：屏幕上先读到「分母是什么」，完整口径留在 title / aria-label 里。 */
-const ATTRIBUTION_FOOTNOTE = "占比分母 = 本窗口总消耗（与表盘中心同一个数）。";
+/**
+ * 分母口径：Issue #354 起不再单独占一行屏幕文字——它解释的是「怎么读」而不是
+ * 「数是多少」，首屏只留会改变数值理解的句子。完整口径挂到归因列表容器的
+ * `title` / `aria-label` 上，鼠标悬停与屏幕阅读器都仍拿得到。
+ */
 const ATTRIBUTION_FOOTNOTE_DETAIL =
   "占比分母 = 本窗口总消耗（与表盘中心同一个数）。精确占比之和恒为 100%；行内按 0.1% 四舍五入显示，合计可能与 100% 相差 0.1 到 0.3 个百分点。";
 
@@ -158,19 +161,14 @@ function QuotaAttributionPanel({
         </h3>
         {/* 归因只读日志，不推算：这一枚圆点说明整块的口径。 */}
         <ProvenanceBadge provenance="logged" />
-        <span
-          className={styles.attributionFootnote}
-          data-probe="attribution-footnote"
-          title={ATTRIBUTION_FOOTNOTE_DETAIL}
-          aria-label={ATTRIBUTION_FOOTNOTE_DETAIL}
-        >
-          {ATTRIBUTION_FOOTNOTE}
-        </span>
       </div>
       <ol
         className={styles.attributionList}
         data-probe="attribution-list"
-        aria-label="本窗口消耗最多的会话"
+        /* 屏幕上的分母脚注已收走（Issue #354），完整口径留在这里：列表名让
+           屏幕阅读器在进入列表时读到，title 让鼠标用户悬停可查。 */
+        aria-label={`本窗口消耗最多的会话。${ATTRIBUTION_FOOTNOTE_DETAIL}`}
+        title={ATTRIBUTION_FOOTNOTE_DETAIL}
       >
         {attribution.rows.map((row, index) => (
           <AttributionSessionRow
@@ -496,8 +494,10 @@ export function BillingWindowCard({
                 yTickCount={3}
                 /* 横轴标签是窗口开始时刻、按柱位等距排布，真实间隔并不相等
                    （相邻窗口可以差 5 分钟，也可以差 7 小时）——轴上必须说明这件事，
-                   否则等距的柱让人误以为时间也等距。 */
-                caption="每个柱 = 一个 5 小时计费窗口；横轴按窗口开始时刻等距排布，柱间距不代表真实间隔"
+                   否则等距的柱让人误以为时间也等距。屏幕只留「一个柱是什么」，
+                   完整说明进 title（Issue #354）。 */
+                caption="每个柱 = 一个 5 小时窗口"
+                captionTitle="每个柱 = 一个 5 小时计费窗口；横轴按窗口开始时刻等距排布，柱间距不代表真实间隔"
               />
             </div>
           ) : null}
@@ -505,7 +505,7 @@ export function BillingWindowCard({
       </div>
       <p className={styles.planNote}>
         {plan.limitTokens === null
-          ? "未选择订阅计划：只显示消耗，不显示百分比——没有分母就没有比率。在「设置 → 计费窗口」选择计划。"
+          ? "未选择订阅计划：只显示消耗，不显示百分比。去「设置 → 计费窗口」选择。"
           : `限额为社区整理的估算值（整理于 ${PLAN_LIMITS_AS_OF}，非官方数字），仅供参照；估算与预测都不是账单。`}
       </p>
     </section>

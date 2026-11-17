@@ -79,6 +79,21 @@ describe("BarChart", () => {
     expect(screen.getByText("每个柱 = 一个 5 小时计费窗口")).toBeInTheDocument();
   });
 
+  it("captionTitle：完整说明挂在轴注的 title 上，屏幕只留一行 caption", () => {
+    render(
+      <BarChart
+        data={data}
+        ariaLabel="趋势"
+        caption="每个柱 = 一个 5 小时窗口"
+        captionTitle="每个柱 = 一个 5 小时计费窗口；横轴按窗口开始时刻等距排布，柱间距不代表真实间隔"
+      />
+    );
+
+    const caption = screen.getByText("每个柱 = 一个 5 小时窗口");
+    expect(caption.getAttribute("title")).toContain("柱间距不代表真实间隔");
+    expect(screen.queryByText(/柱间距不代表真实间隔/)).toBeNull();
+  });
+
   it("不传 yTickCount：保持原来的 3 档提示（1M 轴仍是 6 个刻度），长图不回归", () => {
     render(<BarChart data={[{ label: "w", value: 1_000_000 }]} ariaLabel="趋势" />);
 
