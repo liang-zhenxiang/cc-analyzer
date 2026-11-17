@@ -17,6 +17,17 @@ import { ModelSeesawPanel } from "./ModelSeesawPanel";
 
 const NOW = Date.parse("2026-01-15T12:00:00.000Z");
 
+/**
+ * 从行内宽度里取出百分比数值。
+ *
+ * jsdom 31 起 `style.width` 的百分比序列化会截断精度：组件写
+ * `33.33333333333333%`，jsdom 30 原样返回，jsdom 31 返回 `33.3333%`。
+ * 这里断言的是「三等分」这个数值，不绑定序列化位数。
+ */
+function widthPercent(el: HTMLElement | null | undefined): number {
+  return Number.parseFloat(el?.style.width ?? "");
+}
+
 function usageRecord(id: string, at: number, model: string, tokens: number): SessionRecord {
   return {
     id,
@@ -73,10 +84,11 @@ describe("ModelSeesawPanel（H6 模型跷跷板）", () => {
     // 共刻度 3k：2026-1 的 A（opus，1k）33%、B（sonnet，3k）100%——两侧同一分母。
     // 选择器必须避开外层 `.bars`（也含 "bar" 子串），否则拿到的是容器。
     const jan = rows[2];
-    expect(jan.querySelector<HTMLElement>("[class*='barA']")?.style.width).toBe(
-      "33.33333333333333%"
+    expect(widthPercent(jan.querySelector<HTMLElement>("[class*='barA']"))).toBeCloseTo(
+      33.3333,
+      3
     );
-    expect(jan.querySelector<HTMLElement>("[class*='barB']")?.style.width).toBe("100%");
+    expect(widthPercent(jan.querySelector<HTMLElement>("[class*='barB']"))).toBeCloseTo(100, 3);
     expect(within(jan as HTMLElement).getByText("1,000 / 3,000")).toBeInTheDocument();
 
     // 脚注：口径句 + overlap 样本量（三月双侧都有 → 3）。
@@ -146,9 +158,10 @@ describe("ModelSeesawPanel（H6 模型跷跷板）", () => {
 
     const jan = document.querySelectorAll('[data-probe="seesaw-row"]')[2];
     expect(within(jan as HTMLElement).getByText("3,000 / 1,000")).toBeInTheDocument();
-    expect(jan.querySelector<HTMLElement>("[class*='barA']")?.style.width).toBe("100%");
-    expect(jan.querySelector<HTMLElement>("[class*='barB']")?.style.width).toBe(
-      "33.33333333333333%"
+    expect(widthPercent(jan.querySelector<HTMLElement>("[class*='barA']"))).toBeCloseTo(100, 3);
+    expect(widthPercent(jan.querySelector<HTMLElement>("[class*='barB']"))).toBeCloseTo(
+      33.3333,
+      3
     );
   });
 
