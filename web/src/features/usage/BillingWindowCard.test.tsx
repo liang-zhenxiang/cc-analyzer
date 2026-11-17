@@ -265,7 +265,8 @@ function panelOf(container: HTMLElement): HTMLElement {
 }
 
 function attributionList(): HTMLElement {
-  return screen.getByRole("list", { name: "本窗口消耗最多的会话" });
+  // 列表名还带上了分母口径（Issue #354），这里按前缀取。
+  return screen.getByRole("list", { name: /^本窗口消耗最多的会话/ });
 }
 
 describe("BillingWindowCard · 本窗口消耗 Top 会话", () => {
@@ -299,12 +300,51 @@ describe("BillingWindowCard · 本窗口消耗 Top 会话", () => {
     expect(within(panel).queryByLabelText("数据来源：读自日志")).toBeNull();
   });
 
-  it("分母脚注：屏幕上只有分母定义这一句，完整口径在 title 与 aria-label", () => {
+  it("分母脚注不再占屏幕一行；完整口径仍留在列表的 title 与 aria-label（Issue #354）", () => {
     const { container } = renderCard([sessionInput("/sessions/a.jsonl", "会话 A", [1_000])]);
-    const footnote = container.querySelector<HTMLElement>('[data-probe="attribution-footnote"]')!;
-    expect(footnote.textContent).toBe("占比分母 = 本窗口总消耗（与表盘中心同一个数）。");
-    expect(footnote.getAttribute("title")).toContain("精确占比之和恒为 100%");
-    expect(footnote.getAttribute("aria-label")).toContain("四舍五入");
+    // 屏幕上没有脚注元素——它不是「不读就会误解数字」的那一类。
+    expect(container.querySelector('[data-probe="attribution-footnote"]')).toBeNull();
+    expect(screen.queryByText(/占比分母 = 本窗口总消耗/)).toBeNull();
+
+    // 信息没丢：列表容器同时带 title（悬停可读）与 aria-label（读屏可读）。
+    const list = attributionList();
+    expect(list.getAttribute("title")).toBe(
+      "占比分母 = 本窗口总消耗（与表盘中心同一个数）。精确占比之和恒为 100%；行内按 0.1% 四舍五入显示，合计可能与 100% 相差 0.1 到 0.3 个百分点。"
+    );
+    expect(list.getAttribute("aria-label")).toContain("本窗口消耗最多的会话");
+    expect(list.getAttribute("aria-label")).toContain("占比分母 = 本窗口总消耗");
+    expect(list.getAttribute("aria-label")).toContain("四舍五入");
+  });
+
+  it("屏幕上的口径说明收敛为两条：滚动 7 天原样保留，未选计划提示去掉解释性从句", () => {
+    const { card } = renderCard([sessionInput("/sessions/a.jsonl", "会话 A", [1_000])]);
+    // 会改变数值理解的口径：一字不动。
+    expect(
+      within(card).getByText("滚动 7 天累计，不是官方重置窗口，两者不逐分钟吻合")
+    ).toBeInTheDocument();
+    // 行动入口：保留，但不再解释「没有分母就没有比率」。
+    expect(
+      within(card).getByText("未选择订阅计划：只显示消耗，不显示百分比。去「设置 → 计费窗口」选择。")
+    ).toBeInTheDocument();
+    expect(within(card).queryByText(/没有分母就没有比率/)).toBeNull();
+  });
+
+  it("历史条 caption 只留「每个柱是什么」，完整说明进 title（Issue #354）", () => {
+    const earlier = sessionInput("/sessions/a.jsonl", "会话 A", [1_000]);
+    // 第二条记录落在下一个窗口：历史条因此有内容可画。
+    const later: UsageSessionInput = {
+      records: [record(T0 + 7 * HOUR, 2_000)],
+      projectLabel: "-repo-demo",
+      session: meta("/sessions/b.jsonl", { customTitle: "会话 B" })
+    };
+    renderCard([earlier, later]);
+
+    const caption = screen.getByText("每个柱 = 一个 5 小时窗口");
+    expect(caption.getAttribute("title")).toBe(
+      "每个柱 = 一个 5 小时计费窗口；横轴按窗口开始时刻等距排布，柱间距不代表真实间隔"
+    );
+    // 完整说明不再出现在屏幕文本里，只在 title 上。
+    expect(screen.queryByText(/柱间距不代表真实间隔/)).toBeNull();
   });
 
   it("窗口内 6 个会话：5 行真实会话 + 「其余 1 个会话」，余项不是按钮", async () => {

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **用量页首屏说明文字收敛**：计费窗口卡只保留会改变数值理解的说明——分母口径收进 Top 会话列表的 `title` / `aria-label`，历史条轴注缩短为「每个柱 = 一个 5 小时窗口」（完整说明进 `title`），未选计划提示去掉解释性从句；用量页七个视图标签补齐一句「切过去看什么」的 `title`（Issue #354）。
+
 ## [0.41.1] - 2026-11-17
 
 本轮主题：**界面打磨**——按一份逐张看过 132 张截图的审计，把读不出来、对不齐、说不清的地方修掉。
