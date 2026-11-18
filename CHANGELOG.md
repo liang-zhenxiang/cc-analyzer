@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-11-18
+
+本轮主题：**钱花在哪**——一屏看清每个项目的每条会话各花了多少，点一下就进去。
+
 ### Added
 
 - **数据实验室新增「成本树图」**：项目 → 会话的两级面积图，面积可在估算成本与四类 token 之和之间切换；悬停浮层给出标题、读数、占比、模型与时长，点击方块直接打开会话，键盘用 roving tabindex 在一张图内走动；树图之外另有视觉隐藏的等价表格供读屏使用（Issue #359）。
