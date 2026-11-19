@@ -1279,10 +1279,14 @@ export function UsageOverviewPage({
               />
             </div>
 
-            {/* D7 会话甘特（Round DD）：一行一会话，重叠看得见。整行。 */}
+            {/* D7 会话甘特（Round DD）：一行一会话，重叠看得见。整行。
+                吃窗口化 `shapeInputs`（Issue #365）：横轴刻度密度按区间档位
+                选（`days`），若喂全历史 `inputs`，30 天档会给 300 天的数据
+                排出 43 个周刻度、标签互相压字；按区间裁剪后区间外的会话也
+                自然离场。 */}
             <div className={styles.compactionRow}>
               <SessionGanttPanel
-                inputs={inputs}
+                inputs={shapeInputs}
                 days={days}
                 now={readouts.now}
                 onOpenSession={onOpenSession}

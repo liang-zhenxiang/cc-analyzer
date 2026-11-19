@@ -208,7 +208,12 @@ function buildColumns(census: ToolCensus): Column[] {
     const tail = buckets.slice(TOP_N);
     const max = head[0]?.callsWithSidechain ?? 1;
 
-    const rows = head.map(kind === "mcp" ? mcpRowOf : rowOf);
+    const rows = head.map((bucket) => {
+      const row = kind === "mcp" ? mcpRowOf(bucket) : rowOf(bucket);
+      // 只有内置工具栏有条形区（design §0）：head 行的条长按榜内最大次数归一。
+      // 另外三栏没有条形区，`bar` 保持 null；折尾行归一的语义也不动。
+      return kind === "builtin" ? { ...row, bar: row.calls / max } : row;
+    });
     if (tail.length > 0) rows.push(tailRow(kind, tail, max));
 
     const countMeta =

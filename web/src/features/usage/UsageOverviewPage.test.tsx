@@ -1090,6 +1090,31 @@ describe("UsageOverviewPage", () => {
       document.querySelector('[data-probe="calendar-day"][aria-expanded="true"]')
     ).not.toBeNull();
   });
+  it("会话甘特只画区间内的会话：区间外的旧会话不进横轴（Issue #365）", async () => {
+    const bridges = createUsageBridges({
+      // 默认区间 30 天：一条 6 小时前（窗内），一条 45 天前（窗外）。
+      [`${PROJECTS_ROOT}/-repo-alpha/recent.jsonl`]: sessionJsonl(
+        "a2",
+        "claude-sonnet-4-5-20250929",
+        6 * 3_600_000
+      ),
+      [`${PROJECTS_ROOT}/-repo-alpha/stale.jsonl`]: sessionJsonl(
+        "s2",
+        "claude-sonnet-4-5-20250929",
+        45 * 24 * 3_600_000
+      )
+    });
+    renderPage(bridges);
+
+    const dashboard = await screen.findByRole("region", { name: "用量总览" });
+    const gantt = await within(dashboard).findByRole("region", { name: "会话甘特" });
+    // 甘特吃窗口化 inputs：横轴刻度按 30 天档选，窗外会话必须离场。
+    // 修复前这里画两行，10/12、10/19、10/26 这样的周刻度还会贴成
+    // 「10/1210/1910/26」——这条断言把「喂的是 shapeInputs」钉住。
+    expect(await within(gantt).findAllByRole("button", { name: /token/ })).toHaveLength(1);
+    expect(within(gantt).getByText("1 个会话")).toBeInTheDocument();
+  });
+
   it("Round DD：十块新内容都挂在用量档 / 里程碑档的正确位置上", async () => {
     const bridges = createUsageBridges({
       [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 6 * 3_600_000),

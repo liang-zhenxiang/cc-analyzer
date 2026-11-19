@@ -234,12 +234,14 @@
   white-space: nowrap;
 }
 
+/* 读数与标题成组（Issue #365）：全宽卡上曾用 `margin-left: auto` 把读数推到
+   卡最右端，与左侧标题隔开一千多像素，组件注释承诺的「紧挨着」只在窄卡成立。
+   去掉自动外边距后标题 / 范围 / 读数按 CSS `order`（1 / 2 / 3）连续排。 */
 .cacheRight {
   display: inline-flex;
   align-items: baseline;
   gap: var(--sp-2);
   order: 3;
-  margin-left: auto;
 }
 
 /* 趋势块与数字块用间距分层：两块各说各的结论，不要并排着让读者对号入座。 */
