@@ -428,13 +428,15 @@ export function BillingWindowCard({
         <section className={styles.weekly} aria-label="周用量（滚动 7 天）">
           <span className={styles.labelRow}>
             <span className={styles.label}>滚动 7 天</span>
-            <ProvenanceBadge provenance="logged" />
+            {/* 日均读数是按消耗速度外推的（Issue #367）：圆点住在层标题行末尾，
+                不再夹在「日均 N/日」与「上一周期」之间冒充分隔符。detail 说明
+                它修饰的是日均读数，悬停与读屏都能读到。 */}
+            <ProvenanceBadge provenance="inferred" detail="日均读数" />
           </span>
           <b className={styles.value}>{formatTokenCount(weeklyConsumed)}</b>
           <div className={styles.weeklyMeta}>
             <span className={styles.weeklyStat}>
               日均 {formatTokenCount(Math.round(weeklyConsumed / 7))}/日
-              <ProvenanceBadge provenance="inferred" />
             </span>
             <span className={styles.weeklyStat}>
               {weeklyDeltaPct !== null

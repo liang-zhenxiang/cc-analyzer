@@ -36,13 +36,27 @@
   stroke-width: 1px;
 }
 
-/* 项目名：只写项目名，会话块不写标题（长标题在 130% 下必溢出）。光晕让
-   文字压在会话色块上仍然可读，而不需要为标签挖一块背景。 */
+/* 项目名：左上角，只写项目名。光晕让文字压在会话色块上仍然可读，而不需要
+   为标签挖一块背景。 */
 .projectLabel {
   fill: var(--text);
   font-size: var(--fs-xs);
   line-height: var(--lh-xs);
   font-weight: 600;
+  paint-order: stroke;
+  stroke: var(--bg-subtle);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+/* 会话标题（Issue #367）：全局面积前 6 的块才有，放在块的左下角，避开项目名
+   所在的上边缘。字号、光晕与项目名同一档；字重降一档，让两级标签有层级而不
+   靠颜色区分（fill 仍是 --text，保持与项目名同等的可读性）。 */
+.sessionLabel {
+  fill: var(--text);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-weight: 400;
   paint-order: stroke;
   stroke: var(--bg-subtle);
   stroke-width: 3px;

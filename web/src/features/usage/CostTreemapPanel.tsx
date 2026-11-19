@@ -62,6 +62,13 @@ const LABEL_MIN_HEIGHT = 32;
 /** `--fs-xs` 的基准值；乘 `--font-scale` 得到实际字号。 */
 const BASE_FONT_XS = 11;
 const LABEL_PAD_X = 8;
+/** 会话标题距块下边缘的留白（100% 字号），跟着 `--font-scale` 走。 */
+const LABEL_PAD_BOTTOM = 5;
+/**
+ * 会话标题只标**全局面积最大的前 6 个**（Issue #367）：给每个块都标等于没有
+ * 层级，标太多则会把图变成一张密排文字表。合并块（「其余 N 个」）不在候选里。
+ */
+const SESSION_LABEL_COUNT = 6;
 /** 浮层与锚点、视口边缘的距离。 */
 const TIP_OFFSET = 8;
 const TIP_GAP = 8;
@@ -75,6 +82,12 @@ type LayoutBlock = {
   tone: number;
   rect: Rect;
   merged: boolean;
+  /** 该项目自己的项目名行（用于避让）；项目名没显示时为 `null`。 */
+  projectLabelBox: Rect | null;
+  /** 会话标题（Issue #367）；放不下或不在前 6 时为 `null`。 */
+  label: string | null;
+  labelX: number;
+  labelY: number;
 };
 
 type LayoutProject = {
@@ -107,8 +120,14 @@ function charWidth(char: string, fontSize: number): number {
   return /[^\x00-\xff]/.test(char) ? fontSize : fontSize * 0.62;
 }
 
+/** 一段文字的估算宽度（与 `fitLabel` 的截断口径一致），供排版与测试核对。 */
+export function textWidth(text: string, fontSize: number): number {
+  return [...text].reduce((sum, char) => sum + charWidth(char, fontSize), 0);
+}
+
 /**
- * 标签截断：可用宽度 = 矩形宽 - 8（左侧内边距）。
+ * 标签截断：`maxWidth` 由调用方按矩形宽与左右内边距算好（项目名与会话标题的
+ * 内边距不同，不能在这里写死）。
  *
  * 返回 `null` 表示「整条不画」——截断后少于 3 个字符时，剩下的信息量还不如
  * 留白；半个省略号只会让人以为标签坏了。
@@ -148,6 +167,10 @@ function expandRect(rect: Rect, amount: number): Rect {
     w: rect.w + amount * 2,
     h: rect.h + amount * 2
   };
+}
+
+function boxesIntersect(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
 function blockShare(value: number, total: number): string {
@@ -261,6 +284,22 @@ function buildLayout(
     );
     if (!(inner.w > 0) || !(inner.h > 0)) return;
 
+    // 项目名行先算出来：会话标题要避让它（两者都在左侧，短块上会撞）。
+    const showLabel = inner.w >= minWidth && inner.h >= minHeight;
+    const projectLabel = showLabel
+      ? fitLabel(project.project, inner.w - LABEL_PAD_X, fontSize)
+      : null;
+    const projectLabelX = inner.x + LABEL_PAD_X;
+    const projectLabelY = inner.y + fontSize + 4;
+    const projectLabelBox: Rect | null = projectLabel
+      ? {
+          x: projectLabelX,
+          y: inner.y,
+          w: textWidth(projectLabel, fontSize),
+          h: fontSize + 8
+        }
+      : null;
+
     const merged = mergeTinySessions(project.sessions, MERGE_MIN_SHARE, total);
     const sessionRects = layoutTreemap(
       merged.sessions.map((session) => ({ key: session.id, value: session.value })),
@@ -283,22 +322,53 @@ function buildLayout(
         project: project.project,
         tone,
         rect: blockRect,
-        merged: session.id === TREEMAP_OTHER_ID
+        merged: session.id === TREEMAP_OTHER_ID,
+        projectLabelBox,
+        label: null,
+        labelX: blockRect.x + LABEL_PAD_X * fontScale,
+        labelY: blockRect.y + blockRect.h - LABEL_PAD_BOTTOM * fontScale
       });
     }
 
-    const showLabel = inner.w >= minWidth && inner.h >= minHeight;
     layoutProjects.push({
       key: String(index),
       project: project.project,
       tone,
       // 外扩 1px：边框落在项目缝里，不与会话发丝边并排成双线。
       frame: expandRect(inner, 1),
-      label: showLabel ? fitLabel(project.project, inner.w - LABEL_PAD_X, fontSize) : null,
-      labelX: inner.x + LABEL_PAD_X,
-      labelY: inner.y + fontSize + 4
+      label: projectLabel,
+      labelX: projectLabelX,
+      labelY: projectLabelY
     });
   });
+
+  // 会话标题：全局面积前 6（合并块不参与），再逐个检查「放得下」。
+  // 顺序是面积降序，并列时按面积值、再按键，保证同一输入每次标同一批块。
+  const candidates = blocks
+    .filter((block) => !block.merged)
+    .sort(
+      (a, b) =>
+        b.rect.w * b.rect.h - a.rect.w * a.rect.h ||
+        b.session.value - a.session.value ||
+        (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)
+    );
+  for (const block of candidates.slice(0, SESSION_LABEL_COUNT)) {
+    if (block.rect.w < minWidth || block.rect.h < minHeight) continue;
+    const padX = LABEL_PAD_X * fontScale;
+    const label = fitLabel(block.session.title, block.rect.w - padX * 2, fontSize);
+    if (!label) continue;
+    // 标题框（含字顶）与项目名行相交时不画：两者都在块左侧，短块上会撞。
+    const labelBox: Rect = {
+      x: block.labelX,
+      y: block.labelY - fontSize,
+      w: textWidth(label, fontSize),
+      h: fontSize
+    };
+    const top = block.labelY - fontSize;
+    if (top < block.rect.y) continue;
+    if (block.projectLabelBox && boxesIntersect(labelBox, block.projectLabelBox)) continue;
+    block.label = label;
+  }
 
   return {
     projects: layoutProjects,
@@ -703,6 +773,22 @@ export function CostTreemapPanel({ inputs, days, now, onOpenSession }: Props) {
                       data-treemap-project-label={project.project}
                     >
                       {project.label}
+                    </text>
+                  ) : null
+                )}
+                {/* 会话标题（Issue #367）：只有全局前 6 且放得下的块才有；
+                    左下角、`--fs-xs`、与项目名同款光晕。 */}
+                {layout.blocks.map((block) =>
+                  block.label ? (
+                    <text
+                      key={`session-label-${block.key}`}
+                      x={block.labelX}
+                      y={block.labelY}
+                      className={styles.sessionLabel}
+                      data-treemap-session-label={block.key}
+                      data-treemap-session-project={block.project}
+                    >
+                      {block.label}
                     </text>
                   ) : null
                 )}
