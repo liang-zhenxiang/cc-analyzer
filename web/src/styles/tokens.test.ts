@@ -432,7 +432,10 @@ function composite(foreground: string, alpha: number, background: string): strin
  */
 test("树图会话内边与六种会话填充的对比度在浅色下都达到 3:1", () => {
   const light = block(":root {");
-  const seam = hexIn(light, "treemap-edge");
+  // 浅色档引用 --text-tertiary（「承载数据的线」那一档），不复制十六进制——
+  // 同一墨色写两遍，将来改一处另一处不会跟着动。
+  expect(light).toMatch(/--treemap-edge:\s*var\(--text-tertiary\)\s*;/);
+  const seam = hexIn(light, "text-tertiary");
   // 树图落在 Panel 里，Panel 的底色是 --bg-subtle；-soft 是 alpha 色，先合成。
   const background = hexIn(light, "bg-subtle");
   for (let index = 1; index <= 6; index += 1) {
