@@ -5,7 +5,7 @@ import type { SessionMeta } from "../sessions/metadataCache";
 import type { SessionRecord, SessionUsage } from "../sessions/types";
 import { resetFontScaleForTest, setFontScale } from "../settings/fontScale";
 import type { UsageSessionInput } from "./usageAggregations";
-import { CostTreemapPanel, fitLabel } from "./CostTreemapPanel";
+import { CostTreemapPanel, fitLabel, textWidth } from "./CostTreemapPanel";
 
 /**
  * Issue #359 的界面层：维度切换、标签阈值、合并块、空态、脚注、等价表格、
@@ -89,6 +89,24 @@ function pricedProject(
 /** 基本夹具：两个已定价项目（alpha 0.60、beta 0.30），两个可点块。 */
 function basicInputs(): UsageSessionInput[] {
   return [pricedProject("alpha", 100_000), pricedProject("beta", 50_000, { hour: 12 })];
+}
+
+/** 一个项目里的多个会话：面积由 `tokens` 决定，标题用于断言哪个块被标了。 */
+function multiSessionProject(
+  name: string,
+  sessions: ReadonlyArray<{ title: string; tokens: number }>
+): UsageSessionInput[] {
+  const label = `-repo-${name}`;
+  const cwd = `/repo/${name}`;
+  return sessions.map((session, index) => {
+    const meta = metaOf(`/logs/${name}-${index}.jsonl`, label, session.title, cwd);
+    return inputOf(label, cwd, meta, [
+      recordOf(`${name}-${index}`, at(15, 10, index), {
+        model: SONNET,
+        usage: usage(session.tokens)
+      })
+    ]);
+  });
 }
 
 function renderPanel(
@@ -284,6 +302,9 @@ describe("标签阈值", () => {
 
   afterEach(() => {
     if (original) Object.defineProperty(HTMLElement.prototype, "clientWidth", original);
+    // jsdom 把 clientWidth 定义在 Element.prototype 上，`original` 因此可能是
+    // undefined——不删掉自己的覆盖层会把它漏给后面的用例（布局宽度悄悄变成 240）。
+    else Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
   });
 
   it("100% 字号下 74px 宽的项目显示名称，130% 下阈值放大到约 94px 后整条不画", async () => {
@@ -302,6 +323,120 @@ describe("标签阈值", () => {
     await waitFor(() => {
       expect(document.querySelectorAll("[data-treemap-project-label]")).toHaveLength(0);
     });
+  });
+});
+
+describe("会话标题（Issue #367）", () => {
+  function sessionLabels(): SVGTextElement[] {
+    return Array.from(document.querySelectorAll<SVGTextElement>("[data-treemap-session-label]"));
+  }
+
+  function blockRectOf(label: SVGTextElement): {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } {
+    const key = label.getAttribute("data-treemap-session-label")!;
+    const rect = document.querySelector<SVGRectElement>(`[data-treemap-block="${key}"]`);
+    expect(rect).not.toBeNull();
+    return {
+      x: Number(rect!.getAttribute("x")),
+      y: Number(rect!.getAttribute("y")),
+      w: Number(rect!.getAttribute("width")),
+      h: Number(rect!.getAttribute("height"))
+    };
+  }
+
+  it("面积最大的 6 个会话块各有一个标题，位置在块内左下角", async () => {
+    // 同一个项目里 8 个会话，面积严格递减：前 6 个应当被标，后 2 个不标。
+    const inputs = multiSessionProject(
+      "many",
+      [100_000, 90_000, 80_000, 70_000, 60_000, 50_000, 40_000, 30_000].map((tokens, index) => ({
+        title: `会话 ${index}`,
+        tokens
+      }))
+    );
+    renderPanel(inputs);
+
+    const labels = await waitFor(() => {
+      const nodes = sessionLabels();
+      expect(nodes).toHaveLength(6);
+      return nodes;
+    });
+    expect(new Set(labels.map((node) => node.textContent))).toEqual(
+      new Set(["会话 0", "会话 1", "会话 2", "会话 3", "会话 4", "会话 5"])
+    );
+
+    for (const label of labels) {
+      const block = blockRectOf(label);
+      const x = Number(label.getAttribute("x"));
+      const y = Number(label.getAttribute("y"));
+      const fontSize = 11; // 100% 下的 --fs-xs
+      // 左下角：横向在块内且左对齐，纵向落在下半区。
+      expect(x).toBeGreaterThan(block.x);
+      expect(y).toBeGreaterThan(block.y + block.h / 2);
+      expect(y).toBeLessThanOrEqual(block.y + block.h);
+      // 截断后仍不越出块的右边缘。
+      expect(x + textWidth(label.textContent ?? "", fontSize)).toBeLessThanOrEqual(
+        block.x + block.w + 0.001
+      );
+    }
+  });
+
+  it("面积过小的会话块整条不画（不渲染半截省略号）", async () => {
+    // 一个巨大会话 + 一个 1 token 的碎块。碎块仍在全局前 6 里，但放不下标题。
+    const inputs = multiSessionProject("giant", [
+      { title: "巨大 会话", tokens: 1_000_000 },
+      { title: "极小 会话", tokens: 1 }
+    ]);
+    renderPanel(inputs);
+
+    const labels = await waitFor(() => {
+      const nodes = sessionLabels();
+      expect(nodes).toHaveLength(1);
+      return nodes;
+    });
+    expect(labels[0].textContent).toBe("巨大 会话");
+  });
+
+  it("130% 字号：标题跟着缩放，仍留在块内且压在项目名下方", async () => {
+    setFontScale(1.3);
+    renderPanel([
+      pricedProject("alpha", 100_000),
+      pricedProject("beta", 50_000, { hour: 12 }),
+      pricedProject("gamma", 25_000, { hour: 13 }),
+      pricedProject("delta", 12_000, { hour: 14 }),
+      pricedProject("epsilon", 6_000, { hour: 11 })
+    ]);
+
+    const fontSize = 11 * 1.3;
+    const labels = await waitFor(() => {
+      const nodes = sessionLabels();
+      expect(nodes.length).toBeGreaterThanOrEqual(3);
+      return nodes;
+    });
+
+    for (const label of labels) {
+      const block = blockRectOf(label);
+      const project = label.getAttribute("data-treemap-session-project")!;
+      const projectLabel = document.querySelector<SVGTextElement>(
+        `[data-treemap-project-label="${project}"]`
+      );
+      expect(projectLabel).not.toBeNull();
+
+      const x = Number(label.getAttribute("x"));
+      const y = Number(label.getAttribute("y"));
+      // 不溢出：左右与上下都在块内。
+      expect(x).toBeGreaterThanOrEqual(block.x);
+      expect(x + textWidth(label.textContent ?? "", fontSize)).toBeLessThanOrEqual(
+        block.x + block.w + 0.001
+      );
+      expect(y - fontSize).toBeGreaterThanOrEqual(block.y);
+      expect(y).toBeLessThanOrEqual(block.y + block.h);
+      // 与项目名行不打架：整条标题（含字顶）都在项目名基线下方。
+      expect(y - fontSize).toBeGreaterThan(Number(projectLabel!.getAttribute("y")));
+    }
   });
 });
 

@@ -154,7 +154,7 @@ describe("BillingWindowCard", () => {
     render(cardAt(inputsOf([record(T0, 19_000)]), T0 + 2 * HOUR));
     const card = screen.getByLabelText("计费窗口");
     // 推算徽章（圆点；完整句子在可访问名上）共三枚：5h 层的速度与预测两枚，
-    // 加上周层日均线的一枚（同为「按消耗速度推算」的口径，未设预算时周层没有别的）。
+    // 加上周层标题行的一枚（标的是「日均读数」，Issue #367 从读数行移来）。
     expect(within(card).getAllByLabelText(/数据来源：按消耗速度推算/)).toHaveLength(3);
     // T0+2h 起再 2h → 13:00（同日）
     expect(within(card).getByText("10-02 13:00")).toBeInTheDocument();
@@ -165,6 +165,23 @@ describe("BillingWindowCard · 滚动 7 天层", () => {
   afterEach(() => {
     cleanup();
     setPlan({ id: "none", limitTokens: null, weeklyLimitTokens: null });
+  });
+
+  it("推算圆点在层标题行，日均读数行保持连续（Issue #367）", () => {
+    render(cardAt(inputsOf([record(T0), record(T0 + HOUR)]), T0 + 2 * HOUR));
+    const weekly = weeklySection();
+
+    // 圆点住在「滚动 7 天」标题行末尾：与卡片右上的来源圆点同一套位置语言。
+    const title = within(weekly).getByText("滚动 7 天", { exact: true });
+    const titleRow = title.parentElement!;
+    expect(within(titleRow).getByLabelText(/数据来源：按消耗速度推算/)).toBeInTheDocument();
+
+    // 读数行不再夹圆点：读起来是连续的「日均 2,857/日」。
+    const dailyRow = Array.from(weekly.querySelectorAll("span")).find(
+      (node) => node.textContent?.trim() === "日均 2,857/日"
+    );
+    expect(dailyRow).not.toBeUndefined();
+    expect(within(dailyRow!).queryByLabelText(/数据来源：按消耗速度推算/)).toBeNull();
   });
 
   it("滚动 7 天读数与「不是官方重置窗口」的说明同时在场", () => {
