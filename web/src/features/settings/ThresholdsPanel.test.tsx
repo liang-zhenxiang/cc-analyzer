@@ -139,19 +139,34 @@ describe("ThresholdsPanel", () => {
     expect(screen.getByRole("heading", { name: "界面字号", level: 4 })).toBeInTheDocument();
   });
 
-  test("三个组标题吸顶：sticky、贴住面板内边框、背景不透明", () => {
+  test("标题栏与三个组标题分层吸顶：滚到底仍有可见退出口（×）", () => {
     // jsdom 不解析 CSS Module 的层叠，直接锁住源码里的吸顶规则（同下方 120px 守卫）。
     const css = readFileSync(
       resolve(process.cwd(), "src/features/settings/ThresholdsPanel.module.css"),
       "utf8"
     ).replace(/\/\*[\s\S]*?\*\//g, "");
-    const group = /\.groupTitle\s*\{([^}]*)\}/.exec(css);
-    expect(group).not.toBeNull();
-    const groupBody = group?.[1] ?? "";
+    const ruleBody = (selector: string) => {
+      const match = new RegExp(`\\${selector}\\s*\\{([^}]*)\\}`).exec(css);
+      expect(match, `样式表里找不到 ${selector}`).not.toBeNull();
+      return match?.[1] ?? "";
+    };
+
+    const headerBody = ruleBody(".header");
+    expect(headerBody).toMatch(/position:\s*sticky/);
+    // 与 `.groupTitle` 同一套偏移基准：负的面板内边距，正好贴住面板内边框。
+    expect(headerBody).toMatch(/top:\s*calc\(var\(--sp-3\)\s*\*\s*-1\)/);
+    expect(headerBody).toMatch(/background:\s*var\(--bg-elevated\)/);
+    expect(headerBody).toMatch(/min-height:\s*var\(--control-h-lg\)/);
+
+    const groupBody = ruleBody(".groupTitle");
     expect(groupBody).toMatch(/position:\s*sticky/);
-    expect(groupBody).toMatch(/z-index:\s*1/);
-    // 背景必须不透明：与面板同色，否则滚动内容会从标题底下透出。
     expect(groupBody).toMatch(/background:\s*var\(--bg-elevated\)/);
+    // 层级关系：标题栏盖住组标题；组标题的 top 顺延一个标题栏高度。
+    const zIndexOf = (body: string) => Number(/z-index:\s*(\d+)/.exec(body)?.[1]);
+    expect(zIndexOf(headerBody)).toBeGreaterThan(zIndexOf(groupBody));
+    expect(groupBody).toMatch(
+      /top:\s*calc\(var\(--control-h-lg\)\s*-\s*var\(--sp-3\)\)/
+    );
 
     // 负的 top 是在抵消面板内边距。两者一旦脱钩，吸顶标题与面板顶边之间
     // 会留出一条能透出内容的缝——这里把「偏移 = 内边距」锁成一条契约。
@@ -159,7 +174,6 @@ describe("ThresholdsPanel", () => {
     expect(panel).not.toBeNull();
     expect(panel?.[1] ?? "").toMatch(/overflow:\s*auto/);
     expect(panel?.[1] ?? "").toMatch(/padding:\s*var\(--sp-3\)/);
-    expect(groupBody).toMatch(/top:\s*calc\(var\(--sp-3\)\s*\*\s*-1\)/);
   });
 
   test("两行示例读数带「字号预览」标签，不再像漏进来的日志行", () => {

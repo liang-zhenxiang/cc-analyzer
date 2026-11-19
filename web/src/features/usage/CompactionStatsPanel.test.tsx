@@ -1,5 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { vi } from "vitest";
 import { CompactionStatsPanel } from "./CompactionStatsPanel";
 import { compactionStats, type CompactionStats } from "./compactionStats";
@@ -110,6 +112,20 @@ describe("CompactionStatsPanel", () => {
     // 0 次时不画空图：既没有堆叠条也没有 KPI 读数。
     expect(screen.queryByRole("img", { name: "压缩触发方式分布" })).toBeNull();
     expect(panel.textContent).not.toContain("压缩次数");
+  });
+
+  it("缓存读数与标题成组：全宽卡上不再被 auto margin 推到最右端（Issue #365）", () => {
+    // jsdom 不做布局，读源码把「读数紧跟标题」的契约锁住。
+    const css = readFileSync(
+      resolve(process.cwd(), "src/features/usage/CompactionStatsPanel.module.css"),
+      "utf8"
+    ).replace(/\/\*[\s\S]*?\*\//g, "");
+    const right = /\.cacheRight\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(right).not.toMatch(/margin-left:\s*auto/);
+    // 视觉顺序仍由 order 决定：标题(1) → 范围(2) → 读数(3)。
+    expect(right).toMatch(/order:\s*3/);
+    const head = /\.cacheHead\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(head).not.toMatch(/justify-content:\s*space-between/);
   });
 });
 

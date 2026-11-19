@@ -674,7 +674,7 @@ export function CostTreemapPanel({ inputs, days, now, onOpenSession }: Props) {
                     width={Math.max(0, block.rect.w - 1)}
                     height={Math.max(0, block.rect.h - 1)}
                     fill="none"
-                    stroke={contrast === "high" ? "var(--border)" : "var(--border-strong)"}
+                    stroke={contrast === "high" ? "var(--border)" : "var(--treemap-edge)"}
                     strokeWidth={1}
                     className={styles.cellEdge}
                   />

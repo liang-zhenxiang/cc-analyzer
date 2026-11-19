@@ -20,11 +20,24 @@
   animation: cca-enter var(--dur-enter) var(--ease-out);
 }
 
+/* 标题 + 右上角关闭：也吸顶（Issue #365）。滚到「数据与阈值」时，唯一的
+   可见退出口（×）曾经随标题一起滚走，只剩 Esc 与点遮罩两条不可见路径。
+
+   层级高于 `.groupTitle`（2 > 1），两者吸在同一位置时由它盖住组标题。
+   下沿一条发丝线把「始终可用的退出口」与滚过的内容分开；背景不透明，
+   否则下方内容会从标题底下透出来。高度由关闭按钮决定（--control-h-lg），
+   `.groupTitle` 的 `top` 正是按这个高度顺延的——两处必须成对改。 */
 .header {
+  position: sticky;
+  top: calc(var(--sp-3) * -1);
+  z-index: 2;
   display: flex;
+  min-height: var(--control-h-lg);
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-2);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
 }
 
 .header h2 {
@@ -121,10 +134,13 @@
 
    发丝线挂在**下沿**：吸顶时它是标题与从下面滚过的内容之间的分隔线；
    若留在上沿，吸顶后会与面板自己的边框叠成双线、下方反而没有分隔。
-   非吸顶时标题与上一节的间距仍由 margin-top 提供。 */
+   非吸顶时标题与上一节的间距仍由 margin-top 提供。
+
+   `top` 在面板内边距之外还要顺延一个吸顶 `.header` 的高度（关闭按钮
+   --control-h-lg）：否则组标题会与标题栏重叠，滚到底时 × 又被组标题盖住。 */
 .groupTitle {
   position: sticky;
-  top: calc(var(--sp-3) * -1);
+  top: calc(var(--control-h-lg) - var(--sp-3));
   z-index: 1;
   margin: var(--sp-3) 0 0;
   border-bottom: 1px solid var(--border);

@@ -1281,7 +1281,15 @@ export function calendarScenario(overrides: Partial<MockScenario> = {}): MockSce
   ]);
 
   const base = emptyScenario();
-  return { ...base, files, ...overrides };
+  return {
+    ...base,
+    // 顶栏版本徽章读桩的 `updater`；`emptyScenario` 不带它，不补就会把
+    // `v0.0.0-mock` 印进 `usage-day-*` 归档截图（`pulseScenario` 那条路
+    // 早就在调用处显式补过；这里让场景自己带上，截图调用方不用再记一次）。
+    updater: { currentVersion: APP_VERSION, ...overrides.updater },
+    files,
+    ...overrides
+  };
 }
 
 /**

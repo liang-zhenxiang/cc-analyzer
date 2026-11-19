@@ -5,6 +5,7 @@ import type { SessionMeta } from "../sessions/metadataCache";
 import { toolCensus, type ToolCallFact, type CensusBucket } from "./toolCensus";
 import { toolCalendar } from "./toolCalendar";
 import { ToolCensusPanel, mergeTopSessions } from "./ToolCensusPanel";
+import styles from "./ToolCensusPanel.module.css";
 
 /**
  * 组件直挂（页面级集成由 UsageOverviewPage.test 与 e2e 负责）：折尾、双口径
@@ -88,6 +89,26 @@ describe("ToolCensusPanel", () => {
       expect(screen.getByRole("list", { name: label })).toBeVisible();
     }
     expect(screen.getByText(/调用次数含子 agent 记录/)).toBeVisible();
+  });
+
+  it("内置主榜的占比条：head 行可见且按调用次数归一，最忙的一行撑满 100%", () => {
+    render(<ToolCensusPanel census={twoSessionCensus()} days={30} sessionsInWindow={2} />);
+
+    const list = screen.getByRole("list", { name: "内置工具调用排行" });
+    const rows = within(list).getAllByRole("button");
+    // 7 类内置工具 = 6 个 head 行 + 1 个折尾行；条形区只在 builtin 栏渲染。
+    expect(rows).toHaveLength(7);
+    const widthOf = (row: HTMLElement) => {
+      const bar = row.querySelector(`.${styles.bar}`) as HTMLElement | null;
+      expect(bar, "内置主榜 head 行缺了条形元素").not.toBeNull();
+      return parseFloat(bar!.style.width);
+    };
+    const widths = rows.map(widthOf);
+    // Issue #365：修复前 head 行的 bar 恒为 null（宽度 0%），只剩边框。
+    expect(widths.slice(0, 6).every((width) => width > 0)).toBe(true);
+    // Bash 6 次为榜内最大 → 100%；Read 3 次 → 50%。
+    expect(widths[0]).toBe(100);
+    expect(widths[1]).toBe(50);
   });
 
   it("折尾行收长尾：会话列不给读数（宁缺毋假），仍可点下钻", async () => {

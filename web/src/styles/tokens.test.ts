@@ -410,3 +410,49 @@ test("日历色带对比度实测：相邻档与空格区分度达标", () => {
     expect(contrast(cal(1), emptyCell), `${label}最浅档 cal-1 与空格分不开`).toBeGreaterThanOrEqual(inset);
   }
 });
+
+/** 把 alpha 色的前景合成到不透明底色上，返回 `#rrggbb`（用于算实际读数对比度）。 */
+function composite(foreground: string, alpha: number, background: string): string {
+  const fg = [1, 3, 5].map((index) => Number.parseInt(foreground.slice(index, index + 2), 16));
+  const bg = [1, 3, 5].map((index) => Number.parseInt(background.slice(index, index + 2), 16));
+  return (
+    "#" +
+    fg
+      .map((value, index) => Math.round(value * alpha + bg[index] * (1 - alpha)))
+      .map((value) => value.toString(16).padStart(2, "0"))
+      .join("")
+  );
+}
+
+/**
+ * 树图会话内边（Issue #365）：会话块之间靠 2px 缝隙 + 1px 内边分离。
+ * 浅色下原 `--border-strong`（rgba 0.18）与 `-soft` 填充只有约 1.3:1，
+ * 90% 字号或低 DPI 下边界先糊；这里把「会话内边与六种填充都达到 3:1」
+ * 锁成契约。项目外框是 `--chart-N` 实色，不在此阈值内。
+ */
+test("树图会话内边与六种会话填充的对比度在浅色下都达到 3:1", () => {
+  const light = block(":root {");
+  // 浅色档引用 --text-tertiary（「承载数据的线」那一档），不复制十六进制——
+  // 同一墨色写两遍，将来改一处另一处不会跟着动。
+  expect(light).toMatch(/--treemap-edge:\s*var\(--text-tertiary\)\s*;/);
+  const seam = hexIn(light, "text-tertiary");
+  // 树图落在 Panel 里，Panel 的底色是 --bg-subtle；-soft 是 alpha 色，先合成。
+  const background = hexIn(light, "bg-subtle");
+  for (let index = 1; index <= 6; index += 1) {
+    const fill = hexIn(light, `chart-${index}`);
+    const alphaMatch = new RegExp(`--chart-${index}-soft:\\s*rgba\\([^)]*,\\s*([\\d.]+)\\)`).exec(
+      light
+    );
+    expect(alphaMatch, `:root 里找不到 --chart-${index}-soft 的 rgba alpha`).not.toBeNull();
+    const fillOnPanel = composite(fill, Number(alphaMatch![1]), background);
+    expect(
+      contrast(seam, fillOnPanel),
+      `--treemap-edge 与 --chart-${index}-soft 填充分不开`
+    ).toBeGreaterThanOrEqual(3);
+  }
+});
+
+test("深色树图会话内边保持原 --border-strong：修复浅色不把深色画成网格", () => {
+  const dark = block('[data-theme="dark"] {');
+  expect(dark).toMatch(/--treemap-edge:\s*var\(--border-strong\)\s*;/);
+});

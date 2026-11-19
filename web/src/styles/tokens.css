@@ -32,6 +32,16 @@
   --border: rgba(16, 24, 40, 0.1);
   --border-strong: rgba(16, 24, 40, 0.18);
 
+  /* 树图会话内边（Issue #365）：会话块之间靠 2px 缝隙 + 1px 内边分离，
+     浅色下原 `--border-strong` 与 `-soft` 填充只有约 1.3:1，90% 字号或低
+     DPI 下边界先糊。借用三级文字墨色（即仓库里「承载数据的线」那一档），
+     与六种 `--chart-N-soft` 填充的对比度 3.39–3.61:1。项目外框仍用
+     `--chart-N` 实色，不消费此令牌。
+
+     引用而不是复制值：同一个墨色若在这里写一遍十六进制，将来改
+     `--text-tertiary` 时树图的边不会跟着动，两处就会悄悄漂移。 */
+  --treemap-edge: var(--text-tertiary);
+
   /* 动作色：主按钮用墨色而不是强调色，让强调色退出「动作」语义 */
   --ink: #16181b;
   --on-ink: #ffffff;
@@ -281,6 +291,10 @@
 
   --border: rgba(255, 255, 255, 0.07);
   --border-strong: rgba(255, 255, 255, 0.14);
+
+  /* 树图会话内边保持原值：深色下 `-soft` 填充本来就暗，提亮描边会把整张图
+     变成网格；浅色才需要加强（见 :root 的 --treemap-edge）。 */
+  --treemap-edge: var(--border-strong);
 
   --ink: #f0f2f5;
   --on-ink: #0d0f12;
