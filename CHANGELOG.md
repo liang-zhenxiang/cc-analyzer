@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.42.1] - 2026-11-20
+
+本轮主题：**看得见才算数**——修掉一批「数据一直是对的、但界面没画出来」的缺陷。
+
 ### Added
 
 - **成本树图给最大的会话块补标题**：全局面积前 6 的会话块在块内左下角显示标题，放不下时整条不画；标题按 `--font-scale` 截断、避让项目名，130% 字号下也不溢出（Issue #367）。
