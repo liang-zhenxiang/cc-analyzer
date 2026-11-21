@@ -139,22 +139,23 @@ describe("焦点环的几何只走令牌", () => {
    * 成本树图（Issue #359）再加 1 条：SVG 焦点块用 `stroke-width:
    * var(--focus-ring-width)` 叠独立描边矩形（SVG 没有 outline）。它消费令牌，
    * 但不进 `outline` 的环宽度计数。
-   * 重数后：环宽度 73、偏移 41 + 29、消费规则 78。
+   * 回声（Issue #371）再加 2 条：整组头按钮与会话行按钮各一条（正偏移）。
+   * 重数后：环宽度 75、偏移 43 + 29、消费规则 80。
    */
-  it("令牌被 78 条规则消费，环宽度 73 处、偏移 41 + 29 处、焦点竖条 7 处", () => {
+  it("令牌被 80 条规则消费，环宽度 75 处、偏移 43 + 29 处、焦点竖条 7 处", () => {
     const count = (pattern: RegExp) => ALL_SOURCE.match(pattern)?.length ?? 0;
     // 只数「消费」的规则：tokens.css 里那几块是**声明**（`--focus-ring-width: 2px;`），
     // 不含 `var(...)`，不能被算进消费方。
     const consumingRules = ALL_RULES.filter((rule) => /var\(--focus-ring-/.test(rule.body));
 
-    expect(count(/outline(?:-width)?:\s*var\(--focus-ring-width\)/g)).toBe(73);
-    expect(count(/outline-offset:\s*var\(--focus-ring-offset\)/g)).toBe(41);
+    expect(count(/outline(?:-width)?:\s*var\(--focus-ring-width\)/g)).toBe(75);
+    expect(count(/outline-offset:\s*var\(--focus-ring-offset\)/g)).toBe(43);
     // 内嵌负偏移有两种写法：直接令牌，与 calc(-1 * 令牌)（Round GG 筛选栏）。
     const insetDirect = count(/outline-offset:\s*var\(--focus-ring-inset\)/g);
     const insetCalc = count(/outline-offset:\s*calc\(-1 \* var\(--focus-ring-inset\)\)/g);
     expect(insetDirect + insetCalc).toBe(29);
     expect(count(/inset\s+var\(--focus-ring-width\)\s+0\s+0\s+var\(--accent\)/g)).toBe(7);
-    expect(consumingRules.length).toBe(78);
+    expect(consumingRules.length).toBe(80);
   });
 });
 

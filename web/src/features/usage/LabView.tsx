@@ -9,6 +9,7 @@ import { CutoffPanel } from "./CutoffPanel";
 import { WeekdayWeekendPanel } from "./WeekdayWeekendPanel";
 import type { HourlyTokens } from "./cutoffProjection";
 import { CostTerrainPanel } from "./CostTerrainPanel";
+import { EchoPanel } from "./EchoPanel";
 import { FlameGraphPanel } from "./FlameGraphPanel";
 import { HallOfFamePanel } from "./HallOfFamePanel";
 import { HeartbeatPanel } from "./HeartbeatPanel";
@@ -21,18 +22,19 @@ import styles from "./LabView.module.css";
 
 /**
  * 数据实验室（Round FF 十种看法 + Round HH 收工推演 + Round II 三张 +
- * Issue #359 成本树图：共十五张卡）。
+ * Issue #359 成本树图 + Issue #371 回声：共十六张卡）。
  *
- * 它是用量页的第 5 个子视图，不是新页面——十五张卡吃的是同一次扫描产出的
+ * 它是用量页的第 5 个子视图，不是新页面——十六张卡吃的是同一次扫描产出的
  * `inputs`、同一个区间控件与同一个 `now`，零新增 I/O、零新增后端命令。
  *
  * 版面按阅读叙事排（设计 §1.3），不是按功能编号：
  * 星系独享整行（全景）→ 地形成对名人堂（形态 → 极值）→ 成本树图整行
- * （钱落在哪个会话）→ 火焰成对沙盘（观察 → 假设）→ 生态成对足迹
- * （工具结构 / 项目结构）→ 心跳整行（节奏）→ 跑道成对散点（前瞻 → 个人节律）。
+ * （钱落在哪个会话）→ 回声整行（同一件事被问了几次）→ 火焰成对沙盘
+ * （观察 → 假设）→ 生态成对足迹（工具结构 / 项目结构）→ 心跳整行（节奏）
+ * → 跑道成对散点（前瞻 → 个人节律）。
  *
  * 每张卡外面包一层 `data-lab-card`：截图脚本按它逐卡取图，e2e 按它断言
- * 「十五张卡都在」，卡片本身不重复造定位属性。
+ * 「十六张卡都在」，卡片本身不重复造定位属性。
  */
 export function LabView({
   inputs,
@@ -61,7 +63,7 @@ export function LabView({
         <div className={styles.introText}>
           <h2 className={styles.title}>数据实验室</h2>
           <p className={styles.description}>
-            十五个视角读同一份本机日志：形状、密度、极端值、钱的落点、前瞻与「如果早点收工」——全部现算，不出本机。
+            十六个视角读同一份本机日志：形状、密度、极端值、钱的落点、重复的话题、前瞻与「如果早点收工」——全部现算，不出本机。
           </p>
         </div>
         {/* 口径声明，不是第二个区间控件：窗口的唯一实例仍在页头第一行。 */}
@@ -90,6 +92,17 @@ export function LabView({
             聚在一起；整行（会话块需要宽度来放标签，半宽会挤成碎片）。 */}
         <div className={`${styles.card} ${styles.treemap}`} data-lab-card="treemap">
           <CostTreemapPanel
+            inputs={inputs}
+            days={days}
+            now={now}
+            onOpenSession={onOpenSession}
+          />
+        </div>
+
+        {/* Issue #371 回声：接在成本树图之后（钱 → 重复），整行——每组要放
+            标题、三个读数与一条频率条，半宽会把两行标题挤成碎片。 */}
+        <div className={`${styles.card} ${styles.echo}`} data-lab-card="echo">
+          <EchoPanel
             inputs={inputs}
             days={days}
             now={now}
