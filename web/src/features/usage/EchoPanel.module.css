@@ -1,0 +1,266 @@
+/* 回声（Issue #371）。
+ *
+ * 设计师定稿的几条硬约束，改样式前先读完：
+ * - 一张 Panel；组与组之间只用 `--sp-2` 间距 + 一条 `--border` 发丝线分隔，
+ *   **不加底色、不加圆角**——卡片里再套卡片是盒中盒噪声。
+ * - 频率条是**单一 `--chart-1` 实色**：不借 `-soft`、不叠 opacity/color-mix、
+ *   不按项目着色。同一天连问三次时，dodge 让三个刻度各自露出（几何在
+ *   `EchoPanel.tsx` 的 `echoTickPositions`）。
+ * - 所有字号/行高成对引用令牌；刻度尺寸、dodge 间距、轨道高度、缩进是「形」
+ *   不是「字」，不跟 `--font-scale` 缩放。
+ * - 不新增颜色令牌，深浅两色全部落在既有令牌上。无 transition、无高度动画。 */
+
+.summary {
+  margin: 0 0 var(--sp-3);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+/* 数字保持原字号，只用墨色 + 等宽 + 字重把它从正文里提出来。 */
+.summary strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.note,
+.emptyDescription,
+.footnote {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.note,
+.emptyDescription {
+  margin: var(--sp-1) 0 0;
+}
+
+.emptyDescription {
+  text-align: center;
+}
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+}
+
+.groups {
+  min-width: 0;
+}
+
+/* 组间分隔：一条发丝线，没有第二层卡片。 */
+.group + .group {
+  margin-top: var(--sp-2);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--border);
+}
+
+/* 整组头是一个按钮：负外扩 sp-2，让悬停底色贴到卡片内容边缘之外，
+   文字仍与下方频率条对齐。 */
+.head {
+  display: block;
+  /* button 的 width: auto 在浏览器里是 shrink-to-fit，不加这一行负外扩后
+     悬停底色只会包住标题那一截，读数也贴不到右边缘。 */
+  width: calc(100% + 2 * var(--sp-2));
+  margin: 0 calc(-1 * var(--sp-2));
+  padding: var(--sp-1) var(--sp-2);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.head:hover {
+  background: var(--bg-hover);
+}
+
+.head:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.headMain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--sp-4);
+  row-gap: var(--sp-1);
+}
+
+/* 最多两行；全文进 title 与按钮的 aria-label，数据层不裁短标题。 */
+.headTitle {
+  display: -webkit-box;
+  flex: 1 1 320px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-sm);
+  overflow-wrap: anywhere;
+}
+
+/* 三个读数：各自右对齐、等宽数字、内部不换行。读数之间只靠 --sp-3 分开，
+   不加中点。 */
+.readings {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  margin-left: auto;
+}
+
+.reading {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.sessions {
+  min-width: 68px;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.cost {
+  min-width: 72px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-sm);
+}
+
+.span {
+  min-width: 96px;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 两段边框旋转成箭头：展开时从「向右」转到「向下」。 */
+.chev {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  margin-top: 6px;
+  border-right: 1.5px solid var(--text-tertiary);
+  border-bottom: 1.5px solid var(--text-tertiary);
+  transform: rotate(45deg);
+}
+
+.head[aria-expanded="true"] .chev {
+  transform: rotate(-135deg);
+}
+
+/* 频率条轨道：16px 高，底边一条发丝线；刻度贴底、高 12px。 */
+.strip {
+  position: relative;
+  display: block;
+  height: 16px;
+  margin-top: var(--sp-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.tick {
+  position: absolute;
+  bottom: 0;
+  width: 3px;
+  height: 12px;
+  border-radius: 1px 1px 0 0;
+  background: var(--chart-1);
+}
+
+.axisRow {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--sp-1);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 展开态只在该组展开时挂载，不预留高度。 */
+.expanded {
+  max-height: calc(var(--row-h) * 8);
+  margin: var(--sp-2) 0 0 var(--sp-5);
+  padding: 0 0 0 var(--sp-3);
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  width: 100%;
+  height: var(--row-h);
+  grid-template-columns: 92px minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: var(--sp-3);
+  margin: 0;
+  padding: 0 var(--sp-2);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.row:disabled {
+  cursor: default;
+}
+
+.rowTime {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+.rowTitle {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row:hover:not(:disabled) .rowTitle {
+  color: var(--text);
+}
+
+/* 「代表」是纯文本标记：无底色、无胶囊。 */
+.rowFlag {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+.rowCost {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}

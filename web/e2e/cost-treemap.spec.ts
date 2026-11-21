@@ -15,7 +15,7 @@ async function openLab(page: Page) {
   await page.getByRole("tab", { name: "用量总览", exact: true }).click();
   await expect(page.locator("[data-probe='usage-progress']")).toBeVisible({ timeout: 15_000 });
   await page.getByRole("tab", { name: "实验室", exact: true }).click();
-  await expect(page.getByText(/纳入统计 · 15 个视角/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/纳入统计 · 16 个视角/)).toBeVisible({ timeout: 15_000 });
   await expect(page.locator("[data-probe='lab-view']")).toBeVisible();
 }
 

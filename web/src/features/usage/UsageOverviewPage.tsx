@@ -89,7 +89,7 @@ import styles from "./UsageOverviewPage.module.css";
  * 非缺省档按需加载。
  *
  * 「用量」档是页面的常态视图，它的面板全部留在本 chunk；错误 / 年报 /
- * 实验室只在用户显式切过去时才需要——尤其实验室一档要拉十五张卡，把它的
+ * 实验室只在用户显式切过去时才需要——尤其实验室一档要拉十六张卡，把它的
  * 代码留在用量档会白白压住每一次进入。里程碑只多一块排版（逻辑层照旧在
  * 本 chunk 里算，页头也要用它的读数），拆出去收益不足，保持静态。
  *
@@ -1031,7 +1031,7 @@ export function UsageOverviewPage({
                 : view === "annual"
                   ? `全部 ${milestoneReport.facts.sessionCount} 个已扫描会话纳入年度统计`
                   : view === "lab"
-                    ? `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计 · 15 个视角`
+                    ? `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计 · 16 个视角`
                     : `近 ${days} 天内 ${range.kpi.sessions} 个会话纳入统计`}
             {skipped > 0 ? ` · ${skipped} 个会话读取失败已跳过` : ""}
           </span>
