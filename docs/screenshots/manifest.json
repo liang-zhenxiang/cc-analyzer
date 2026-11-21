@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-19T16:54:09.738Z",
-  "commit": "ed63f23+dirty",
+  "generatedAt": "2026-11-21T16:17:14.292Z",
+  "commit": "161f40b+dirty",
   "dirty": true,
   "files": [
     "accent-dark-webkit.png",
@@ -175,6 +175,10 @@
     "kiosk-dark.png",
     "kiosk-light-webkit.png",
     "kiosk-light.png",
+    "lab-echo-dark-webkit.png",
+    "lab-echo-dark.png",
+    "lab-echo-light-webkit.png",
+    "lab-echo-light.png",
     "lab-flame-dark-webkit.png",
     "lab-flame-dark.png",
     "lab-flame-light-webkit.png",
