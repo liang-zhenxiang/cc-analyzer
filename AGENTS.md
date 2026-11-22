@@ -76,6 +76,21 @@ git status --short && git log --oneline -3
 - `gh pr merge <N> --squash --delete-branch`
 - **`gh pr merge` 常报 `BLOCKED` 而检查其实全绿**：这是 GitHub 的状态同步延迟，
   等 30~60 秒变 `CLEAN` 再合，**不要当成配置问题去找绕过办法**
+- **合并前确认没有 worktree 占着这个分支**。`gh pr merge --delete-branch` 在分支
+  被 worktree 检出时会**合并成功、但本地分支删不掉**，远端分支也会留下来——
+  报错只说「Cannot delete branch … checked out at …」，很容易被当成无关噪音忽略。
+  派了子 agent（隔离 worktree）的 PR 尤其容易这样。
+- **派子 agent 的收尾要连 worktree 与分支一起删**。agent 结束通常只移除 worktree
+  目录，对应的本地分支（一般是 `worktree-agent-*`）会留在 `git branch` 里，攒到
+  几十个之后 `git branch -r --no-merged main` 会让人误以为有一堆未合并的工作。
+  盘点时先确认无独有提交再删：
+
+  ```bash
+  git branch --format='%(refname:short)' | grep worktree-agent- |
+    while read -r b; do echo "$(git log --oneline main.."$b" | wc -l) $b"; done
+  ```
+
+  全部为 0 才批量 `git branch -D`。远端同理查 `git ls-remote --heads origin`。
 
 ### 4. 发布
 
