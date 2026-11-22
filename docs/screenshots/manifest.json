@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-21T16:17:14.292Z",
-  "commit": "161f40b+dirty",
+  "generatedAt": "2026-11-22T15:17:05.187Z",
+  "commit": "1baeafe+dirty",
   "dirty": true,
   "files": [
     "accent-dark-webkit.png",
@@ -311,6 +311,14 @@
     "usage-below-dark.png",
     "usage-below-light-webkit.png",
     "usage-below-light.png",
+    "usage-compare-below-dark-webkit.png",
+    "usage-compare-below-dark.png",
+    "usage-compare-below-light-webkit.png",
+    "usage-compare-below-light.png",
+    "usage-compare-dark-webkit.png",
+    "usage-compare-dark.png",
+    "usage-compare-light-webkit.png",
+    "usage-compare-light.png",
     "usage-dark-webkit.png",
     "usage-dark.png",
     "usage-day-dark-webkit.png",
