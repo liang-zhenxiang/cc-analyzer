@@ -146,6 +146,8 @@ const V_CHRONICLE = declareView("chronicle");
 const V_MEMORY = declareView("memory");
 const V_CAPSULE = declareView("capsule");
 const V_USAGE_BELOW = declareView("usage-below");
+const V_USAGE_COMPARE = declareView("usage-compare");
+const V_USAGE_COMPARE_BELOW = declareView("usage-compare-below");
 const V_ANALYZER_LOG_COMPACT = declareView("analyzer-log-compact");
 const V_CONTEXT = declareView("context");
 const V_CONTEXT_EMPTY = declareView("context-empty");
@@ -391,6 +393,25 @@ test.describe("截图归档 · 用量总览", () => {
       await scrollMainToBottom(page);
       await settleImages(page);
       await page.screenshot({ path: path.join(OUT_DIR, `${V_USAGE_BELOW}-${theme}${suffix}.png`) });
+
+      // 对照档（Issue #377）：并排读数住首屏，分布与日趋势在折叠线以下，
+      // 与 usage / usage-below 同一种「一张视口 + 一张滚到底」的取景。
+      // 切档后先滚回顶部——上一张图把 main 滚到了底，不归零会从半页开始拍。
+      await page.getByRole("tab", { name: "对照" }).click();
+      await page.evaluate(() => {
+        const main = document.querySelector("main");
+        if (main) main.scrollTop = 0;
+      });
+      await page.waitForTimeout(400);
+      await settleImages(page);
+      await page.screenshot({
+        path: path.join(OUT_DIR, `${V_USAGE_COMPARE}-${theme}${suffix}.png`)
+      });
+      await scrollMainToBottom(page);
+      await settleImages(page);
+      await page.screenshot({
+        path: path.join(OUT_DIR, `${V_USAGE_COMPARE_BELOW}-${theme}${suffix}.png`)
+      });
     });
   }
 });

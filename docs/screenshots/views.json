@@ -13,6 +13,8 @@
     "pulse-float",
     "usage",
     "usage-below",
+    "usage-compare",
+    "usage-compare-below",
     "milestones",
     "analyzer-log-compact",
     "context",
