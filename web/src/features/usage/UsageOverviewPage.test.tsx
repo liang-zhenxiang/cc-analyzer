@@ -699,7 +699,7 @@ describe("UsageOverviewPage", () => {
     expect(pageSource).not.toMatch(/\battributeQuota\s*\(/);
   });
 
-  it("分段项是「用量 | 里程碑 | 错误 | 年报 | 实验室」；里程碑档吃同一份扫描、且不渲染时间范围控件", async () => {
+  it("分段项是「用量 | 对照 | 里程碑 | 错误 | 年报 | 实验室」；里程碑档吃同一份扫描、且不渲染时间范围控件", async () => {
     const bridges = createUsageBridges({
       [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 6 * 3_600_000),
       [`${PROJECTS_ROOT}/-repo-alpha/bbb.jsonl`]: sessionJsonl("b2", "claude-sonnet-4-5-20250929", 5 * 3_600_000)
@@ -713,6 +713,7 @@ describe("UsageOverviewPage", () => {
     const viewTabs = within(screen.getByRole("tablist", { name: "总览视图" })).getAllByRole("tab");
     expect(viewTabs.map((tab) => tab.textContent)).toEqual([
       "用量",
+      "对照",
       "里程碑",
       "错误",
       "年报",
@@ -734,7 +735,7 @@ describe("UsageOverviewPage", () => {
     expect(screen.getByText("全部 2 个已扫描会话纳入统计")).toBeInTheDocument();
   });
 
-  it("七个视图 tab 各带一句 title，说明「切过去看什么」；控件名与分档结构不变（Issue #354）", async () => {
+  it("八个视图 tab 各带一句 title，说明「切过去看什么」；控件名与分档结构不变（Issue #354）", async () => {
     const bridges = createUsageBridges({
       [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("a2", "claude-sonnet-4-5-20250929", 3_600_000)
     });
@@ -747,6 +748,7 @@ describe("UsageOverviewPage", () => {
     const tabs = within(group).getAllByRole("tab");
     expect(tabs.map((tab) => tab.getAttribute("title"))).toEqual([
       "这段时间用了多少：读数、趋势与分布",
+      "并排比较两个时间段：读数、分布与日趋势",
       "全历史里值得记住的第一次与最大值",
       "工具失败的时间线与聚类档案",
       "按年回看：逐月卡与全年排行",
@@ -754,9 +756,10 @@ describe("UsageOverviewPage", () => {
       "把窗口内的数字写成一篇可读的叙事",
       "回到某个项目前该知道什么：命令、热文件、坑"
     ]);
-    // 分档本身没动：仍是 7 个，名字就是可见标签。
+    // 分档本身没动：仍是 8 个，名字就是可见标签。
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       "用量",
+      "对照",
       "里程碑",
       "错误",
       "年报",
@@ -1310,6 +1313,109 @@ describe("UsageOverviewPage", () => {
     expect(activityCell?.parentElement).toBe(shapeCell?.parentElement);
     expect(activityCell?.nextElementSibling).toBe(shapeCell);
     expect(pageCss).toMatch(/@media \(max-width: 1080px\)[\s\S]*\.halfPanel\s*\{[^}]*grid-column: 1 \/ -1/);
+  });
+
+  it("对照档（Issue #377）：隐藏页头时间范围、A/B 区间独立持久化、B 跟随 A 长度", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl(
+        "a2",
+        "claude-sonnet-4-5-20250929",
+        6 * 3_600_000
+      )
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+
+    await userEvent.click(screen.getByRole("tab", { name: "对照" }));
+    await screen.findByRole("region", { name: "对照区间" });
+
+    // 页头的「近 N 天」对对照档不生效，撤掉——摆一个不起作用的控件更坏。
+    expect(screen.queryByRole("tablist", { name: "时间范围" })).toBeNull();
+    expect(screen.getByRole("radiogroup", { name: "区间 A 的预设" })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "区间 B 的预设" })).toBeInTheDocument();
+
+    const results = () =>
+      [
+        ...document.querySelectorAll(
+          '[data-probe="compare-ranges"] [class*="rangeResult"]'
+        )
+      ].map((node) => node.textContent ?? "");
+    expect(results()[0]).toMatch(/· 7 天$/);
+    expect(results()[1]).toMatch(/· 7 天$/);
+
+    // 切 A 到近 30 天：B 默认是「上一个等长区间」，长度跟着变。
+    await userEvent.click(
+      within(screen.getByRole("radiogroup", { name: "区间 A 的预设" })).getByRole("radio", {
+        name: "近 30 天"
+      })
+    );
+    expect(results()[0]).toMatch(/· 30 天$/);
+    expect(results()[1]).toMatch(/· 30 天$/);
+
+    // 两段各自持久化；进度行按档分叉。
+    expect(window.localStorage.getItem("cca-usage-compare-a")).toBe("30");
+    expect(window.localStorage.getItem("cca-usage-compare-b")).toBe("previous");
+    expect(screen.getByText(/对照 · A /)).toBeInTheDocument();
+  });
+
+  it("对照档：两段都选近 7 天时完全重合，出重叠提示而不是表格与图", async () => {
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl(
+        "a2",
+        "claude-sonnet-4-5-20250929",
+        6 * 3_600_000
+      )
+    });
+
+    renderPage(bridges);
+    await screen.findByRole("region", { name: "用量总览" });
+    await userEvent.click(screen.getByRole("tab", { name: "对照" }));
+    await screen.findByRole("region", { name: "对照区间" });
+
+    // 默认 B 是「上一个等长区间」（不重叠）；切到近 7 天就与 A 完全重合。
+    await userEvent.click(
+      within(screen.getByRole("radiogroup", { name: "区间 B 的预设" })).getByRole("radio", {
+        name: "近 7 天"
+      })
+    );
+
+    expect(await screen.findByText("两段区间重叠，无法对照")).toBeInTheDocument();
+    expect(document.querySelector('[data-probe="compare-overlap"]')).not.toBeNull();
+    expect(document.querySelector('[data-probe="compare-readouts"]')).toBeNull();
+    expect(document.querySelector('[data-probe="compare-trend"]')).toBeNull();
+  });
+
+  it("对照档自己承担空态：没有会话时出 panel 空态，而不是拦在前面", async () => {
+    window.localStorage.setItem("cca-usage-view", "compare");
+    const bridges = createUsageBridges({});
+    bridges.fs.readDir = vi.fn(async () => []) as typeof bridges.fs.readDir;
+
+    renderPage(bridges);
+
+    expect(await screen.findByText("这两个区间都没有记录")).toBeInTheDocument();
+    // 用量档那条整页空态一字未动，只是不再拦在对照档前面。
+    expect(screen.queryByText("还没有可统计的会话")).toBeNull();
+    expect(screen.getByRole("radiogroup", { name: "区间 A 的预设" })).toBeInTheDocument();
+  });
+
+  it("readStoredView 认得 compare：刷新后仍停在对照档", async () => {
+    window.localStorage.setItem("cca-usage-view", "compare");
+    const bridges = createUsageBridges({
+      [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl(
+        "a2",
+        "claude-sonnet-4-5-20250929",
+        6 * 3_600_000
+      )
+    });
+
+    renderPage(bridges);
+
+    expect(await screen.findByRole("region", { name: "对照区间" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "对照" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
   });
 });
 

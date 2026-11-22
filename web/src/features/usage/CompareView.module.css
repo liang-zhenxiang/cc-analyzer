@@ -1,0 +1,490 @@
+/* 「对照」视图（Issue #377）。两个本地自然日区间并排：区间选择 → 并排读数 →
+   按项目 / 按模型分布 → 每日趋势。全部颜色走令牌，不出现任何 [data-theme] 分支。 */
+
+/* ---- 区间选择 ---- */
+.rangeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+  max-width: 900px;
+}
+
+.rangeColumn {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.rangeLabel {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-sm);
+}
+
+/* 解析结果常显：读者不用回头推断「近 7 天」到底是哪一段。 */
+.rangeResult {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  .rangeGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---- 重叠阻断 ---- */
+.overlapNotice {
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 2px solid var(--danger);
+  border-radius: var(--r-xs);
+  background: var(--bg-inset);
+}
+
+.overlapTitle {
+  margin: 0 0 var(--sp-1);
+  color: var(--danger);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-sm);
+}
+
+.overlapBody {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+/* ---- 并排读数 ---- */
+/* 表格按内容收窄（Issue #342 先例）：固定布局 + 明确列宽是这张表可扫读的
+   前提。列宽按 130% 字号实测定的，不要按 100% 定完再裁字。 */
+.readoutTable {
+  width: auto;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.readoutTable thead th {
+  padding: 0 var(--sp-2) var(--sp-1);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.readoutTable thead td {
+  padding: 0 var(--sp-2) var(--sp-1);
+}
+
+/* 第一行决定列宽：120 + 140 + 140 + 140。 */
+.metricHead {
+  width: 120px;
+}
+
+.readoutTable thead th:not(.metricHead) {
+  width: 140px;
+}
+
+/* 首格只有 sr-only 的「指标」，但它的宽度就是行名列的宽度。 */
+.readoutTable thead th.metricHead {
+  text-align: left;
+}
+
+.dateCell {
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.readoutTable tbody th,
+.readoutTable tbody td {
+  padding: var(--sp-1) var(--sp-2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.readoutTable tbody td {
+  text-align: right;
+}
+
+.readoutTable tbody tr:last-child th,
+.readoutTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.metric {
+  color: var(--text-secondary);
+  font-weight: 500;
+  text-align: left;
+}
+
+/* A 是主角，B 是参照物：降一档颜色，眼睛先读 A。 */
+.valuePrimary {
+  color: var(--text);
+}
+
+.valueMuted {
+  color: var(--text-tertiary);
+}
+
+/* 未定价标记：脚注的锚点，比读数轻一档。 */
+.dagger {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.lengthHint {
+  margin: 0 0 var(--sp-2);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.note {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* ---- 差值：逐项声明方向，中性行不染色 ---- */
+.deltaCell {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.deltaValue {
+  font-weight: 600;
+}
+
+/* 箭头是形状，不是颜色：中性行里它退到第三档，数字才是被读的那一层。 */
+.arrow {
+  margin-right: 2px;
+  font-weight: 400;
+}
+
+.deltaCell[data-direction="neutral"][data-tone="up"] .deltaValue,
+.deltaCell[data-direction="neutral"][data-tone="down"] .deltaValue {
+  color: var(--text-secondary);
+}
+
+.deltaCell[data-direction="neutral"] .arrow {
+  color: var(--text-tertiary);
+}
+
+/* 花钱与消耗：涨=红、跌=绿（周战报既有裁定）。只有这一行允许彩色的数据墨水。 */
+.deltaCell[data-direction="up-bad"][data-tone="up"] .deltaValue,
+.deltaCell[data-direction="up-bad"][data-tone="up"] .arrow {
+  color: var(--danger);
+}
+
+.deltaCell[data-direction="up-bad"][data-tone="down"] .deltaValue,
+.deltaCell[data-direction="up-bad"][data-tone="down"] .arrow {
+  color: var(--success);
+}
+
+.deltaCell[data-tone="flat"] .deltaValue {
+  color: var(--text-secondary);
+}
+
+.deltaCell[data-tone="flat"] .arrow {
+  color: var(--text-tertiary);
+}
+
+.deltaCell[data-tone="none"] .deltaValue {
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+.deltaCell[data-tone="none"] .arrow {
+  color: var(--text-tertiary);
+}
+
+/* ---- 按项目对照 ---- */
+.projectTable {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.projectTable thead th {
+  padding: 0 var(--sp-2) var(--sp-1);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.projectNameHead {
+  width: auto;
+  text-align: left;
+}
+
+.projectTable thead th.shareHead {
+  width: 120px;
+}
+
+.projectTable thead th.projectDeltaHead {
+  width: 96px;
+}
+
+.projectTable tbody th,
+.projectTable tbody td {
+  padding: var(--sp-1) var(--sp-2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.projectTable tbody td {
+  text-align: right;
+}
+
+.projectTable tbody tr:last-child th,
+.projectTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.projectName {
+  color: var(--text-secondary);
+  font-weight: 500;
+  text-align: left;
+}
+
+.projectNameInner {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.projectNameText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 只在一边出现是事实标签，不是警告：1px 发丝框，不用 warning / danger。 */
+.onlyBadge {
+  flex: 0 0 auto;
+  padding: 0 var(--sp-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  line-height: var(--lh-xs);
+}
+
+.shareCell {
+  text-align: right;
+}
+
+.shareCellInner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.shareTrack {
+  display: inline-block;
+  width: 56px;
+  height: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-xs);
+  background: var(--bg-inset);
+}
+
+.shareFill {
+  display: block;
+  height: 100%;
+}
+
+.shareFill[data-side="a"] {
+  background: var(--chart-1);
+}
+
+.shareFill[data-side="b"] {
+  background: var(--chart-4);
+}
+
+.shareValue {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.missing {
+  color: var(--text-tertiary);
+}
+
+/* ---- 按模型对照 ---- */
+.modelRows {
+  display: flex;
+  flex-direction: column;
+}
+
+.modelRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 30px;
+}
+
+.modelRowLabel {
+  flex: 0 0 120px;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.modelBar {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 22px;
+}
+
+/* 大面积填充只用 soft 令牌，实色只出现在 1px 分段描边；不给分段加 opacity。 */
+.modelSegment {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  height: 22px;
+  border-left: 1px solid var(--segment-stroke);
+  background: var(--segment-fill);
+}
+
+.modelSegment:last-child {
+  border-right: 1px solid var(--segment-stroke);
+}
+
+.modelEmpty {
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.modelLegend {
+  display: flex;
+  flex-wrap: wrap;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  gap: var(--sp-1) var(--sp-4);
+  list-style: none;
+}
+
+.modelLegend li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.modelSwatch {
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--segment-stroke);
+  border-radius: var(--r-xs);
+  background: var(--segment-fill);
+}
+
+.modelName {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.modelShare {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 每日趋势对照 ---- */
+.trendLegend {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 var(--sp-2);
+  padding: 0;
+  gap: var(--sp-1);
+  list-style: none;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.trendLegend li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+
+.trendLegendMarker {
+  display: inline-block;
+  width: 10px;
+  text-align: center;
+}
+
+.trendLegendMarker[data-side="a"] {
+  color: var(--chart-1);
+}
+
+.trendLegendMarker[data-side="b"] {
+  color: var(--chart-4);
+}
+
+.trendHit {
+  fill: transparent;
+}
+
+/* A 实线、B 虚线：线型是主通道，颜色是第二通道。同色 + 透明度在深色底上会
+   掉到 3:1 以下，所以两者都保留各自的不透明度与线型。 */
+.trendLineA {
+  fill: none;
+  stroke: var(--chart-1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.trendLineB {
+  fill: none;
+  stroke: var(--chart-4);
+  stroke-width: 2;
+  stroke-dasharray: 5 3;
+  stroke-linejoin: round;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
