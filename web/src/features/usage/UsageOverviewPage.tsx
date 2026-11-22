@@ -42,6 +42,14 @@ import { TimeCapsuleCard } from "./TimeCapsuleCard";
 import { buildTimeCapsule } from "./timeCapsule";
 import { MilestonesPanel } from "./MilestonesPanel";
 import { milestonesOf } from "./milestones";
+import {
+  CompareView,
+  COMPARE_A_OPTIONS,
+  COMPARE_B_OPTIONS,
+  type CompareAPreset,
+  type CompareBPreset
+} from "./CompareView";
+import { previousRange, rangeLabel, type CompareRange } from "./compareRanges";
 import { toolCensus } from "./toolCensus";
 import { ToolCensusPanel } from "./ToolCensusPanel";
 import { SessionShapePanel } from "./SessionShapePanel";
@@ -133,6 +141,7 @@ type UsageRange = (typeof RANGE_OPTIONS)[number];
 const VIEW_KEY = "cca-usage-view";
 type UsageView =
   | "usage"
+  | "compare"
   | "milestones"
   | "errors"
   | "annual"
@@ -147,6 +156,8 @@ type UsageView =
  */
 const VIEW_ITEMS: SegmentedItem<UsageView>[] = [
   { value: "usage", label: "用量", title: "这段时间用了多少：读数、趋势与分布" },
+  // 「对照」紧挨「用量」：它比的就是用量档的读数，只是换成两段区间并排。
+  { value: "compare", label: "对照", title: "并排比较两个时间段：读数、分布与日趋势" },
   { value: "milestones", label: "里程碑", title: "全历史里值得记住的第一次与最大值" },
   { value: "errors", label: "错误", title: "工具失败的时间线与聚类档案" },
   // 年报排最后：前两档都是「这一年/这一窗口的读数」，年报是「回看整段」，
@@ -185,11 +196,44 @@ function readStoredRange(): UsageRange {
   return 30;
 }
 
+/**
+ * 「对照」的 A / B 预设各自独立持久化（Issue #377）。A 只有 7/30/90，B 多
+ * 一个「上一个等长区间」；默认 A=近 7 天、B=上一个等长区间——这是「这周和
+ * 上周比」最自然的起点。存储值不可信，认不出的一律回退默认。
+ */
+const COMPARE_A_KEY = "cca-usage-compare-a";
+const COMPARE_B_KEY = "cca-usage-compare-b";
+
+function readStoredCompareA(): CompareAPreset {
+  try {
+    const stored = localStorage.getItem(COMPARE_A_KEY);
+    for (const option of COMPARE_A_OPTIONS) {
+      if (stored === option) return option;
+    }
+  } catch {
+    // See readStoredRange: persistence is optional.
+  }
+  return "7";
+}
+
+function readStoredCompareB(): CompareBPreset {
+  try {
+    const stored = localStorage.getItem(COMPARE_B_KEY);
+    for (const option of COMPARE_B_OPTIONS) {
+      if (stored === option) return option;
+    }
+  } catch {
+    // See readStoredRange: persistence is optional.
+  }
+  return "previous";
+}
+
 /** Stored values are untrusted: anything unknown falls back to the usage view. */
 function readStoredView(): UsageView {
   try {
     const stored = localStorage.getItem(VIEW_KEY);
     if (stored === "errors") return "errors";
+    if (stored === "compare") return "compare";
     if (stored === "milestones") return "milestones";
     if (stored === "annual") return "annual";
     if (stored === "lab") return "lab";
@@ -288,6 +332,12 @@ export function UsageOverviewPage({
   const { inputs, progress, scanning, error, skipped, refresh, scannedAt, rootCheck } =
     useUsageOverview();
   const [days, setDays] = useState<UsageRange>(readStoredRange);
+  // 对照的两段区间各自独立（Issue #377）：A 只有 7/30/90，B 多一个
+  // 「上一个等长区间」。now 取挂载时刻并保持稳定（与 calendarNow 同款取舍），
+  // 否则每 30 秒 tick 一次会让两张分布图同时重算。
+  const [compareA, setCompareA] = useState<CompareAPreset>(readStoredCompareA);
+  const [compareB, setCompareB] = useState<CompareBPreset>(readStoredCompareB);
+  const [compareNow] = useState(() => Date.now());
   const [tokenClass, setTokenClass] = useState<TokenClass>("total");
   const [modelView, setModelView] = useState<"share" | "swap" | "migration">("share");
   const [view, setView] = useState<UsageView>(readStoredView);
@@ -336,6 +386,22 @@ export function UsageOverviewPage({
 
   useEffect(() => {
     try {
+      localStorage.setItem(COMPARE_A_KEY, compareA);
+    } catch {
+      // See readStoredRange: persistence is optional.
+    }
+  }, [compareA]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(COMPARE_B_KEY, compareB);
+    } catch {
+      // See readStoredRange: persistence is optional.
+    }
+  }, [compareB]);
+
+  useEffect(() => {
+    try {
       localStorage.setItem(VIEW_KEY, view);
     } catch {
       // See readStoredView: persistence is optional.
@@ -364,6 +430,17 @@ export function UsageOverviewPage({
   }, [bridges]);
 
   const range = useMemo(() => aggregateRange(inputs, days), [inputs, days]);
+  // 对照的两段区间：A 由预设档位决定；B 可以在预设之外选「上一个等长区间」，
+  // 此时长度跟随 A、终点紧贴 A 之前（首尾相接因此不重叠）。
+  const compareRangeA = useMemo<CompareRange>(() => {
+    const startDay = addLocalDays(dayStartOf(compareNow), -(Number(compareA) - 1));
+    return { startDay, days: Number(compareA) };
+  }, [compareA, compareNow]);
+  const compareRangeB = useMemo<CompareRange>(() => {
+    if (compareB === "previous") return previousRange(compareRangeA);
+    const startDay = addLocalDays(dayStartOf(compareNow), -(Number(compareB) - 1));
+    return { startDay, days: Number(compareB) };
+  }, [compareB, compareNow, compareRangeA]);
   // 压缩统计与 aggregateRange 同一口径的时间窗（周期口径与页面控件一致）。
   const compaction = useMemo(() => compactionStats(inputs, days), [inputs, days]);
   // 错误聚合同位（design §8）：与压缩统计一样独立 memo，不进既有聚合桶。
@@ -936,6 +1013,7 @@ export function UsageOverviewPage({
     !scanning &&
     inputs.length === 0 &&
     progress.total === 0 &&
+    view !== "compare" &&
     view !== "milestones" &&
     view !== "lab" &&
     view !== "chronicle" &&
@@ -989,8 +1067,9 @@ export function UsageOverviewPage({
             ariaLabel="总览视图"
           />
           {/* 里程碑（R2）与年报（E4）的口径都是**全历史**，「近 N 天」对它们没有
-              任何作用；摆一个不起作用的控件比缺一个控件更坏——用户会以为数字受它影响。 */}
-          {view !== "milestones" && view !== "annual" ? (
+              任何作用；对照档有自己的 A/B 区间控件，页头的「近 N 天」同样不生效。
+              摆一个不起作用的控件比缺一个控件更坏——用户会以为数字受它影响。 */}
+          {view !== "milestones" && view !== "annual" && view !== "compare" ? (
             <>
               {/* 两组分段控件同一视觉语言，单靠间距分不清「去哪一档 / 看多长」
                   （Issue #342）：中间放一条纯装饰竖线，两侧各 12px gap 合计 24px。
@@ -1026,7 +1105,9 @@ export function UsageOverviewPage({
           >
             {scanning
               ? `正在读取 ${progress.done}/${progress.total} 个会话`
-              : view === "milestones"
+              : view === "compare"
+                ? `对照 · A ${rangeLabel(compareRangeA)} · B ${rangeLabel(compareRangeB)}`
+                : view === "milestones"
                 ? `全部 ${milestoneReport.facts.sessionCount} 个已扫描会话纳入统计`
                 : view === "annual"
                   ? `全部 ${milestoneReport.facts.sessionCount} 个已扫描会话纳入年度统计`
@@ -1120,6 +1201,20 @@ export function UsageOverviewPage({
         /* 项目记忆（Project Memory）：按项目收口的命令 / 热文件 / 坑，自带
            section 与切换条，不再套 Panel。 */
         <ProjectMemoryPanel memories={projectMemories} />
+      ) : view === "compare" ? (
+        /* 对照（Issue #377）：两段本地自然日区间并排。A/B 状态住在页面（独立
+           持久化），视图只负责把同一份全历史 inputs 折成两组读数与分布。 */
+        <CompareView
+          inputs={inputs}
+          now={compareNow}
+          rangeA={compareRangeA}
+          rangeB={compareRangeB}
+          presetA={compareA}
+          presetB={compareB}
+          onChangeA={setCompareA}
+          onChangeB={setCompareB}
+          projectPaths={projectPaths}
+        />
       ) : view === "milestones" ? (
         /* 里程碑（Round Y）：同一份全历史 inputs、同一次扫描，零新增 I/O。
            `onOpenSession` 缺省（单测直挂页面）时不传，入口退成静态行而不是空按钮。 */
