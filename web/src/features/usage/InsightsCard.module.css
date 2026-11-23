@@ -1,0 +1,196 @@
+/* 「值得注意的变化」卡（Issue #383）。
+   卡片本体是 Panel；这里只管行与依据区。行是整枚原生 <button>：三列网格
+   「句子 / 范围 / 箭头」，句子可以折两行但绝不截断（隐藏事实会毁掉「主动
+   告知」这件事）。 */
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 行间一条发丝线；首行无上边线、末行无下边线——首尾的边界由 Panel 自己
+   的边框承担，不要在一个卡片里叠出第三条横线。 */
+.item + .item {
+  border-top: 1px solid var(--border);
+}
+
+.row {
+  display: grid;
+  width: 100%;
+  /* 行高必须由行高令牌派生：130% 字号下 --lh-base 会跟着 --font-scale 长高，
+     写死 height 会把第二行裁掉。2 × --sp-1 是上下呼吸，不是固定高度。 */
+  min-height: calc(var(--sp-1) * 2 + var(--lh-base));
+  grid-template-columns: minmax(0, 1fr) auto 24px;
+  align-items: center;
+  column-gap: var(--sp-3);
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--bg-hover);
+}
+
+/* Panel 有 overflow: hidden，焦点环必须向内收，否则上下两侧会被裁掉。 */
+.row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-inset);
+}
+
+/* 句子：正文档，允许折两行；`overflow-wrap: anywhere` 让长模型名 / 项目名
+   在窄窗里换行而不是顶出网格。 */
+.sentence {
+  min-width: 0;
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* 数字片段：等宽 + 等宽数字，但**不另给颜色**——颜色是有语义的，这里的
+   数字只是事实。 */
+.number {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 方向箭头只属于错误率：升 = 确定的坏事（--danger），降 = 确定的改善
+   （--success）。其余行没有箭头：五枚箭头 = 五个警报，与「只陈述事实」冲突。 */
+.arrowUp {
+  color: var(--danger);
+}
+
+.arrowDown {
+  color: var(--success);
+}
+
+/* 右侧范围：小字、第三档文字色，`title` 里放两段精确日期。 */
+.range {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 箭头：6×6 的转角，收起时朝下（rotate 45deg），展开时朝上（-135deg）。
+   图形尺寸不受 --sp-* 约束（它是「形」不是「距」）。 */
+.chevron {
+  width: 6px;
+  height: 6px;
+  justify-self: center;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  color: var(--text-tertiary);
+  transform: rotate(45deg);
+  transition: transform var(--dur-state) var(--ease-out);
+}
+
+.row[aria-expanded="true"] .chevron {
+  transform: rotate(-135deg);
+}
+
+/* 依据区是内嵌凹槽，不是嵌套卡片：一条上边线 + 内距，不另外画框。 */
+.evidence {
+  padding: var(--sp-2) var(--sp-3);
+  border-top: 1px solid var(--border);
+}
+
+/* 三列固定表：指标 120 / 当前 140 / 上一个 140。`table-layout: fixed` 让
+   长指标名换行而不是顶宽列；表格按内容收窄，不撑满整张卡。 */
+.table {
+  width: auto;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.table thead th {
+  padding: 0 var(--sp-2) var(--sp-1);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* 列宽只写在表头（固定布局只读第一行）。首列 120px 承担指标名；后两列各
+   140px 装一位小数加单位。 */
+.table thead th.metricHead {
+  width: 120px;
+}
+
+.table thead th:not(.metricHead) {
+  width: 140px;
+}
+
+.table tbody th,
+.table tbody td {
+  padding: var(--sp-1) var(--sp-2);
+  white-space: nowrap;
+}
+
+.table tbody tr:last-child th,
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.metric {
+  color: var(--text-secondary);
+  font-weight: 500;
+  text-align: left;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+/* 当前是主角、上一个是参照物：降一档颜色，眼睛先读当前。 */
+.value {
+  color: var(--text);
+}
+
+.valueMuted {
+  color: var(--text-tertiary);
+}
+
+/* 有数据时的口径脚注。 */
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 空态只说事实：「没有指标同时满足条件」不是「一切正常」。 */
+.emptyTitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.emptyHint {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

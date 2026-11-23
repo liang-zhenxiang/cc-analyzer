@@ -40,6 +40,8 @@ import { ProjectMemoryPanel } from "./ProjectMemoryPanel";
 import { buildProjectMemories } from "./projectMemory";
 import { TimeCapsuleCard } from "./TimeCapsuleCard";
 import { buildTimeCapsule } from "./timeCapsule";
+import { InsightsCard } from "./InsightsCard";
+import { buildInsights } from "./insights";
 import { MilestonesPanel } from "./MilestonesPanel";
 import { milestonesOf } from "./milestones";
 import {
@@ -369,6 +371,10 @@ export function UsageOverviewPage({
   // 里程碑的 `now`（Round Y §5）：与 calendarNow 同一条取舍——取挂载那一刻并
   // 保持稳定。报告里的每条事实都是历史的，它只盖 `generatedAt`。
   const [milestonesNow] = useState(() => Date.now());
+  // 值得注意的变化（Issue #383）：与时间胶囊同一条取舍——`now` 取挂载时刻并
+  // 保持稳定。它只影响「近 N 天」的本地日边界，30 秒 tick 重算一遍六条规则
+  // 没有意义。
+  const [insightsNow] = useState(() => Date.now());
   // 实验室的 `now`（Round FF §0.3）：十张卡共用挂载时刻并保持稳定，否则每 30
   // 秒 tick 一次会让十张图同时重算；与 calendarNow / milestonesNow 同一取舍。
   const [labNow] = useState(() => Date.now());
@@ -687,6 +693,12 @@ export function UsageOverviewPage({
   const timeCapsule = useMemo(
     () => buildTimeCapsule(inputs, readouts.now),
     [inputs, readouts.now]
+  );
+  // 值得注意的变化（Issue #383）：扫描中不产出——半份数据可能造出假洞察。
+  // 扫描完成后才跑六条规则；`insightsNow` 稳定，区间控件变化时才重算。
+  const insights = useMemo(
+    () => (scanning ? [] : buildInsights(inputs, days, insightsNow)),
+    [inputs, days, insightsNow, scanning]
   );
   // 与占比图共用同一个索引：图例第 N 个模型在这里也是 --chart-N。
   const modelColors = useMemo(
@@ -1240,6 +1252,17 @@ export function UsageOverviewPage({
           {/* 时间胶囊（Issue #325）：晨报之后的一张小卡——「去年的今天你在做什么」。
               没有可比的历史日时整卡不渲染，不拿空壳占版面。 */}
           {!scanning && timeCapsule ? <TimeCapsuleCard capsule={timeCapsule} /> : null}
+          {/* 值得注意的变化（Issue #383）：时间胶囊之后、计费卡之前。扫描中
+              整卡不渲染（晨报同规则）；没有达到阈值的项时仍渲染空态，不整卡
+              消失——「最近没变」也是一条事实。 */}
+          {!scanning ? (
+            <InsightsCard
+              insights={insights}
+              inputs={inputs}
+              days={days}
+              now={insightsNow}
+            />
+          ) : null}
           {/* 归因行与压缩统计 top3 共用同一个「打开会话」握手，不新开跳转路径。 */}
           <BillingWindowCard inputs={inputs} readouts={readouts} onOpenSession={onOpenSession} />
 

@@ -3704,6 +3704,194 @@ export function roundIIScenario(overrides: Partial<MockScenario> = {}): MockScen
   };
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * 「值得注意的变化」（Issue #383）场景
+ *
+ * 六条规则里让五条同时成立，得到确定的五行与三种变化单位：
+ *   - 模型构成：当前段全是 Opus、对照段全是 Sonnet → 100 个百分点；
+ *   - 压缩频率：8 个会话各 2 次压缩 vs 0 次 → +2 次/会话；
+ *   - 日均用量：当前每活跃日 1,000 token、对照 400 → +150%；
+ *   - 错误率：当前 16/128 次工具调用失败（12.5%）、对照 0/128 → +12.5 个百分点；
+ *   - 会话长度：20 分钟 vs 10 分钟 → +100%。
+ * 项目固定为同一个，避免第 2 条规则也命中（六条同时命中会挤掉一条）。
+ *
+ * 时间锚点取本地自然日：当前窗口 = 今天往前 30 天（`daysAgo` 0–7），对照
+ * 窗口 = 紧邻的上一个 30 天（30–37）。写死日期过几天就会滑出窗口。
+ * 用 `emptyScenario` 打底：默认场景的旧夹具会落进对照窗口，把确定的读数搅乱。
+ * ────────────────────────────────────────────────────────────────────────── */
+
+const INSIGHTS_OPUS = "claude-opus-4-1-20250805";
+const INSIGHTS_SONNET = "claude-sonnet-4-5-20250929";
+
+/** 一段会话的 JSONL：工具调用（可带失败）、可选压缩、末尾一条带 usage 的回答。 */
+function insightsSessionJsonl(options: {
+  sessionId: string;
+  cwd: string;
+  startedAt: number;
+  spanMs: number;
+  model: string;
+  tokens: number;
+  calls: number;
+  errors: number;
+  compactions: number;
+}): string {
+  const { sessionId, cwd, startedAt, spanMs, model, tokens, calls, errors, compactions } = options;
+  const lines: string[] = [];
+  let seq = 0;
+  const base = (type: "user" | "assistant" | "system", at: number) => ({
+    type,
+    sessionId,
+    cwd,
+    timestamp: new Date(at).toISOString(),
+    uuid: `${sessionId}-${seq++}`,
+    parentUuid: null,
+    isSidechain: false
+  });
+
+  lines.push(
+    JSON.stringify({
+      ...base("user", startedAt),
+      message: { role: "user", content: `insights 夹具 ${sessionId}` }
+    })
+  );
+
+  // 工具调用从第 1 分钟起、每 30 秒一次；前 `errors` 次带 is_error。
+  for (let i = 0; i < calls; i += 1) {
+    const at = startedAt + 60_000 + i * 30_000;
+    const toolId = `${sessionId}-tool-${i}`;
+    lines.push(
+      JSON.stringify({
+        ...base("assistant", at),
+        message: {
+          id: `${sessionId}-msg-${i}`,
+          role: "assistant",
+          model,
+          content: [{ type: "tool_use", id: toolId, name: "Bash", input: { command: "ls" } }]
+        }
+      })
+    );
+    lines.push(
+      JSON.stringify({
+        ...base("user", at + 500),
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: toolId,
+              content: i < errors ? "Error: boom" : "ok",
+              ...(i < errors ? { is_error: true } : {})
+            }
+          ]
+        }
+      })
+    );
+  }
+
+  for (let i = 0; i < compactions; i += 1) {
+    const at = startedAt + 5 * 60_000 + i * 60_000;
+    const boundaryUuid = `${sessionId}-compact-${i}`;
+    lines.push(
+      JSON.stringify({
+        ...base("system", at),
+        uuid: boundaryUuid,
+        subtype: "compact_boundary",
+        content: "Conversation compacted",
+        level: "info",
+        logicalParentUuid: null,
+        compactMetadata: {
+          trigger: "auto",
+          preTokens: 100,
+          postTokens: 50,
+          cumulativeDroppedTokens: 50,
+          durationMs: 1_000
+        }
+      })
+    );
+    lines.push(
+      JSON.stringify({
+        ...base("user", at),
+        parentUuid: boundaryUuid,
+        isCompactSummary: true,
+        isVisibleInTranscriptOnly: true,
+        message: { role: "user", content: "压缩后的摘要" }
+      })
+    );
+  }
+
+  lines.push(
+    JSON.stringify({
+      ...base("assistant", startedAt + spanMs),
+      message: {
+        id: `${sessionId}-final`,
+        role: "assistant",
+        model,
+        content: [{ type: "text", text: "done" }],
+        usage: {
+          input_tokens: tokens,
+          output_tokens: 0,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0
+        }
+      }
+    })
+  );
+
+  return `${lines.join("\n")}\n`;
+}
+
+export function insightsScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  const cwd = "/repo/insights";
+  const projectDirName = projectDir(cwd);
+  const files: Record<string, string> = {};
+
+  // 本地日历：`daysAgo` 天前的 10:00；DST 边界用日历加减，不用毫秒除法。
+  const at = (daysAgo: number): number => {
+    const date = new Date();
+    date.setDate(date.getDate() - daysAgo);
+    date.setHours(10, 0, 0, 0);
+    return date.getTime();
+  };
+
+  for (let day = 0; day < 8; day += 1) {
+    const sessionId = `3d2a5442-9c65-4b28-9c30-bb3d1b38c0${String(day).padStart(2, "0")}`;
+    files[`${HOME}/.claude/projects/${projectDirName}/${sessionId}.jsonl`] = insightsSessionJsonl({
+      sessionId,
+      cwd,
+      startedAt: at(day),
+      spanMs: 20 * 60_000,
+      model: INSIGHTS_OPUS,
+      tokens: 1_000,
+      calls: 16,
+      errors: 2,
+      compactions: 2
+    });
+  }
+
+  for (let day = 30; day < 38; day += 1) {
+    const sessionId = `3d2a5442-9c65-4b28-9c30-bb3d1b38d0${String(day).padStart(2, "0")}`;
+    files[`${HOME}/.claude/projects/${projectDirName}/${sessionId}.jsonl`] = insightsSessionJsonl({
+      sessionId,
+      cwd,
+      startedAt: at(day),
+      spanMs: 10 * 60_000,
+      model: INSIGHTS_SONNET,
+      tokens: 400,
+      calls: 16,
+      errors: 0,
+      compactions: 0
+    });
+  }
+
+  return {
+    ...emptyScenario(),
+    // 顶栏版本徽章读桩的 `updater`；不补会把 mock 版本印进归档截图。
+    updater: { currentVersion: APP_VERSION, ...overrides.updater },
+    files,
+    ...overrides
+  };
+}
+
 type Fixtures = { scenario: MockScenario };
 
 export const test = base.extend<Fixtures>({
