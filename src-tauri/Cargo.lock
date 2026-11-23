@@ -410,7 +410,7 @@ dependencies = [
 
 [[package]]
 name = "cc-analyzer"
-version = "0.43.0"
+version = "0.44.0"
 dependencies = [
  "age",
  "base64 0.23.1",
