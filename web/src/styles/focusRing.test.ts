@@ -143,8 +143,12 @@ describe("焦点环的几何只走令牌", () => {
    * 重数后：环宽度 75、偏移 43 + 29、消费规则 80。
    * 值得注意的变化（Issue #383）再加 1 条：整行展开按钮（全宽控件，内嵌负偏移）。
    * 重数后：环宽度 76、偏移 43 + 30、消费规则 81。
+   * 项目流量河流图（Issue #388）再加 1 条：SVG 焦点环用 `stroke-width:
+   * var(--focus-ring-width)` 画在河道整行 band 上（SVG 没有 outline），与成本
+   * 树图同款，消费令牌但不进 `outline` 的环宽度计数。
+   * 重数后：环宽度 76、偏移 43 + 30、消费规则 82。
    */
-  it("令牌被 81 条规则消费，环宽度 76 处、偏移 43 + 30 处、焦点竖条 7 处", () => {
+  it("令牌被 82 条规则消费，环宽度 76 处、偏移 43 + 30 处、焦点竖条 7 处", () => {
     const count = (pattern: RegExp) => ALL_SOURCE.match(pattern)?.length ?? 0;
     // 只数「消费」的规则：tokens.css 里那几块是**声明**（`--focus-ring-width: 2px;`），
     // 不含 `var(...)`，不能被算进消费方。
@@ -157,7 +161,7 @@ describe("焦点环的几何只走令牌", () => {
     const insetCalc = count(/outline-offset:\s*calc\(-1 \* var\(--focus-ring-inset\)\)/g);
     expect(insetDirect + insetCalc).toBe(30);
     expect(count(/inset\s+var\(--focus-ring-width\)\s+0\s+0\s+var\(--accent\)/g)).toBe(7);
-    expect(consumingRules.length).toBe(81);
+    expect(consumingRules.length).toBe(82);
   });
 });
 

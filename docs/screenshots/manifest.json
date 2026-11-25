@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-23T18:13:43.982Z",
-  "commit": "cfb5a48+dirty",
+  "generatedAt": "2026-11-25T07:04:04.586Z",
+  "commit": "c48e238+dirty",
   "dirty": true,
   "files": [
     "accent-dark-webkit.png",
@@ -203,6 +203,10 @@
     "lab-network-dark.png",
     "lab-network-light-webkit.png",
     "lab-network-light.png",
+    "lab-ribbon-dark-webkit.png",
+    "lab-ribbon-dark.png",
+    "lab-ribbon-light-webkit.png",
+    "lab-ribbon-light.png",
     "lab-runway-dark-webkit.png",
     "lab-runway-dark.png",
     "lab-runway-light-webkit.png",

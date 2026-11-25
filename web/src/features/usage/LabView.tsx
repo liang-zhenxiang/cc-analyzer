@@ -14,6 +14,7 @@ import { FlameGraphPanel } from "./FlameGraphPanel";
 import { HallOfFamePanel } from "./HallOfFamePanel";
 import { HeartbeatPanel } from "./HeartbeatPanel";
 import { ProjectFootprintPanel } from "./ProjectFootprintPanel";
+import { ProjectFlowPanel } from "./ProjectFlowPanel";
 import { MultiComparePanel } from "./MultiComparePanel";
 import { PromptRhythmPanel } from "./PromptRhythmPanel";
 import { PromptProfilePanel } from "./PromptProfilePanel";
@@ -22,9 +23,10 @@ import styles from "./LabView.module.css";
 
 /**
  * 数据实验室（Round FF 十种看法 + Round HH 收工推演 + Round II 三张 +
- * Issue #359 成本树图 + Issue #371 回声：共十六张卡）。
+ * Issue #359 成本树图 + Issue #371 回声 + Issue #388 项目流量河流图：
+ * 共十七张卡）。
  *
- * 它是用量页的第 5 个子视图，不是新页面——十六张卡吃的是同一次扫描产出的
+ * 它是用量页的第 5 个子视图，不是新页面——十七张卡吃的是同一次扫描产出的
  * `inputs`、同一个区间控件与同一个 `now`，零新增 I/O、零新增后端命令。
  *
  * 版面按阅读叙事排（设计 §1.3），不是按功能编号：
@@ -34,7 +36,7 @@ import styles from "./LabView.module.css";
  * → 跑道成对散点（前瞻 → 个人节律）。
  *
  * 每张卡外面包一层 `data-lab-card`：截图脚本按它逐卡取图，e2e 按它断言
- * 「十六张卡都在」，卡片本身不重复造定位属性。
+ * 「十七张卡都在」，卡片本身不重复造定位属性。
  */
 export function LabView({
   inputs,
@@ -63,7 +65,7 @@ export function LabView({
         <div className={styles.introText}>
           <h2 className={styles.title}>数据实验室</h2>
           <p className={styles.description}>
-            十六个视角读同一份本机日志：形状、密度、极端值、钱的落点、重复的话题、前瞻与「如果早点收工」——全部现算，不出本机。
+            十七个视角读同一份本机日志：形状、密度、极端值、钱的落点、重复的话题、项目之间的流动、前瞻与「如果早点收工」——全部现算，不出本机。
           </p>
         </div>
         {/* 口径声明，不是第二个区间控件：窗口的唯一实例仍在页头第一行。 */}
@@ -108,6 +110,12 @@ export function LabView({
             now={now}
             onOpenSession={onOpenSession}
           />
+        </div>
+
+        {/* Issue #388 项目流量河流图：接在回声之后（重复 → 流动），整行——
+            90 天 × 7 条河需要宽度，半宽会把时间轴压成碎片。 */}
+        <div className={`${styles.card} ${styles.ribbon}`} data-lab-card="ribbon">
+          <ProjectFlowPanel inputs={inputs} days={days} now={now} />
         </div>
 
         <div className={`${styles.card} ${styles.flame}`} data-lab-card="flame">

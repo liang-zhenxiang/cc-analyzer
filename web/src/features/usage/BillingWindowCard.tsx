@@ -1,5 +1,11 @@
 import { useMemo } from "react";
-import { formatClock, formatProjectPath, formatRate, formatTokenCount } from "../../lib/format";
+import {
+  formatClock,
+  formatProjectPath,
+  formatRate,
+  formatShareText,
+  formatTokenCount
+} from "../../lib/format";
 import type { SessionMeta } from "../sessions/metadataCache";
 import { totalsSum, type UsageSessionInput } from "./usageAggregations";
 import { burnRateOf, isWindowClosed, predictLimitReach } from "./billingWindow";
@@ -48,15 +54,6 @@ function openSettingsDrawer(): void {
  */
 const ATTRIBUTION_FOOTNOTE_DETAIL =
   "占比分母 = 本窗口总消耗（与表盘中心同一个数）。精确占比之和恒为 100%；行内按 0.1% 四舍五入显示，合计可能与 100% 相差 0.1 到 0.3 个百分点。";
-
-/**
- * 占比显示口径：精确 share 乘 100 后按 0.1% 四舍五入。有消耗但四舍五入到 0.0
- * 的行显示 `<0.1%`——把「很小」和「没有」分开，是这个面板存在的意义之一。
- */
-function formatShareText(row: { tokens: number; share: number }): string {
-  if (row.tokens > 0 && row.share * 100 < 0.05) return "<0.1%";
-  return `${(row.share * 100).toFixed(1)}%`;
-}
 
 /**
  * 一个真实会话行：整行是按钮，四件套为「标题 / 消耗 / 占比条 / 占比」。

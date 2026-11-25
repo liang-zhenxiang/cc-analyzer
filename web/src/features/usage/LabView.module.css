@@ -94,6 +94,12 @@
   grid-column: span 12;
 }
 
+/* 行 B4：项目流量河流图独享整行（Issue #388），紧接回声（重复 → 流动）。
+   90 天 × 7 条河需要宽度；半宽会把时间轴压成碎片。 */
+.ribbon {
+  grid-column: span 12;
+}
+
 /* 行 C2：收工推演独享整行（滑杆 + 三个读数 + 脚注，凑列只会挤）。 */
 .cutoff {
   grid-column: span 12;

@@ -205,6 +205,7 @@ const V_LAB_TERRAIN = declareView("lab-terrain");
 const V_LAB_HALL = declareView("lab-hall");
 const V_LAB_TREEMAP = declareView("lab-treemap");
 const V_LAB_ECHO = declareView("lab-echo");
+const V_LAB_RIBBON = declareView("lab-ribbon");
 const V_LAB_FLAME = declareView("lab-flame");
 const V_LAB_SANDBOX = declareView("lab-sandbox");
 const V_LAB_NETWORK = declareView("lab-network");
@@ -1200,6 +1201,7 @@ test.describe("截图归档 · 实验室", () => {
     ["hall", V_LAB_HALL],
     ["treemap", V_LAB_TREEMAP],
     ["echo", V_LAB_ECHO],
+    ["ribbon", V_LAB_RIBBON],
     ["flame", V_LAB_FLAME],
     ["sandbox", V_LAB_SANDBOX],
     ["network", V_LAB_NETWORK],
@@ -1230,9 +1232,10 @@ test.describe("截图归档 · 实验室", () => {
       await page.getByRole("tab", { name: "用量总览", exact: true }).click();
       await expect(page.locator("[data-probe='usage-progress']")).toBeVisible({ timeout: 15_000 });
       await page.getByRole("tab", { name: "实验室", exact: true }).click();
-      // Round HH 起实验室第 11 张卡是「收工推演」（cutoff），视角数 10→11。
-      await expect(page.getByText(/纳入统计 · 16 个视角/)).toBeVisible({ timeout: 15_000 });
-      await expect(page.locator("[data-lab-card]")).toHaveCount(16);
+      // Round HH 起实验室第 11 张卡是「收工推演」（cutoff），视角数 10→11；
+      // Issue #388 的项目流量河流图接在回声之后，视角数 16→17。
+      await expect(page.getByText(/纳入统计 · 17 个视角/)).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("[data-lab-card]")).toHaveCount(17);
 
       for (const [card, view] of LAB_SHOTS) {
         const locator = page.locator(`[data-lab-card="${card}"]`);

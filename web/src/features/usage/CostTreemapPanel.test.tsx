@@ -5,7 +5,8 @@ import type { SessionMeta } from "../sessions/metadataCache";
 import type { SessionRecord, SessionUsage } from "../sessions/types";
 import { resetFontScaleForTest, setFontScale } from "../settings/fontScale";
 import type { UsageSessionInput } from "./usageAggregations";
-import { CostTreemapPanel, fitLabel, textWidth } from "./CostTreemapPanel";
+import { CostTreemapPanel } from "./CostTreemapPanel";
+import { fitLabel, textWidth } from "./charts/labels";
 
 /**
  * Issue #359 的界面层：维度切换、标签阈值、合并块、空态、脚注、等价表格、

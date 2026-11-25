@@ -5,6 +5,7 @@ import {
   formatDuration,
   formatModelId,
   formatProjectPath,
+  formatShareText,
   formatTokenCount,
   formatUsd
 } from "../../lib/format";
@@ -141,15 +142,6 @@ function InsightDate({
       {text}
     </button>
   );
-}
-
-/**
- * 占比显示口径（同归因面板）：精确 share 乘 100 后按 0.1% 四舍五入。
- * 有消耗但四舍五入到 0.0 的行显示 `<0.1%`——把「很小」和「没有」分开。
- */
-function formatShareText(row: { tokens: number; share: number }): string {
-  if (row.tokens > 0 && row.share * 100 < 0.05) return "<0.1%";
-  return `${(row.share * 100).toFixed(1)}%`;
 }
 
 /** 项目展示名（未知项目兜底与行可访问名同一口径）。 */
