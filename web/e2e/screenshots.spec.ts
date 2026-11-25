@@ -22,6 +22,7 @@ import {
   calendarScenario,
   pulseScenario,
   monitorConsoleScenario,
+  checkupScenario,
   MONITOR_CONSOLE_NOW
 } from "./fixtures";
 import { milestonesScenario } from "../tests/fixtures/milestones-scenario";
@@ -148,6 +149,8 @@ const V_CAPSULE = declareView("capsule");
 const V_USAGE_BELOW = declareView("usage-below");
 const V_USAGE_COMPARE = declareView("usage-compare");
 const V_USAGE_COMPARE_BELOW = declareView("usage-compare-below");
+// 工作流体检（Issue #391）：一张独立的元素截图，见下方「截图归档 · 工作流体检」。
+const V_USAGE_CHECKUP = declareView("usage-checkup");
 const V_ANALYZER_LOG_COMPACT = declareView("analyzer-log-compact");
 const V_CONTEXT = declareView("context");
 const V_CONTEXT_EMPTY = declareView("context-empty");
@@ -412,6 +415,49 @@ test.describe("截图归档 · 用量总览", () => {
       await settleImages(page);
       await page.screenshot({
         path: path.join(OUT_DIR, `${V_USAGE_COMPARE_BELOW}-${theme}${suffix}.png`)
+      });
+    });
+  }
+});
+
+// 工作流体检（Issue #391）。
+//
+// 已有的 `roundCCScenario()` 只有 4 个会话，体检卡会命中「样本不足」并整卡
+// 不渲染——也就是说这个功能上一轮**没有任何视觉基线**。这里换成
+// `checkupScenario()`：22 个会话，上下文 / 错误为关注、缓存为留意、委派为
+// 观察，卡片正好满 4 条。三档标记（实心圆 / 空心环 / 短横）与「处方 / 说明」
+// 两种第二行因此都能进同一张图。
+//
+// 取景是一张**元素截图**而不是视口截图：卡片高度随条目与脚注走，整页截图会
+// 把它压扁在首屏里，而这张图要能独立验收卡片本身（诊断轨、三档标记、
+// 维度列对齐、处方/说明标签、唯一有色链接与脚注完整性）。
+test.describe("截图归档 · 工作流体检", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: checkupScenario() });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`工作流体检 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+
+      await page.goto("/");
+      await page.getByRole("tab", { name: "用量总览", exact: true }).click();
+      // 等扫描收口成统计口径，避免截到「已分析 3 / 7」的中间帧。
+      await expect(page.getByText(/纳入统计/)).toBeVisible({ timeout: 15_000 });
+      const card = page.getByRole("region", { name: "工作流体检" });
+      await expect(card).toBeVisible({ timeout: 15_000 });
+      // 元素截图会让 Playwright 自己滚动到可见；等一拍让布局稳定。
+      await card.evaluate((element) => element.scrollIntoView({ block: "center" }));
+      await page.waitForTimeout(300);
+      await settleImages(page);
+      await card.screenshot({
+        path: path.join(OUT_DIR, `${V_USAGE_CHECKUP}-${theme}${suffix}.png`)
       });
     });
   }

@@ -115,6 +115,9 @@ export function SegmentedControl<T extends string>({
             key={item.value}
             type="button"
             {...selection}
+            /* 通用跳转定位锚：跨视图聚焦某一枚时按值查，不必读 label 文案
+               （label 可以是 ReactNode，文案不是稳定标识）。 */
+            data-value={item.value}
             disabled={item.disabled}
             title={item.title}
             tabIndex={item.value === value ? 0 : -1}

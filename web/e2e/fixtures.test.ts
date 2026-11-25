@@ -18,7 +18,8 @@ import {
   roundFFScenario,
   roundGGScenario,
   roundHHScenario,
-  roundIIScenario
+  roundIIScenario,
+  checkupScenario
 } from "./fixtures";
 import { milestonesScenario } from "../tests/fixtures/milestones-scenario";
 
@@ -71,7 +72,8 @@ const SCENARIO_FACTORIES: Record<string, () => { updater?: { currentVersion?: st
   roundFFScenario,
   roundGGScenario,
   roundHHScenario,
-  roundIIScenario
+  roundIIScenario,
+  checkupScenario
 };
 
 describe("截图归档的版本号", () => {
