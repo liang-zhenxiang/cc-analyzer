@@ -138,6 +138,16 @@ export function formatRelativeTime(ms: number, now = Date.now()): string {
 }
 
 /**
+ * 占比显示口径（消耗日历、归因面板、项目流量河流图共用）：精确 share 乘 100
+ * 后按 0.1% 四舍五入。有消耗但四舍五入到 0.0 的行显示 `<0.1%`——把「很小」
+ * 和「没有」分开，是这几处读数的共同前提。
+ */
+export function formatShareText(row: { tokens: number; share: number }): string {
+  if (row.tokens > 0 && row.share * 100 < 0.05) return "<0.1%";
+  return `${(row.share * 100).toFixed(1)}%`;
+}
+
+/**
  * Human label for a project. Claude Code encodes a project's absolute path into
  * its directory name by replacing every `/` with `-` (`/repo/usage-days` →
  * `-repo-usage-days`), and that encoding is **lossy** — the same label is what

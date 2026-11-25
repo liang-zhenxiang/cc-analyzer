@@ -1,0 +1,274 @@
+/* 项目流量河流图（Issue #388）。
+ *
+ * 设计定稿的硬约束，改样式前先读完：
+ * - 大面积填充只用 `--chart-N-soft` / 尾部的 `--bg-active`；**不叠**
+ *   `opacity` / `fill-opacity` / `color-mix`。颜色身份由顶边实色、8px 色块与
+ *   悬停点承担，填充只负责体量感。
+ * - 河道之间的 8px 缝里只留前一条的基线：不画分隔线、不打底色、不做斑马纹。
+ * - 基准线普通档 `--border-strong`，高对比度档改 `--border`（同星系泳道线）。
+ * - 左侧色块 + 项目名就是图例，不再另排一排图例。
+ * - 无入场动画；只有顶边的颜色允许过渡，`stroke-width` 的跳变是状态不是动画。 */
+
+.interactive {
+  min-width: 0;
+}
+
+/* 焦点环由 SVG 自己画，外层不再叠浏览器默认 outline。 */
+.interactive:focus,
+.interactive:focus-visible {
+  outline: none;
+}
+
+.summary {
+  margin: 0 0 var(--sp-2);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+/* 数字只换墨色 / 等宽 / 字重，字号与日期保持正文字体。 */
+.summary strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.chartWrap {
+  position: relative;
+  min-width: 0;
+}
+
+.chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* 顶边只描上沿：面积路径的 fill 与 stroke 分开画，闭合用的基线不会被描出来。
+   粗细按状态内联（1px / 1.5px / 2px），这里只给线帽与颜色过渡。 */
+.laneEdge {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke var(--dur-hover) var(--ease-out);
+}
+
+/* 基准线：普通档用较实的一档发丝线，高对比度换成实色灰（同星系泳道线）。 */
+.baseline {
+  stroke: var(--border-strong);
+  stroke-width: 1px;
+}
+
+:global([data-contrast="high"]) .baseline {
+  stroke: var(--border);
+}
+
+.tickLabel {
+  fill: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 左栏项目名：未选中 400；悬停 / 选中 / 键盘当前河提亮为正文色 + 600。 */
+.laneName {
+  fill: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-weight: 400;
+}
+
+.laneNameActive {
+  fill: var(--text);
+  font-weight: 600;
+}
+
+/* 今天：最后一天 band 中心的 2 4 虚线，说明数据到此为止。 */
+.todayLine {
+  stroke: var(--border-strong);
+  stroke-width: 1px;
+  stroke-dasharray: 2 4;
+}
+
+:global([data-contrast="high"]) .todayLine {
+  stroke: var(--border);
+}
+
+/* 透明命中带：覆盖左栏 + 绘图区，负责点击选河。尾部合计不挂事件。 */
+.hitRect {
+  cursor: pointer;
+}
+
+/* 悬停 / 键盘游标：一条 1px 实线，唯一的纵向实线。 */
+.cursorLine {
+  stroke: var(--text-tertiary);
+  stroke-width: 1px;
+  pointer-events: none;
+}
+
+/* 焦点环：颜色走 --ring，宽度 / 偏移由 tokens.css 的主题档位给。 */
+.focusRing {
+  stroke: var(--ring);
+  stroke-width: var(--focus-ring-width);
+  pointer-events: none;
+}
+
+/* 选中读数行：空闲与选中都保留一行高度，避免卡高在锁定 / 取消之间跳动。 */
+.readout {
+  min-height: var(--lh-base);
+  margin: var(--sp-2) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.readoutIdle {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.readoutSwatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--sp-1);
+  border-radius: 1px;
+  vertical-align: baseline;
+}
+
+.readoutSwatchNeutral {
+  border: 1px solid var(--text-tertiary);
+  background: var(--bg-active);
+}
+
+.readoutName {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.readoutValue {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.readoutSep {
+  color: var(--text-tertiary);
+}
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.emptyDescription {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-align: center;
+}
+
+/* 视觉隐藏但仍在可访问树里：live region 与等价表是图的可读层。 */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 浮层：`position: fixed`（Panel 的 overflow: hidden 会裁掉绝对定位），portal
+   到 body；先量后定位由组件里的 useLayoutEffect 完成。 */
+.tooltip {
+  position: fixed;
+  z-index: 10;
+  display: flex;
+  width: max-content;
+  min-width: 220px;
+  max-width: calc(280px * var(--font-scale));
+  flex-direction: column;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  pointer-events: none;
+}
+
+.tipHeader {
+  margin-bottom: var(--sp-1);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-sm);
+}
+
+/* 只有数字走等宽；中文留在正文字体里。 */
+.tipValue {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.tipRow {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  column-gap: var(--sp-2);
+  min-height: var(--lh-xs);
+}
+
+.tipRowSelected .tipName {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* 色块与左栏同款 8×8；尾部补 1px 描边，不依赖色相区分。 */
+.tipSwatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 1px;
+  align-self: center;
+}
+
+.tipSwatchNeutral {
+  border: 1px solid var(--text-tertiary);
+  background: var(--bg-active);
+}
+
+/* tooltip 是完整项目名的通道：允许换行（最多两行），左栏才做截断。 */
+.tipName {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.tipAmount {
+  color: var(--text);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.tipShare {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.tipEmpty {
+  color: var(--text-tertiary);
+}
