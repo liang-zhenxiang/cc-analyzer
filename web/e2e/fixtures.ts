@@ -3892,6 +3892,309 @@ export function insightsScenario(overrides: Partial<MockScenario> = {}): MockSce
   };
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * 「工作流体检」（Issue #391）场景
+ *
+ * `checkupScenario()` 让三条规则越线、委派项触发 observe，数字全部固定可断言：
+ *   - 上下文压力：22 个有 usage 的会话里 12 个峰值 700K（600K input + 100K
+ *     cacheRead）≥ 170K → 54.5% > 50%，关注；
+ *   - 错误集中：25 次工具调用、18 次失败里 16 次来自 Bash（88.9%），Bash
+ *     失败率 16 / 20 = 80%，关注；
+ *   - 缓存利用率：cacheRead 1.2M / 输入侧 9.3M = 12.9% < 15%，留意；
+ *   - 压缩频次：22 个会话里 6 次压缩 = 0.27 次/会话 < 0.40，**刻意不触发**
+ *     ——上限 4 条且 observe 最先被挤掉，它一旦越线，截图里就看不见委派项；
+ *   - 委派使用：22 个有工具事实的会话、没有一个用过子 agent（0% < 5%）
+ *     → observe，第二行是「说明」而不是「处方」，也没有跳转链接。
+ * 正好四条（3 focus/notice + 1 observe），`dropped === 0`、`ineligible === 0`；
+ * summary = 「5 项检查里 3 项值得看一眼」。时间锚点用本地自然日（`daysAgo`），
+ * 不写死日期。
+ *
+ * 另外三个场景覆盖状态边界：
+ *   - `checkupInsufficientScenario`：4 会话 / 12 次工具调用 / 1.2M token，
+ *     五项全部低于样本下限 → 数据层 status 为 insufficient，但整卡不渲染；
+ *   - `checkupQuietScenario`：8 个会话、上下文占比恰好 25%（严格不等号不
+ *     越线）、其余项不触发 → 整卡不渲染；
+ *   - `checkupObserveOnlyScenario`：20 个会话只触发委派（observe）→ 整卡
+ *     不渲染（「没有处方的观察不该单独占首屏」）。
+ * 与 insights 场景同一做法：用 `emptyScenario` 打底，默认八份旧夹具不进窗。
+ * ────────────────────────────────────────────────────────────────────────── */
+
+type CheckupTokens = {
+  input: number;
+  cacheRead?: number;
+  cacheCreation?: number;
+  output?: number;
+};
+
+type CheckupTool = { name: string; failed?: boolean };
+
+/**
+ * 一段体检会话：首条 user 定标题，一条带 usage 的 assistant，可选工具对与
+ * 压缩边界。工具使用 / 结果按 30 秒一节排开，首行失败文案即错误聚类签名。
+ */
+function checkupSessionJsonl(options: {
+  sessionId: string;
+  cwd: string;
+  startedAt: number;
+  tokens: CheckupTokens;
+  tools?: CheckupTool[];
+  compactions?: number;
+}): string {
+  const { sessionId, cwd, startedAt, tokens } = options;
+  const base = {
+    sessionId,
+    cwd,
+    gitBranch: "main",
+    version: "2.1.0"
+  };
+  const lines: string[] = [];
+  let seq = 0;
+  const uuid = (label: string) => `${sessionId}-${label}-${seq++}`;
+
+  lines.push(
+    JSON.stringify({
+      ...base,
+      type: "user",
+      timestamp: new Date(startedAt).toISOString(),
+      uuid: uuid("user"),
+      parentUuid: null,
+      isSidechain: false,
+      message: { role: "user", content: `工作流体检夹具 ${sessionId}` }
+    })
+  );
+
+  lines.push(
+    JSON.stringify({
+      ...base,
+      type: "assistant",
+      timestamp: new Date(startedAt + 60_000).toISOString(),
+      uuid: uuid("usage"),
+      parentUuid: null,
+      isSidechain: false,
+      message: {
+        id: `${sessionId}-usage`,
+        role: "assistant",
+        model: "claude-sonnet-4-5-20250929",
+        content: [{ type: "text", text: "工作流体检夹具回答" }],
+        usage: {
+          input_tokens: tokens.input,
+          output_tokens: tokens.output ?? 1_000,
+          cache_creation_input_tokens: tokens.cacheCreation ?? 0,
+          cache_read_input_tokens: tokens.cacheRead ?? 0
+        }
+      }
+    })
+  );
+
+  (options.tools ?? []).forEach((tool, index) => {
+    const toolId = `${sessionId}-tool-${index}`;
+    const at = startedAt + 120_000 + index * 30_000;
+    lines.push(
+      JSON.stringify({
+        ...base,
+        type: "assistant",
+        timestamp: new Date(at).toISOString(),
+        uuid: uuid("tool-use"),
+        parentUuid: null,
+        isSidechain: false,
+        message: {
+          id: `${toolId}-msg`,
+          role: "assistant",
+          model: "claude-sonnet-4-5-20250929",
+          content: [
+            {
+              type: "tool_use",
+              id: toolId,
+              name: tool.name,
+              input:
+                tool.name === "Bash"
+                  ? { command: "npm test" }
+                  : { file_path: `${cwd}/src/checkup-${index}.ts` }
+            }
+          ]
+        }
+      })
+    );
+    lines.push(
+      JSON.stringify({
+        ...base,
+        type: "user",
+        timestamp: new Date(at + 5_000).toISOString(),
+        uuid: uuid("tool-result"),
+        parentUuid: null,
+        isSidechain: false,
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: toolId,
+              content: tool.failed ? "Error: exit code 1" : "ok",
+              ...(tool.failed ? { is_error: true } : {})
+            }
+          ]
+        }
+      })
+    );
+  });
+
+  for (let index = 0; index < (options.compactions ?? 0); index += 1) {
+    const at = startedAt + 5 * 60_000 + index * 60_000;
+    const boundaryUuid = `${sessionId}-compact-${index}`;
+    lines.push(
+      JSON.stringify({
+        ...base,
+        type: "system",
+        subtype: "compact_boundary",
+        timestamp: new Date(at).toISOString(),
+        uuid: boundaryUuid,
+        parentUuid: null,
+        isSidechain: false,
+        content: "Conversation compacted",
+        level: "info",
+        logicalParentUuid: null,
+        compactMetadata: {
+          trigger: "auto",
+          preTokens: 180_000,
+          postTokens: 20_000,
+          cumulativeDroppedTokens: 160_000,
+          durationMs: 1_000
+        }
+      })
+    );
+    lines.push(
+      JSON.stringify({
+        ...base,
+        type: "user",
+        timestamp: new Date(at + 1_000).toISOString(),
+        uuid: `${boundaryUuid}-summary`,
+        parentUuid: boundaryUuid,
+        isSidechain: false,
+        isCompactSummary: true,
+        isVisibleInTranscriptOnly: true,
+        message: { role: "user", content: "压缩后的摘要" }
+      })
+    );
+  }
+
+  return `${lines.join("\n")}\n`;
+}
+
+/** 本地自然日 `daysAgo` 的 `hour:minute`（不用毫秒除法，DST 也按日历走）。 */
+function checkupAt(daysAgo: number, hour: number, minute: number): number {
+  const date = new Date();
+  date.setDate(date.getDate() - daysAgo);
+  date.setHours(hour, minute, 0, 0);
+  return date.getTime();
+}
+
+function checkupFiles(
+  count: number,
+  cwd: string,
+  seed: (index: number) => {
+    tokens: CheckupTokens;
+    tools?: CheckupTool[];
+    compactions?: number;
+  }
+): Record<string, string> {
+  const files: Record<string, string> = {};
+  for (let index = 0; index < count; index += 1) {
+    const sessionId = `3d2a5442-9c65-4b28-9c30-bb3d1c39${String(index).padStart(4, "0")}`;
+    files[`${HOME}/.claude/projects/${projectDir(cwd)}/${sessionId}.jsonl`] =
+      checkupSessionJsonl({
+        sessionId,
+        cwd,
+        startedAt: checkupAt(index, 10, 0),
+        ...seed(index)
+      });
+  }
+  return files;
+}
+
+/** 三条越线 + 一条 observe（详见上方长注释）：上下文 / 错误为关注，缓存为留意，委派为观察。 */
+export function checkupScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  const tools: CheckupTool[] = [
+    ...Array.from({ length: 20 }, (_, index) => ({
+      name: "Bash",
+      failed: index < 16
+    })),
+    ...Array.from({ length: 5 }, (_, index) => ({
+      name: "Read",
+      failed: index < 2
+    }))
+  ];
+  const files = checkupFiles(22, "/repo/checkup", (index) => ({
+    // 前 12 个会话峰值 700K（≥ 170K 判定线）；其余 10 个只有 90K → 54.5%。
+    tokens:
+      index < 12
+        ? { input: 600_000, cacheRead: 100_000, output: 5_000 }
+        : { input: 90_000, output: 5_000 },
+    // 25 次工具调用全部集中在第一个会话：18 次失败里 16 次来自 Bash。
+    tools: index === 0 ? tools : undefined,
+    // 6 次压缩 / 22 个会话 = 0.27，低于 0.40 判定线：上限 4 条且 observe 最先
+    // 被挤掉，压缩项若也越线，委派项就进不了截图。
+    compactions: index < 3 ? 2 : 0
+  }));
+  return {
+    ...emptyScenario(),
+    updater: { currentVersion: APP_VERSION, ...overrides.updater },
+    files,
+    ...overrides
+  };
+}
+
+/** 样本不足：4 个会话 / 12 次工具调用 / 1.2M token，五项全部低于下限。 */
+export function checkupInsufficientScenario(
+  overrides: Partial<MockScenario> = {}
+): MockScenario {
+  const tools: CheckupTool[] = [
+    { name: "Read" },
+    { name: "Read" },
+    { name: "Grep" }
+  ];
+  const files = checkupFiles(4, "/repo/checkup-thin", () => ({
+    tokens: { input: 250_000, cacheRead: 50_000, output: 0 },
+    tools
+  }));
+  return {
+    ...emptyScenario(),
+    updater: { currentVersion: APP_VERSION, ...overrides.updater },
+    files,
+    ...overrides
+  };
+}
+
+/** 全部健康：8 个会话，上下文占比恰好 25%（严格不等号下不触发）。 */
+export function checkupQuietScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  const files = checkupFiles(8, "/repo/checkup-quiet", (index) => ({
+    tokens:
+      index < 2
+        ? { input: 100_000, cacheRead: 80_000, output: 5_000 }
+        : { input: 50_000, output: 5_000 }
+  }));
+  return {
+    ...emptyScenario(),
+    updater: { currentVersion: APP_VERSION, ...overrides.updater },
+    files,
+    ...overrides
+  };
+}
+
+/** 只触发委派（observe）：20 个会话、零用量、零工具、零压缩。 */
+export function checkupObserveOnlyScenario(
+  overrides: Partial<MockScenario> = {}
+): MockScenario {
+  const files = checkupFiles(20, "/repo/checkup-observe", () => ({
+    tokens: { input: 0, output: 0 }
+  }));
+  return {
+    ...emptyScenario(),
+    updater: { currentVersion: APP_VERSION, ...overrides.updater },
+    files,
+    ...overrides
+  };
+}
+
 type Fixtures = { scenario: MockScenario };
 
 export const test = base.extend<Fixtures>({

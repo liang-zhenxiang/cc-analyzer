@@ -37,24 +37,35 @@ function nearestRank(sorted: number[], p: number): number {
 }
 
 /**
+ * 一个会话的上下文峰值 = 会话内 records 的 max(input + cacheCreation +
+ * cacheRead)，与 sessionQuery.minContextPeak / contextSeriesOf 的「整份
+ * 提示词」同一口径。
+ *
+ * 没有任何带 usage 的记录时返回 `null`——「未知」与「峰值为 0」是两件事：
+ * 前者不该进任何分母（工作流体检的上下文/缓存规则据此排除它），后者确实
+ * 没有消耗过上下文。
+ */
+export function contextPeakOf(input: UsageSessionInput): number | null {
+  let peak: number | null = null;
+  for (const record of input.records) {
+    const usage = record.usage;
+    if (!usage) continue;
+    const context =
+      (usage.inputTokens ?? 0) +
+      (usage.cacheCreationTokens ?? 0) +
+      (usage.cacheReadTokens ?? 0);
+    if (peak === null || context > peak) peak = context;
+  }
+  return peak;
+}
+
+/**
  * 全体会话的上下文峰值分位。纯函数：不做窗口过滤——传进来的 sessions
- * 就是要统计的那段区间。
+ * 就是要统计的那段区间。没有 usage 的会话在这里记为峰值 0（分位数需要
+ * 一个数；「没有读数」的排除由调用方按 `contextPeakOf` 的 `null` 决定）。
  */
 export function contextQuantiles(sessions: readonly UsageSessionInput[]): ContextQuantiles {
-  const peaks: number[] = [];
-  for (const session of sessions) {
-    let peak = 0;
-    for (const record of session.records) {
-      const usage = record.usage;
-      if (!usage) continue;
-      const context =
-        (usage.inputTokens ?? 0) +
-        (usage.cacheCreationTokens ?? 0) +
-        (usage.cacheReadTokens ?? 0);
-      if (context > peak) peak = context;
-    }
-    peaks.push(peak);
-  }
+  const peaks = sessions.map((session) => contextPeakOf(session) ?? 0);
 
   if (peaks.length < 2) {
     return { p50: null, p75: null, p90: null, p99: null, max: null, count: peaks.length };

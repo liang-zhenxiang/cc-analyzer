@@ -1,0 +1,359 @@
+/* 工作流体检（Issue #391）。
+   卡片本体是 Panel；这里管两行一条的诊断清单与证据凹槽。与上方「值得注意
+   的变化」刻意不同构：左侧 16px 诊断轨 + 92px 维度列、整行不可点、行内只有
+   「证据」小按钮可点、证据是 dl + 4px 刻度条而不是三列对照表。 */
+
+.list {
+  /* 行几何的版式常量：轨宽 / 维度列 / 标记 / 刻度条高。它们是「形」与版式
+     常量，不是间距档位，所以不进全局 tokens。 */
+  --checkup-rail: 2px;
+  --checkup-dim: 92px;
+  --checkup-marker: 8px;
+  --checkup-meter: 4px;
+
+  position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 诊断轨贯穿清单：它是「刻度轴」，不是连接线；首末标记之外各延伸一小段是
+   刻意的。2px 轨居中在 16px 列里（左起 7px）。 */
+.list::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 7px;
+  width: var(--checkup-rail);
+  background: var(--border-strong);
+}
+
+/* 一条 = 两行（事实 / 处方）+ 上下 4px 呼吸；高度由行高令牌派生，130% 字号
+   下行盒自己会长高，写死 height 会把第二行裁掉。 */
+.item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px var(--checkup-dim) minmax(0, 1fr);
+  column-gap: var(--sp-2);
+  padding: var(--sp-1) 0;
+}
+
+/* 项间一条发丝线；首项无上边线、末项无下边线——首尾边界由 Panel 承担。 */
+.item + .item {
+  border-top: 1px solid var(--border);
+}
+
+/* 标记压在轨上（z-index 抬到轨之上），垂直居中于第一行：上距 4 + 18 / 2。 */
+.markerCell {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  grid-column: 1;
+  align-self: start;
+  justify-self: center;
+  margin-top: calc((var(--lh-sm) - var(--checkup-marker)) / 2);
+}
+
+/* 三档只看形状与墨色，不看颜色：
+   focus 实心圆 --text / notice 1.5px 空心环 --text-secondary /
+   observe 8×2 短横 --text-tertiary。 */
+.marker {
+  width: var(--checkup-marker);
+  height: var(--checkup-marker);
+  border-radius: 50%;
+}
+
+.markerFocus {
+  background: var(--text);
+}
+
+/* 空心环内部用面板底色在轨上「打洞」，环与轨不会糊成一根粗线。 */
+.markerNotice {
+  box-sizing: border-box;
+  border: 1.5px solid var(--text-secondary);
+  background: var(--bg-subtle);
+}
+
+.markerObserve {
+  width: var(--checkup-marker);
+  height: 2px;
+  border-radius: 1px;
+  background: var(--text-tertiary);
+}
+
+/* 短横只有 2px 高，居中偏移要按自己的高度算，不能沿用 8px 标记的公式。 */
+.item[data-checkup-level="observe"] .markerCell {
+  margin-top: calc((var(--lh-sm) - 2px) / 2);
+}
+
+.dimension {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-1);
+  grid-column: 2;
+}
+
+/* 维度名与级别字同一列、上下两行：维度 92px 列宽是版式常量，当前最长 5 个
+   汉字，130% 下仍 < 92px；不要换成更长的名字。 */
+.dimensionName {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.level {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.item[data-checkup-level="focus"] .level {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.item[data-checkup-level="notice"] .level {
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-1);
+  grid-column: 3;
+}
+
+/* 事实句：正文墨色，数字另走 mono；允许折行，绝不截断。 */
+.fact {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  overflow-wrap: anywhere;
+}
+
+/* 数字片段：等宽 + 等宽数字，**不另给颜色**——颜色是有语义的。 */
+.number {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 「证据」是行内文字按钮：常驻下划线、没有折角、没有背景块。 */
+.evidenceToggle {
+  margin-left: var(--sp-1);
+  padding: var(--sp-05) var(--sp-1);
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 2px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.evidenceToggle:hover {
+  color: var(--text);
+  text-decoration-color: currentColor;
+}
+
+.evidenceToggle:focus-visible {
+  border-radius: var(--r-xs);
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* 第二行：处方 / 说明。行首标签是第三档墨色，正文第二档。 */
+.action {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  overflow-wrap: anywhere;
+}
+
+.actionLabel {
+  margin-right: var(--sp-1);
+  color: var(--text-tertiary);
+  font-weight: 600;
+}
+
+/* 动作链接：本卡常态下唯一的彩色像素，只给真实出口。 */
+.actionLink {
+  margin-left: var(--sp-2);
+  padding: var(--sp-05) 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.actionLink:hover {
+  color: var(--accent-hover);
+}
+
+.actionLink:focus-visible {
+  border-radius: var(--r-xs);
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* 证据：从内容列起的凹槽 + 左侧刻度线；没有上边框——与上方那张卡的
+   「上边线分隔」是两套语言。 */
+.evidence {
+  margin-top: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 2px solid var(--border-strong);
+  border-radius: var(--r-xs);
+  background: var(--bg-inset);
+}
+
+/* 定义列表两列：标签按内容宽度，读数占余下全部。 */
+.evidenceList {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: var(--sp-3);
+  row-gap: var(--sp-1);
+  margin: 0;
+}
+
+.evidenceLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.evidenceValue,
+.evidenceValueNumeric {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  overflow-wrap: anywhere;
+}
+
+.evidenceValue {
+  color: var(--text-secondary);
+}
+
+.evidenceValueNumeric {
+  color: var(--text);
+}
+
+.meter {
+  margin-top: var(--sp-2);
+}
+
+.meterTrack {
+  position: relative;
+  height: var(--checkup-meter);
+  border-radius: var(--r-xs);
+  background: var(--bg-active);
+}
+
+/* 填充总是从左往右按读数走，below 也不反向——反向条会让人以为「越满越好」。 */
+.meterFill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: var(--r-xs);
+  background: var(--text-secondary);
+}
+
+/* 判定线 1px × 10px，上下各出 3px；z-index 保证它画在填充之上——读数盖过
+   判定线的那个瞬间，正是最需要看见它的时候。 */
+.meterThreshold {
+  position: absolute;
+  top: -3px;
+  width: 1px;
+  height: 10px;
+  background: var(--text);
+  z-index: 1;
+}
+
+.meterCaption {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 表头右侧总述：读数不是徽章，没有背景与边框。 */
+.summary {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.summaryNumber {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* 脚注：口径契约，不收起、不进 title。 */
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* 极窄窗口（浏览器测试 / 未来尺寸）：三列塌成两列，维度与级别挪到事实上方。
+   桌面端最小 960 不会触发；证据仍从内容列起。 */
+@media (max-width: 900px) {
+  .item {
+    grid-template-columns: 16px minmax(0, 1fr);
+    row-gap: var(--sp-1);
+  }
+
+  .markerCell {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .dimension {
+    grid-column: 2;
+    grid-row: 1;
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--sp-1);
+  }
+
+  .content {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}

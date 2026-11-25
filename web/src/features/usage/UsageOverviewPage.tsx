@@ -42,6 +42,8 @@ import { TimeCapsuleCard } from "./TimeCapsuleCard";
 import { buildTimeCapsule } from "./timeCapsule";
 import { InsightsCard } from "./InsightsCard";
 import { buildInsights } from "./insights";
+import { WorkflowCheckupCard } from "./WorkflowCheckupCard";
+import { buildWorkflowCheckup } from "./workflowCheckup";
 import { MilestonesPanel } from "./MilestonesPanel";
 import { milestonesOf } from "./milestones";
 import {
@@ -700,6 +702,12 @@ export function UsageOverviewPage({
     () => (scanning ? [] : buildInsights(inputs, days, insightsNow)),
     [inputs, days, insightsNow, scanning]
   );
+  // 工作流体检（Issue #391）：与 insights 共用同一个 `insightsNow`——两张卡
+  // 在同一屏里说话，窗口标签必须同源。扫描中页面不渲染它，这里也不必省。
+  const workflowCheckup = useMemo(
+    () => buildWorkflowCheckup(inputs, days, insightsNow),
+    [inputs, days, insightsNow]
+  );
   // 与占比图共用同一个索引：图例第 N 个模型在这里也是 --chart-N。
   const modelColors = useMemo(
     () => new Map(range.topModels.map((slice, index) => [slice.label, (index % 6) + 1])),
@@ -802,6 +810,20 @@ export function UsageOverviewPage({
     setView("usage");
     dayDrillSeq.current += 1;
     setDayDrill({ dayStart, nonce: dayDrillSeq.current });
+  }
+
+  /**
+   * 工作流体检 → 错误档（Issue #391）：切档后把焦点移到「总览视图」里「错误」
+   * 那一枚，避免焦点掉回 `<body>`。分段控件是 roving tabindex，下一帧按
+   * `data-value` 直接定位即可——不为这一处跳转另造 ref 或第二套键盘模型。
+   */
+  function openErrorsFromCheckup() {
+    setView("errors");
+    requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLButtonElement>('[aria-label="总览视图"] [data-value="errors"]')
+        ?.focus();
+    });
   }
 
   /**
@@ -1261,6 +1283,15 @@ export function UsageOverviewPage({
               inputs={inputs}
               days={days}
               now={insightsNow}
+            />
+          ) : null}
+          {/* 工作流体检（Issue #391）：紧随「值得注意的变化」、计费卡之前。
+              quiet / empty 时组件自己返回 null，页面不为它加条件；唯一的出口
+              （打开错误档）由 `openErrorsFromCheckup` 收口。 */}
+          {!scanning ? (
+            <WorkflowCheckupCard
+              checkup={workflowCheckup}
+              onOpenErrors={openErrorsFromCheckup}
             />
           ) : null}
           {/* 归因行与压缩统计 top3 共用同一个「打开会话」握手，不新开跳转路径。 */}
