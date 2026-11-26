@@ -636,15 +636,15 @@ describe("UsageCalendarPanel · 一日回望（Round V2）", () => {
     // 行可访问名 / 悬停原文是同一份格式函数（§6.4 模板）。
     expect(barOf("/sessions/a.jsonl")).toHaveAttribute(
       "aria-label",
-      "打开会话：会话 A（项目：cal）· 09:20–09:21 · 时长 1m30s · 当日消耗 $1.80 · 600,000 token · 占当日 66.7%"
+      "打开会话：会话 A（项目：cal）· 09:20–09:21 · 时长 1 分 30 秒 · 当日消耗 $1.80 · 600,000 token · 占当日 66.7%"
     );
     expect(barOf("/sessions/a.jsonl")).toHaveAttribute(
       "title",
-      "打开会话：会话 A（项目：cal）· 09:20–09:21 · 时长 1m30s · 当日消耗 $1.80 · 600,000 token · 占当日 66.7%"
+      "打开会话：会话 A（项目：cal）· 09:20–09:21 · 时长 1 分 30 秒 · 当日消耗 $1.80 · 600,000 token · 占当日 66.7%"
     );
     expect(barOf("/sessions/b.jsonl")).toHaveAttribute(
       "aria-label",
-      "打开会话：会话 B（项目：other）· 13:05–18:40 · 时长 5h35m0s · 当日消耗 $0.90 · 300,000 token · 占当日 33.3%"
+      "打开会话：会话 B（项目：other）· 13:05–18:40 · 时长 5 小时 35 分 · 当日消耗 $0.90 · 300,000 token · 占当日 33.3%"
     );
   });
 
@@ -673,7 +673,7 @@ describe("UsageCalendarPanel · 一日回望（Round V2）", () => {
     expect(densityLevelOf(6)).toBe(3);
   });
 
-  it("零跨度会话：基线宽 0（靠最小可视宽兜成刻痕）、起止两个相同时刻、时长 0ms", async () => {
+  it("零跨度会话：基线宽 0（靠最小可视宽兜成刻痕）、起止两个相同时刻、时长 0 毫秒", async () => {
     const user = userEvent.setup();
     render(
       <UsageCalendarPanel
@@ -691,7 +691,7 @@ describe("UsageCalendarPanel · 一日回望（Round V2）", () => {
     expect(blocksOf("/sessions/one.jsonl")).toHaveLength(1);
     expect(barOf("/sessions/one.jsonl")).toHaveAttribute(
       "aria-label",
-      "打开会话：单条（项目：cal）· 16:00–16:00 · 时长 0ms · 当日消耗 $0.30 · 100,000 token · 占当日 100.0%"
+      "打开会话：单条（项目：cal）· 16:00–16:00 · 时长 0 毫秒 · 当日消耗 $0.30 · 100,000 token · 占当日 100.0%"
     );
   });
 

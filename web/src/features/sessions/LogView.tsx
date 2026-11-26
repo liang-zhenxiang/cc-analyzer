@@ -19,7 +19,7 @@ import { focusRowIn, useRowNavigation } from "./useRowNavigation";
 import { useMeasuredRowHeights } from "./measuredRows";
 import { buildRowOffsets, computeSizedWindow } from "./virtualWindow";
 import type { TimeRange } from "./filters";
-import { formatClock, formatDateTime, formatDuration } from "../../lib/format";
+import { formatClock, formatDateTime, formatDurationCompact } from "../../lib/format";
 import { safeStringify } from "../../lib/json";
 import { useThresholds } from "../settings/thresholds";
 import { useFontScale } from "../settings/fontScale";
@@ -107,7 +107,7 @@ function shareTitle(row: LogRow, axis: Axis): string {
   const interval = rowInterval(row);
   return [
     `${formatDateTime(interval.start)} → ${formatDateTime(interval.end)}`,
-    formatDuration(row.durationMs),
+    formatDurationCompact(row.durationMs),
     `${shareLabel(row.durationMs, axis)}（占整会话）`
   ].join(" · ");
 }
@@ -407,7 +407,7 @@ function Fragment({
             {row.tokens ? `${row.tokens.prompt} / ${row.tokens.output}` : "—"}
           </td>
           <td className={styles[durationClass(row.durationMs)]}>
-            {row.durationMs > 0 ? formatDuration(row.durationMs) : "—"}
+            {row.durationMs > 0 ? formatDurationCompact(row.durationMs) : "—"}
           </td>
           <td className={styles.share} title={shareTitle(row, axis)}>
             <span className={styles.shareTrack}>
@@ -556,7 +556,7 @@ function compactNumbers(event: CompactRowData["event"]): string {
       ).toLocaleString("en-US")}`
     );
   }
-  if (event.durationMs !== null) parts.push(formatDuration(event.durationMs));
+  if (event.durationMs !== null) parts.push(formatDurationCompact(event.durationMs));
   return parts.join(" · ");
 }
 
@@ -698,7 +698,7 @@ function recordPanels(record: SessionRecord): Panel[] {
       body: [
         `状态         ${record.workflowRun.status || "未知"}`,
         `子 agent     ${record.workflowRun.agentCount} 个`,
-        `运行时长     ${formatDuration(record.workflowRun.durationMs)}`,
+        `运行时长     ${formatDurationCompact(record.workflowRun.durationMs)}`,
         `token        ${record.workflowRun.totalTokens ?? "—"}`,
         `工具调用     ${record.workflowRun.totalToolCalls ?? "—"} 次`,
         `阶段         ${record.workflowRun.phases.join(" → ") || "—"}`,

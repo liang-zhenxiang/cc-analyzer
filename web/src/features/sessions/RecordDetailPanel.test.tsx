@@ -143,7 +143,7 @@ test("lists every workflow field, log line and result", () => {
   expect(summary).toHaveTextContent("子 agent");
   expect(summary).toHaveTextContent("2");
   expect(summary).toHaveTextContent("运行时长");
-  expect(summary).toHaveTextContent("500ms");
+  expect(summary).toHaveTextContent("500 毫秒");
   expect(summary).toHaveTextContent("开始时间");
   expect(summary).toHaveTextContent("Token");
   expect(summary).toHaveTextContent("42");

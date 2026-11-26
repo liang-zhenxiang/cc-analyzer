@@ -1,7 +1,7 @@
 import type { ContextSample, SessionRecord } from "./types";
 import type { LogRow } from "./logRows";
 import { stripAnsi } from "../../lib/ansi";
-import { formatDuration, formatTokenCount } from "../../lib/format";
+import { formatDurationCompact, formatTokenCount } from "../../lib/format";
 import { estimateCost } from "../usage/pricingSnapshot";
 
 /**
@@ -98,6 +98,12 @@ export type ReplayMark = {
   label: string;
   /** Concrete numbers (tokens, duration) — never a claim the data cannot back. */
   detail: string;
+  /**
+   * Raw duration for marks that describe one（目前只有 `longest-gap`）。视图造句
+   * 时用 `formatDuration` 重新排版，不必回头解析 `detail`；固定宽度的按钮标签
+   * 仍用 `detail` 的紧凑写法。Issue #394：同一句里不能混两种语言。
+   */
+  durationMs?: number;
 };
 
 export type ReplayTotals = {
@@ -411,7 +417,8 @@ function longestGap(events: readonly ReplayEvent[]): ReplayMark | null {
     kind: "longest-gap",
     at: events[bestIndex].at,
     label: "最长停顿",
-    detail: formatDuration(bestGap)
+    detail: formatDurationCompact(bestGap),
+    durationMs: bestGap
   };
 }
 
@@ -426,7 +433,7 @@ function buildMarks(events: readonly ReplayEvent[], start: number, end: number):
     kind: "start",
     at: start,
     label: "起点",
-    detail: `${formatDuration(Math.max(0, end - start))} · ${events.length} 个事件`
+    detail: `${formatDurationCompact(Math.max(0, end - start))} · ${events.length} 个事件`
   });
 
   const firstError = events.find((event) => event.isError);

@@ -272,7 +272,8 @@ describe("PulsePage 曲线与读数", () => {
   });
 
   it("5 小时窗口恒有 5 个读数，键序列逐字可断言（R4）", () => {
-    mockFeed({ snapshot: oneSession([record(NOW - 10_000, usage(1_000))]) });
+    // 窗口已开启 2 小时：平均速率脱离「样本不足」，副行才会出现「均值 …」。
+    mockFeed({ snapshot: oneSession([record(NOW - 2 * 3_600_000, usage(1_000))]) });
     render(<PulsePage />);
 
     const keys = [...probes("pulse-window-readout")].map((node) =>
@@ -285,6 +286,14 @@ describe("PulsePage 曲线与读数", () => {
     const closes = document.querySelector('[data-readout="closes"]')!;
     expect(closes.textContent).toContain("关闭时刻");
     expect(closes.textContent).not.toContain("窗口关闭");
+    // 剩余时长是密集读数（5 列网格里的副行）：紧凑写法 `4h59m50s`，不造句。
+    expect(closes.textContent).toMatch(/还剩 \d+[dhms]/);
+    expect(closes.textContent).not.toContain("小时");
+
+    // 窗口平均的副行同样是紧凑读数，且中文修饰语在前：`均值 4h59m`。
+    const avgRate = document.querySelector('[data-readout="avg-rate"]')!;
+    expect(avgRate.textContent).toMatch(/均值 \d+[dhms]/);
+    expect(avgRate.textContent).not.toMatch(/\d+[dhms] 均值/);
   });
 
   it("参考带：0 次自动压缩 → 不画带，只留「样本不足」文案", () => {

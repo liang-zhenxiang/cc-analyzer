@@ -4,6 +4,7 @@ import { Panel } from "../../components/Panel";
 import { SegmentedControl, type SegmentedItem } from "../../components/SegmentedControl";
 import {
   formatDuration,
+  formatDurationCompact,
   formatModelId,
   formatProjectPath,
   formatTokenCount,
@@ -500,7 +501,7 @@ const READOUT_ROWS: ReadonlyArray<{
   {
     key: "avgSessionMs",
     label: "平均会话时长",
-    format: (value) => (value === null ? "—" : formatDuration(value))
+    format: (value) => (value === null ? "—" : formatDurationCompact(value))
   }
 ];
 

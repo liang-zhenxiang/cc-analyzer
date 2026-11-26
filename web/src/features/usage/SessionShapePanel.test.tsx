@@ -50,7 +50,7 @@ describe("SessionShapePanel（会话形状卡）", () => {
     expect(document.querySelectorAll('[data-probe="shape-bar"]')).toHaveLength(5);
 
     const readout = document.querySelector('[data-probe="shape-readout"]');
-    expect(readout?.textContent).toBe("中位跨度 20m0s，4 个会话");
+    expect(readout?.textContent).toBe("中位跨度 20 分，4 个会话");
     expect(
       screen.getByText(/另有 1 个会话只有一条记录，计入「不足 5 分钟」。/)
     ).toBeInTheDocument();
@@ -77,7 +77,7 @@ describe("SessionShapePanel（会话形状卡）", () => {
     expect(document.querySelectorAll('[data-probe="shape-bar"]')).toHaveLength(6);
     // 四个会话的开始时刻：5h/3h/2h/1h 前 → 间隔 2h、1h、1h（三对）。
     expect(document.querySelector('[data-probe="shape-readout"]')?.textContent).toBe(
-      "中位间隔 1h0m0s，3 对相邻会话"
+      "中位间隔 1 小时，3 对相邻会话"
     );
   });
 

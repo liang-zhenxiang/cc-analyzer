@@ -10,7 +10,7 @@ import { createPortal } from "react-dom";
 import { EmptyState } from "../../components/EmptyState";
 import { Panel } from "../../components/Panel";
 import { SegmentedControl } from "../../components/SegmentedControl";
-import { formatModelId, formatTokenCount, formatUsd } from "../../lib/format";
+import { formatDuration, formatModelId, formatTokenCount, formatUsd } from "../../lib/format";
 import { useContrast } from "../settings/contrast";
 import { useFontScale } from "../settings/fontScale";
 import type { SessionMeta } from "../sessions/metadataCache";
@@ -156,16 +156,6 @@ function formatTipStamp(ms: number): string {
   return `${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(
     date.getMinutes()
   )}`;
-}
-
-function formatSpan(ms: number): string {
-  if (!Number.isFinite(ms) || ms <= 0) return "不足 1 分钟";
-  const minutes = Math.round(ms / 60_000);
-  if (minutes < 1) return "不足 1 分钟";
-  if (minutes < 60) return `${minutes} 分钟`;
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  return rest > 0 ? `${hours} 小时 ${rest} 分钟` : `${hours} 小时`;
 }
 
 type SessionFact = { start: number; end: number; meta?: SessionMeta };
@@ -395,7 +385,7 @@ function tooltipFor(
   const fact = facts.get(block.session.id);
   const modelLabel = block.session.model ? formatModelId(block.session.model) : "未知模型";
   const stamp = fact && fact.start > 0 ? formatTipStamp(fact.start) : null;
-  const span = fact && fact.end > fact.start ? formatSpan(fact.end - fact.start) : null;
+  const span = fact && fact.end > fact.start ? formatDuration(fact.end - fact.start) : null;
   const meta = [modelLabel, stamp, span].filter((part): part is string => Boolean(part)).join(" · ");
 
   return {

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { EmptyState } from "../../components/EmptyState";
 import { Panel } from "../../components/Panel";
-import { formatDuration } from "../../lib/format";
+import { formatDuration, formatDurationCompact } from "../../lib/format";
 import type { SessionMeta } from "../sessions/metadataCache";
 import { useFontScale } from "../settings/fontScale";
 import type { UsageSessionInput } from "./usageAggregations";
@@ -34,7 +34,7 @@ function seriesClass(colorIndex: number | null): string {
 
 function axisLabel(value: number, mode: FlameMode): string {
   if (mode === "calls") return `${Math.round(value)} 次`;
-  return value <= 0 ? "0" : formatDuration(value);
+  return value <= 0 ? "0" : formatDurationCompact(value);
 }
 
 function leadingTool(row: FlameRow, mode: FlameMode): string | null {
@@ -164,7 +164,7 @@ export function FlameGraphPanel({
                       style={{ left: `${left}%`, width: `${width}%` }}
                       title={
                         data.mode === "duration"
-                          ? `${segment.label} · ${formatDuration(segment.durationMs)} · ${segment.calls} 次`
+                          ? `${segment.label} · ${formatDurationCompact(segment.durationMs)} · ${segment.calls} 次`
                           : `${segment.label} · ${segment.calls} 次`
                       }
                     />

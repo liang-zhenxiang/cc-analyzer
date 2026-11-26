@@ -190,8 +190,8 @@ describe("report generation", () => {
 
     const report = buildWholeSessionReport(session);
 
-    expect(report).toContain("- 等用户: 50ms");
-    expect(report).toContain("- 模型思考: 200ms");
+    expect(report).toContain("- 等用户: 50 毫秒");
+    expect(report).toContain("- 模型思考: 200 毫秒");
   });
 
   it("includes whole and filtered report scopes", () => {
@@ -243,7 +243,7 @@ describe("report generation", () => {
       end: 200
     });
 
-    expect(report).toContain("- 本地工具: 100ms");
+    expect(report).toContain("- 本地工具: 100 毫秒");
   });
 
   it("uses full session records for time block duration before clipping", () => {
@@ -274,17 +274,17 @@ describe("report generation", () => {
       end: 250
     });
 
-    expect(report).toContain("- 本地工具: 150ms");
-    expect(report).toContain("- 等用户: 0ms");
-    expect(report).toContain("- 模型思考: 50ms");
+    expect(report).toContain("- 本地工具: 150 毫秒");
+    expect(report).toContain("- 等用户: 0 毫秒");
+    expect(report).toContain("- 模型思考: 50 毫秒");
   });
 
   it("uses graph-provided child and workflow intervals in whole reports", () => {
     const { session, graph } = createGraphReportFixture();
     const report = buildWholeSessionReport(session, graph);
 
-    expect(report).toContain("- 子 agent: 500ms");
-    expect(report).toContain("- workflow: 500ms");
+    expect(report).toContain("- 子 agent: 500 毫秒");
+    expect(report).toContain("- workflow: 500 毫秒");
   });
 
   it("clips graph-provided intervals in time block reports", () => {
@@ -296,8 +296,8 @@ describe("report generation", () => {
       graph
     );
 
-    expect(report).toContain("- 本地工具: 300ms");
-    expect(report).toContain("- 模型思考: 500ms");
+    expect(report).toContain("- 本地工具: 300 毫秒");
+    expect(report).toContain("- 模型思考: 500 毫秒");
   });
 
   it("detects report signature changes", () => {
@@ -541,7 +541,7 @@ describe("report generation", () => {
       () => undefined
     );
 
-    expect(runLines.mock.calls[0]?.[2]).toContain("- 子 agent: 500ms");
+    expect(runLines.mock.calls[0]?.[2]).toContain("- 子 agent: 500 毫秒");
   });
 
   it("runs the resolved absolute path when the app's PATH has no claude", async () => {

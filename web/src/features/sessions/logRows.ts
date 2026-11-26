@@ -1,6 +1,6 @@
 import type { CompactEvent, SessionRecord, Turn } from "./types";
 import type { RecordFilter } from "./filters";
-import { formatDuration } from "../../lib/format";
+import { formatDurationCompact } from "../../lib/format";
 import { stripAnsi } from "../../lib/ansi";
 
 export type LogRowKind = "user" | "llm" | "tool" | "subagent" | "workflow" | "wait" | "compact";
@@ -390,7 +390,7 @@ function compactRowSummary(event: CompactEvent): string {
       ).toLocaleString("en-US")}`
     );
   }
-  if (event.durationMs !== null) parts.push(formatDuration(event.durationMs));
+  if (event.durationMs !== null) parts.push(formatDurationCompact(event.durationMs));
   return parts.join(" · ");
 }
 

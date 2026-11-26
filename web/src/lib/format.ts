@@ -1,15 +1,23 @@
 import { basename } from "./path";
 
 /**
- * 时长的人话写法。超过一天后分钟/秒不再帮助阅读（「165h6m4s」要心算才知道
- * 是七天），所以换成「6 天 21 小时」：整天的部分先读，余下的小时第二读，
- * 更细的两位直接丢弃。24 小时以内维持原有的 h/m/s 紧凑写法——那些时长常
- * 出现在工具调用行里，秒级精度仍是有用的信息。
+ * 时长的两种写法，按**容器**分工，不按作者心情——同一屏允许两者并存，
+ * 但不允许同一类容器里出现两种语言（Issue #394）。
+ *
+ * - `formatDuration` → 中文，用于叙述：句子、标题、报告正文、导出文档、
+ *   分享卡、会话头。只保留两级精度（「6 天 21 小时」「5 分 12 秒」），
+ *   更细的位对阅读没有帮助；零余量不印（`3 天`，不是 `3 天 0 小时`）。
+ * - `formatDurationCompact` → 紧凑，用于固定宽度处：表格单元格、耗时树、
+ *   时间轴刻度、图表标签与图例、密集读数。``6d21h`` / `1h20m` / `5m12s`
+ *   是技术读数，宽度由容器决定（日志表的数值列只有 88px），不参与造句。
+ *
+ * 判据：能放进句子里念出来的走中文；宽度固定、或者只是图上的一个点时走
+ * 紧凑。两套输出共享同一套取整与截断规则，差别只在单位词与零余量。
  */
 export function formatDuration(ms: number): string {
-  if (!Number.isFinite(ms) || ms < 0) return "0ms";
-  if (ms < 1000) return `${Math.round(ms)}ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(ms < 10_000 ? 2 : 1)}s`;
+  if (!Number.isFinite(ms) || ms < 0) return "0 毫秒";
+  if (ms < 1000) return `${Math.round(ms)} 毫秒`;
+  if (ms < 60_000) return `${trimFraction(ms / 1000)} 秒`;
 
   const totalSeconds = Math.floor(ms / 1000);
   const totalMinutes = Math.floor(totalSeconds / 60);
@@ -20,12 +28,47 @@ export function formatDuration(ms: number): string {
     // 正好整天时不印「0 小时」：零余量不是读数缺失。
     return hours > 0 ? `${days} 天 ${hours} 小时` : `${days} 天`;
   }
+  if (totalHours > 0) {
+    const minutes = totalMinutes % 60;
+    return minutes > 0 ? `${totalHours} 小时 ${minutes} 分` : `${totalHours} 小时`;
+  }
+  const seconds = totalSeconds % 60;
+  return seconds > 0 ? `${totalMinutes} 分 ${seconds} 秒` : `${totalMinutes} 分`;
+}
 
+/**
+ * 紧凑时长（`6d21h` / `1h20m` / `5m12s` / `320ms`），供表格与图表使用。
+ * 与历史英文分支逐档一致，只有 ≥24 小时那一档从中文「6 天 21 小时」改回
+ * `6d21h`——那一档也终于和其余档说同一种语言了。
+ */
+export function formatDurationCompact(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return "0ms";
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(ms < 10_000 ? 2 : 1)}s`;
+
+  const totalSeconds = Math.floor(ms / 1000);
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const totalHours = Math.floor(totalMinutes / 60);
+  if (totalHours >= 24) {
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    return hours > 0 ? `${days}d${hours}h` : `${days}d`;
+  }
   const minutes = totalMinutes % 60;
   const seconds = totalSeconds % 60;
   if (totalHours > 0) return `${totalHours}h${minutes}m${seconds}s`;
   if (minutes > 0) return `${minutes}m${seconds}s`;
   return `${seconds}s`;
+}
+
+/**
+ * 中文秒数最多两位小数（10 秒以上一位），并去掉无意义的尾零：
+ * `1.50` → `1.5`、`12.0` → `12`、`1.00` → `1`。紧凑写法保留定长小数，
+ * 因为那一列要按位对齐；中文是句子，尾零只会让读者多读一个字符。
+ */
+function trimFraction(seconds: number): string {
+  const text = seconds.toFixed(seconds < 10 ? 2 : 1);
+  return text.includes(".") ? text.replace(/\.?0+$/, "") : text;
 }
 
 export function formatDateTime(ms: number): string {

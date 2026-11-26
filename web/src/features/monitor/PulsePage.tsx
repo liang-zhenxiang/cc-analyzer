@@ -4,7 +4,7 @@ import { EmptyState } from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
 import { Panel } from "../../components/Panel";
 import { Skeleton, SkeletonBar } from "../../components/Skeleton";
-import { formatClock, formatDuration, formatProjectPath, formatRate, formatTokenCount } from "../../lib/format";
+import { formatClock, formatDurationCompact, formatProjectPath, formatRate, formatTokenCount } from "../../lib/format";
 import { billingReadoutsOf, type BillingWindowReadouts } from "../usage/billingReadouts";
 import { burnRateOf, isWindowClosed, predictLimitReach } from "../usage/billingWindow";
 import { usePlan } from "../usage/planLimits";
@@ -345,7 +345,7 @@ function WindowReadouts({
         <span className={styles.readoutLabel}>关闭时刻</span>
         <b className={styles.readoutValue}>{formatClock(block.end)}</b>
         <span className={styles.readoutSub}>
-          {block.end > now ? `还剩 ${formatDuration(block.end - now)}` : "已关闭"}
+          {block.end > now ? `还剩 ${formatDurationCompact(block.end - now)}` : "已关闭"}
         </span>
       </div>
 
@@ -359,7 +359,7 @@ function WindowReadouts({
           </b>
         )}
         <span className={styles.readoutSub}>
-          {"insufficientSample" in rate ? "窗口开启不足 30 分钟" : `${formatDuration(rate.elapsedMs)} 均值`}
+          {"insufficientSample" in rate ? "窗口开启不足 30 分钟" : `均值 ${formatDurationCompact(rate.elapsedMs)}`}
         </span>
       </div>
 
@@ -421,7 +421,7 @@ function PredictionReadout({
         {formatClock(prediction.reachAt)}
       </b>
     );
-    sub = `距现在 ${formatDuration(prediction.reachAt - now)}`;
+    sub = `距现在 ${formatDurationCompact(prediction.reachAt - now)}`;
   }
 
   return (

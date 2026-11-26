@@ -5,7 +5,7 @@ import type { ParsedSession, ParsedSessionGraph, SessionRecord } from "./types";
 import type { TimeRange } from "./filters";
 import { buildDurationTree, type DurationNode, type DurationNodeKind } from "./durationTree";
 import { focusRowIn, useRowNavigation } from "./useRowNavigation";
-import { formatDuration } from "../../lib/format";
+import { formatDurationCompact } from "../../lib/format";
 import styles from "./TreeView.module.css";
 
 const kindClasses: Record<DurationNodeKind, string> = {
@@ -108,7 +108,7 @@ export function TreeView({
             {legendLabels[kind]}
           </span>
         ))}
-        <span className={styles.legendHint}>窗口：{formatDuration(tree.wallMs)}</span>
+        <span className={styles.legendHint}>窗口：{formatDurationCompact(tree.wallMs)}</span>
         {onWindowOnlyChange ? (
           <label className={styles.checkbox}>
             <input
@@ -250,7 +250,7 @@ function TreeRow({
         <span className={styles.meta}>
           {node.count != null ? `${node.count} 次` : ""}
         </span>
-        <span className={styles.duration}>{formatDuration(node.durationMs)}</span>
+        <span className={styles.duration}>{formatDurationCompact(node.durationMs)}</span>
         <span className={styles.share}>{share(node)}</span>
         <span className={styles.bar}>
           <Segments node={node} />
@@ -380,7 +380,7 @@ function NodeDetail({ node }: { node: DurationNode | null }) {
       <h4>
         {node.label}
         <span className={styles.detailMeta}>
-          · {formatDuration(node.durationMs)}
+          · {formatDurationCompact(node.durationMs)}
           {node.count ? ` · ×${node.count}` : ""}
         </span>
       </h4>

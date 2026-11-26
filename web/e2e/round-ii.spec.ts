@@ -40,7 +40,7 @@ test("I8/Issue #339 会话行：标题来自首条消息时不再重复为副标
   expect(Math.round(height)).toBe(72);
 });
 
-test("I1 会话时长五桶：9 个会话、中位 15m0s、无单记录会话", async ({ page }) => {
+test("I1 会话时长五桶：9 个会话、中位 15 分、无单记录会话", async ({ page }) => {
   await openUsage(page);
   await page.getByText("会话形状").first().scrollIntoViewIfNeeded();
 
@@ -59,7 +59,7 @@ test("I1 会话时长五桶：9 个会话、中位 15m0s、无单记录会话", 
   expect(counts).toEqual(["2", "2", "3", "1", "1"]);
 
   await expect(page.locator("[data-probe='shape-readout']")).toHaveText(
-    "中位跨度 15m0s，9 个会话"
+    "中位跨度 15 分，9 个会话"
   );
   await expect(page.locator("[data-probe='session-shape']")).toContainText(
     "按首末记录差算，含等待。"

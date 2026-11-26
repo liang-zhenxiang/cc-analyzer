@@ -421,7 +421,7 @@ test("hands the resolved session graph to report generation", async () => {
   await waitFor(() => expect(bridges.proc.runLines).toHaveBeenCalled());
   const stdinText = vi.mocked(bridges.proc.runLines).mock.calls[0]?.[2];
   // 委托记录本身只有 1s；5s 来自会话图解析出的子会话区间。
-  expect(stdinText).toContain("- 子 agent: 5.00s");
+  expect(stdinText).toContain("- 子 agent: 5 秒");
 });
 
 function graphBridges(): Bridges {

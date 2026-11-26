@@ -239,7 +239,7 @@ describe("buildChronicle · 完整故事", () => {
     expect(chapter.stat).toBe("6.5");
     expect(chapter.statUnit).toBe("小时");
     expect(chapter.body).toBe(
-      "cc-analyzer 的这个会话从 11-02 起跑了 6h30m0s，里面有 3 条消息。"
+      "cc-analyzer 的这个会话从 11-02 起跑了 6 小时 30 分，里面有 3 条消息。"
     );
     // 项目名是 basename，绝不带出用户的绝对路径。
     expect(chapter.body).not.toContain("/Users/");

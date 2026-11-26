@@ -53,8 +53,13 @@ test.describe("会话重放", () => {
 
     const film = page.getByLabel("会话胶片");
     // 胶片带的 sr-only 摘要：数量、种类分布、墙钟与最长停顿都写死为夹具事实。
-    await expect(film).toContainText("本次会话墙钟 56.0s，共 6 条记录：LLM 3，工具 2，等用户 1");
-    await expect(film).toContainText("最长停顿 50.0s");
+    // 摘要是一句话，整句只能有一种语言：紧凑读数（`50.0s`）只属于按钮标签，
+    // 不得渗进句子（Issue #394）——读屏用户先听到的就是这句。只盯摘要本身，
+    // 胶片带里的片长按钮（`30s / 60s / 120s`）是控件读数，不在此列。
+    const summary = film.locator("[data-probe='film-summary']");
+    await expect(summary).toContainText("本次会话墙钟 56 秒，共 6 条记录：LLM 3，工具 2，等用户 1");
+    await expect(summary).toContainText("最长停顿 50 秒");
+    await expect(summary).not.toContainText(/[0-9]+(?:\.[0-9]+)?[dhms]\b/);
 
     // 舞台高度是设计规格的下界（≥148），不是「看得见就行」。
     const stageHeight = await page
@@ -82,7 +87,7 @@ test.describe("会话重放", () => {
     await page.getByRole("button", { name: "跳到结尾", exact: true }).click();
     await expect(lane(page)).toHaveAttribute("aria-valuenow", "100");
     await expect(page.getByLabel("重放舞台")).toContainText(
-      "重放结束 · 共 6 条 · 墙钟 56.0s"
+      "重放结束 · 共 6 条 · 墙钟 56 秒"
     );
     const reads = page.locator("[data-probe='replay-reads']");
     const readsText = await reads.innerText();
@@ -131,13 +136,13 @@ test.describe("会话重放", () => {
 
     await page.keyboard.press("End");
     await expect(slider).toHaveAttribute("aria-valuenow", "100");
-    await expect(stage).toContainText("重放结束 · 共 4 条 · 墙钟 4.00s");
+    await expect(stage).toContainText("重放结束 · 共 4 条 · 墙钟 4 秒");
 
     await page.keyboard.press("ArrowLeft");
     await expect(slider).toHaveAttribute("aria-valuenow", "50");
     await expect(slider).toHaveAttribute("aria-valuetext", /，第 3 \/ 4 条，LLM\+工具，command failed$/);
     await expect(stage).toContainText("第 3 / 4 条");
-    await expect(stage).toContainText("时长 1.50s");
+    await expect(stage).toContainText("时长 1.5 秒");
 
     await page.keyboard.press("ArrowLeft");
     await expect(slider).toHaveAttribute("aria-valuenow", "25");
@@ -194,7 +199,7 @@ test.describe("会话重放", () => {
     await expect(stage).toContainText("第 3 / 4 条");
     await expect(stage).toContainText("失败");
     await expect(stage).toContainText("command failed");
-    await expect(stage).toContainText("时长 1.50s");
+    await expect(stage).toContainText("时长 1.5 秒");
 
     // aria-live 只在非播放态播报事件切换：内容 = 时刻 · 事件 · 细节。
     await expect(page.locator("[data-probe='replay-root'] [role='status']")).toHaveText(

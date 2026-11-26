@@ -1,4 +1,11 @@
-import { formatClock, formatDateTime, formatDuration, formatTokenCount, formatUsd } from "../../lib/format";
+import {
+  formatClock,
+  formatDateTime,
+  formatDuration,
+  formatDurationCompact,
+  formatTokenCount,
+  formatUsd
+} from "../../lib/format";
 import { estimateCost, PRICING_AS_OF } from "../usage/pricingSnapshot";
 import { aggregateSession, totalsSum } from "../usage/usageAggregations";
 import { ROW_KIND_LABELS, rowKind, tokensOf, type LogRowKind } from "./logRows";
@@ -212,7 +219,7 @@ function recordRow(
       : '<td class="summary-cell muted">—</td>') +
     numeric(tokens ? tokens.prompt : null) +
     numeric(tokens ? tokens.output : null) +
-    `<td class="num">${escapeHtml(formatDuration(safeDuration))}</td>` +
+    `<td class="num">${escapeHtml(formatDurationCompact(safeDuration))}</td>` +
     `<td class="num">${escapeHtml(share)}</td>` +
     (error ? '<td class="failed">失败</td>' : "<td>正常</td>") +
     "</tr>"

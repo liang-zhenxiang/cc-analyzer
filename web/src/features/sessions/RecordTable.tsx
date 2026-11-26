@@ -9,7 +9,7 @@ import { buildRowOffsets, computeSizedWindow } from "./virtualWindow";
 import { useThresholds } from "../settings/thresholds";
 import { useFontScale } from "../settings/fontScale";
 import { focusRowIn, useRowNavigation } from "./useRowNavigation";
-import { formatDateTime, formatDuration } from "../../lib/format";
+import { formatDateTime, formatDurationCompact } from "../../lib/format";
 import { safeStringify } from "../../lib/json";
 import styles from "./RecordTable.module.css";
 
@@ -200,7 +200,7 @@ function FragmentRow({
           {/* 表格单元里放纯文本：转义序列在 <td> 里既占宽度又不可读。 */}
           {stripAnsi(record.text) || "-"}
         </td>
-        <td>{formatDuration(record.durationMs)}</td>
+        <td>{formatDurationCompact(record.durationMs)}</td>
         <td className={record.isError ? styles.error : styles.statusMuted}>
           {record.isError ? "失败" : "正常"}
         </td>

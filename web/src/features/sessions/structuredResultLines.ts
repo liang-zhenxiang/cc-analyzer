@@ -1,5 +1,5 @@
 import type { SessionRecord } from "./types";
-import { formatDuration } from "../../lib/format";
+import { formatDurationCompact } from "../../lib/format";
 import { safeStringify } from "../../lib/json";
 import { stripAnsi } from "../../lib/ansi";
 
@@ -20,7 +20,7 @@ export function structuredResultLines(record: SessionRecord): string[] {
         structured.interrupted ? "已中断" : "",
         structured.timedOutAfterMs == null
           ? ""
-          : `超时上限 ${formatDuration(structured.timedOutAfterMs)}`,
+          : `超时上限 ${formatDurationCompact(structured.timedOutAfterMs)}`,
         stripAnsi(structured.stdout).length > 0
           ? `stdout ${stripAnsi(structured.stdout).length} 字符`
           : "",
@@ -48,7 +48,7 @@ export function structuredResultLines(record: SessionRecord): string[] {
       return [
         `命中文件 ${structured.numFiles}`,
         structured.totalMatches == null ? "" : `匹配项 ${structured.totalMatches}`,
-        structured.durationMs == null ? "" : `工具自报耗时 ${formatDuration(structured.durationMs)}`
+        structured.durationMs == null ? "" : `工具自报耗时 ${formatDurationCompact(structured.durationMs)}`
       ].filter(Boolean);
     case "Agent":
       return [
@@ -56,7 +56,7 @@ export function structuredResultLines(record: SessionRecord): string[] {
         `agentId ${structured.agentId}`,
         structured.totalDurationMs == null
           ? ""
-          : `自报耗时 ${formatDuration(structured.totalDurationMs)}`,
+          : `自报耗时 ${formatDurationCompact(structured.totalDurationMs)}`,
         structured.totalTokens == null ? "" : `token ${structured.totalTokens}`,
         structured.totalToolUseCount == null ? "" : `工具调用 ${structured.totalToolUseCount} 次`,
         structured.resolvedModel ? `实际模型 ${structured.resolvedModel}` : ""

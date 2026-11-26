@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import type { ParsedSession, SessionRecord } from "./types";
 import type { TimeRange } from "./filters";
-import { formatClock, formatDuration } from "../../lib/format";
+import { formatClock, formatDurationCompact } from "../../lib/format";
 import styles from "./TimelineTrack.module.css";
 
 type BlockCategory = "user" | "delegated" | "workflow" | "wait" | "direct" | "compute";
@@ -104,7 +104,7 @@ export function TimelineTrack({
       const end = Math.max(preview.start, preview.end);
       const duration = end - start;
       return duration > 0
-        ? `${formatClock(start, true)} – ${formatClock(end, true)} · ${formatDuration(duration)}`
+        ? `${formatClock(start, true)} – ${formatClock(end, true)} · ${formatDurationCompact(duration)}`
         : formatClock(start, true);
     }
     if (probeAt !== null) return formatClock(probeAt, true);
@@ -158,7 +158,7 @@ export function TimelineTrack({
             type="button"
             className={styles[recordCategory]}
             style={{ left: `${left * 100}%`, width: `${Math.max(width, 0.002) * 100}%` }}
-            title={`${record.fullId} · ${formatDuration(record.durationMs)}`}
+            title={`${record.fullId} · ${formatDurationCompact(record.durationMs)}`}
             onClick={() => onReveal(record.fullId)}
             onDoubleClick={(event) => {
               event.stopPropagation();
@@ -183,7 +183,7 @@ export function TimelineTrack({
         <span className={styles.axisEnd} data-probe="axis-tick" aria-hidden="true">{clock(range.end)}</span>
         {shownSelection && shownSelection.end > shownSelection.start ? (
           <span className={styles.axisSelection} aria-hidden="true">
-            选区 {formatDuration(Math.min(shownSelection.end, range.end) - Math.max(shownSelection.start, range.start))}
+            选区 {formatDurationCompact(Math.min(shownSelection.end, range.end) - Math.max(shownSelection.start, range.start))}
           </span>
         ) : null}
         {probeAt !== null && (

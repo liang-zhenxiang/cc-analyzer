@@ -21,7 +21,7 @@ describe("sessionCardData", () => {
     expect(card.headline).toBe("重构解析器");
     expect(card.lines).toEqual([
       "项目 cc-analyzer",
-      "时长 12m34s",
+      "时长 12 分 34 秒",
       "token 1.3M（输入 1.2M · 输出 89,012）",
       "工具 5 种 · 主力 claude-sonnet-4-5"
     ]);
@@ -57,7 +57,7 @@ describe("sessionCardData", () => {
     });
     expect(card.lines).toEqual([
       "项目 （未知项目）",
-      "时长 12m34s",
+      "时长 12 分 34 秒",
       "token 无 token 读数",
       "工具 0 种 · 主力 模型未知"
     ]);

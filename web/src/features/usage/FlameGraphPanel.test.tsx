@@ -61,7 +61,7 @@ describe("FlameGraphPanel（F3 工具火焰）", () => {
     );
 
     const row = screen.getByRole("button", { name: /会话 A/ });
-    expect(row.getAttribute("aria-label")).toContain("工具耗时 13m0s");
+    expect(row.getAttribute("aria-label")).toContain("工具耗时 13 分");
     expect(row.getAttribute("aria-label")).toContain("1 次耗时未知");
     expect(row.textContent).toContain("?1");
 
