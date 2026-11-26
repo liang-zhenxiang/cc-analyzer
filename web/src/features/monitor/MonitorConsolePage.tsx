@@ -7,7 +7,7 @@ import { SegmentedControl, type SegmentedItem } from "../../components/Segmented
 import { SkeletonBar } from "../../components/Skeleton";
 import {
   formatClock,
-  formatDuration,
+  formatDurationCompact,
   formatFullDate,
   formatProjectPath,
   formatRate,
@@ -262,7 +262,7 @@ function ReadoutStrip({
   const active = readouts.active;
   const used = active ? totalsSum(active.totals) : null;
   const remaining =
-    active && active.end > report.now ? `距关闭还剩 ${formatDuration(active.end - report.now)}` : "窗口已关闭";
+    active && active.end > report.now ? `距关闭还剩 ${formatDurationCompact(active.end - report.now)}` : "窗口已关闭";
 
   return (
     <dl className={styles.readoutStrip}>

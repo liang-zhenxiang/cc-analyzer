@@ -213,7 +213,7 @@ describe("成本树图面板", () => {
     expect(label).toContain("占本窗口 66.7%");
     expect(label).toContain("Sonnet 4.5");
     expect(label).toContain("01/15 10:00");
-    expect(label).toContain("30 分钟");
+    expect(label).toContain("30 分");
   });
 
   it("点击块沿用 onOpenSession 握手，交回该会话的 SessionMeta", async () => {
@@ -539,7 +539,7 @@ describe("悬停浮层", () => {
     expect(tip).toHaveTextContent("alpha");
     expect(tip).toHaveTextContent("alpha 会话");
     expect(tip).toHaveTextContent("$0.60 · 占本窗口 66.7%");
-    expect(tip).toHaveTextContent("Sonnet 4.5 · 01/15 10:00 · 30 分钟");
+    expect(tip).toHaveTextContent("Sonnet 4.5 · 01/15 10:00 · 30 分");
 
     fireEvent.keyDown(window, { key: "Escape" });
     await waitFor(() => {

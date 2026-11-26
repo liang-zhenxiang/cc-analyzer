@@ -281,7 +281,7 @@ describe("ReplayView — readings and the stage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "跳到结尾" }));
 
-    expect(within(stageCard()).getByText("重放结束 · 共 4 条 · 墙钟 1m0s")).toBeInTheDocument();
+    expect(within(stageCard()).getByText("重放结束 · 共 4 条 · 墙钟 1 分")).toBeInTheDocument();
     expect(readText("成本")).toBe("成本 $0.60");
     expect(readText("输入")).toBe("输入 150,000");
     expect(readText("输出")).toBe("输出 10,000");
@@ -471,7 +471,7 @@ describe("ReplayView — keyboard", () => {
 
     fireEvent.keyDown(root(), { key: "End" });
     expect(within(stageCard()).getByText("第 4 / 4 条")).toBeInTheDocument();
-    expect(within(stageCard()).getByText("重放结束 · 共 4 条 · 墙钟 1m0s")).toBeInTheDocument();
+    expect(within(stageCard()).getByText("重放结束 · 共 4 条 · 墙钟 1 分")).toBeInTheDocument();
 
     fireEvent.keyDown(root(), { key: "Home" });
     expect(within(stageCard()).getByText("第 1 / 4 条")).toBeInTheDocument();

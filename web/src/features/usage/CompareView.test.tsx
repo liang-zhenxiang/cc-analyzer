@@ -239,6 +239,29 @@ describe("CompareView · 空态", () => {
   });
 });
 
+describe("CompareView · 时长读数口径", () => {
+  it("平均会话时长：单元格走紧凑写法，悬浮里的绝对差仍说中文", () => {
+    const inputs = [
+      // A：一次 1h20m 的会话；B：一次 30m 的会话。
+      inputOf("-repo-alpha", [
+        record(at(2026, 11, 16, 9), { model: SONNET, usage: usage(1_000) }),
+        record(at(2026, 11, 16, 10, 20), { model: SONNET, usage: usage(1_000) })
+      ]),
+      inputOf("-repo-beta", [
+        record(at(2026, 11, 9, 10), { model: SONNET, usage: usage(1_000) }),
+        record(at(2026, 11, 9, 10, 30), { model: SONNET, usage: usage(1_000) })
+      ])
+    ];
+    renderCompare(inputs);
+
+    const row = readoutRow("avgSessionMs");
+    expect(row.querySelectorAll("td")[0]).toHaveTextContent("1h20m0s");
+    expect(row.querySelectorAll("td")[1]).toHaveTextContent("30m0s");
+    // 悬浮提示是叙述句，保留中文写法；两值差 50 分钟。
+    expect(row.querySelector("td[title]")).toHaveAttribute("title", "绝对差 +50 分");
+  });
+});
+
 describe("CompareView · 差值符号与颜色", () => {
   it("中性行只给数字与方向，成本行才涨红跌绿", () => {
     const inputs = [

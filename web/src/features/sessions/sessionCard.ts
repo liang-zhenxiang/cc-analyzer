@@ -14,7 +14,7 @@
  *
  * 文案口径：
  * - headline：会话名超 24 字截断加 …（display: 24 个字再加省略号）。
- * - 时长：formatDuration（与用量档同一份人话：90s / 12m30s / 1h2m3s）。
+ * - 时长：formatDuration（叙述口径的中文：`1 分 30 秒` / `6 天 21 小时`）。
  * - token：formatTokenCount（千分位 / M / B 同海报口径）。
  * - footer：CC Analyzer · 生成于 YYYY-MM-DD（本地日期，补零；posterFileName
  *   同款手动拼接，不走 toLocaleString——格式必须在任何 locale 下稳定）。

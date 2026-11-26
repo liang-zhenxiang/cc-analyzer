@@ -149,14 +149,6 @@ function projectNameOf(label: string, path?: string): string {
   return formatProjectPath(label, path) || "未知项目";
 }
 
-/** 活跃跨度的中文话术（摘要 title 用）：`18 小时 15 分` / `45 分`。 */
-function spanWords(ms: number): string {
-  const minutes = Math.floor(Math.max(0, ms) / 60_000);
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  return hours > 0 ? `${hours} 小时 ${rest} 分` : `${rest} 分`;
-}
-
 const pad2 = (value: number): string => String(value).padStart(2, "0");
 
 /** 活动块：一个「有记录的整点小时」在轨道上的落地几何。 */
@@ -241,7 +233,7 @@ function DaySummaryRow({ summary }: { summary: DaySummary }) {
   const spanTitle = hasSpan
     ? `活跃跨度：当天首条记录 ${formatClock(summary.firstAt!)}，末条 ${formatClock(
         summary.lastAt!
-      )}，跨度 ${spanWords(summary.spanMs)}（不是有活动的小时数）`
+      )}，跨度 ${formatDuration(summary.spanMs)}（不是有活动的小时数）`
     : "当天没有可统计的记录";
   const modelTitle = summary.topModel
     ? `${summary.topModel.id} · ${formatTokenCount(summary.topModel.tokens)} token`

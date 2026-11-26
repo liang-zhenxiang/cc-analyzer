@@ -67,7 +67,7 @@ describe("BillingWindowCard", () => {
     const card = screen.getByLabelText("计费窗口");
     expect(within(card).getByText("09:00")).toBeInTheDocument();
     // 5h 窗口已过 2h → 还剩 3 小时
-    expect(within(card).getByText("3 时 0 分")).toBeInTheDocument();
+    expect(within(card).getByText("3 小时")).toBeInTheDocument();
     // Issue #339：「读自日志」是默认事实，不再渲染绿点。
     expect(within(card).queryAllByText("读自日志")).toHaveLength(0);
   });
@@ -93,7 +93,7 @@ describe("BillingWindowCard", () => {
     expect(card.querySelector('[data-probe="billing-compact"]')?.textContent).not.toContain(
       "20,000 token"
     );
-    expect(within(card).getByText("3 时 0 分")).toBeInTheDocument();
+    expect(within(card).getByText("3 小时")).toBeInTheDocument();
     expect(within(card).getByText("09:00")).toBeInTheDocument();
     // 这是剩余时间，不是一天中的时刻：标签写「距关闭」（Issue #348）。
     expect(within(card).getByText("距关闭")).toBeInTheDocument();

@@ -4,6 +4,7 @@ import {
   formatBytes,
   formatDateTime,
   formatDuration,
+  formatDurationCompact,
   formatFullDate,
   formatModelId,
   formatProjectPath,
@@ -13,15 +14,29 @@ import {
 } from "./format";
 
 describe("format helpers", () => {
-  it("formats durations", () => {
-    expect(formatDuration(250)).toBe("250ms");
-    expect(formatDuration(1500)).toBe("1.50s");
-    expect(formatDuration(90_000)).toBe("1m30s");
-    expect(formatDuration(12_064_754)).toBe("3h21m4s");
+  it("formats durations in Chinese for prose", () => {
+    expect(formatDuration(250)).toBe("250 毫秒");
+    expect(formatDuration(1_500)).toBe("1.5 秒");
+    expect(formatDuration(12_000)).toBe("12 秒");
+    expect(formatDuration(90_000)).toBe("1 分 30 秒");
+    expect(formatDuration(12_064_754)).toBe("3 小时 21 分");
   });
 
-  it("switches to days above 24 hours and drops seconds", () => {
+  it("keeps only two levels of precision in Chinese", () => {
+    // 每档边界：秒 → 分 → 时 → 天，跨过去就换单位并丢掉更细的位。
+    expect(formatDuration(59_900)).toBe("59.9 秒");
+    expect(formatDuration(60_000)).toBe("1 分");
+    expect(formatDuration(59.9 * 60_000)).toBe("59 分 54 秒");
+    expect(formatDuration(60 * 60_000)).toBe("1 小时");
+    expect(formatDuration(23.9 * 3_600_000)).toBe("23 小时 54 分");
+    expect(formatDuration(24 * 3_600_000)).toBe("1 天");
+  });
+
+  it("does not print a zero remainder in Chinese", () => {
     const hour = 3_600_000;
+    expect(formatDuration(1_000)).toBe("1 秒");
+    expect(formatDuration(8 * 60_000)).toBe("8 分");
+    expect(formatDuration(2 * hour)).toBe("2 小时");
     // 24 小时整：一天就是一天，不印「1 天 0 小时」。
     expect(formatDuration(24 * hour)).toBe("1 天");
     // 25h30m：整天的部分先读，余下小时第二读；分钟/秒不再进入文案。
@@ -29,6 +44,40 @@ describe("format helpers", () => {
     // 正好整天（审计里的 165h6m4s 归到 6 天 21 小时；72h 是纯整天）。
     expect(formatDuration(72 * hour)).toBe("3 天");
     expect(formatDuration((165 * 3600 + 6 * 60 + 4) * 1000)).toBe("6 天 21 小时");
+  });
+
+  it("falls back to zero for negative and non-finite durations", () => {
+    expect(formatDuration(0)).toBe("0 毫秒");
+    expect(formatDuration(-1)).toBe("0 毫秒");
+    expect(formatDuration(Number.NaN)).toBe("0 毫秒");
+    expect(formatDuration(Number.POSITIVE_INFINITY)).toBe("0 毫秒");
+    expect(formatDurationCompact(0)).toBe("0ms");
+    expect(formatDurationCompact(-1)).toBe("0ms");
+    expect(formatDurationCompact(Number.NaN)).toBe("0ms");
+    expect(formatDurationCompact(Number.POSITIVE_INFINITY)).toBe("0ms");
+  });
+
+  it("formats compact durations with fixed decimals for table columns", () => {
+    expect(formatDurationCompact(250)).toBe("250ms");
+    // 紧凑列按位对齐：尾零是有意义的宽度，不裁掉。
+    expect(formatDurationCompact(1_500)).toBe("1.50s");
+    expect(formatDurationCompact(12_000)).toBe("12.0s");
+    expect(formatDurationCompact(90_000)).toBe("1m30s");
+    expect(formatDurationCompact(12_064_754)).toBe("3h21m4s");
+  });
+
+  it("keeps compact durations in one language above a day", () => {
+    const hour = 3_600_000;
+    expect(formatDurationCompact(59_900)).toBe("59.9s");
+    expect(formatDurationCompact(60_000)).toBe("1m0s");
+    expect(formatDurationCompact(59.9 * 60_000)).toBe("59m54s");
+    expect(formatDurationCompact(60 * 60_000)).toBe("1h0m0s");
+    expect(formatDurationCompact(23.9 * 3_600_000)).toBe("23h54m0s");
+    // ≥24 小时不再借中文：这一档也改回紧凑单位。
+    expect(formatDurationCompact(24 * hour)).toBe("1d");
+    expect(formatDurationCompact(25.5 * hour)).toBe("1d1h");
+    expect(formatDurationCompact(72 * hour)).toBe("3d");
+    expect(formatDurationCompact((165 * 3600 + 6 * 60 + 4) * 1000)).toBe("6d21h");
   });
 
   it("formats bytes", () => {

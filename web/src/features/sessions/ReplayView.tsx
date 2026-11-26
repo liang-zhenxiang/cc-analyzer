@@ -388,7 +388,11 @@ function buildFilmSummary(film: ReplayFilm): string {
   for (const mark of film.marks) {
     if (mark.kind === "first-error") marks.push(`首次失败在 ${formatClock(mark.at, true)}`);
     else if (mark.kind === "costliest-minute") marks.push(`最烧一分钟在 ${formatClock(mark.at)}`);
-    else if (mark.kind === "longest-gap") marks.push(`最长停顿 ${mark.detail}`);
+    // 摘要句是叙述，整句必须同一种语言：用中文时长重排，不直接复用
+    // `mark.detail` 的紧凑写法（那是按钮标签的读数口径）。Issue #394。
+    else if (mark.kind === "longest-gap" && mark.durationMs !== undefined) {
+      marks.push(`最长停顿 ${formatDuration(mark.durationMs)}`);
+    }
     else if (mark.kind === "compact") marks.push(mark.label);
   }
   if (marks.length > 0) pieces.push(`${marks.join("；")}。`);
@@ -995,7 +999,7 @@ export function ReplayView({ parsed }: { parsed: ParsedSession }) {
 
       <section className={styles.reel} aria-label="会话胶片">
         <div className={styles.film} data-probe="replay-film">
-          <p className={styles.srOnly}>{summary}</p>
+          <p className={styles.srOnly} data-probe="film-summary">{summary}</p>
           <div className={styles.legend} aria-hidden="true">
             {KIND_ORDER.filter((kind) => counts[kind] > 0).map((kind) => (
               <span key={kind} className={styles.legendItem}>

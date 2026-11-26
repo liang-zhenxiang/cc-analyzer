@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import {
   formatClock,
+  formatDuration,
   formatProjectPath,
   formatRate,
   formatShareText,
@@ -21,12 +22,13 @@ import styles from "./BillingWindowCard.module.css";
 import { BurnGaugeDial, GAUGE_BAND_LABEL } from "./BurnGaugeDial";
 import { gaugeBand } from "./burnGauge";
 
+/**
+ * 距关闭的倒计时读数。`ms <= 0` 是倒计时特有的语义（窗口已关），
+ * 其余交给 `formatDuration`——中文时长全站只有这一把尺（Issue #394）。
+ */
 function formatCountdown(ms: number): string {
   if (ms <= 0) return "已关闭";
-  const totalMinutes = Math.floor(ms / 60_000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return hours > 0 ? `${hours} 时 ${minutes} 分` : `${minutes} 分钟`;
+  return formatDuration(ms);
 }
 
 function formatPredictionTime(at: number): string {

@@ -102,7 +102,7 @@ test.describe("里程碑 · 确定值", () => {
     ).toHaveText(milestonesFullDate(MILESTONES_DAY.heavy));
     await expect(
       card(page, "record-session-duration").locator("[data-probe='milestone-value']")
-    ).toHaveText("12h0m0s");
+    ).toHaveText("12 小时");
     // 项目数 = 5（五个会话各有自己的 cwd）——跨过 5 这一档，是本页唯一 2/4 的读数。
     await expect(
       card(page, "tier-projects").locator("[data-probe='milestone-subread'][data-kind='tier']")

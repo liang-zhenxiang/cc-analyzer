@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Panel } from "../../components/Panel";
-import { formatDuration } from "../../lib/format";
+import { formatDuration, formatDurationCompact } from "../../lib/format";
 import { rhythmOf, type ConversationRhythm } from "../usage/conversationRhythm";
 import type { ParsedSession } from "./types";
 import styles from "./RhythmPanel.module.css";
@@ -99,9 +99,9 @@ export function RhythmPanel({ parsed }: { parsed: ParsedSession }) {
         ))}
       </div>
       <p className={styles.readout} data-probe="rhythm-readout">
-        中位间隔 {formatDuration(rhythm.medianMs)}
-        {" · "}90 分位 {formatDuration(rhythm.p90Ms)}
-        {" · "}最长 {formatDuration(rhythm.longestMs)}
+        中位间隔 {formatDurationCompact(rhythm.medianMs)}
+        {" · "}90 分位 {formatDurationCompact(rhythm.p90Ms)}
+        {" · "}最长 {formatDurationCompact(rhythm.longestMs)}
         {" · "}其中 {rhythm.bursts} 次在一分钟内
       </p>
       <p className={styles.note}>间隔是两次提问之间的墙钟，不是思考时长。</p>

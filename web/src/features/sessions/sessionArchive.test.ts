@@ -85,7 +85,7 @@ describe("buildSessionArchive", () => {
     expect(md).toContain("# 会话档案");
     expect(md).toContain("| 项目 | alpha |");
     expect(md).toContain("| 模型 | claude-sonnet-4-5 |");
-    expect(md).toContain("| 时长 | 1m0s |");
+    expect(md).toContain("| 时长 | 1 分 |");
     expect(md).toContain("| 记录数 | 4 |");
     expect(md).toContain("| 消息数 | 用户 2 · LLM 1 |");
     expect(md).toContain("| 输入 tokens | 1,000 |");
