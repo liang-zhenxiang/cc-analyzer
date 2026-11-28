@@ -1,124 +1,9 @@
-/* 项目记忆（Project Memory）——左栏项目索引 + 右栏三个笔记区块。
-   版式语言沿用数据故事 / 工具普查：区块之间只有 32px 留白与发丝线，
-   不套第二层有底色的卡片；颜色只出现在数据与状态标记上。
+/* 项目记忆（Project Memory）——一张 Panel，体内是项目名 + 搜索 + 三个区块。
+   项目选择器在两张卡之上的切换条里（Issue #397），本卡不再有左栏，也不
+   再套第二层有底色的容器；区块之间只有 32px 留白与发丝线。
    间距全部来自 --sp-* 档位；条高、竖条宽度是「形」，不受档位约束。 */
 
-.panel {
-  display: grid;
-  grid-template-columns: minmax(0, 200px) minmax(0, 1fr);
-  gap: var(--sp-5);
-  min-width: 0;
-}
-
-.empty {
-  display: flex;
-  min-width: 0;
-  flex: 1 0 auto;
-  flex-direction: column;
-}
-
-/* ---- 左栏：项目索引 ---- */
-
-.rail {
-  min-width: 0;
-  padding-right: var(--sp-2);
-  border-right: 1px solid var(--border);
-}
-
-.projectList {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: var(--sp-05);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.projectItem {
-  min-width: 0;
-}
-
-/* chip 是 32px 档控件（--control-h-lg）；选中态用左缘 2px 竖条 + --bg-hover
-   双信号，与全站「选中 = 竖条 + 底色」一致。竖条走 border 而不是
-   box-shadow：后者会被焦点环守卫误认为选中态竖条。 */
-.projectButton {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  min-height: var(--control-h-lg);
-  align-items: center;
-  gap: var(--sp-2);
-  padding: 0 var(--sp-2);
-  border: 0;
-  border-left: 2px solid transparent;
-  border-bottom: 2px solid transparent;
-  border-radius: var(--r-xs);
-  background: transparent;
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: var(--fs-sm);
-  line-height: var(--lh-sm);
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background-color var(--dur-hover) var(--ease-out),
-    color var(--dur-hover) var(--ease-out);
-}
-
-.projectButton:hover {
-  background: var(--bg-hover);
-  color: var(--text);
-}
-
-.projectButton[aria-pressed="true"] {
-  border-left-color: var(--accent);
-  background: var(--bg-hover);
-  color: var(--text);
-  font-weight: 600;
-}
-
-.projectButton:focus-visible {
-  outline: var(--focus-ring-width) solid var(--accent);
-  outline-offset: var(--focus-ring-offset);
-}
-
-.chipName {
-  min-width: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 会话数做 chip 的第二读数：小、等宽、弱——只帮用户认出「哪个项目用得多」，
-   不与项目名争。 */
-.chipSessions {
-  flex: 0 0 auto;
-  color: var(--text-tertiary);
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
-  line-height: var(--lh-xs);
-  font-variant-numeric: tabular-nums;
-}
-
-/* ---- 右栏：项目头 ---- */
-
-.content {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-}
-
-.header {
-  display: flex;
-  min-width: 0;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--sp-2) var(--sp-4);
-  padding-bottom: var(--sp-3);
-  border-bottom: 1px solid var(--border);
-}
+/* ---- 项目头（Panel 体内的 h3） ---- */
 
 .projectTitle {
   min-width: 0;
@@ -130,15 +15,15 @@
   overflow-wrap: anywhere;
 }
 
-/* 三个读数横排；窄窗与 130% 字号下 margin-left:auto 仍把它们推到右缘，
-   放不下时整体折到项目名下一行，不挤压项目名。 */
+/* 三个读数横排在 Panel 表头右簇；130% 下仍靠右，放不下时整体折行，
+   不挤压「项目记忆」标题。 */
 .readouts {
   display: flex;
   min-width: 0;
   align-items: baseline;
   flex-wrap: wrap;
   gap: var(--sp-1) var(--sp-4);
-  margin: 0 0 0 auto;
+  margin: 0;
 }
 
 .readout {
@@ -409,43 +294,4 @@
   border: 0;
   clip: rect(0 0 0 0);
   white-space: nowrap;
-}
-
-/* 窄窗：左栏折到顶部，项目 chip 变横向滚动条；
-   选中信号从「左缘竖条」换成「下缘竖条」，保持同一个「当前项」记号。 */
-@media (max-width: 1080px) {
-  .panel {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--sp-4);
-  }
-
-  .rail {
-    padding-right: 0;
-    padding-bottom: var(--sp-2);
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .projectList {
-    flex-direction: row;
-    overflow-x: auto;
-    padding-bottom: var(--sp-05);
-  }
-
-  .projectItem {
-    flex: 0 0 auto;
-    max-width: 220px;
-  }
-
-  .projectButton {
-    width: auto;
-    max-width: 220px;
-    border-left-color: transparent;
-    border-bottom-color: transparent;
-  }
-
-  .projectButton[aria-pressed="true"] {
-    border-left-color: transparent;
-    border-bottom-color: var(--accent);
-  }
 }

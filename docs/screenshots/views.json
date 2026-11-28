@@ -81,6 +81,7 @@
     "demo-mode",
     "chronicle",
     "memory",
+    "memory-handoff",
     "accent",
     "capsule"
   ]

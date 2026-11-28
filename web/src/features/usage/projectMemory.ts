@@ -17,6 +17,8 @@ import { addLocalDays, dayStartOf, type UsageSessionInput } from "./usageAggrega
  *
  * 1. 项目名只走 `formatProjectPath`（有 cwd 时取 basename），**绝不输出绝对
  *    路径**——这份数据会被界面直接展示，路径里通常带用户名和目录结构。
+ *    分组键是 `projectLabel`（编码目录名），只用于查表、不进文案：两个不同
+ *    目录恰好同名时仍是两个项目，不能被显示名合并（Issue #397）。
  * 2. Bash 命令只保留归一后的前 3 个 token：完整命令行里最常见的是 token、
  *    密码、URL 查询串和提交信息，它们对「这个项目常用什么命令」没有增量
  *    信息，却会原样出现在屏幕上。命中密钥样式时连参数都不留。
@@ -39,6 +41,12 @@ export type MemoryPitfall = {
 };
 
 export type ProjectMemory = {
+  /**
+   * `projectLabel`（编码目录名）——权威分组键，与项目接续卡的 `key` 同源。
+   * 只用于查表，不直接展示。
+   */
+  key: string;
+  /** 显示名（`formatProjectPath` 的 basename）；同名项目的序号由页面追加。 */
   project: string;
   sessions: number;
   tokens: number;
@@ -55,7 +63,14 @@ export type ProjectMemoryOptions = {
   maxPitfalls?: number;
 };
 
-const DEFAULT_MAX_PROJECTS = 8;
+/**
+ * 项目上限：默认**不截断**。
+ *
+ * 项目档的项目列表已经提升为两张卡之上的切换条（Issue #397）；切换条能列出
+ * 多少项目，记忆卡就得能查到多少项目——再截在 8 个，第 9 个项目会切过去却
+ * 显示「没有记忆」。`maxProjects` 仍保留给调用方显式收窄（测试与未来的小卡）。
+ */
+const DEFAULT_MAX_PROJECTS = Number.POSITIVE_INFINITY;
 const DEFAULT_MAX_COMMANDS = 6;
 const DEFAULT_MAX_FILES = 6;
 const DEFAULT_MAX_PITFALLS = 5;
@@ -132,12 +147,14 @@ function commandOf(record: SessionRecord): string | null {
 }
 
 /**
- * 文件路径双源取径：优先 `structuredResult.filePath`（喂给视图的结构化结果），
- * 缺失时兜底 `toolInput.file_path`（未配对 / 被中断的调用没有结构化结果）。
+ * 工具记录的文件路径双源取径：优先 `structuredResult.filePath`（喂给视图的
+ * 结构化结果），缺失时兜底 `toolInput.file_path`（未配对 / 被中断的调用没有
+ * 结构化结果）。**不按工具名过滤**——「这条记录碰的是哪个文件」与「哪些工具
+ * 算项目记忆里的文件操作」是两件事；后者由 `filePathOf` 决定。接续卡的末
+ * 动作要覆盖任何带 `file_path` 的工具，因此与本模块共用同一条取径规则。
  */
-function filePathOf(record: SessionRecord): string | null {
-  if (record.kind !== "tool" || !record.toolName) return null;
-  if (record.toolName !== READ_TOOL && !EDIT_TOOLS.has(record.toolName)) return null;
+export function toolFilePath(record: SessionRecord): string | null {
+  if (record.kind !== "tool") return null;
 
   const structured = record.structuredResult;
   if (
@@ -149,6 +166,13 @@ function filePathOf(record: SessionRecord): string | null {
     return structured.filePath;
   }
   return stringField(record.toolInput, "file_path");
+}
+
+/** 项目记忆的文件操作口径：只认 Read / Edit / Write，取径交给 `toolFilePath`。 */
+export function filePathOf(record: SessionRecord): string | null {
+  if (record.kind !== "tool" || !record.toolName) return null;
+  if (record.toolName !== READ_TOOL && !EDIT_TOOLS.has(record.toolName)) return null;
+  return toolFilePath(record);
 }
 
 /**
@@ -165,10 +189,20 @@ function isWaitRejection(record: SessionRecord): boolean {
   );
 }
 
+/**
+ * 权威分组键：`projectLabel`（编码目录名）。
+ *
+ * 不能用显示名当键——两个不同目录恰好同名时会被错误合并，切换条的项目数
+ * 也会和接续卡对不上（Issue #397 的核心判断）。
+ */
+function projectKeyOf(input: UsageSessionInput): string {
+  return input.projectLabel || input.session?.projectLabel || "";
+}
+
 function projectNameOf(input: UsageSessionInput): string {
   // `projectLabel` 是聚合桶的权威键（会话级）；`session.projectLabel` 只在
   // 手造输入缺顶层字段时兜底。cwd 同理。
-  const label = input.projectLabel || input.session?.projectLabel || "";
+  const label = projectKeyOf(input);
   const cwd = input.projectPath ?? input.session?.cwd;
   const name = formatProjectPath(label, cwd);
   return name.length > 0 ? name : UNNAMED_PROJECT;
@@ -185,6 +219,7 @@ type FileAcc = MemoryFile;
 type PitfallAcc = Omit<MemoryPitfall, "recovered">;
 
 type ProjectAcc = {
+  key: string;
   project: string;
   sessions: number;
   /** 窗口内该项目的全部记录——token 合计交给 `tokenTotalsOf` 算，不另起口径。 */
@@ -197,10 +232,15 @@ type ProjectAcc = {
   lastSuccessByTool: Map<string, number>;
 };
 
-function acquire(projects: Map<string, ProjectAcc>, project: string): ProjectAcc {
-  let acc = projects.get(project);
+function acquire(
+  projects: Map<string, ProjectAcc>,
+  key: string,
+  project: string
+): ProjectAcc {
+  let acc = projects.get(key);
   if (!acc) {
     acc = {
+      key,
       project,
       sessions: 0,
       records: [],
@@ -210,7 +250,7 @@ function acquire(projects: Map<string, ProjectAcc>, project: string): ProjectAcc
       pitfalls: new Map(),
       lastSuccessByTool: new Map()
     };
-    projects.set(project, acc);
+    projects.set(key, acc);
   }
   return acc;
 }
@@ -250,7 +290,7 @@ export function buildProjectMemories(
     );
     if (inWindow.length === 0) continue;
 
-    const acc = acquire(projects, projectNameOf(input));
+    const acc = acquire(projects, projectKeyOf(input), projectNameOf(input));
     acc.sessions += 1;
 
     for (const record of inWindow) {
@@ -364,6 +404,7 @@ export function buildProjectMemories(
         .slice(0, maxPitfalls);
 
       return {
+        key: acc.key,
         project: acc.project,
         sessions: acc.sessions,
         tokens: tokenTotalsOf(acc.records).total,
@@ -377,7 +418,8 @@ export function buildProjectMemories(
       (a, b) =>
         b.tokens - a.tokens ||
         b.lastActive - a.lastActive ||
-        a.project.localeCompare(b.project)
+        a.project.localeCompare(b.project) ||
+        a.key.localeCompare(b.key)
     )
     .slice(0, maxProjects);
 }

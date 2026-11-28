@@ -9,6 +9,7 @@ import {
   costScenario,
   defaultScenario,
   errorScenario,
+  handoffScenario,
   monitorConsoleScenario,
   pulseScenario,
   recentActivityScenario,
@@ -73,6 +74,7 @@ const SCENARIO_FACTORIES: Record<string, () => { updater?: { currentVersion?: st
   roundGGScenario,
   roundHHScenario,
   roundIIScenario,
+  handoffScenario,
   checkupScenario
 };
 

@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-26T17:16:21.811Z",
-  "commit": "29a9de9+dirty",
+  "generatedAt": "2026-11-28T10:43:22.520Z",
+  "commit": "54307ed+dirty",
   "dirty": true,
   "files": [
     "accent-dark-webkit.png",
@@ -229,6 +229,10 @@
     "lab-treemap-light.png",
     "memory-dark-webkit.png",
     "memory-dark.png",
+    "memory-handoff-dark-webkit.png",
+    "memory-handoff-dark.png",
+    "memory-handoff-light-webkit.png",
+    "memory-handoff-light.png",
     "memory-light-webkit.png",
     "memory-light.png",
     "migration-dark-webkit.png",

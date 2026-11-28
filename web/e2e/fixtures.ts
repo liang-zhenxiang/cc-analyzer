@@ -4195,6 +4195,244 @@ export function checkupObserveOnlyScenario(
   };
 }
 
+// ── 项目接续（Issue #397）─────────────────────────────────────────────────
+
+type HandoffRecord = {
+  type: "user" | "assistant";
+  sessionId: string;
+  cwd: string;
+  gitBranch: string;
+  version: string;
+  timestamp: string;
+  uuid: string;
+  parentUuid: null;
+  isSidechain: false;
+  message: Record<string, unknown>;
+};
+
+type HandoffSeed = {
+  cwd: string;
+  id: string;
+  content: string;
+  start: number;
+};
+
+/**
+ * 项目接续夹具：一个项目 13 次会话（8 次早期填充 + 5 次主序列），外加一个
+ * 只有 1 次会话的项目。
+ *
+ * 主序列按「今天」锚定，覆盖规格要求的四种间隔与四种动作：
+ * - 同日 2 小时（`同日 · 2 小时后`）、次日 22 小时（`次日 · 22 小时后`）、
+ *   3 天后、2 天后；
+ * - 最后一次在 2 分钟内 →「进行中」；
+ * - 第二次会话的开头与第一次的结尾**逐字相同** → 回声命中；后面几对刻意
+ *   不重合 → 未命中。
+ *
+ * 8 次早期会话让总数为 13：默认画 12 个、隐藏 1 个，「显示全部」才在 e2e
+ * 里有的可点。填充会话都落在主序列之前，主序列的间隔文案不受影响。
+ * 只装本场景自己的文件——默认八份的时间戳在 90 天窗内，会把项目数带偏。
+ */
+function buildHandoff(): {
+  files: Record<string, string>;
+  starts: number[];
+  gaps: number[];
+  now: number;
+} {
+  const now = Date.now();
+
+  /** 本地日历：`daysAgo` 天前的 `hour:minute:second`（跨 DST 也按日历走）。 */
+  const at = (daysAgo: number, hour: number, minute: number, second = 0): number => {
+    const day = new Date(now);
+    day.setDate(day.getDate() - daysAgo);
+    day.setHours(hour, minute, second, 0);
+    return day.getTime();
+  };
+
+  let seq = 0;
+  const idOf = (slug: string) =>
+    `4a4df00d-0000-4000-8000-${slug.replace(/[^a-z0-9]/gi, "").padEnd(12, "0").slice(0, 12)}`;
+
+  const make = (
+    kind: "user" | "assistant",
+    sessionId: string,
+    cwd: string,
+    timestamp: number,
+    message: Record<string, unknown>
+  ): HandoffRecord => {
+    seq += 1;
+    return {
+      type: kind,
+      sessionId,
+      cwd,
+      gitBranch: "main",
+      version: "2.1.0",
+      timestamp: new Date(timestamp).toISOString(),
+      uuid: `handoff-${seq}`,
+      parentUuid: null,
+      isSidechain: false,
+      message
+    };
+  };
+
+  const user = (sessionId: string, cwd: string, timestamp: number, text: string) =>
+    make("user", sessionId, cwd, timestamp, { role: "user", content: text });
+
+  const toolUse = (
+    sessionId: string,
+    cwd: string,
+    timestamp: number,
+    toolId: string,
+    name: string,
+    input: Record<string, unknown>
+  ) =>
+    make("assistant", sessionId, cwd, timestamp, {
+      role: "assistant",
+      model: "claude-sonnet-4-5-20250929",
+      content: [{ type: "tool_use", id: toolId, name, input }],
+      // 项目记忆与用量读数需要真实的 token 计数，否则卡里会显示 0。
+      usage: {
+        input_tokens: 12_000,
+        output_tokens: 800,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 30_000
+      }
+    });
+
+  const seeds: HandoffSeed[] = [];
+  const add = (
+    slug: string,
+    cwd: string,
+    start: number,
+    records: HandoffRecord[]
+  ): void => {
+    const sorted = [...records].sort(
+      (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp)
+    );
+    seeds.push({
+      cwd,
+      id: idOf(slug),
+      start,
+      content: sorted.map((record) => JSON.stringify(record)).join("\n") + "\n"
+    });
+  };
+
+  const CWD = "/repo/handoff";
+  const SOLO = "/repo/solo";
+
+  // 8 次更早的填充：只为了让「显示全部」在 e2e 里有可展开的内容。
+  // 每次话题各不相同——同一句式会让相邻两次的开头/结尾重合，凭空造出回声。
+  const fillerTopics = [
+    "搭建测试仓库的初始目录",
+    "整理依赖升级清单",
+    "排查网络超时问题",
+    "调整构建脚本缓存",
+    "补充发布说明草稿",
+    "清理旧的迁移文件",
+    "检查权限配置表",
+    "设计导出格式方案"
+  ];
+  for (let index = 0; index < 8; index += 1) {
+    const start = at(8, 8, index * 5);
+    const fillerId = idOf(`handoff-fill-${index}`);
+    add(`handoff-fill-${index}`, CWD, start, [
+      user(fillerId, CWD, start, fillerTopics[index] ?? `填充会话 ${index}`)
+    ]);
+  }
+
+  // S1 → S2：同日 2 小时。S1 的结尾与 S2 的开头逐字相同 → 回声命中。
+  const echoText = "导出按钮的禁用态修好之后，把测试补上";
+  const s1Start = at(6, 10, 0);
+  const s1Id = idOf("handoff-s1");
+  add("handoff-s1", CWD, s1Start, [
+    user(s1Id, CWD, s1Start, "先看导出按钮的禁用态"),
+    user(s1Id, CWD, at(6, 10, 20), echoText),
+    toolUse(s1Id, CWD, at(6, 10, 30), `${s1Id}-edit`, "Edit", {
+      file_path: "/repo/handoff/src/export-button.tsx"
+    })
+  ]);
+
+  // S2：开头复用 echoText → 100%；结尾话题不同，S3 因此未命中。
+  const s2Start = at(6, 12, 0);
+  const s2Id = idOf("handoff-s2");
+  add("handoff-s2", CWD, s2Start, [
+    user(s2Id, CWD, s2Start, echoText),
+    user(s2Id, CWD, at(6, 12, 20), "测试补完了，截图基线也更新了"),
+    toolUse(s2Id, CWD, at(6, 12, 30), `${s2Id}-bash`, "Bash", { command: "npm test" })
+  ]);
+
+  // S3：次日 22 小时；开头与 S2 的结尾共享几个话题词，但远低于 55%
+  //（约 20%，e2e 用「低于阈值」断言未命中）；最后动作是「读 README.md」。
+  const s3Start = at(5, 10, 0);
+  const s3Id = idOf("handoff-s3");
+  add("handoff-s3", CWD, s3Start, [
+    user(s3Id, CWD, s3Start, "测试和截图都补完了，现在换个话题"),
+    user(s3Id, CWD, at(5, 10, 10), "侧栏折叠做完了"),
+    toolUse(s3Id, CWD, at(5, 10, 15), `${s3Id}-read`, "Read", {
+      file_path: "/repo/handoff/README.md"
+    })
+  ]);
+
+  // S4：距 S3 3 天；没有任何工具调用 → 节点动作位写「无工具调用」。
+  const s4Start = at(2, 10, 0);
+  const s4Id = idOf("handoff-s4");
+  add("handoff-s4", CWD, s4Start, [
+    user(s4Id, CWD, s4Start, "整理一下文档目录"),
+    user(s4Id, CWD, at(2, 10, 10), "文档目录理好了")
+  ]);
+
+  // S5：今天、最后一条记录在 10 秒前 → 进行中；距 S4 为「2 天后」。
+  const s5Start = now - 40_000;
+  const s5Id = idOf("handoff-s5");
+  add("handoff-s5", CWD, s5Start, [
+    user(s5Id, CWD, s5Start, "最后跑一遍构建"),
+    toolUse(s5Id, CWD, now - 10_000, `${s5Id}-bash`, "Bash", { command: "npm run build" })
+  ]);
+
+  // 另一个项目只有 1 次会话：7 天窗口下它走单会话态。
+  const soloStart = at(4, 10, 0);
+  const soloId = idOf("solo-only");
+  add("solo-only", SOLO, soloStart, [
+    user(soloId, SOLO, soloStart, "只跑一次的会话"),
+    toolUse(soloId, SOLO, at(4, 10, 5), `${soloId}-bash`, "Bash", { command: "ls" })
+  ]);
+
+  const handoffStarts = seeds
+    .filter((seed) => seed.cwd === CWD)
+    .map((seed) => seed.start)
+    .sort((a, b) => a - b);
+  const gaps = handoffStarts.slice(1).map((start, index) => start - handoffStarts[index]);
+
+  return { files: sessionsToFiles(seeds), starts: handoffStarts, gaps, now };
+}
+
+let handoffCache: ReturnType<typeof buildHandoff> | null = null;
+
+function handoffBuilt(): ReturnType<typeof buildHandoff> {
+  if (handoffCache === null) handoffCache = buildHandoff();
+  return handoffCache;
+}
+
+/** 项目接续场景里 handoff 项目的会话开始时刻（升序）——e2e 手算间隔用。 */
+export function handoffSessionStarts(): number[] {
+  return handoffBuilt().starts;
+}
+
+/** 相邻会话的 `startTs` 差（升序），与 `data-handoff-gap` 一一对应。 */
+export function handoffGaps(): number[] {
+  return handoffBuilt().gaps;
+}
+
+/**
+ * 项目接续专用场景：只装本场景的文件，不叠默认八份。
+ * 默认夹具的时间戳在 90 天窗内，会把切换条的项目数带偏。
+ */
+export function handoffScenario(overrides: Partial<MockScenario> = {}): MockScenario {
+  return {
+    ...defaultScenario(overrides),
+    files: handoffBuilt().files
+  };
+}
+
 type Fixtures = { scenario: MockScenario };
 
 export const test = base.extend<Fixtures>({

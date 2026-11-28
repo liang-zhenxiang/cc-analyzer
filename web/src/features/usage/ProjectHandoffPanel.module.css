@@ -1,0 +1,473 @@
+/* 项目接续（Issue #397）——一条时间序列、一串会话节点。
+   版式语言：卡片原语 + 一根基线 + 6px 茎；颜色只有 --text-* / --border* /
+   --bg-* / --accent，语义色只有「样本不足」四个字的 --warning。
+   节点几何（176 宽、44–140 间距）不受字号档缩放；文字跟 --fs-* 走并在
+   单行内省略，全文留在 title / aria-label。 */
+
+/* ---- 表头读数：项目名 · N 次会话 · 显示全部 ---- */
+
+.headerMeta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+/* 项目名最多 140px（130% 下 180px）后被省略——它只是「当前是哪个项目」，
+   不应把计数与开关挤出表头。 */
+.headerProject {
+  overflow: hidden;
+  min-width: 0;
+  max-width: calc(140px + (var(--font-scale) - 1) * 133.3333px);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerCount {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.headerCountValue {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.toggle {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.toggle:hover {
+  color: var(--text);
+}
+
+.toggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* ---- 轨道 ---- */
+
+.scroller {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* 定位根：padding-top = 标签带（--lh-xs + 4）+ 茎 6；左右 12 是首末节点的
+   内距，底部 8 是环位与收边。宽度跟随内容，容器更宽时至少铺满。 */
+.track {
+  position: relative;
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  flex-direction: column;
+  padding: calc(var(--lh-xs) + 10px) var(--sp-3) var(--sp-2);
+  outline: none;
+}
+
+.labels {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: calc(var(--lh-xs) + 4px);
+  pointer-events: none;
+}
+
+/* 间隔标签住在独立标签带里，允许比 gapPx 宽；--bg-subtle 在基线上「打洞」，
+   标签与线不打架。 */
+.gapLabel {
+  position: absolute;
+  top: 50%;
+  padding: 0 var(--sp-1);
+  background: var(--bg-subtle);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+}
+
+/* 唯一的一根横线：从首节点中心到末节点中心。不是坐标轴，没有刻度。 */
+.baseline {
+  position: absolute;
+  top: calc(var(--lh-xs) + 4px);
+  height: 1px;
+  background: var(--border-strong);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+}
+
+.nodeSlot {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+}
+
+.gapSpacer {
+  flex: 0 0 auto;
+}
+
+/* 节点：宽固定 176（不随字号缩放），高由内容决定（min-height 72）。
+   不设 overflow: hidden——左缘的空心圆要跨在边框上。 */
+.node {
+  position: relative;
+  display: flex;
+  width: 176px;
+  min-height: 72px;
+  flex: 0 0 176px;
+  flex-direction: column;
+  gap: var(--sp-05);
+  padding: var(--sp-2);
+  border: 1px solid var(--border);
+  border-left: 2px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-hover) var(--ease-out),
+    border-color var(--dur-hover) var(--ease-out);
+}
+
+/* 6px 竖茎落在节点中心，把节点挂到基线上（+1px 抵掉节点上边框，
+   让茎顶与基线相接而不是留一条缝）。 */
+.node::before {
+  position: absolute;
+  bottom: calc(100% + 1px);
+  left: 50%;
+  width: 1px;
+  height: 6px;
+  background: var(--border-strong);
+  content: "";
+}
+
+/* 悬停只作用于**未选中**节点：选中已经有自己的底色与边框，若 hover 也写
+   `border-color`，指针停在选中节点上时会把左缘的 --accent 竖条盖掉，让
+   「选中且悬停」与「仅悬停」看起来一模一样。 */
+.node:hover:not(.nodeSelected) {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+
+.node.nodeSelected {
+  border-color: var(--border-strong);
+  border-left-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+/* 选中节点上的焦点环：轨道是一个 Tab 止点，环跟着选中走。 */
+.track:focus-visible .nodeSelected {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* 重复交代：6px 空心圆跨在节点左缘中点。中性形状，不是警报。 */
+.echoRing {
+  position: absolute;
+  top: 50%;
+  left: -4px;
+  box-sizing: border-box;
+  width: 6px;
+  height: 6px;
+  border: 1.5px solid var(--text-secondary);
+  border-radius: 50%;
+  background: transparent;
+  transform: translateY(-50%);
+}
+
+.node:hover .echoRing,
+.nodeSelected .echoRing {
+  border-color: var(--text);
+}
+
+.nodeTime {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+}
+
+.stamp {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+/* 「进行中」只说明日志刚写过，不代表进程在运行：实心点 + 文字，不呼吸、
+   不加底色。 */
+.liveBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+.liveDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text);
+}
+
+.nodeTitle {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nodeAction {
+  display: block;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actionVerb {
+  color: var(--text-tertiary);
+}
+
+.actionTarget {
+  font-family: var(--font-mono);
+}
+
+/* 没有工具调用是事实陈述，不用等宽字、不写「暂无」。 */
+.actionNone {
+  color: var(--text-tertiary);
+  font-family: inherit;
+}
+
+/* ---- 接续读数（选中区） ---- */
+
+.detail {
+  min-height: 129px;
+  margin-top: var(--sp-2);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--border);
+}
+
+.detailHead {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+}
+
+.detailTitle {
+  overflow: hidden;
+  min-width: 0;
+  flex: 1 1 240px;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.range {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  white-space: nowrap;
+}
+
+/* 行内文字按钮：不是 disabled 态——没有回调或会话元数据时整枚不渲染。 */
+.openSession {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: var(--lh-xs);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.openSession:hover {
+  color: var(--accent-hover);
+}
+
+.openSession:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.quotes {
+  margin: 0;
+}
+
+.quoteRow {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+
+.quoteLabel {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-sm);
+}
+
+/* 引文不设 line-clamp：数据层已截到 60 字，极端窄宽时让它折行、整卡长高。 */
+.quoteValue {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  overflow-wrap: anywhere;
+}
+
+.quoteMissing {
+  color: var(--text-tertiary);
+}
+
+.echoLine {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin: var(--sp-1) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.echoLead {
+  flex: 0 0 44px;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+}
+
+/* 分数与正文同色；阈值退到第三级。 */
+.echoPercent {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.echoThreshold {
+  color: var(--text-tertiary);
+}
+
+/* 全卡唯一的语义色：只染「样本不足」四个字。分数无法确定，不是「你做得不好」。 */
+.sampleWarning {
+  color: var(--warning);
+}
+
+/* ---- 空态 ---- */
+
+.emptyDescription {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+
+.singleTitle {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-sm);
+}
+
+.singleFact {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.singleMeta {
+  min-width: 0;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  overflow-wrap: anywhere;
+}
+
+.singleSessionTitle {
+  color: var(--text);
+  font-family: inherit;
+}
+
+/* ---- 脚注 ---- */
+
+.footnote {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.srOnly {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---- 高对比度：结构线换成实色档，空心圆加粗 ---- */
+
+:global([data-contrast="high"]) .baseline,
+:global([data-contrast="high"]) .node::before {
+  background: var(--border);
+}
+
+:global([data-contrast="high"]) .echoRing {
+  border-width: 2px;
+}
