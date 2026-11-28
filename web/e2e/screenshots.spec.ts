@@ -23,6 +23,7 @@ import {
   pulseScenario,
   monitorConsoleScenario,
   checkupScenario,
+  handoffScenario,
   MONITOR_CONSOLE_NOW
 } from "./fixtures";
 import { milestonesScenario } from "../tests/fixtures/milestones-scenario";
@@ -145,6 +146,8 @@ const V_MONITOR = declareView("monitor");
 const V_USAGE = declareView("usage");
 const V_CHRONICLE = declareView("chronicle");
 const V_MEMORY = declareView("memory");
+// 项目接续（Issue #397）：与项目记忆同属「项目」档，但取景是接续卡本身。
+const V_MEMORY_HANDOFF = declareView("memory-handoff");
 const V_CAPSULE = declareView("capsule");
 const V_USAGE_BELOW = declareView("usage-below");
 const V_USAGE_COMPARE = declareView("usage-compare");
@@ -1616,6 +1619,85 @@ test.describe("截图归档 · 项目记忆", () => {
       await page.waitForTimeout(300);
       await settleImages(page);
       await page.screenshot({ path: path.join(OUT_DIR, `${V_MEMORY}-${theme}${suffix}.png`) });
+    });
+  }
+});
+
+// 项目接续（Project Handoff，Issue #397）：项目档里接在切换条之后、记忆卡之前
+// 的那张卡。夹具用 `handoffScenario()`——handoff 项目 13 次会话（主序列覆盖
+// 同日 2 小时 / 次日 22 小时 / 3 天后 / 2 天后四种间隔、四种末动作、一对命中与
+// 一对未命中回声），solo 项目 1 次会话。默认选中的是最近有会话的 handoff 项目，
+// 与同档的记忆卡共用同一个 `activeKey`。
+//
+// 取景是一张**元素截图**而不是视口截图：卡片高度随节点与读数区走，整页截图
+// 会把它压扁在首屏里；这张图要能独立验收轨道节点、间隔文案、回声空心圆、
+// 选中态与下方读数区。
+//
+// 窗口收到「近 7 天」：13 个节点里只有 5 个落在窗内，整条轨道因此完整入画
+// （没有半个节点被裁），四种间隔文案仍全部在场。随后**点选命中回声的节点**
+// ——默认选中的是最新节点（未命中，读数 0%），而这张基线要展示的正是本卡
+// 的核心：非零重合百分比与首尾两行引文。
+test.describe("截图归档 · 项目接续", () => {
+  test.skip(!process.env.SCREENSHOTS, "设置 SCREENSHOTS=1 才生成，CI 不跑");
+
+  test.use({ scenario: handoffScenario() });
+
+  test.beforeAll(() => {
+    mkdirSync(OUT_DIR, { recursive: true });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`项目接续 · ${theme}`, async ({ page }) => {
+      await useTheme(page, theme);
+      const engine = test.info().project.name;
+      const suffix = engine === "chromium" ? "" : `-${engine}`;
+
+      await page.goto("/");
+      await page.getByRole("tab", { name: "用量总览" }).click();
+      await page.getByRole("tab", { name: "项目", exact: true }).click();
+      const card = page.getByRole("region", { name: "项目接续" });
+      await expect(card).toBeVisible({ timeout: 15_000 });
+
+      // 近 7 天：handoff 项目只剩主序列 5 次会话，轨道一屏放得下。
+      await page
+        .getByRole("tablist", { name: "时间范围" })
+        .getByRole("tab", { name: "近 7 天" })
+        .click();
+      await expect(card.locator("[data-handoff-node]")).toHaveCount(5);
+
+      // 选中命中回声的节点：读数区才会给出非零百分比与首/尾引文。
+      const hitNode = card
+        .locator("[data-handoff-node]")
+        .filter({ has: page.locator("[data-handoff-echo]") });
+      await expect(hitNode).toHaveCount(1);
+      await hitNode.click();
+      // 点击后指针停在该节点上，`:hover` 的中性边框会盖掉选中态的左缘强调色
+      // （`.node:hover` 特异性高于 `.nodeSelected`）。先把指针移开，截到的才是
+      // 「已选中、未悬停」的常态。
+      await page.mouse.move(0, 0);
+      await expect(hitNode).toHaveAttribute("data-handoff-selected", "");
+      await expect(card.locator('[data-probe="handoff-echo-line"]')).toContainText(
+        "达到阈值 55%"
+      );
+      await expect(card.locator('[data-probe="handoff-opening"]')).toContainText(
+        "导出按钮的禁用态修好之后"
+      );
+      await expect(card.locator('[data-probe="handoff-closing"]')).toContainText(
+        "测试补完了"
+      );
+
+      // 元素截图会让 Playwright 自己滚动到可见；5 个节点时轨道不需要横向滚动，
+      // 归零一次防止残留的 scrollLeft 把首节点裁掉。
+      await card.locator('[data-probe="handoff-track"]').evaluate((element) => {
+        const scroller = element.parentElement;
+        if (scroller) scroller.scrollLeft = 0;
+      });
+      await card.evaluate((element) => element.scrollIntoView({ block: "center" }));
+      await page.waitForTimeout(300);
+      await settleImages(page);
+      await card.screenshot({
+        path: path.join(OUT_DIR, `${V_MEMORY_HANDOFF}-${theme}${suffix}.png`)
+      });
     });
   }
 });

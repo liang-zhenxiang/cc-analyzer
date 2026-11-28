@@ -908,7 +908,7 @@ describe("UsageOverviewPage", () => {
     expect(bridges.dialog.savePath).not.toHaveBeenCalled();
   });
 
-  it("项目档（Project Memory）：项目记忆、搜索框与项目切换都在场", async () => {
+  it("项目档（Project Memory）：接续与记忆共用一条切换条，搜索框在场", async () => {
     const bridges = createUsageBridges({
       [`${PROJECTS_ROOT}/-repo-alpha/aaa.jsonl`]: sessionJsonl("m1", "claude-sonnet-4-5-20250929", 3 * 86_400_000),
       [`${PROJECTS_ROOT}/-repo-beta/bbb.jsonl`]: sessionJsonl("m2", "claude-sonnet-4-5-20250929", 2 * 86_400_000)
@@ -921,8 +921,11 @@ describe("UsageOverviewPage", () => {
 
     const memory = await screen.findByRole("region", { name: "项目记忆" });
     expect(memory).toBeInTheDocument();
-    // 两个项目 → 切换条有 2 个 chip；搜索框始终在场。
-    expect(memory.querySelectorAll("[data-probe='memory-project']").length).toBe(2);
+    expect(await screen.findByRole("region", { name: "项目接续" })).toBeInTheDocument();
+    // 两个项目 → 切换条有 2 个 chip；两张卡之上只有这一条选择器。
+    const toolbar = document.querySelector('[data-probe="handoff-toolbar"]');
+    expect(toolbar?.querySelectorAll("[data-handoff-project]").length).toBe(2);
+    expect(document.querySelectorAll("[data-handoff-project]").length).toBe(2);
     expect(document.querySelector('[data-probe="memory-search"]')).not.toBeNull();
   });
 

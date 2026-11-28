@@ -214,6 +214,7 @@ describe("buildProjectMemories", () => {
 
     expect(memories).toEqual([
       {
+        key: ALPHA_LABEL,
         project: "alpha",
         sessions: 2,
         tokens: 350,
@@ -256,6 +257,7 @@ describe("buildProjectMemories", () => {
         ]
       },
       {
+        key: BETA_LABEL,
         project: "beta",
         sessions: 1,
         tokens: 150,
@@ -301,6 +303,7 @@ describe("buildProjectMemories", () => {
     );
 
     expect(memories).toHaveLength(1);
+    expect(memories[0].key).toBe("gamma");
     expect(memories[0].commands).toEqual([
       { command: "echo now", count: 1, failures: 0, lastUsed: NOW },
       { command: "echo in", count: 1, failures: 0, lastUsed: at(11, 10, 11, 59) },
@@ -346,6 +349,7 @@ describe("buildProjectMemories", () => {
     );
 
     expect(memories).toHaveLength(1);
+    expect(memories[0].key).toBe("");
     expect(memories[0].project).toBe("未命名项目");
     expect(memories[0].tokens).toBe(0);
     expect(memories[0].commands).toEqual([
@@ -363,5 +367,44 @@ describe("buildProjectMemories", () => {
     expect(serialized).not.toContain("--token");
     expect(serialized).not.toContain("api.example.com");
     expect(serialized).not.toContain("fix: leak");
+  });
+
+  it("分组键是 projectLabel：不同目录同名时仍是两个项目", () => {
+    const first = {
+      projectLabel: "-work-a-app",
+      projectPath: "/work/a/app",
+      records: [tool(NOW - 1000, "Bash", { toolInput: { command: "npm test" } })]
+    };
+    const second = {
+      projectLabel: "-work-b-app",
+      projectPath: "/work/b/app",
+      records: [tool(NOW - 900, "Bash", { toolInput: { command: "npm run lint" } })]
+    };
+
+    const memories = buildProjectMemories([first, second], 7, NOW);
+
+    expect(memories).toHaveLength(2);
+    expect(memories.map((memory) => memory.project)).toEqual(["app", "app"]);
+    expect(memories.map((memory) => memory.key).sort()).toEqual([
+      "-work-a-app",
+      "-work-b-app"
+    ]);
+  });
+
+  it("默认不截断项目：第 9 个项目也能查到（项目列表已交给切换条）", () => {
+    const inputs = Array.from({ length: 9 }, (_, index) => ({
+      projectLabel: `project-${index + 1}`,
+      projectPath: `/work/project-${index + 1}`,
+      records: [
+        tool(NOW - (index + 1) * 1000, "Bash", {
+          toolInput: { command: `echo ${index + 1}` }
+        })
+      ]
+    }));
+
+    const memories = buildProjectMemories(inputs, 7, NOW);
+
+    expect(memories).toHaveLength(9);
+    expect(memories.some((memory) => memory.key === "project-9")).toBe(true);
   });
 });

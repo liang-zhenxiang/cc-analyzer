@@ -1,0 +1,98 @@
+/* 项目切换条（Issue #397）：项目档里唯一的项目选择器，住在接续卡与记忆卡
+   之上。几何沿用记忆卡原有的 chip（32px 档），只把「当前项」的记号从左缘
+   竖条换到**下缘**——横向排列时，下缘才是项目名所在的方向。
+
+   横向溢出交给原生 overflow-x：这是一条工具栏，不是数据表；接续轨道才用
+   ScrollArea。两端各留 8px 内距，让切边的 chip 露出半截作为「还能滚」的线索。
+   颜色只有 --bg-* / --text-* / --border / --accent 几档，没有第二套色板。 */
+
+.strip {
+  display: flex;
+  min-width: 0;
+  min-height: 40px;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+}
+
+.label {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+}
+
+.chips {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--sp-1);
+  overflow-x: auto;
+  padding: 0 var(--sp-2);
+}
+
+.chip {
+  display: flex;
+  min-width: 0;
+  min-height: var(--control-h-lg);
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--sp-2);
+  /* 220 是 100% 档的上限；130% 字号下放到 240（文字更长，但仍不让一个
+     项目名吃掉整条）。几何本身不缩放，只有这个上限跟着字号走。 */
+  max-width: calc(220px + (var(--font-scale) - 1) * 66.6667px);
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-hover) var(--ease-out),
+    color var(--dur-hover) var(--ease-out);
+}
+
+.chip:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.chip[aria-pressed="true"] {
+  border-bottom-color: var(--accent);
+  background: var(--bg-hover);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.chip:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.chipName {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 会话数做 chip 的第二读数：小、等宽、弱——只帮用户认出「哪个项目用得多」，
+   不与项目名争。 */
+.chipSessions {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums;
+}

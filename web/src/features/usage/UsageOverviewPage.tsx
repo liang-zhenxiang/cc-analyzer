@@ -38,6 +38,9 @@ import {
 import type { PosterPalette } from "./posterCanvas";
 import { ProjectMemoryPanel } from "./ProjectMemoryPanel";
 import { buildProjectMemories } from "./projectMemory";
+import { ProjectHandoffPanel } from "./ProjectHandoffPanel";
+import { ProjectSwitchStrip } from "./ProjectSwitchStrip";
+import { buildProjectHandoff } from "./projectHandoff";
 import { TimeCapsuleCard } from "./TimeCapsuleCard";
 import { buildTimeCapsule } from "./timeCapsule";
 import { InsightsCard } from "./InsightsCard";
@@ -345,6 +348,9 @@ export function UsageOverviewPage({
   const [tokenClass, setTokenClass] = useState<TokenClass>("total");
   const [modelView, setModelView] = useState<"share" | "swap" | "migration">("share");
   const [view, setView] = useState<UsageView>(readStoredView);
+  // 项目档的当前项目（Issue #397）：切换条是两张卡之上唯一的选择器，
+  // `null` = 还没手动选过，交给 `buildProjectHandoff` 回退到最近有会话的项目。
+  const [activeProjectKey, setActiveProjectKey] = useState<string | null>(null);
   const [activityView, setActivityView] = useState<ActivityView>(readStoredActivityView);
   const [exporting, setExporting] = useState(false);
   // 长图导出与 Markdown 导出是两件事（一个走文本落盘、一个走二进制），
@@ -688,6 +694,17 @@ export function UsageOverviewPage({
   const projectMemories = useMemo(
     () => buildProjectMemories(shapeInputs, days, readouts.now),
     [shapeInputs, days, readouts.now]
+  );
+
+  // 项目接续（Issue #397）：吃**全历史 inputs**，由模型层自己裁窗口——
+  // 「时间未知」的判定要看到窗口外的记录（有记录但窗口内没有可用时间戳，
+  // 且 mtime 落在窗口内才算），先按 startTs 过滤会把这些会话误删。窗口口径
+  // 与项目记忆相同（左界最近 N 个本地日，右界 `now`），两张卡的会话数不会
+  // 因为窗口口径不同而对不上。`activeProjectKey` 由切换条写入；传入的 key
+  // 不在窗口内时模型层回退到最近有会话的项目。
+  const handoff = useMemo(
+    () => buildProjectHandoff(inputs, days, readouts.now, activeProjectKey),
+    [inputs, days, readouts.now, activeProjectKey]
   );
 
   // 时间胶囊吃**全历史** inputs（不是页面区间）：它回看的是去年/上月/100 天前
@@ -1232,9 +1249,23 @@ export function UsageOverviewPage({
           exportingCard={exportingCard}
         />
       ) : view === "memory" ? (
-        /* 项目记忆（Project Memory）：按项目收口的命令 / 热文件 / 坑，自带
-           section 与切换条，不再套 Panel。 */
-        <ProjectMemoryPanel memories={projectMemories} />
+        /* 项目档（Issue #397）：切换条 → 接续（时间）→ 记忆（习惯）。
+           三块共用同一个 `activeKey`，谁也不自带第二个项目选择器。 */
+        <>
+          {handoff.projects.length > 0 ? (
+            <ProjectSwitchStrip
+              projects={handoff.projects}
+              activeKey={handoff.activeKey}
+              onSelect={setActiveProjectKey}
+            />
+          ) : null}
+          <ProjectHandoffPanel handoff={handoff} onOpenSession={onOpenSession} />
+          <ProjectMemoryPanel
+            memories={projectMemories}
+            activeKey={handoff.activeKey}
+            activeName={handoff.track?.project?.name ?? ""}
+          />
+        </>
       ) : view === "compare" ? (
         /* 对照（Issue #377）：两段本地自然日区间并排。A/B 状态住在页面（独立
            持久化），视图只负责把同一份全历史 inputs 折成两组读数与分布。 */
